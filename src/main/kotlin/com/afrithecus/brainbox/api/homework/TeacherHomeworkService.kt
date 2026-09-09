@@ -8,16 +8,19 @@ import com.afrithecus.brainbox.api.common.error.conflict
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.homework.entity.HomeworkEntity
+import com.afrithecus.brainbox.api.homework.entity.HomeworkQuestionEntity
 import com.afrithecus.brainbox.api.homework.entity.HomeworkSubmissionEntity
 import com.afrithecus.brainbox.api.homework.model.GradingMode
 import com.afrithecus.brainbox.api.homework.model.HomeworkScope
 import com.afrithecus.brainbox.api.homework.model.SubmissionStatus
 import com.afrithecus.brainbox.api.homework.model.SubmissionType
+import com.afrithecus.brainbox.api.homework.repository.HomeworkQuestionRepository
 import com.afrithecus.brainbox.api.homework.repository.HomeworkRepository
 import com.afrithecus.brainbox.api.homework.repository.HomeworkSubmissionRepository
 import com.afrithecus.brainbox.api.homework.web.GradeSubmissionRequest
 import com.afrithecus.brainbox.api.homework.web.HomeworkPayload
 import com.afrithecus.brainbox.api.homework.web.HomeworkProgressItem
+import com.afrithecus.brainbox.api.homework.web.HomeworkQuestionRequest
 import com.afrithecus.brainbox.api.homework.web.HomeworkUpsertRequest
 import com.afrithecus.brainbox.api.homework.web.ReturnSubmissionRequest
 import com.afrithecus.brainbox.api.homework.web.SubmissionPayload
@@ -25,6 +28,8 @@ import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.exams.QuestionCodec
+import com.afrithecus.brainbox.api.exams.model.QuestionType
+import com.afrithecus.brainbox.api.exams.web.QuestionPayload
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
@@ -40,6 +45,7 @@ import java.util.UUID
 class TeacherHomeworkService(
     private val homeworkRepository: HomeworkRepository,
     private val submissionRepository: HomeworkSubmissionRepository,
+    private val questionRepository: HomeworkQuestionRepository,
     private val classRepository: TeacherClassRepository,
     private val userRepository: UserRepository,
     private val codec: QuestionCodec,
@@ -63,6 +69,13 @@ class TeacherHomeworkService(
         }
         val entity = existing ?: HomeworkEntity().apply { id = request.id }
         apply(entity, request, clazz, teacher)
+        if (type == SubmissionType.EXAM_QUESTION_SET && request.questions.isNullOrEmpty()) {
+            throw invalidArgument("EXAM_QUESTION_SET homework needs at least one question")
+        }
+        val wasManualGradeGate = mode == null || mode == GradingMode.MANUAL
+        if (mode != null && mode != GradingMode.MANUAL && type != SubmissionType.EXAM_QUESTION_SET) {
+            throw invalidArgument("AUTO grading is only available for EXAM_QUESTION_SET homework")
+        }
 
         if (entity.submissionType == SubmissionType.CHECKLIST) {
             val items = request.checklistItems?.filter { it.isNotBlank() } ?: emptyList()
@@ -74,8 +87,30 @@ class TeacherHomeworkService(
             entity.checklistItems = null
         }
         homeworkRepository.save(entity)
-        return toPayload(entity)
+        persistQuestions(entity, request.questions)
+        return toPayload(entity, includeKeys = true)
     }
+
+    private fun persistQuestions(homework: HomeworkEntity, questions: List<HomeworkQuestionRequest>?) {
+        questionRepository.deleteByHomeworkId(homework.id)
+        if (questions.isNullOrEmpty()) return
+        val entities = questions.mapIndexed { index, q ->
+            val qType = runCatching { QuestionType.valueOf(q.type.trim().uppercase()) }.getOrNull()
+                ?: throw invalidArgument("question type has an invalid value")
+            HomeworkQuestionEntity().apply {
+                homeworkId = homework.id
+                text = q.text
+                this.qType = qType
+                options = codec.toJson(q.options)
+                correctAnswer = q.correctAnswer
+                explanation = q.explanation
+                points = q.points
+                orderIndex = index
+            }
+        }
+        questionRepository.saveAll(entities)
+    }
+
 
     @Transactional(readOnly = true)
     fun list(teacher: UserEntity): List<HomeworkPayload> =
@@ -219,7 +254,7 @@ class TeacherHomeworkService(
     private fun studentName(studentId: UUID): String =
         userRepository.findById(studentId).map { it.name }.orElse("Student")
 
-    internal fun toPayload(homework: HomeworkEntity): HomeworkPayload = HomeworkPayload(
+    internal fun toPayload(homework: HomeworkEntity, includeKeys: Boolean = true): HomeworkPayload = HomeworkPayload(
         id = homework.id,
         classId = homework.classId.toString(),
         teacherId = homework.teacherId.toString(),
@@ -241,6 +276,21 @@ class TeacherHomeworkService(
         isDraft = homework.isDraft,
         isActive = homework.isActive,
         createdAt = homework.createdAt.toEpochMilli(),
+        questions = questionRepository.findAllByHomeworkIdOrderByOrderIndexAsc(homework.id)
+            .map { q ->
+                QuestionPayload(
+                    id = q.id.toString(),
+                    text = q.text,
+                    type = q.qType.name,
+                    options = codec.parseList(q.options),
+                    correctAnswer = if (includeKeys) q.correctAnswer else null,
+                    explanation = if (includeKeys) q.explanation else null,
+                    points = q.points,
+                    difficulty = 3,
+                    topic = null,
+                    subtopic = null,
+                )
+            },
     )
 
     private fun toSubmissionPayload(sub: HomeworkSubmissionEntity, studentName: String) = SubmissionPayload(

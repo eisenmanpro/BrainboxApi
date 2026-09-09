@@ -1,13 +1,27 @@
 package com.afrithecus.brainbox.api.homework.web
 
+import com.afrithecus.brainbox.api.exams.web.QuestionPayload
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
+import tools.jackson.databind.JsonNode
 
 // ---------------------------------------------------------------------------
 // Homework payloads (web homework contract).
 // ---------------------------------------------------------------------------
+
+data class HomeworkQuestionRequest(
+    @field:NotBlank
+    val text: String,
+    @field:NotBlank
+    val type: String,
+    val options: List<String>? = null,
+    val correctAnswer: String? = null,
+    val explanation: String? = null,
+    @field:Min(1)
+    val points: Int = 1,
+)
 
 data class HomeworkUpsertRequest(
     @field:NotBlank
@@ -28,6 +42,8 @@ data class HomeworkUpsertRequest(
     val submissionType: String,
     @field:Size(max = 20)
     val checklistItems: List<String>? = null,
+    @field:Size(max = 100)
+    val questions: List<HomeworkQuestionRequest>? = null,
     val gradingMode: String? = null,
     val isPastPaperUnlocked: Boolean = false,
     val cbcStrandTag: String? = null,
@@ -62,6 +78,8 @@ data class HomeworkPayload(
     val isDraft: Boolean,
     val isActive: Boolean,
     val createdAt: Long,
+    // question-set content; keys only ever included in teacher payloads
+    val questions: List<QuestionPayload>? = null,
     // student-side extras (absent for teachers via non-null exclusion)
     val submissionStatus: String? = null,
     val grade: Int? = null,
@@ -105,4 +123,5 @@ data class StudentSubmitRequest(
     val submissionText: String? = null,
     val checklistAnswers: List<Int>? = null,
     val attachmentUrl: String? = null,
+    val answers: JsonNode? = null,
 )

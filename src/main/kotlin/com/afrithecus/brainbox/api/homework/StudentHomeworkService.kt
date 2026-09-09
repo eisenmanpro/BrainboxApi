@@ -10,6 +10,9 @@ import com.afrithecus.brainbox.api.homework.entity.HomeworkEntity
 import com.afrithecus.brainbox.api.homework.entity.HomeworkSubmissionEntity
 import com.afrithecus.brainbox.api.homework.model.SubmissionStatus
 import com.afrithecus.brainbox.api.homework.model.SubmissionType
+import com.afrithecus.brainbox.api.exams.AutoGrader
+import com.afrithecus.brainbox.api.homework.entity.HomeworkQuestionEntity
+import com.afrithecus.brainbox.api.homework.repository.HomeworkQuestionRepository
 import com.afrithecus.brainbox.api.homework.repository.HomeworkRepository
 import com.afrithecus.brainbox.api.homework.repository.HomeworkSubmissionRepository
 import com.afrithecus.brainbox.api.homework.web.HomeworkPayload
@@ -33,6 +36,8 @@ class StudentHomeworkService(
     private val submissionRepository: HomeworkSubmissionRepository,
     private val membershipRepository: ClassMembershipRepository,
     private val teacherService: TeacherHomeworkService,
+    private val questionRepository: HomeworkQuestionRepository,
+    private val autoGrader: AutoGrader,
     private val codec: QuestionCodec,
     private val mapper: ObjectMapper,
     private val clock: Clock,
@@ -64,7 +69,7 @@ class StudentHomeworkService(
         val hw = findVisible(student, homeworkId)
         validateContent(hw, request)
         val existing = submissionRepository.findByHomeworkIdAndStudentId(hw.id, student.id)
-        if (existing != null && existing.status == SubmissionStatus.GRADED) {
+        if (existing != null && isLocked(hw, existing)) {
             throw conflict("Homework already graded; ask your teacher to return it before resubmitting")
         }
         val submission = (existing ?: HomeworkSubmissionEntity().apply {
@@ -74,10 +79,13 @@ class StudentHomeworkService(
             submissionText = request.submissionText?.takeIf { it.isNotBlank() }
             attachmentUrl = request.attachmentUrl?.takeIf { it.isNotBlank() }
             checklistAnswers = request.checklistAnswers?.let { mapper.writeValueAsString(it) }
+            answersJson = request.answers?.let { mapper.writeValueAsString(it) }
             status = SubmissionStatus.PENDING
+            grade = null
             submittedAt = clock.instant()
             updatedAt = clock.instant()
         }
+        autoGradeIfQuestionSet(hw, submission, request)
         submissionRepository.save(submission)
         return withSubmission(hw, student.id)
     }
@@ -119,17 +127,70 @@ class StudentHomeworkService(
                 // physical hand-ins: submittedAt is the canonical signal; no text expected
                 request.submissionText?.let { if (it.isNotBlank()) throw invalidArgument("Physical hand-ins do not take text") }
             }
-            else -> { /* PAST_PAPER_REVIEW / EXAM_QUESTION_SET content flows arrive with question-set homework */ }
+            SubmissionType.EXAM_QUESTION_SET -> {
+                if (request.answers == null || !request.answers.isObject) {
+                    throw invalidArgument("Question-set homework needs an answers object")
+                }
+            }
+            else -> { /* PAST_PAPER_REVIEW content arrives with past-paper flows */ }
         }
     }
 
     private fun withSubmission(hw: HomeworkEntity, studentId: UUID): HomeworkPayload {
-        val payload = teacherService.toPayload(hw)
+        // Student payloads never receive question keys.
+        val payload = teacherService.toPayload(hw, includeKeys = false)
         val submission = submissionRepository.findByHomeworkIdAndStudentId(hw.id, studentId)
         if (submission == null) return payload
+        val (status, grade) = revealedState(hw, submission)
         return payload.copy(
-            submissionStatus = submission.status.name,
-            grade = submission.grade,
+            submissionStatus = status,
+            grade = grade,
         )
+    }
+
+    /** AUTO_POST_COMPLETION hides the grade until the due date passes. */
+    private fun revealedState(hw: HomeworkEntity, submission: HomeworkSubmissionEntity): Pair<String, Int?> {
+        val autoPost = hw.gradingMode == com.afrithecus.brainbox.api.homework.model.GradingMode.AUTO_POST_COMPLETION
+        val immediate = hw.gradingMode == com.afrithecus.brainbox.api.homework.model.GradingMode.AUTO_IMMEDIATE
+        return if (submission.grade != null && (immediate || (autoPost && !hw.dueDate.isAfter(clock.instant())))) {
+            Pair(SubmissionStatus.GRADED.name, submission.grade)
+        } else if (submission.status == SubmissionStatus.GRADED) {
+            Pair(SubmissionStatus.GRADED.name, submission.grade)
+        } else {
+            Pair(submission.status.name, null)
+        }
+    }
+
+    private fun isLocked(hw: HomeworkEntity, submission: HomeworkSubmissionEntity): Boolean {
+        if (submission.status == SubmissionStatus.GRADED) return true
+        val autoPost = hw.gradingMode == com.afrithecus.brainbox.api.homework.model.GradingMode.AUTO_POST_COMPLETION
+        return autoPost && submission.grade != null && !hw.dueDate.isAfter(clock.instant())
+    }
+
+    private fun autoGradeIfQuestionSet(hw: HomeworkEntity, submission: HomeworkSubmissionEntity, request: StudentSubmitRequest) {
+        if (hw.submissionType != SubmissionType.EXAM_QUESTION_SET) return
+        val questions = questionRepository.findAllByHomeworkIdOrderByOrderIndexAsc(hw.id)
+        if (questions.isEmpty()) throw conflict("Homework has no questions to grade")
+        val answers = request.answers ?: return
+        var score = 0
+        val total = questions.sumOf { it.points }
+        questions.forEach { q ->
+            val outcome = autoGrader.grade(q.qType, q.correctAnswer, null, q.points, answers.get(q.id.toString()))
+            score += outcome.pointsEarned
+        }
+        val percentage = if (total > 0) (score * 100.0 / total).toInt() else 0
+        when (hw.gradingMode) {
+            com.afrithecus.brainbox.api.homework.model.GradingMode.AUTO_IMMEDIATE -> {
+                submission.status = SubmissionStatus.GRADED
+                submission.grade = percentage
+                submission.gradedAt = clock.instant()
+            }
+            com.afrithecus.brainbox.api.homework.model.GradingMode.AUTO_POST_COMPLETION -> {
+                // keep PENDING; grade reveals when the due date passes
+                submission.status = SubmissionStatus.PENDING
+                submission.grade = percentage
+            }
+            else -> { /* MANUAL: teacher grades */ }
+        }
     }
 }

@@ -35,6 +35,10 @@ class HomeworkSubmissionEntity {
     @Column(name = "attachment_url", length = 512)
     var attachmentUrl: String? = null
 
+    /** JSON object of question answers (EXAM_QUESTION_SET). */
+    @Column(name = "answers_json", columnDefinition = "text")
+    var answersJson: String? = null
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     var status: SubmissionStatus = SubmissionStatus.PENDING
