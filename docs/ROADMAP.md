@@ -184,8 +184,10 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       exam_sessions, exam_submissions); admin authoring API (POST /admin/exams incl keys,
       publish/archive); scope filtering GLOBAL/SCHOOL start; hub state + tab lists + /exams
       listings + detail with answer-key withholding (verified by tests); parity-verified on PG18
-- [ ] Exam session lifecycle (2A next): start/sync/submit, server-side auto-grading (score=-1
-      sentinel), results, past-paper attempt endpoints (doc 02 §3/§5)
+- [x] Exam session lifecycle (2A, doc 02 §3/§5): start/resume w/ withheld keys + countdown,
+      idempotent progress sync, submit with server-side auto-grading (AutoGrader: MCQ/
+      multi-select/matching/short/number/essay policy), results + submission endpoints,
+      past-paper discovery (all/search) + idempotent client-scored attempts
 - [ ] Contest system: register, session, submit, server-computed integrity + leaderboards (doc 05 §1)
 - [ ] Learning hub: posts, readable files, reading progress/sessions, scope filtering (doc 03 §1-4)
 - [ ] Recommendations (personalized + trending, server-derived) (doc 03 §5)
