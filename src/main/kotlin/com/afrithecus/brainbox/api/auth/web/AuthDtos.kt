@@ -40,6 +40,13 @@ data class RefreshRequest(
     val refreshToken: String,
 )
 
+data class SwitchSessionRequest(
+    @field:NotBlank
+    val targetUserId: String,
+    @field:NotBlank
+    val targetRole: String,
+)
+
 // ---------------------------------------------------------------------------
 // Response payloads (doc 01 §1.1 login/§1.3 me/§1.5 refresh, §2.1 user model).
 // ---------------------------------------------------------------------------

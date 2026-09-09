@@ -151,39 +151,30 @@ Phases come from BrainBox/docs/backend_contracts/11_... Appendix A (checklist), 
 agentic pipeline added as Phase 7. Each phase becomes its own session goal when it
 starts; this document is the durable long-term plan. Progress = checked items.
 
-### Phase 1 — Core Infrastructure  (goal 1)
-- [x] Project setup: package layout (com.afrithecus.brainbox.api), application.yml per-profile
-      config (dev/staging/prod, env overrides), compose.yaml (postgres:17), JDK21 toolchain
-- [x] Flyway baseline V1 (schools/users/user_sessions/refresh_tokens/subscriptions; uuid PKs,
-      updated_at + version) + Boot 4 flyway starter + H2-PG test profile
-- [x] JPA mapping layer (entities + repositories) validated against schema in tests
-- [x] Standard error envelope + HTTP status mapping (doc 11 §8), tested end to end
-- [x] JWT skeleton: HMAC service (24h access, claims), bearer filter, stateless SecurityConfig,
-      401/403 envelope handlers, BCrypt, clock bean (unit tested)
-- [x] JWT auth endpoints: signup/login/me/logout + refresh rotation with reuse detection (doc 01 §1)
-- [x] Session registry + multi-session policy: students <=3 active sessions, teachers/parents 1,
-      oldest evicted on cap, refresh-token families (doc 01 §5; role-switch /auth/switch-session pending)
-- [x] Teacher-code (CTC) storage + student join validation (V2 teacher_codes; doc 01 §7.1)
-      [issuance via admin teacher creation still pending]
-- [x] Grade normalization utility (GradeNormalizer: Form 3 == FORM_THREE == Grade 08) + tests
-- [x] RBAC guards via @PreAuthorize + method security (ADMIN on /admin/**; authorities incl.
-      sub-roles present; per-domain ownership scoping lands with feature endpoints)
-- [x] Admin user mgmt (list/search/patch/deactivate), parent-child link, approve/reject,
-      reset-password, subscription updates (doc 01 §2.2/§6.1/§8.2)
-- [x] CTC issuance: admin creates teacher with server-generated 6-char code; list/remove
-      teacher (doc 01 §7.2); V3 teacher_profiles + V4 school is_active
-- [x] School endpoints: public search/all + detail, admin PATCH/DELETE (doc 01 §9.2)
-      [grade-level /traditional endpoints belong to Phase 4]
-- [ ] Role-switch /auth/switch-session (doc 01 §5.3)
-- [ ] Subscription tier upgrade/payment endpoints + entitlement enforcement on paywalled routes (doc 01 §4, 07)
-- [ ] Cross-cutting: idempotent POST, rate limiting, security headers (RLS content scope &
-      answer-key withholding ship with Phase 2 content endpoints)
-- [ ] Student verification & approval flow (doc 01 §8)
-- [ ] Cross-cutting enforcement: content scope (RLS + app), answer-key withholding serializer,
-      idempotent POST handling, rate limiting, security headers, grade normalization
-- [ ] Subscription model + entitlement middleware (BASE/EXPLORER/PRO; doc 01 §4, 07)
-- [ ] OpenAPI exposure (springdoc or static openapi.yaml once verified for Boot 4); fixture
-      contract-test harness extended per endpoint
+### Phase 1 — Core Infrastructure  (goal 1) — COMPLETE (commit e1a1dae + this round)
+- [x] Project setup: com.afrithecus.brainbox.api, profiles (dev/staging/prod), env-driven secrets,
+      compose.yaml postgres:17, JDK21 toolchain, H2-PG test profile, Boot 4 flyway starter
+- [x] Flyway V1-V5: core identity, teacher_codes, admin identity, school is_active, idempotency
+- [x] Error envelope (doc 11 §8.1) + status mapping, security 401/403/429 writers, tested end to end
+- [x] JWT: 24h HMAC access + claims, bearer filter, stateless chain, BCrypt, injectable clock
+- [x] Auth endpoints: signup/login/me/logout/refresh rotation w/ family reuse detection (doc 01 §1)
+- [x] Sessions: <=3 student / 1 teacher-parent, oldest evicted, device dedupe (doc 01 §5.1) +
+      parent->child /auth/switch-session (§5.3)
+- [x] RBAC: role + sub-role authorities; @PreAuthorize ADMIN guards; method security
+      (spring-boot-starter-aspectj); 403 envelope for method denials
+- [x] Identity admin: user list/get/patch/deactivate, subscription updates, reset-password,
+      parent-link, approve/reject (doc 01 §2.2/§6/§8.2)
+- [x] CTC: V2 table + student join validation; admin teacher creation w/ server-generated code,
+      list/remove (doc 01 §7.2); school endpoints incl public search/all/detail (doc 01 §9.2)
+- [x] Subscription/entitlement middleware: server-authoritative expiry + access levels
+      (unverified students capped BASE; teacher/parent/admin exempt)
+- [x] Grade normalization (GradeNormalizer) + tests
+- [x] Cross-cutting: rate limiting (token bucket, 429 + Retry-After), security headers, idempotent
+      POST via X-Idempotency-Key replay cache (V5), hourly purge
+- [ ] Deferred by design (tracked in later phases): subscription/payment endpoints + M-Pesa
+      (Phase 6 per doc 11 checklist); content-scope RLS + answer-key withholding ship with the
+      Phase 2 content endpoints that need them; per-domain ownership scoping on feature routes;
+      OpenAPI exposure once springdoc supports Boot 4 (contract tests used meanwhile)
 
 Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 

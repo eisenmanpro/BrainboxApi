@@ -7,6 +7,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
@@ -21,6 +22,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 class SecurityConfig(
     private val authTokenFilter: AuthTokenFilter,
     private val envelopeWriter: SecurityEnvelopeWriter,
+    private val rateLimitFilter: RateLimitFilter,
+    private val idempotencyFilter: com.afrithecus.brainbox.api.common.idempotency.IdempotencyFilter,
 ) {
 
     @Bean
@@ -29,6 +32,17 @@ class SecurityConfig(
         val accessDeniedHandler = RestAccessDeniedHandler(envelopeWriter)
         return http
             .csrf { it.disable() }
+            .headers { headers ->
+                headers.frameOptions { it.deny() }
+                headers.referrerPolicy { it.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER) }
+                headers.addHeaderWriter { _, response ->
+                    response.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+                    response.setHeader("Cache-Control", "no-store")
+                }
+                headers.httpStrictTransportSecurity {
+                    it.includeSubDomains(true).maxAgeInSeconds(31536000)
+                }
+            }
             .httpBasic { it.disable() }
             .formLogin { it.disable() }
             .logout { it.disable() }
@@ -52,6 +66,8 @@ class SecurityConfig(
                 it.authenticationEntryPoint(entryPoint)
                 it.accessDeniedHandler(accessDeniedHandler)
             }
+            .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter::class.java)
+            .addFilterBefore(idempotencyFilter, UsernamePasswordAuthenticationFilter::class.java)
             .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter::class.java)
             .build()
     }

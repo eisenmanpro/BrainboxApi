@@ -43,6 +43,13 @@ class AuthController(private val authService: AuthService) {
     fun me(@AuthenticationPrincipal currentUser: CurrentUser): AuthResponse =
         authService.me(currentUser)
 
+    @PostMapping("/switch-session")
+    fun switchSession(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @Valid @RequestBody request: SwitchSessionRequest,
+        http: HttpServletRequest,
+    ): AuthResponse = authService.switchSession(currentUser, request, http.getHeader(DEVICE_ID_HEADER))
+
     private companion object {
         const val DEVICE_ID_HEADER = "X-Device-Id"
     }

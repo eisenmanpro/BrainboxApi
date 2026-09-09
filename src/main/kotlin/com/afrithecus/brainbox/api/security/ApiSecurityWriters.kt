@@ -26,6 +26,13 @@ class SecurityEnvelopeWriter(private val objectMapper: ObjectMapper) {
     fun writeForbidden(request: HttpServletRequest, response: HttpServletResponse) =
         write(request, response, HttpStatus.FORBIDDEN, ApiErrorCode.FORBIDDEN, "Access denied")
 
+    fun writeTooManyRequests(request: HttpServletRequest, response: HttpServletResponse, retryAfterSeconds: Long) {
+        if (!response.containsHeader("Retry-After")) {
+            response.setHeader("Retry-After", retryAfterSeconds.toString())
+        }
+        write(request, response, HttpStatus.TOO_MANY_REQUESTS, ApiErrorCode.TOO_MANY_REQUESTS, "Too many requests")
+    }
+
     private fun write(
         request: HttpServletRequest,
         response: HttpServletResponse,

@@ -233,4 +233,45 @@ class AuthFlowWebTests(
         ).andExpect(status().isBadRequest).andReturn().response.contentAsString
         check(objectMapper.readValue(unknown, ApiError::class.java).message.contains("Unknown or inactive"))
     }
+
+    @Test
+    fun `parent switches into a linked child session and others are forbidden`() {
+        val parent = signup("0711000020", role = "PARENT")
+        val child = signup("0711000021")
+        val stranger = signup("0711000022")
+
+        val childEntity = userRepository.findById(java.util.UUID.fromString(child.user.id)).orElseThrow()
+        childEntity.parentUserId = java.util.UUID.fromString(parent.user.id)
+        userRepository.save(childEntity)
+
+        val switched = mockMvc.perform(
+            post("/auth/switch-session")
+                .header("Authorization", "Bearer " + parent.sessionToken)
+                .header("X-Device-Id", "parent-device")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"targetUserId":"${child.user.id}","targetRole":"STUDENT"}""")
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val session = objectMapper.readValue(switched, AuthResponse::class.java)
+        check(session.user.id == child.user.id)
+        check(session.sessionToken != parent.sessionToken)
+
+        val me = mockMvc.perform(
+            get("/auth/me").header("Authorization", "Bearer " + session.sessionToken)
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        check(objectMapper.readValue(me, AuthResponse::class.java).user.phoneNumber == "0711000021")
+
+        mockMvc.perform(
+            post("/auth/switch-session")
+                .header("Authorization", "Bearer " + stranger.sessionToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"targetUserId":"${child.user.id}","targetRole":"STUDENT"}""")
+        ).andExpect(status().isForbidden)
+
+        mockMvc.perform(
+            post("/auth/switch-session")
+                .header("Authorization", "Bearer " + parent.sessionToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"targetUserId":"${stranger.user.id}","targetRole":"STUDENT"}""")
+        ).andExpect(status().isForbidden)
+    }
 }

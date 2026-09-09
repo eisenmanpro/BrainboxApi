@@ -23,3 +23,8 @@ spring:
   flyway:
     enabled: true
     clean-disabled: false
+
+app:
+  security:
+    rate-limit:
+      enabled: false

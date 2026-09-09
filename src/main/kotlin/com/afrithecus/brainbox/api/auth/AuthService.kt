@@ -202,6 +202,35 @@ class AuthService(
         }
     }
 
+    /**
+     * Role/account switching (doc 01 §5.3): a parent may switch into a linked
+     * child's session on the same device. Tokens are issued for the child.
+     */
+    @Transactional
+    fun switchSession(
+        currentUser: CurrentUser,
+        request: com.afrithecus.brainbox.api.auth.web.SwitchSessionRequest,
+        deviceId: String?,
+    ): AuthResponse {
+        if (currentUser.role != Role.PARENT) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "Only parents can switch to a child session")
+        }
+        val childId = runCatching { UUID.fromString(request.targetUserId) }.getOrNull()
+            ?: throw invalidArgument("targetUserId is not a valid identifier")
+        val child = userRepository.findById(childId).orElse(null)
+            ?: throw notFound("Child account not found")
+        if (child.role != Role.STUDENT) throw invalidArgument("targetRole must match a STUDENT account")
+
+        val linked = userRepository.findByParentUserId(currentUser.userId)
+        if (linked.none { it.id == child.id }) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "Child is not linked to this parent")
+        }
+        if (request.targetRole.trim().uppercase() != Role.STUDENT.name) {
+            throw invalidArgument("targetRole does not match the target account")
+        }
+        return issueAuthResponse(child, deviceId, includeTokens = true, message = "Session switched")
+    }
+
     @Transactional
     fun me(currentUser: CurrentUser): AuthResponse {
         val user = userRepository.findById(currentUser.userId).orElse(null)

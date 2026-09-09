@@ -55,6 +55,11 @@ app:
       issuer: ${JWT_ISSUER:brainbox-api}
       access-token-ttl: 24h
       refresh-token-ttl: 30d
+    rate-limit:
+      # Token bucket per client IP; override capacity/refill per environment.
+      enabled: true
+      capacity: 120
+      refill-per-second: 2
 
 logging:
   level:
