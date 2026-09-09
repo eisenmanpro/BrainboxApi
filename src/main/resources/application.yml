@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: BrainboxApi
+  profiles:
+    active: dev
+  autoconfigure:
+    exclude:
+      # DeepSeek requires an API key; re-enable when the agentic pipeline (Phase 7)
+      # is wired and DEEPSEEK_API_KEY is provided.
+      - org.springframework.ai.model.deepseek.autoconfigure.DeepSeekChatAutoConfiguration
+  docker:
+    compose:
+      enabled: false
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/brainbox}
+    username: ${DB_USER:brainbox}
+    password: ${DB_PASSWORD:brainbox}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jackson:
+    default-property-inclusion: non_null
+
+server:
+  error:
+    include-message: never
+    include-stacktrace: never
+    whitelabel:
+      enabled: false
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+app:
+  security:
+    jwt:
+      # Base64-encoded HMAC secret. Override in each environment. Dev default only.
+      secret: ${JWT_SECRET:ZGV2LW9ubHktYmFzZTY0LXNlY3JldC1rZXktZG8tbm90LXVzZS1pbi1wcm9kLTIwMjY=}
+      issuer: ${JWT_ISSUER:brainbox-api}
+      access-token-ttl: 24h
+      refresh-token-ttl: 30d
+
+logging:
+  level:
+    root: INFO
+    com.afrithecus.brainbox.api: INFO

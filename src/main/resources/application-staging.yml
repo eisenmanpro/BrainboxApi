@@ -1,0 +1,10 @@
+# Staging environment. Mirrors the Android 'staging' flavor base URL.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+
+logging:
+  level:
+    com.afrithecus.brainbox.api: INFO

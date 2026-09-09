@@ -1,0 +1,11 @@
+# Development environment. Mirrors the Android 'dev' flavor expectations.
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/brainbox}
+    username: ${DB_USER:brainbox}
+    password: ${DB_PASSWORD:brainbox}
+
+logging:
+  level:
+    com.afrithecus.brainbox.api: DEBUG
+    org.springframework.security: INFO

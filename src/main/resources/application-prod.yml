@@ -1,0 +1,17 @@
+# Production environment. All secrets must come from the environment.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    root: WARN
+    com.afrithecus.brainbox.api: INFO
