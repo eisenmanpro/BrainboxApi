@@ -33,6 +33,8 @@ interface UserRepository : JpaRepository<UserEntity, UUID> {
 
     fun countBySchoolIdAndRole(schoolId: UUID, role: Role): Long
 
+    fun findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId: UUID): List<UserEntity>
+
     fun findByPhoneNumber(phoneNumber: String): UserEntity?
 
     fun findByEmail(email: String): UserEntity?

@@ -205,7 +205,13 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       [likes & file upload/presign remain for later phases]
 - [ ] Recommendations (personalized + trending, server-derived) (doc 03 §5)
 - [ ] Homework with submission + auto-grading (doc 02/blueprint homework)
-- [ ] Messaging: fan-out, unified inbox, class groups, read receipts (doc 05 §2)
+- [x] Messaging core (2F, doc 05 §2): V14 messages (per-delivery rows, folder inbox/sent);
+      direct send auth (students only to own-school staff); teacher INDIVIDUAL/CLASS/
+      CLASS_PARENTS fan-out to owned classes (CLASS_PARENTS -> student inbox
+      intendedForParent=true, unified inbox, no parent accounts); idempotent msg ids
+      (X-Message-Id replay no-op); inbox/sent/outbox + read receipts; school member
+      directory w/ role filter; tests + PG18 parity
+      [class-group chat (doc 04 §12) = follow-on]
 - [ ] Doubt solving forum (ask/answer/accept/vote) (doc 05 §3)
 - [ ] Career guidance + school matching + goal setting (doc 06 §1/4)
 - [ ] Mock interviews incl. emotion variant + analytics (doc 06 §2)
