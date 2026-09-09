@@ -39,6 +39,8 @@ class SecurityConfig(
                         "/auth/login",
                         "/auth/signup",
                         "/auth/refresh",
+                        "/schools/search",
+                        "/schools/all",
                         "/actuator/health",
                         "/actuator/health/**",
                         "/actuator/info",

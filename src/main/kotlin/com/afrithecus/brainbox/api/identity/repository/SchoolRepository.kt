@@ -6,4 +6,8 @@ import java.util.UUID
 
 interface SchoolRepository : JpaRepository<SchoolEntity, UUID> {
     fun findByNameIgnoreCase(name: String): SchoolEntity?
+
+    fun findByNameContainingIgnoreCaseOrderByNameAsc(query: String): List<SchoolEntity>
+
+    fun findAllByOrderByNameAsc(): List<SchoolEntity>
 }

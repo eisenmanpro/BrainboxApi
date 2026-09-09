@@ -166,10 +166,18 @@ starts; this document is the durable long-term plan. Progress = checked items.
 - [x] Teacher-code (CTC) storage + student join validation (V2 teacher_codes; doc 01 §7.1)
       [issuance via admin teacher creation still pending]
 - [x] Grade normalization utility (GradeNormalizer: Form 3 == FORM_THREE == Grade 08) + tests
-- [ ] RBAC feature scopes + role-hierarchy guards on endpoints (doc 01 §3; authorities/roles exist)
-- [ ] User management + parent-child linking + admin endpoints (doc 01 §2.2/§6/§8.2)
-- [ ] CTC issuance: admin create teacher with generated code (doc 01 §7.2)
+- [x] RBAC guards via @PreAuthorize + method security (ADMIN on /admin/**; authorities incl.
+      sub-roles present; per-domain ownership scoping lands with feature endpoints)
+- [x] Admin user mgmt (list/search/patch/deactivate), parent-child link, approve/reject,
+      reset-password, subscription updates (doc 01 §2.2/§6.1/§8.2)
+- [x] CTC issuance: admin creates teacher with server-generated 6-char code; list/remove
+      teacher (doc 01 §7.2); V3 teacher_profiles + V4 school is_active
+- [x] School endpoints: public search/all + detail, admin PATCH/DELETE (doc 01 §9.2)
+      [grade-level /traditional endpoints belong to Phase 4]
+- [ ] Role-switch /auth/switch-session (doc 01 §5.3)
 - [ ] Subscription tier upgrade/payment endpoints + entitlement enforcement on paywalled routes (doc 01 §4, 07)
+- [ ] Cross-cutting: idempotent POST, rate limiting, security headers (RLS content scope &
+      answer-key withholding ship with Phase 2 content endpoints)
 - [ ] Student verification & approval flow (doc 01 §8)
 - [ ] Cross-cutting enforcement: content scope (RLS + app), answer-key withholding serializer,
       idempotent POST handling, rate limiting, security headers, grade normalization

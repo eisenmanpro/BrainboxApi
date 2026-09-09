@@ -58,8 +58,9 @@ class JwtTokenServiceTest {
     fun `rejects a tampered token`() {
         val userId = UUID.randomUUID()
         val token = service.issueAccessToken(userId = userId, role = Role.ADMIN)
-        val tampered = token.dropLast(1) + if (token.last() == 'a') 'b' else 'a'
-        assertFailsWith<JwtException> { service.parseAccessToken(tampered) }
+        val chars = token.toCharArray()
+        chars[chars.size / 2] = if (chars[chars.size / 2] == 'a') 'b' else 'a'
+        assertFailsWith<JwtException> { service.parseAccessToken(String(chars)) }
     }
 
     @Test

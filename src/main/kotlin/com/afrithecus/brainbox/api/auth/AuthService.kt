@@ -6,7 +6,6 @@ import com.afrithecus.brainbox.api.auth.web.RefreshRequest
 import com.afrithecus.brainbox.api.auth.web.RefreshResponse
 import com.afrithecus.brainbox.api.auth.web.SignupRequest
 import com.afrithecus.brainbox.api.auth.web.SubscriptionPayload
-import com.afrithecus.brainbox.api.auth.web.UserPayload
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.conflict
@@ -26,6 +25,7 @@ import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.TeacherCodeRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.identity.repository.UserSessionRepository
+import com.afrithecus.brainbox.api.identity.web.UserPayloadFactory
 import com.afrithecus.brainbox.api.security.JwtTokenService
 import com.afrithecus.brainbox.api.security.TokenHash
 import com.afrithecus.brainbox.api.subscription.Entitlements
@@ -52,6 +52,7 @@ class AuthService(
     private val subscriptionService: SubscriptionService,
     private val passwordEncoder: PasswordEncoder,
     private val jwtTokenService: JwtTokenService,
+    private val userPayloadFactory: UserPayloadFactory,
     private val clock: Clock,
 ) {
 
@@ -221,7 +222,7 @@ class AuthService(
         val subscriptionView = subscriptionService.view(user.id)
 
         val linkedChildren = if (user.role == Role.PARENT) {
-            userRepository.findByParentUserId(user.id).map { toPayload(it) }
+            userRepository.findByParentUserId(user.id).map { userPayloadFactory.toPayload(it) }
         } else {
             null
         }
@@ -261,7 +262,7 @@ class AuthService(
             message = message,
             sessionToken = sessionToken,
             refreshToken = refreshToken,
-            user = toPayload(user),
+            user = userPayloadFactory.toPayload(user),
             subscription = SubscriptionPayload(
                 userId = user.id.toString(),
                 status = subscriptionView.status,
@@ -271,31 +272,6 @@ class AuthService(
             ),
             accessLevel = accessLevel.name,
             linkedChildren = linkedChildren,
-        )
-    }
-
-    private fun toPayload(user: UserEntity): UserPayload {
-        val schoolName = user.schoolId?.let { id ->
-            schoolRepository.findById(id).map { it.name }.orElse(null)
-        }
-        return UserPayload(
-            id = user.id.toString(),
-            phoneNumber = user.phoneNumber,
-            name = user.name,
-            role = user.role.name,
-            subRole = user.subRole?.name,
-            schoolId = user.schoolId?.toString(),
-            schoolName = schoolName,
-            studentAdmissionNumber = user.studentAdmissionNumber,
-            parentId = user.parentUserId?.toString(),
-            childId = null,
-            referredByTeacherCode = user.referredByTeacherCode,
-            joinedTeacherId = user.joinedTeacherId?.toString(),
-            gradeLevel = user.gradeLevel,
-            isActive = user.isActive,
-            isVerified = user.isVerified,
-            createdAt = user.createdAt.toEpochMilli(),
-            lastLogin = user.lastLogin?.toEpochMilli(),
         )
     }
 

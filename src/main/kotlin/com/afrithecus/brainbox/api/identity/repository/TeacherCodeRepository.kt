@@ -8,5 +8,9 @@ interface TeacherCodeRepository : JpaRepository<TeacherCodeEntity, UUID> {
 
     fun findByCodeAndActiveTrue(code: String): TeacherCodeEntity?
 
+    fun findByTeacherUserIdAndActiveTrue(teacherUserId: UUID): TeacherCodeEntity?
+
+    fun existsByCode(code: String): Boolean
+
     fun existsByTeacherUserId(teacherUserId: UUID): Boolean
 }

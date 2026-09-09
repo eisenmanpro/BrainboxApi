@@ -5,6 +5,7 @@ import jakarta.validation.ConstraintViolationException
 import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
+import org.springframework.security.access.AccessDeniedException
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.MethodArgumentNotValidException
@@ -48,6 +49,10 @@ class GlobalExceptionHandler {
     @ExceptionHandler(NoResourceFoundException::class)
     fun handleNoResource(ex: NoResourceFoundException, request: HttpServletRequest): ResponseEntity<ApiError> =
         respond(ApiErrorCode.NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found", null, request)
+
+    @ExceptionHandler(AccessDeniedException::class)
+    fun handleAccessDenied(ex: AccessDeniedException, request: HttpServletRequest): ResponseEntity<ApiError> =
+        respond(ApiErrorCode.FORBIDDEN, HttpStatus.FORBIDDEN, "Access denied", null, request)
 
     @ExceptionHandler(DataIntegrityViolationException::class)
     fun handleIntegrity(ex: DataIntegrityViolationException, request: HttpServletRequest): ResponseEntity<ApiError> =
