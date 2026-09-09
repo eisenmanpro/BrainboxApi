@@ -1,0 +1,108 @@
+package com.afrithecus.brainbox.api.homework.web
+
+import jakarta.validation.constraints.Max
+import jakarta.validation.constraints.Min
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
+
+// ---------------------------------------------------------------------------
+// Homework payloads (web homework contract).
+// ---------------------------------------------------------------------------
+
+data class HomeworkUpsertRequest(
+    @field:NotBlank
+    @field:Size(max = 128)
+    val id: String,
+    @field:NotBlank
+    val classId: String,
+    @field:Size(min = 3, max = 120)
+    val title: String,
+    @field:Size(min = 10, max = 2000)
+    val description: String,
+    @field:NotBlank
+    val subject: String,
+    @field:Min(1) @field:Max(12)
+    val gradeLevel: Int,
+    val dueDate: Long,
+    @field:NotBlank
+    val submissionType: String,
+    @field:Size(max = 20)
+    val checklistItems: List<String>? = null,
+    val gradingMode: String? = null,
+    val isPastPaperUnlocked: Boolean = false,
+    val cbcStrandTag: String? = null,
+    @field:Size(max = 60)
+    val cbcSubStrandTag: String? = null,
+    val assignedStudentIds: List<String>? = null,
+    val scope: String = "SCHOOL_GRADE_CLASS",
+    val isDraft: Boolean = false,
+    val isActive: Boolean = true,
+)
+
+/** Response: homework + (student side) the caller's submission state. */
+data class HomeworkPayload(
+    val id: String,
+    val classId: String,
+    val teacherId: String,
+    val teacherName: String,
+    val schoolId: String? = null,
+    val title: String,
+    val description: String,
+    val subject: String,
+    val gradeLevel: Int,
+    val dueDate: Long,
+    val submissionType: String,
+    val checklistItems: List<String>? = null,
+    val gradingMode: String? = null,
+    val isPastPaperUnlocked: Boolean,
+    val cbcStrandTag: String? = null,
+    val cbcSubStrandTag: String? = null,
+    val assignedStudentIds: List<String>? = null,
+    val scope: String,
+    val isDraft: Boolean,
+    val isActive: Boolean,
+    val createdAt: Long,
+    // student-side extras (absent for teachers via non-null exclusion)
+    val submissionStatus: String? = null,
+    val grade: Int? = null,
+)
+
+data class GradeSubmissionRequest(
+    @field:Min(0) @field:Max(100)
+    val grade: Int,
+    val feedback: String? = null,
+    val cbcStrandTag: String? = null,
+)
+
+data class ReturnSubmissionRequest(
+    val feedback: String? = null,
+)
+
+data class SubmissionPayload(
+    val id: String,
+    val homeworkId: String,
+    val studentId: String,
+    val studentName: String,
+    val submissionText: String? = null,
+    val attachmentUrl: String? = null,
+    val status: String,
+    val submittedAt: Long,
+    val grade: Int? = null,
+    val feedback: String? = null,
+    val cbcStrandTag: String? = null,
+    val gradedAt: Long? = null,
+)
+
+data class HomeworkProgressItem(
+    val homeworkId: String,
+    val total: Int,
+    val graded: Int,
+    val pending: Int,
+    val avg: Int? = null,
+)
+
+data class StudentSubmitRequest(
+    val submissionText: String? = null,
+    val checklistAnswers: List<Int>? = null,
+    val attachmentUrl: String? = null,
+)

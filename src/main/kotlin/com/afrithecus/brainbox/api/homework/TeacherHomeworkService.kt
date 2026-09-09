@@ -1,0 +1,260 @@
+package com.afrithecus.brainbox.api.homework
+
+import com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity
+import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
+import com.afrithecus.brainbox.api.common.error.ApiErrorCode
+import com.afrithecus.brainbox.api.common.error.ApiException
+import com.afrithecus.brainbox.api.common.error.conflict
+import com.afrithecus.brainbox.api.common.error.invalidArgument
+import com.afrithecus.brainbox.api.common.error.notFound
+import com.afrithecus.brainbox.api.homework.entity.HomeworkEntity
+import com.afrithecus.brainbox.api.homework.entity.HomeworkSubmissionEntity
+import com.afrithecus.brainbox.api.homework.model.GradingMode
+import com.afrithecus.brainbox.api.homework.model.HomeworkScope
+import com.afrithecus.brainbox.api.homework.model.SubmissionStatus
+import com.afrithecus.brainbox.api.homework.model.SubmissionType
+import com.afrithecus.brainbox.api.homework.repository.HomeworkRepository
+import com.afrithecus.brainbox.api.homework.repository.HomeworkSubmissionRepository
+import com.afrithecus.brainbox.api.homework.web.GradeSubmissionRequest
+import com.afrithecus.brainbox.api.homework.web.HomeworkPayload
+import com.afrithecus.brainbox.api.homework.web.HomeworkProgressItem
+import com.afrithecus.brainbox.api.homework.web.HomeworkUpsertRequest
+import com.afrithecus.brainbox.api.homework.web.ReturnSubmissionRequest
+import com.afrithecus.brainbox.api.homework.web.SubmissionPayload
+import com.afrithecus.brainbox.api.identity.entity.UserEntity
+import com.afrithecus.brainbox.api.identity.model.Role
+import com.afrithecus.brainbox.api.identity.repository.UserRepository
+import com.afrithecus.brainbox.api.exams.QuestionCodec
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+import tools.jackson.databind.ObjectMapper
+import java.time.Clock
+import java.time.Instant
+import java.util.UUID
+
+/**
+ * Teacher-side homework (web homework contract). Creates are idempotent upserts
+ * keyed on the client-generated id; the teacher must own the target class.
+ */
+@Service
+class TeacherHomeworkService(
+    private val homeworkRepository: HomeworkRepository,
+    private val submissionRepository: HomeworkSubmissionRepository,
+    private val classRepository: TeacherClassRepository,
+    private val userRepository: UserRepository,
+    private val codec: QuestionCodec,
+    private val mapper: ObjectMapper,
+    private val clock: Clock,
+) {
+
+    @Transactional
+    fun upsert(teacher: UserEntity, request: HomeworkUpsertRequest): HomeworkPayload {
+        requireTeacher(teacher)
+        val clazz = ownClass(teacher, request.classId)
+        val type = parseSubmissionType(request.submissionType)
+        val mode = request.gradingMode?.let { parseMode(it) }
+        if (mode != null && mode != GradingMode.MANUAL && type != SubmissionType.EXAM_QUESTION_SET) {
+            throw invalidArgument("AUTO grading is only available for EXAM_QUESTION_SET homework (question-set support is a follow-on)")
+        }
+
+        val existing = homeworkRepository.findById(request.id).orElse(null)
+        if (existing != null && existing.teacherId != teacher.id) {
+            throw conflict("Homework id is already used by another teacher")
+        }
+        val entity = existing ?: HomeworkEntity().apply { id = request.id }
+        apply(entity, request, clazz, teacher)
+
+        if (entity.submissionType == SubmissionType.CHECKLIST) {
+            val items = request.checklistItems?.filter { it.isNotBlank() } ?: emptyList()
+            if (items.isEmpty() || items.size > 20) {
+                throw invalidArgument("CHECKLIST homework needs 1-20 checklist items")
+            }
+            entity.checklistItems = codec.toJson(items)
+        } else {
+            entity.checklistItems = null
+        }
+        homeworkRepository.save(entity)
+        return toPayload(entity)
+    }
+
+    @Transactional(readOnly = true)
+    fun list(teacher: UserEntity): List<HomeworkPayload> =
+        homeworkRepository.findAllByTeacherIdAndIsActiveTrueOrderByDueDateAsc(teacher.id).map(::toPayload)
+
+    @Transactional(readOnly = true)
+    fun get(teacher: UserEntity, homeworkId: String): HomeworkPayload =
+        toPayload(ownHomework(teacher, homeworkId))
+
+    @Transactional
+    fun delete(teacher: UserEntity, homeworkId: String) {
+        val entity = ownHomework(teacher, homeworkId)
+        homeworkRepository.delete(entity)
+    }
+
+    @Transactional(readOnly = true)
+    fun submissions(teacher: UserEntity, homeworkId: String): List<SubmissionPayload> {
+        val homework = ownHomework(teacher, homeworkId)
+        val subs = submissionRepository.findAllByHomeworkId(homework.id)
+        val names = userRepository.findAllById(subs.map { it.studentId }).associateBy { it.id }
+        return subs.map { sub -> toSubmissionPayload(sub, names[sub.studentId]?.name ?: "Student") }
+    }
+
+    @Transactional
+    fun grade(teacher: UserEntity, submissionIdRaw: String, request: GradeSubmissionRequest): SubmissionPayload {
+        val submission = ownSubmission(teacher, submissionIdRaw)
+        submission.status = SubmissionStatus.GRADED
+        submission.grade = request.grade
+        submission.feedback = request.feedback
+        request.cbcStrandTag?.let { submission.cbcStrandTag = it }
+        submission.gradedBy = teacher.id
+        submission.gradedAt = clock.instant()
+        submission.updatedAt = clock.instant()
+        submissionRepository.save(submission)
+        return toSubmissionPayload(submission, studentName(submission.studentId))
+    }
+
+    @Transactional
+    fun returnSubmission(teacher: UserEntity, submissionIdRaw: String, request: ReturnSubmissionRequest): SubmissionPayload {
+        val submission = ownSubmission(teacher, submissionIdRaw)
+        submission.status = SubmissionStatus.RETURNED
+        submission.grade = null
+        submission.feedback = request.feedback
+        submission.gradedBy = null
+        submission.gradedAt = null
+        submission.updatedAt = clock.instant()
+        submissionRepository.save(submission)
+        return toSubmissionPayload(submission, studentName(submission.studentId))
+    }
+
+    @Transactional(readOnly = true)
+    fun progress(teacher: UserEntity, ids: List<String>): List<HomeworkProgressItem> =
+        ids.distinct().mapNotNull { raw ->
+            val homework = homeworkRepository.findById(raw).orElse(null)
+            if (homework == null || homework.teacherId != teacher.id) return@mapNotNull null
+            val subs = submissionRepository.findAllByHomeworkId(homework.id)
+            val graded = subs.filter { it.status == SubmissionStatus.GRADED }
+            HomeworkProgressItem(
+                homeworkId = homework.id,
+                total = subs.size,
+                graded = graded.size,
+                pending = subs.count { it.status != SubmissionStatus.GRADED },
+                avg = if (graded.isEmpty()) null else graded.mapNotNull { it.grade }.let { g -> if (g.isEmpty()) null else g.average().toInt() },
+            )
+        }
+
+    // ------------------------------------------------------------ internals
+
+    private fun ownHomework(teacher: UserEntity, id: String): HomeworkEntity {
+        val entity = homeworkRepository.findById(id).orElse(null) ?: throw notFound("Homework not found")
+        if (entity.teacherId != teacher.id) throw ApiException(ApiErrorCode.FORBIDDEN, "Not your homework")
+        return entity
+    }
+
+    private fun ownSubmission(teacher: UserEntity, raw: String): HomeworkSubmissionEntity {
+        val id = runCatching { UUID.fromString(raw) }.getOrNull()
+            ?: throw invalidArgument("submission id is not a valid identifier")
+        val submission = submissionRepository.findById(id).orElse(null)
+            ?: throw notFound("Submission not found")
+        val homework = homeworkRepository.findById(submission.homeworkId).orElse(null)
+            ?: throw notFound("Homework not found")
+        if (homework.teacherId != teacher.id) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "Not your homework submission")
+        }
+        return submission
+    }
+
+    private fun ownClass(teacher: UserEntity, raw: String): TeacherClassEntity {
+        val id = runCatching { UUID.fromString(raw) }.getOrNull()
+            ?: throw invalidArgument("classId is not a valid identifier")
+        val clazz = classRepository.findById(id).orElse(null) ?: throw notFound("Class not found")
+        if (clazz.teacherUserId != teacher.id || !clazz.isActive) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "Not your class")
+        }
+        return clazz
+    }
+
+    private fun requireTeacher(user: UserEntity) {
+        if (user.role != Role.TEACHER) throw ApiException(ApiErrorCode.FORBIDDEN, "Teacher access only")
+    }
+
+    private fun apply(
+        entity: HomeworkEntity,
+        request: HomeworkUpsertRequest,
+        clazz: TeacherClassEntity,
+        teacher: UserEntity,
+    ) {
+        entity.classId = clazz.id
+        entity.teacherId = teacher.id
+        entity.teacherName = teacher.name
+        entity.schoolId = clazz.schoolId
+        entity.title = request.title.trim()
+        entity.description = request.description.trim()
+        entity.subject = request.subject.trim()
+        entity.gradeLevel = request.gradeLevel
+        entity.dueDate = Instant.ofEpochMilli(request.dueDate)
+        entity.submissionType = parseSubmissionType(request.submissionType)
+        entity.gradingMode = request.gradingMode?.let { parseMode(it) }
+        entity.isPastPaperUnlocked = request.isPastPaperUnlocked
+        entity.cbcStrandTag = request.cbcStrandTag?.trim()?.takeIf { it.isNotEmpty() }
+        entity.cbcSubStrandTag = request.cbcSubStrandTag?.trim()?.takeIf { it.isNotEmpty() }
+        entity.assignedStudentIds = codec.toJson(request.assignedStudentIds?.filter { it.isNotBlank() })
+        entity.scope = parseScope(request.scope)
+        entity.isDraft = request.isDraft
+        entity.isActive = request.isActive
+        entity.updatedAt = clock.instant()
+    }
+
+    private fun parseSubmissionType(raw: String): SubmissionType =
+        runCatching { SubmissionType.valueOf(raw.trim().uppercase()) }.getOrNull()
+            ?: throw invalidArgument("submissionType has an invalid value")
+
+    private fun parseMode(raw: String): GradingMode =
+        runCatching { GradingMode.valueOf(raw.trim().uppercase()) }.getOrNull()
+            ?: throw invalidArgument("gradingMode has an invalid value")
+
+    private fun parseScope(raw: String): HomeworkScope =
+        runCatching { HomeworkScope.valueOf(raw.trim().uppercase()) }.getOrNull()
+            ?: throw invalidArgument("scope has an invalid value")
+
+    private fun studentName(studentId: UUID): String =
+        userRepository.findById(studentId).map { it.name }.orElse("Student")
+
+    internal fun toPayload(homework: HomeworkEntity): HomeworkPayload = HomeworkPayload(
+        id = homework.id,
+        classId = homework.classId.toString(),
+        teacherId = homework.teacherId.toString(),
+        teacherName = homework.teacherName,
+        schoolId = homework.schoolId?.toString(),
+        title = homework.title,
+        description = homework.description,
+        subject = homework.subject,
+        gradeLevel = homework.gradeLevel,
+        dueDate = homework.dueDate.toEpochMilli(),
+        submissionType = homework.submissionType.name,
+        checklistItems = codec.parseList(homework.checklistItems),
+        gradingMode = homework.gradingMode?.name,
+        isPastPaperUnlocked = homework.isPastPaperUnlocked,
+        cbcStrandTag = homework.cbcStrandTag,
+        cbcSubStrandTag = homework.cbcSubStrandTag,
+        assignedStudentIds = codec.parseList(homework.assignedStudentIds),
+        scope = homework.scope.name,
+        isDraft = homework.isDraft,
+        isActive = homework.isActive,
+        createdAt = homework.createdAt.toEpochMilli(),
+    )
+
+    private fun toSubmissionPayload(sub: HomeworkSubmissionEntity, studentName: String) = SubmissionPayload(
+        id = sub.id.toString(),
+        homeworkId = sub.homeworkId,
+        studentId = sub.studentId.toString(),
+        studentName = studentName,
+        submissionText = sub.submissionText,
+        attachmentUrl = sub.attachmentUrl,
+        status = sub.status.name,
+        submittedAt = sub.submittedAt.toEpochMilli(),
+        grade = sub.grade,
+        feedback = sub.feedback,
+        cbcStrandTag = sub.cbcStrandTag,
+        gradedAt = sub.gradedAt?.toEpochMilli(),
+    )
+}
