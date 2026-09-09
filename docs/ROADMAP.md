@@ -212,7 +212,10 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       (X-Message-Id replay no-op); inbox/sent/outbox + read receipts; school member
       directory w/ role filter; tests + PG18 parity
       [class-group chat (doc 04 §12) = follow-on]
-- [ ] Doubt solving forum (ask/answer/accept/vote) (doc 05 §3)
+- [x] Doubt solving forum (2G, doc 05 §3): V15 doubt_questions/answers/votes; ask with tags,
+      subject/search/sort (recent|popular|unanswered), detail increments views; answers with
+      author role (TEACHER/STUDENT); accept gated to the question author -> CLOSED; up/down
+      voting with single-count semantics + flip adjustments; tests + PG18 parity
 - [ ] Career guidance + school matching + goal setting (doc 06 §1/4)
 - [ ] Mock interviews incl. emotion variant + analytics (doc 06 §2)
 - [ ] Mastery tracking + achievements + rewards store/redemption (doc 03 §6-8)
@@ -289,6 +292,14 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - Idempotency, security, and scoping first — see section 4.
 - API JSON matches the Android models/contracts exactly (field names, enums, casing).
 - Profile base URLs mirror Android flavors (dev/staging/prod api.brainbox.com).
+
+
+> Session status (2026-09-09 evening): backend Phase 1 + 2A-2G done (auth/identity, exams,
+> contests, learning hub, classes, homework incl. question-set auto-grading, messaging core,
+> doubt solving). Next session: remaining Phase 2 domains - dashboard/profile polish, career &
+> mock interviews, mastery & achievements, live classes (student), CBC projects, news &
+> notifications, study tools, recommendations depth, homework attachments/past-paper flows,
+> class-group chat (WebSocket), then Phase 3 teacher portal.
 
 ## 7. Tracking
 
