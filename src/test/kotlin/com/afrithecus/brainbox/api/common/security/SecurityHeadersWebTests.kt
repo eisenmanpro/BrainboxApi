@@ -18,8 +18,9 @@ class SecurityHeadersWebTests(@Autowired private val mockMvc: MockMvc) {
 
     @Test
     fun `api responses carry hardened security headers`() {
-        // Unauthenticated request still passes through the header writers.
-        mockMvc.perform(get("/schools/not-a-real-id"))
+        // Unauthenticated request to a protected route still passes through
+        // the header writers before the 401 entry point.
+        mockMvc.perform(get("/exams"))
             .andExpect(status().isUnauthorized)
             .andExpect(header().string("X-Frame-Options", "DENY"))
             .andExpect(header().string("X-Content-Type-Options", "nosniff"))

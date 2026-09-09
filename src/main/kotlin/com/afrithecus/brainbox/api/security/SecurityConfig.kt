@@ -53,8 +53,9 @@ class SecurityConfig(
                         "/auth/login",
                         "/auth/signup",
                         "/auth/refresh",
-                        "/schools/search",
-                        "/schools/all",
+                        // Public school directory (landing/web + app school browsing):
+                        // listing, search AND detail are reachable pre-auth.
+                        "/schools/**",
                         "/actuator/health",
                         "/actuator/health/**",
                         "/actuator/info",

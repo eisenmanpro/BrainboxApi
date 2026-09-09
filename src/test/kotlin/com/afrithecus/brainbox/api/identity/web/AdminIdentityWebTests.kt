@@ -221,6 +221,12 @@ class AdminIdentityWebTests(
         check(found.any { it.name == "Discovery Academy" })
         check(found.none { it.name == "Other Academy" })
 
-        mockMvc.perform(get("/schools/some-id")).andExpect(status().isUnauthorized)
+        // School detail is public too (landing/web school browsing pre-auth).
+        val schoolId = found.first { it.name == "Discovery Academy" }.id
+        val detail = mockMvc.perform(get("/schools/${schoolId}"))
+            .andExpect(status().isOk).andReturn().response.contentAsString
+        check(objectMapper.readValue(detail, SchoolPayload::class.java).name == "Discovery Academy")
+        // Invalid identifiers return the public validation error, not 401.
+        mockMvc.perform(get("/schools/some-id")).andExpect(status().isBadRequest)
     }
 }
