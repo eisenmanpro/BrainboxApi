@@ -2,13 +2,16 @@ package com.afrithecus.brainbox.api.learning.web
 
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
+import com.afrithecus.brainbox.api.learning.LearningProgressService
 import com.afrithecus.brainbox.api.learning.LearningService
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import jakarta.validation.Valid
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
@@ -18,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/learning")
 class LearningController(
     private val service: LearningService,
+    private val progressService: LearningProgressService,
     private val userRepository: UserRepository,
 ) {
     private fun user(current: CurrentUser) =
@@ -62,5 +66,39 @@ class LearningController(
     ): ResponseEntity<Void> {
         service.recordView(user(currentUser), postId)
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build()
+    }
+
+    @PostMapping("/progress")
+    fun learningProgress(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @Valid @RequestBody request: LearningProgressRequest,
+    ): LearningProgressPayload = progressService.upsert(user(currentUser), request)
+
+    @GetMapping("/continue/{userId}")
+    fun continueLearning(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable userId: String,
+    ): List<ContinueLearningItem> {
+        if (userId != currentUser.userId.toString()) {
+            throw com.afrithecus.brainbox.api.common.error.ApiException(
+                com.afrithecus.brainbox.api.common.error.ApiErrorCode.FORBIDDEN,
+                "Cannot read another user's progress",
+            )
+        }
+        return progressService.continueLearning(user(currentUser))
+    }
+
+    @GetMapping("/recommendations/{userId}")
+    fun recommendations(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable userId: String,
+    ): List<RecommendationPayload> {
+        if (userId != currentUser.userId.toString()) {
+            throw com.afrithecus.brainbox.api.common.error.ApiException(
+                com.afrithecus.brainbox.api.common.error.ApiErrorCode.FORBIDDEN,
+                "Cannot read another user's recommendations",
+            )
+        }
+        return progressService.recommendations(user(currentUser))
     }
 }

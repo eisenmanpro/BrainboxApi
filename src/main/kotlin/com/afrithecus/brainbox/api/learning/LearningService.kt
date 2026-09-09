@@ -118,20 +118,8 @@ class LearningService(
     }
 
     /** Content scope rules (doc 03 §1.2). */
-    private fun isVisible(post: LearningPostEntity, user: UserEntity): Boolean = when (post.scope) {
-        LearningScope.GLOBAL -> true
-        LearningScope.SCHOOL ->
-            sameSchool(post, user) && gradeMatches(post, user)
-        LearningScope.SCHOOL_GRADE_CLASS ->
-            sameSchool(post, user) && gradeMatches(post, user) &&
-                (post.teacherId == null || post.teacherId == user.joinedTeacherId)
-    }
-
-    private fun sameSchool(post: LearningPostEntity, user: UserEntity): Boolean =
-        user.schoolId != null && post.schoolId != null && post.schoolId == user.schoolId
-
-    private fun gradeMatches(post: LearningPostEntity, user: UserEntity): Boolean =
-        post.gradeLevel == null || GradeNormalizer.sameGrade(post.gradeLevel, user.gradeLevel)
+    private fun isVisible(post: LearningPostEntity, user: UserEntity): Boolean =
+        ContentScope.isVisible(post.scope, post.schoolId, post.gradeLevel, post.teacherId, user)
 
     private fun toPost(post: LearningPostEntity): LearningPostPayload = LearningPostPayload(
         id = post.id.toString(),
