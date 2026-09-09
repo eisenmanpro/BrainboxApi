@@ -188,7 +188,10 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       idempotent progress sync, submit with server-side auto-grading (AutoGrader: MCQ/
       multi-select/matching/short/number/essay policy), results + submission endpoints,
       past-paper discovery (all/search) + idempotent client-scored attempts
-- [ ] Contest system: register, session, submit, server-computed integrity + leaderboards (doc 05 §1)
+- [~] Contest system (2B in progress): V7 schema (contests + questions w/ keys +
+      registrations + submissions), admin authoring API, window-based upcoming/ongoing/
+      completed lists + detail, registration w/ EXPLORER+ entitlement + capacity + window
+      rules (doc 05 §1.2-§1.4) [session/submit w/ auto-grading + leaderboards remain]
 - [ ] Learning hub: posts, readable files, reading progress/sessions, scope filtering (doc 03 §1-4)
 - [ ] Recommendations (personalized + trending, server-derived) (doc 03 §5)
 - [ ] Homework with submission + auto-grading (doc 02/blueprint homework)
