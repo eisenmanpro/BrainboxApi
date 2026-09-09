@@ -8,12 +8,13 @@ interface UserSessionRepository : JpaRepository<UserSessionEntity, UUID> {
 
     fun findByIdAndIsActiveTrue(id: UUID): UserSessionEntity?
 
-    fun countByUserIdAndIsActiveTrue(userId: UUID): Long
-
     fun findTopByUserIdAndDeviceIdAndIsActiveTrueOrderByLastActiveAtDesc(
         userId: UUID,
         deviceId: String,
     ): UserSessionEntity?
 
-    fun countByUserIdAndDeviceIdAndIsActiveTrue(userId: UUID, deviceId: String): Long
+    /** Oldest-first active sessions of a user, used to evict beyond the cap. */
+    fun findAllByUserIdAndIsActiveTrueOrderByLastActiveAtAscIdAsc(userId: UUID): List<UserSessionEntity>
+
+    fun findAllByUserIdAndIsActiveTrue(userId: UUID): List<UserSessionEntity>
 }

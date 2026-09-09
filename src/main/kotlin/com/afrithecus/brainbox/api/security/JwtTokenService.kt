@@ -105,6 +105,12 @@ class JwtTokenService(
         )
     }
 
+    /** Seconds until access tokens expire; echoed in the refresh response. */
+    fun accessTtlSeconds(): Long = properties.accessTokenTtl.seconds
+
+    /** Lifespan of newly issued refresh tokens. */
+    fun refreshTtl(): java.time.Duration = properties.refreshTokenTtl
+
     /** Generates an opaque refresh token (raw value returned once, hash persisted). */
     fun newRefreshToken(): NewRefreshToken {
         val bytes = ByteArray(32)

@@ -160,11 +160,16 @@ starts; this document is the durable long-term plan. Progress = checked items.
 - [x] Standard error envelope + HTTP status mapping (doc 11 §8), tested end to end
 - [x] JWT skeleton: HMAC service (24h access, claims), bearer filter, stateless SecurityConfig,
       401/403 envelope handlers, BCrypt, clock bean (unit tested)
-- [ ] JWT auth endpoints: login/signup/refresh rotation/logout/me + session registry (doc 01 §1/§5)
-- [ ] RBAC: STUDENT/TEACHER/PARENT/ADMIN + CTEACHER/GRADE_COORDINATOR/ICT_ADMIN; feature scopes (doc 01 §3)
-- [ ] Multi-session policy enforcement (max 3/device), role switching (doc 01 §5)
-- [ ] User management + parent-child linking + school enrollment + grade-level mgmt (doc 01 §2/6/9)
-- [ ] CTC system: server-issued codes + validation + derivation of school/grade/class (doc 01 §7)
+- [x] JWT auth endpoints: signup/login/me/logout + refresh rotation with reuse detection (doc 01 §1)
+- [x] Session registry + multi-session policy: students <=3 active sessions, teachers/parents 1,
+      oldest evicted on cap, refresh-token families (doc 01 §5; role-switch /auth/switch-session pending)
+- [x] Teacher-code (CTC) storage + student join validation (V2 teacher_codes; doc 01 §7.1)
+      [issuance via admin teacher creation still pending]
+- [x] Grade normalization utility (GradeNormalizer: Form 3 == FORM_THREE == Grade 08) + tests
+- [ ] RBAC feature scopes + role-hierarchy guards on endpoints (doc 01 §3; authorities/roles exist)
+- [ ] User management + parent-child linking + admin endpoints (doc 01 §2.2/§6/§8.2)
+- [ ] CTC issuance: admin create teacher with generated code (doc 01 §7.2)
+- [ ] Subscription tier upgrade/payment endpoints + entitlement enforcement on paywalled routes (doc 01 §4, 07)
 - [ ] Student verification & approval flow (doc 01 §8)
 - [ ] Cross-cutting enforcement: content scope (RLS + app), answer-key withholding serializer,
       idempotent POST handling, rate limiting, security headers, grade normalization

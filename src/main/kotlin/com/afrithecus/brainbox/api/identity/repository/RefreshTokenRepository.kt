@@ -11,4 +11,8 @@ interface RefreshTokenRepository : JpaRepository<RefreshTokenEntity, UUID> {
     fun findByFamilyOrderByCreatedAtDesc(family: UUID): List<RefreshTokenEntity>
 
     fun countByFamily(family: UUID): Long
+
+    fun findAllBySessionIdAndRevokedFalse(sessionId: UUID): List<RefreshTokenEntity>
+
+    fun findAllByUserIdAndRevokedFalse(userId: UUID): List<RefreshTokenEntity>
 }
