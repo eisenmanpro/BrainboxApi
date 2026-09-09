@@ -1,7 +1,11 @@
 # BrainboxApi — Backend Roadmap & Long-Term Goals
 
 **Repo:** /home/afrithecus/PROJECTS/BrainboxApi (Spring Boot backend for BrainBox)
-**Companion repos:** BrainBox (Android client, complete), BrainboxWeb (teacher/admin web, later phase)
+**Companion repos:** BrainBox (Android client, complete), BrainboxWe- [x] Classes & roster foundation (2D, doc 04 §2.2 + homework prereqs): V11 teacher_classes +
+      class_memberships; teacher create/list + roster add/remove with own-class ownership
+      (403) + same-school enforcement; student /classes/my; stable class/student ids ready for
+      homework/messaging/attendance
+b (teacher/admin web, later phase)
 **Date:** 2026-09-09 · **Status:** Architecture decisions locked; Phase 1 not started
 
 ---
