@@ -101,6 +101,32 @@ class ContestService(
         return RegistrationResponse(success = true, message = "Registered", registrationId = registration.id.toString())
     }
 
+    @Transactional(readOnly = true)
+    fun leaderboard(userId: UUID, contestIdRaw: String): com.afrithecus.brainbox.api.contests.web.LeaderboardPayload {
+        val contest = findPublished(contestIdRaw)
+        val ranked = submissionRepository.findAllByContestId(contest.id)
+            .sortedWith(
+                compareByDescending<com.afrithecus.brainbox.api.contests.entity.ContestSubmissionEntity> { it.score }
+                    .thenBy { it.submittedAt }
+            )
+        var userEntry: com.afrithecus.brainbox.api.contests.web.LeaderboardEntry? = null
+        val entries = ranked.mapIndexed { index, submission ->
+            val name = userRepository.findById(submission.userId).map { it.name }.orElse("Student")
+            val entry = com.afrithecus.brainbox.api.contests.web.LeaderboardEntry(
+                rank = index + 1,
+                studentName = name,
+                score = submission.score,
+            )
+            if (submission.userId == userId) userEntry = entry
+            entry
+        }
+        return com.afrithecus.brainbox.api.contests.web.LeaderboardPayload(
+            contestId = contest.id.toString(),
+            entries = entries,
+            userEntry = userEntry,
+        )
+    }
+
     // ------------------------------------------------------------ internals
 
     private fun published(): List<ContestEntity> =

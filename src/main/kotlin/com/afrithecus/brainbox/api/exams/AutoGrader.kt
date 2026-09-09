@@ -20,25 +20,35 @@ data class GradeOutcome(
 @Component
 class AutoGrader(private val mapper: ObjectMapper) {
 
-    fun grade(question: ExamQuestionEntity, userValue: JsonNode?): GradeOutcome {
+    fun grade(question: ExamQuestionEntity, userValue: JsonNode?): GradeOutcome =
+        grade(question.qType, question.correctAnswer, question.matchingPairs, question.points, userValue)
+
+    /** Type-based grading shared by exams and contests (any keyed question shape). */
+    fun grade(
+        type: QuestionType,
+        correctAnswer: String?,
+        matchingPairs: String?,
+        points: Int,
+        userValue: JsonNode?,
+    ): GradeOutcome {
         if (userValue == null || userValue.isMissingNode || userValue.isNull) {
             return GradeOutcome(isCorrect = false, pointsEarned = 0)
         }
-        val correct = when (question.qType) {
+        val correct = when (type) {
             QuestionType.MCQ,
             QuestionType.TRUE_FALSE,
             QuestionType.NUMBER_ENTRY,
             QuestionType.SHORT_ANSWER,
             QuestionType.FILL_BLANK,
-            -> textEquals(userValue, question.correctAnswer)
+            -> textEquals(userValue, correctAnswer)
 
-            QuestionType.MULTI_SELECT -> multiSelectEquals(userValue, question.correctAnswer)
+            QuestionType.MULTI_SELECT -> multiSelectEquals(userValue, correctAnswer)
 
-            QuestionType.MATCHING -> matchingEquals(userValue, question.matchingPairs)
+            QuestionType.MATCHING -> matchingEquals(userValue, matchingPairs)
 
             QuestionType.ESSAY -> false
         }
-        return GradeOutcome(isCorrect = correct, pointsEarned = if (correct) question.points else 0)
+        return GradeOutcome(isCorrect = correct, pointsEarned = if (correct) points else 0)
     }
 
     fun isAutoGradable(type: QuestionType): Boolean = type != QuestionType.ESSAY
