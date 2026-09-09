@@ -193,7 +193,11 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       capacity + window; session start/resume (keys withheld, end-window countdown) + idempotent
       sync; submit w/ server auto-grading + server-observed integrity flags; leaderboard w/
       ranks + user entry (server-computed); tests + PG18 parity
-- [ ] Learning hub: posts, readable files, reading progress/sessions, scope filtering (doc 03 §1-4)
+- [~] Learning hub (2C in progress): V9 schema (posts/content/views); admin authoring w/
+      quiz keys; scope+grade filtering (GLOBAL/SCHOOL/SCHOOL_GRADE_CLASS, grade-normalized);
+      featured/trending/subject/search/detail/content + record-view dedupe; quiz key
+      withholding on student payloads (doc 03 §1-§2) [reading materials/progress, likes,
+      recommendations remain]
 - [ ] Recommendations (personalized + trending, server-derived) (doc 03 §5)
 - [ ] Homework with submission + auto-grading (doc 02/blueprint homework)
 - [ ] Messaging: fan-out, unified inbox, class groups, read receipts (doc 05 §2)
