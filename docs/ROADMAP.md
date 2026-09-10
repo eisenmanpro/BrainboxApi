@@ -262,7 +262,13 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       (/admin/live-classes create/list/status) as the server-side source until Phase 3 teacher CRUD;
       tests + PG18 parity
       [WebRTC signaling/join tokens remain Phase 6; joinUrl is server-provided]
-- [ ] CBC projects (student): list/submit/history (doc 06 §3)
+- [x] CBC projects (2L, doc 06 §3): V22 cbc_projects + votes + comments + unique views; feed with
+      gradeBand/subject/cbcStrand/school/status filters, recent|popular|featured sort, pagination and
+      search; featured + my-projects; submission (PENDING) with server-derived author/school/media types;
+      staff-only moderation (APPROVED/FEATURED/REMOVED, REMOVED hidden from non-owners); single-count
+      voting that adjusts on switch/removal; threaded comments with replies + mentions; unique view
+      tracking; tests + PG18 parity
+      [teacher notification on new submission waits for the news/notifications + background-jobs work]
 - [ ] News + notifications + deep links (doc 05 §5-6)
 - [ ] Study tools + study sessions/insights (doc 03 §9)
 - [ ] Subscription & payments: M-Pesa STK push, idempotent callbacks, entitlements (doc 07, 11 §5)
@@ -339,11 +345,11 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 > Session status (2026-09-10 late): Phase 1 + 2A-2K done (auth/identity, exams, contests, learning hub,
 > classes, homework incl. question-set auto-grading, messaging core, doubt solving,
 > dashboard/profile/analytics, career + school matching + goals, mock interviews, mastery +
-> achievements + rewards, live classes). Test suite 117 (0 failures) + PG18 parity. Hardening:
-> AutoGrader whitespace normalisation and clock-based JWT expiry validation. Next session: CBC
-> projects, news & notifications, study tools, homework attachments/past-paper flows,
-> class-group chat (WebSocket), then Phase 3 teacher portal. Note doc 13 (updated analytics /
-> traditional-exam reports) is a Phase 3/4 surface to fold into the teacher-portal goal.
+> achievements + rewards, live classes, CBC projects). Test suite 121 (0 failures) + PG18 parity.
+> Hardening: AutoGrader whitespace normalisation and clock-based JWT expiry validation. Next
+> session: news & notifications, study tools, homework attachments/past-paper flows, class-group
+> chat (WebSocket), then Phase 3 teacher portal. Note doc 13 (updated analytics / traditional-exam
+> reports) is a Phase 3/4 surface to fold into the teacher-portal goal.
 
 ## 7. Tracking
 
