@@ -9,4 +9,6 @@ interface ExamQuestionRepository : JpaRepository<ExamQuestionEntity, UUID> {
     fun findAllByExamIdOrderByOrderIndexAsc(examId: UUID): List<ExamQuestionEntity>
 
     fun countByExamId(examId: UUID): Long
+
+    fun findAllByExamIdIn(examIds: Collection<UUID>): List<ExamQuestionEntity>
 }

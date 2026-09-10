@@ -54,7 +54,7 @@ class PostgresParityTests(
                 for (expected in listOf(
                     "flyway_schema_history", "users", "schools", "user_sessions",
                     "refresh_tokens", "subscriptions", "teacher_codes",
-                    "teacher_profiles", "idempotency_records",
+                    "teacher_profiles", "idempotency_records", "user_settings",
                 )) {
                     require(expected in names) { "missing table " + expected + "; got " + names }
                 }

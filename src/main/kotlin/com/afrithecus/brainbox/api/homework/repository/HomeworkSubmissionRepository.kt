@@ -9,4 +9,6 @@ interface HomeworkSubmissionRepository : JpaRepository<HomeworkSubmissionEntity,
     fun findByHomeworkIdAndStudentId(homeworkId: String, studentId: UUID): HomeworkSubmissionEntity?
 
     fun findAllByHomeworkId(homeworkId: String): List<HomeworkSubmissionEntity>
+
+    fun findAllByStudentId(studentId: UUID): List<HomeworkSubmissionEntity>
 }
