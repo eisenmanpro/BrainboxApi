@@ -269,7 +269,19 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       voting that adjusts on switch/removal; threaded comments with replies + mentions; unique view
       tracking; tests + PG18 parity
       [teacher notification on new submission waits for the news/notifications + background-jobs work]
-- [ ] News + notifications + deep links (doc 05 §5-6)
+- [x] News + notifications + deep links (2M, doc 05 §5-6): V23 notifications + news_items;
+      notification centre (list w/ unread + archived filters, create, read, read-all, archive, delete,
+      delete-all, unread count) with the client AppNotification shape (type/urgency/priority/action
+      route/label/metadata); news feed + detail + admin authoring (drafts excluded from the public feed);
+      deep-link routes point at real screens (subscription / parent_dashboard / teacher_dashboard)
+      [subscription lifecycle reminders]: server-derived SYSTEM notifications materialised on read and
+      deduplicated on a stable key, then pruned when the condition clears - students/parents are told
+      when they are on the free plan, which plan they hold, when it is nearing expiry (<=14d HIGH,
+      <=3d URGENT) or expired (URGENT); teachers are nudged with the count/names of learners needing a
+      renewal so they can remind parents/guardians; parents are notified about their linked children;
+      tests + PG18 parity
+      [push delivery (FCM) and a background scheduler for reminder generation are Phase 6; news
+      likes/dislikes have no client endpoints so remain counter-only]
 - [ ] Study tools + study sessions/insights (doc 03 §9)
 - [ ] Subscription & payments: M-Pesa STK push, idempotent callbacks, entitlements (doc 07, 11 §5)
 
@@ -345,11 +357,12 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 > Session status (2026-09-10 late): Phase 1 + 2A-2K done (auth/identity, exams, contests, learning hub,
 > classes, homework incl. question-set auto-grading, messaging core, doubt solving,
 > dashboard/profile/analytics, career + school matching + goals, mock interviews, mastery +
-> achievements + rewards, live classes, CBC projects). Test suite 121 (0 failures) + PG18 parity.
-> Hardening: AutoGrader whitespace normalisation and clock-based JWT expiry validation. Next
-> session: news & notifications, study tools, homework attachments/past-paper flows, class-group
-> chat (WebSocket), then Phase 3 teacher portal. Note doc 13 (updated analytics / traditional-exam
-> reports) is a Phase 3/4 surface to fold into the teacher-portal goal.
+> achievements + rewards, live classes, CBC projects, news + notifications incl. subscription
+> reminders). Test suite 125 (0 failures) + PG18 parity. Hardening: AutoGrader whitespace
+> normalisation and clock-based JWT expiry validation. Next session: study tools, homework
+> attachments/past-paper flows, class-group chat (WebSocket), then Phase 3 teacher portal. Note
+> doc 13 (updated analytics / traditional-exam reports) is a Phase 3/4 surface to fold into the
+> teacher-portal goal.
 
 ## 7. Tracking
 
