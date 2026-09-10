@@ -47,4 +47,7 @@ interface UserRepository : JpaRepository<UserEntity, UUID> {
 
     /** Linked children for a parent (doc 01 §6). */
     fun findByParentUserId(parentUserId: UUID): List<UserEntity>
+
+    /** Students who joined via a teacher code belonging to this teacher. */
+    fun findByJoinedTeacherId(joinedTeacherId: UUID): List<UserEntity>
 }
