@@ -226,8 +226,23 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       subject/search/sort (recent|popular|unanswered), detail increments views; answers with
       author role (TEACHER/STUDENT); accept gated to the question author -> CLOSED; up/down
       voting with single-count semantics + flip adjustments; tests + PG18 parity
-- [ ] Career guidance + school matching + goal setting (doc 06 §1/4)
-- [ ] Mock interviews incl. emotion variant + analytics (doc 06 §2)
+- [x] Career guidance + school matching + goal setting (2I, doc 06 §1/§4): V17 career_goals +
+      mentor/scholarship/school/elective reference catalogs; CareerRecommendation derived server-side
+      from the student's real exam performance + the CBC curriculum mapping (ported from the client
+      map): per-subject learning path w/ completion, skill gaps using real scores, orientation
+      pillars, salary insights, milestones, growth plan, achievements; set-goal personalisation;
+      elective subject list/save; idempotent mentor requests; school matching scored by pathway/
+      rating/capacity/eligibility + school search/detail; career path steps; goal-plan CRUD;
+      self-only scoping; tests + PG18 parity
+      [jobMatches/resumeInsight left empty until jobs/resume catalogs exist]
+- [x] Mock interviews (2I, doc 06 §2): V18 question bank (seeded) + interview_sessions/
+      session_questions/answers; server-authoritative scoring (keyword coverage, length, filler
+      words, structure phrases, STAR/SOAR/SHARE rubric, diction, pace) mirroring the client
+      algorithm; difficulty variants; session start/submit/complete with lifecycle guards +
+      idempotent completion; history + analytics (averages, improvement trend, category
+      performance, weaknesses, emotion distribution); optional on-device emotion metadata
+      persisted for analytics; self-only scoping; tests + PG18 parity
+      [emotion inference itself stays on-device by contract; client sends metadata only]
 - [ ] Mastery tracking + achievements + rewards store/redemption (doc 03 §6-8)
 - [ ] Live classes (student): list/detail/register/attendance/polls (doc 05 §4)
 - [ ] CBC projects (student): list/submit/history (doc 06 §3)
@@ -304,14 +319,15 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - Profile base URLs mirror Android flavors (dev/staging/prod api.brainbox.com).
 
 
-> Session status (2026-09-10 evening): Phase 1 + 2A-2H done (auth/identity, exams, contests,
-> learning hub, classes, homework incl. question-set auto-grading, messaging core, doubt solving,
-> dashboard/profile/analytics). Hardening this session: AutoGrader whitespace normalisation fixed
-> (regex matched a literal "s+") and JWT expiry now validates against the injected Clock instead
-> of the JVM default (removed a wall-clock-dependent test). Next session: career guidance + mock
-> interviews (doc 06), mastery & achievements, live classes (student), CBC projects, news &
-> notifications, study tools, homework attachments/past-paper flows, class-group chat (WebSocket),
-> then Phase 3 teacher portal.
+> Session status (2026-09-10 late): Phase 1 + 2A-2I done (auth/identity, exams, contests, learning
+> hub, classes, homework incl. question-set auto-grading, messaging core, doubt solving,
+> dashboard/profile/analytics, career guidance + school matching + goals, mock interviews).
+> Test suite 105 (0 failures) + PG18 parity. Hardening earlier in the session: AutoGrader
+> whitespace normalisation fix and clock-based JWT expiry validation. Next session: mastery &
+> achievements + rewards (doc 03 §6-8), live classes (student), CBC projects, news &
+> notifications, study tools, homework attachments/past-paper flows, class-group chat
+> (WebSocket), then Phase 3 teacher portal. Note doc 13 (updated analytics / traditional-exam
+> reports) is a Phase 3/4 surface to fold into the teacher-portal goal.
 
 ## 7. Tracking
 
