@@ -183,7 +183,17 @@ starts; this document is the durable long-term plan. Progress = checked items.
 Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 
 ### Phase 2 — Student Features  (goal 2 = 2A Exams & Assessments; further sub-goals opened per domain)
-- [ ] Auth endpoints, dashboard & analytics, profile (doc 01/blueprint)
+- [x] Auth endpoints, dashboard & analytics, profile (2H, BACKEND_BLUEPRINT §2/§13, doc 02 §8):
+      V16 user_settings; GET/PATCH /profile/settings/{userId} (self-only; plan/subscription/
+      teacher code/role label always server-derived; email + admission uniqueness guards);
+      GET /dashboard/assignments|contests|insights|quick-actions (assignments from roster +
+      due-date labels, grade-matched contest cards, insight panel derived from live data);
+      GET /analytics/student/{id} + /analytics/student/{id}/subject/{subjectId} + /analytics/class/{classId}
+      (server-computed percentiles, topic mastery + weak areas, class means/distribution/rankings);
+      relationship-based reads (self, linked parent, own-class teacher, school-scoped staff);
+      tests + PG18 parity
+      [profile/invoices deferred to Phase 6 payments (needs real PDF/signed URLs); CBC bands use
+      documented defaults until per-school GradingConfig ships in Phase 4]
 - [x] Exam domain foundation (2A, doc 02 §2/§4): V6 schema (exams, exam_questions,
       exam_sessions, exam_submissions); admin authoring API (POST /admin/exams incl keys,
       publish/archive); scope filtering GLOBAL/SCHOOL start; hub state + tab lists + /exams
@@ -294,12 +304,14 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - Profile base URLs mirror Android flavors (dev/staging/prod api.brainbox.com).
 
 
-> Session status (2026-09-09 evening): backend Phase 1 + 2A-2G done (auth/identity, exams,
-> contests, learning hub, classes, homework incl. question-set auto-grading, messaging core,
-> doubt solving). Next session: remaining Phase 2 domains - dashboard/profile polish, career &
-> mock interviews, mastery & achievements, live classes (student), CBC projects, news &
-> notifications, study tools, recommendations depth, homework attachments/past-paper flows,
-> class-group chat (WebSocket), then Phase 3 teacher portal.
+> Session status (2026-09-10 evening): Phase 1 + 2A-2H done (auth/identity, exams, contests,
+> learning hub, classes, homework incl. question-set auto-grading, messaging core, doubt solving,
+> dashboard/profile/analytics). Hardening this session: AutoGrader whitespace normalisation fixed
+> (regex matched a literal "s+") and JWT expiry now validates against the injected Clock instead
+> of the JVM default (removed a wall-clock-dependent test). Next session: career guidance + mock
+> interviews (doc 06), mastery & achievements, live classes (student), CBC projects, news &
+> notifications, study tools, homework attachments/past-paper flows, class-group chat (WebSocket),
+> then Phase 3 teacher portal.
 
 ## 7. Tracking
 
