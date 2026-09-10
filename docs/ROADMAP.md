@@ -253,7 +253,15 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       self-only scoping; tests + PG18 parity
       [challenge counters stay 0 until a challenge entity exists; doc /rewards alias paths superseded
       by the client's /achievements/rewards]
-- [ ] Live classes (student): list/detail/register/attendance/polls (doc 05 §4)
+- [x] Live classes (2K, doc 05 §4): V21 live_classes + registrations + attendance + polls/votes;
+      /live/now|upcoming|ongoing|completed|replays|spotlight + class detail; upcoming payload is a
+      superset of the client LiveClass/UpcomingLiveClass so both client APIs read it; capacity-enforced
+      idempotent registration; attendance upsert (self or host/admin) with PRESENT/LATE/ABSENT;
+      host-only poll creation + single-count voting that moves on re-vote; replay view counts and a
+      teacher spotlight derived from real class/registration data; admin authoring
+      (/admin/live-classes create/list/status) as the server-side source until Phase 3 teacher CRUD;
+      tests + PG18 parity
+      [WebRTC signaling/join tokens remain Phase 6; joinUrl is server-provided]
 - [ ] CBC projects (student): list/submit/history (doc 06 §3)
 - [ ] News + notifications + deep links (doc 05 §5-6)
 - [ ] Study tools + study sessions/insights (doc 03 §9)
@@ -328,15 +336,14 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - Profile base URLs mirror Android flavors (dev/staging/prod api.brainbox.com).
 
 
-> Session status (2026-09-10 late): Phase 1 + 2A-2J done (auth/identity, exams, contests, learning hub,
+> Session status (2026-09-10 late): Phase 1 + 2A-2K done (auth/identity, exams, contests, learning hub,
 > classes, homework incl. question-set auto-grading, messaging core, doubt solving,
 > dashboard/profile/analytics, career + school matching + goals, mock interviews, mastery +
-> achievements + rewards). Test suite 113 (0 failures) + PG18 parity. Hardening: AutoGrader
-> whitespace normalisation and clock-based JWT expiry validation. Next session: live classes
-> (student), CBC projects, news & notifications, study tools, homework attachments/past-paper
-> flows, class-group chat (WebSocket), then Phase 3 teacher portal. Note doc 13 (updated
-> analytics / traditional-exam reports) is a Phase 3/4 surface to fold into the teacher-portal
-> goal.
+> achievements + rewards, live classes). Test suite 117 (0 failures) + PG18 parity. Hardening:
+> AutoGrader whitespace normalisation and clock-based JWT expiry validation. Next session: CBC
+> projects, news & notifications, study tools, homework attachments/past-paper flows,
+> class-group chat (WebSocket), then Phase 3 teacher portal. Note doc 13 (updated analytics /
+> traditional-exam reports) is a Phase 3/4 surface to fold into the teacher-portal goal.
 
 ## 7. Tracking
 
