@@ -11,4 +11,6 @@ interface ExamQuestionRepository : JpaRepository<ExamQuestionEntity, UUID> {
     fun countByExamId(examId: UUID): Long
 
     fun findAllByExamIdIn(examIds: Collection<UUID>): List<ExamQuestionEntity>
+
+    fun findFirstByTopicIgnoreCase(topic: String): ExamQuestionEntity?
 }
