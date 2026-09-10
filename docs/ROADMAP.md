@@ -243,7 +243,16 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       performance, weaknesses, emotion distribution); optional on-device emotion metadata
       persisted for analytics; self-only scoping; tests + PG18 parity
       [emotion inference itself stays on-device by contract; client sends metadata only]
-- [ ] Mastery tracking + achievements + rewards store/redemption (doc 03 §6-8)
+- [x] Mastery tracking + achievements + rewards (2J, doc 03 §6-8): V19 topic_mastery (cumulative
+      per user/topic; server recomputes score, band NOVICE..MASTER, subject resolved from exam-question
+      topics) with overview/subject/weak-topics/update; V20 user_achievements + xp_events + badges +
+      rewards catalogs; XP curve + level titles, derived current/longest streaks from real activity
+      dates, national/school/weekly leaderboards (weekly from event-sourced XP), contest history with
+      ranks/prizes, mastery tree, badge unlocking, reward store + one-time redemption with XP cost
+      checks and generated coupons, scholarship eligibility flags from the career catalog;
+      self-only scoping; tests + PG18 parity
+      [challenge counters stay 0 until a challenge entity exists; doc /rewards alias paths superseded
+      by the client's /achievements/rewards]
 - [ ] Live classes (student): list/detail/register/attendance/polls (doc 05 §4)
 - [ ] CBC projects (student): list/submit/history (doc 06 §3)
 - [ ] News + notifications + deep links (doc 05 §5-6)
@@ -319,15 +328,15 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - Profile base URLs mirror Android flavors (dev/staging/prod api.brainbox.com).
 
 
-> Session status (2026-09-10 late): Phase 1 + 2A-2I done (auth/identity, exams, contests, learning
-> hub, classes, homework incl. question-set auto-grading, messaging core, doubt solving,
-> dashboard/profile/analytics, career guidance + school matching + goals, mock interviews).
-> Test suite 105 (0 failures) + PG18 parity. Hardening earlier in the session: AutoGrader
-> whitespace normalisation fix and clock-based JWT expiry validation. Next session: mastery &
-> achievements + rewards (doc 03 §6-8), live classes (student), CBC projects, news &
-> notifications, study tools, homework attachments/past-paper flows, class-group chat
-> (WebSocket), then Phase 3 teacher portal. Note doc 13 (updated analytics / traditional-exam
-> reports) is a Phase 3/4 surface to fold into the teacher-portal goal.
+> Session status (2026-09-10 late): Phase 1 + 2A-2J done (auth/identity, exams, contests, learning hub,
+> classes, homework incl. question-set auto-grading, messaging core, doubt solving,
+> dashboard/profile/analytics, career + school matching + goals, mock interviews, mastery +
+> achievements + rewards). Test suite 113 (0 failures) + PG18 parity. Hardening: AutoGrader
+> whitespace normalisation and clock-based JWT expiry validation. Next session: live classes
+> (student), CBC projects, news & notifications, study tools, homework attachments/past-paper
+> flows, class-group chat (WebSocket), then Phase 3 teacher portal. Note doc 13 (updated
+> analytics / traditional-exam reports) is a Phase 3/4 surface to fold into the teacher-portal
+> goal.
 
 ## 7. Tracking
 
