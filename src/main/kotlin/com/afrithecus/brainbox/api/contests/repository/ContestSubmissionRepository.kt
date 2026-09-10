@@ -12,6 +12,8 @@ interface ContestSubmissionRepository : JpaRepository<ContestSubmissionEntity, U
 
     fun findAllByContestId(contestId: UUID): List<ContestSubmissionEntity>
 
+    fun findAllByUserId(userId: UUID): List<ContestSubmissionEntity>
+
     /** Students who beat this score; +1 gives the user's rank among participants. */
     @Query(
         """
