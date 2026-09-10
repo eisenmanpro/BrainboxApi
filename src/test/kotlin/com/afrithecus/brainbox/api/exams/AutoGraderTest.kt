@@ -61,6 +61,10 @@ class AutoGraderTest {
         val q = question(QuestionType.SHORT_ANSWER, correctAnswer = "Lagos")
         assertTrue(grader.grade(q, node("lagos")).isCorrect)
         assertTrue(grader.grade(q, node("  Lagos  ")).isCorrect)
+        // internal runs of whitespace collapse (regression: regex once matched a literal "s+")
+        val city = question(QuestionType.SHORT_ANSWER, correctAnswer = "New York")
+        assertTrue(grader.grade(city, node("new   york")).isCorrect)
+        assertFalse(grader.grade(city, node("newyork")).isCorrect)
     }
 
     @Test

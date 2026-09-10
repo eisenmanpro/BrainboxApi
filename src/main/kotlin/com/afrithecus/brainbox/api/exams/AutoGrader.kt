@@ -98,5 +98,5 @@ class AutoGrader(private val mapper: ObjectMapper) {
     }
 
     private fun normalize(value: String?): String =
-        value?.trim()?.lowercase()?.replace(Regex("""s+"""), " ") ?: ""
+        value?.trim()?.lowercase()?.replace(Regex("""\s+"""), " ") ?: ""
 }

@@ -2,6 +2,7 @@ package com.afrithecus.brainbox.api.security
 
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubRole
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.security.oauth2.jwt.JwtClaimsSet
@@ -9,6 +10,8 @@ import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.oauth2.jwt.JwtEncoder
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters
 import org.springframework.security.oauth2.jwt.JwtException
+import org.springframework.security.oauth2.jwt.JwtIssuerValidator
+import org.springframework.security.oauth2.jwt.JwtTimestampValidator
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder
 import org.springframework.stereotype.Service
@@ -51,7 +54,16 @@ class JwtTokenService(
     }
 
     private val decoder: JwtDecoder by lazy {
-        NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build()
+        NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build().apply {
+            // Validate against the injected Clock (not the JVM default) so expiry is
+            // deterministic under test and honours any deployment clock.
+            setJwtValidator(
+                DelegatingOAuth2TokenValidator(
+                    JwtTimestampValidator().apply { setClock(clock) },
+                    JwtIssuerValidator(properties.issuer),
+                )
+            )
+        }
     }
 
     fun issueAccessToken(
@@ -82,10 +94,6 @@ class JwtTokenService(
      */
     fun parseAccessToken(token: String): AccessTokenClaims {
         val jwt: Jwt = decoder.decode(token)
-        val issuer = jwt.getClaimAsString(ISS_CLAIM)
-        if (issuer != null && issuer != properties.issuer) {
-            throw JwtException("Unexpected issuer")
-        }
         val userId = jwt.subject?.let { runCatching { UUID.fromString(it) }.getOrNull() }
             ?: throw JwtException("Missing subject")
         val role = runCatching { Role.valueOf(jwt.getClaimAsString(CLAIM_ROLE) ?: "") }.getOrNull()
@@ -121,7 +129,6 @@ class JwtTokenService(
 
     private companion object {
         val secureRandom = SecureRandom()
-        const val ISS_CLAIM = "iss"
         const val CLAIM_ROLE = "role"
         const val CLAIM_SUB_ROLE = "subRole"
         const val CLAIM_SESSION = "sessionId"
