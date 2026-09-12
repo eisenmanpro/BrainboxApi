@@ -46,6 +46,10 @@ data class HomeworkUpsertRequest(
     val questions: List<HomeworkQuestionRequest>? = null,
     val gradingMode: String? = null,
     val isPastPaperUnlocked: Boolean = false,
+    @field:Size(max = 64)
+    val relatedPaperCode: String? = null,
+    @field:Size(max = 64)
+    val relatedDocumentId: String? = null,
     val cbcStrandTag: String? = null,
     @field:Size(max = 60)
     val cbcSubStrandTag: String? = null,
@@ -71,6 +75,8 @@ data class HomeworkPayload(
     val checklistItems: List<String>? = null,
     val gradingMode: String? = null,
     val isPastPaperUnlocked: Boolean,
+    val relatedPaperCode: String? = null,
+    val relatedDocumentId: String? = null,
     val cbcStrandTag: String? = null,
     val cbcSubStrandTag: String? = null,
     val assignedStudentIds: List<String>? = null,

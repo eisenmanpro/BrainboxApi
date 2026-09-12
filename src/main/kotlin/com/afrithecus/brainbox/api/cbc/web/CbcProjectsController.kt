@@ -1,7 +1,8 @@
 package com.afrithecus.brainbox.api.cbc.web
 
 import com.afrithecus.brainbox.api.cbc.CbcProjectService
-import com.afrithecus.brainbox.api.cbc.MediaService
+import com.afrithecus.brainbox.api.media.MediaService
+import com.afrithecus.brainbox.api.media.MediaUploadResponsePayload
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus

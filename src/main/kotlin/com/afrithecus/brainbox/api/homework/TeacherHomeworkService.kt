@@ -227,9 +227,15 @@ class TeacherHomeworkService(
         entity.subject = request.subject.trim()
         entity.gradeLevel = request.gradeLevel
         entity.dueDate = Instant.ofEpochMilli(request.dueDate)
-        entity.submissionType = parseSubmissionType(request.submissionType)
+        val submissionType = parseSubmissionType(request.submissionType)
+        if (submissionType == SubmissionType.PAST_PAPER_REVIEW && request.relatedPaperCode.isNullOrBlank()) {
+            throw invalidArgument("relatedPaperCode is required for PAST_PAPER_REVIEW homework")
+        }
+        entity.submissionType = submissionType
         entity.gradingMode = request.gradingMode?.let { parseMode(it) }
         entity.isPastPaperUnlocked = request.isPastPaperUnlocked
+        entity.relatedPaperCode = request.relatedPaperCode?.trim()?.takeIf { it.isNotEmpty() }
+        entity.relatedDocumentId = request.relatedDocumentId?.trim()?.takeIf { it.isNotEmpty() }
         entity.cbcStrandTag = request.cbcStrandTag?.trim()?.takeIf { it.isNotEmpty() }
         entity.cbcSubStrandTag = request.cbcSubStrandTag?.trim()?.takeIf { it.isNotEmpty() }
         entity.assignedStudentIds = codec.toJson(request.assignedStudentIds?.filter { it.isNotBlank() })
@@ -269,6 +275,8 @@ class TeacherHomeworkService(
         checklistItems = codec.parseList(homework.checklistItems),
         gradingMode = homework.gradingMode?.name,
         isPastPaperUnlocked = homework.isPastPaperUnlocked,
+        relatedPaperCode = homework.relatedPaperCode,
+        relatedDocumentId = homework.relatedDocumentId,
         cbcStrandTag = homework.cbcStrandTag,
         cbcSubStrandTag = homework.cbcSubStrandTag,
         assignedStudentIds = codec.parseList(homework.assignedStudentIds),

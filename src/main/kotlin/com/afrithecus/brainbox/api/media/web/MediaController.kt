@@ -1,6 +1,6 @@
-package com.afrithecus.brainbox.api.cbc.web
+package com.afrithecus.brainbox.api.media.web
 
-import com.afrithecus.brainbox.api.cbc.MediaService
+import com.afrithecus.brainbox.api.media.MediaService
 import org.springframework.core.io.Resource
 import org.springframework.http.CacheControl
 import org.springframework.http.MediaType

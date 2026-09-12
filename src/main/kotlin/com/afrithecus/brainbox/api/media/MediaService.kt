@@ -1,6 +1,5 @@
-package com.afrithecus.brainbox.api.cbc
+package com.afrithecus.brainbox.api.media
 
-import com.afrithecus.brainbox.api.cbc.web.MediaUploadResponsePayload
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import org.springframework.beans.factory.annotation.Value
@@ -15,9 +14,9 @@ import java.nio.file.Paths
 import java.util.UUID
 
 /**
- * Local-disk media storage for project uploads. Returns an absolute URL built
- * from the current request so clients can fetch it directly. S3/MinIO
- * presigned uploads replace this in Phase 6.
+ * Local-disk media storage for uploads (CBC projects, homework attachments).
+ * Returns an absolute URL built from the current request so clients can fetch it
+ * directly. S3/MinIO presigned uploads replace this in Phase 6.
  */
 @Service
 class MediaService(

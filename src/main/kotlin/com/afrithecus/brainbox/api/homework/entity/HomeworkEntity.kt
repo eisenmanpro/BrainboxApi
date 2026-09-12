@@ -66,6 +66,13 @@ class HomeworkEntity {
     @Column(name = "is_past_paper_unlocked", nullable = false)
     var isPastPaperUnlocked: Boolean = false
 
+    /** Past-paper link required for PAST_PAPER_REVIEW homework. */
+    @Column(name = "related_paper_code", length = 64)
+    var relatedPaperCode: String? = null
+
+    @Column(name = "related_document_id", length = 64)
+    var relatedDocumentId: String? = null
+
     @Column(name = "cbc_strand_tag", length = 64)
     var cbcStrandTag: String? = null
 

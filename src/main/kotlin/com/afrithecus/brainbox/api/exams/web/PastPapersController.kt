@@ -31,6 +31,12 @@ class PastPapersController(private val service: PastPaperService) {
         @RequestParam q: String,
     ): List<DocumentItem> = service.search(currentUser.userId, q)
 
+    @GetMapping("/{examId}/content")
+    fun content(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable examId: String,
+    ): ExamContentPayload = service.content(currentUser.userId, examId)
+
     @PostMapping("/{examId}/attempts")
     fun recordAttempt(
         @AuthenticationPrincipal currentUser: CurrentUser,

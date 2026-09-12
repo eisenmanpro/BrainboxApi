@@ -134,7 +134,3 @@ data class PublicReportResponsePayload(
     val message: String? = null,
 )
 
-data class MediaUploadResponsePayload(
-    val url: String,
-    val mediaType: String = "IMAGE",
-)

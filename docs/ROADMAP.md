@@ -309,6 +309,18 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       tests + PG18 parity
       [client still computes StudyInsight locally in core/ml/StudyPatternEngine; the server contract is
       ready to wire when the app moves study data off-device]
+- [x] Homework attachments + past-paper flows (2P): V26 homework.related_paper_code /
+      related_document_id (web homework contract); PAST_PAPER_REVIEW now requires relatedPaperCode
+      and the link round-trips through teacher create/update and both payloads.
+      * GET /past-papers/{examId}/content (doc 02 §4.2): builds the ExamContent payload with real cover
+        metadata (school/student/subject/duration/year/mcp/questionCount), a STANDARD section of the
+        exam's questions carrying per-question number/points/difficulty/topic, and a markingScheme with
+        answers + marks + totalMarks + passingScore for offline self-grading. Scope-filtered and
+        restricted to PAST_PAPER exams so a live digital exam's keys are never exposed.
+      * POST /homework/attachments: multipart upload returning {url, mediaType}, served from /media/
+        (shared MediaService local-disk store; S3/MinIO presign stays Phase 6). Submission attachmentUrl
+        already flows through student submit and teacher submission payloads.
+      tests + PG18 parity
 - [ ] Subscription & payments: M-Pesa STK push, idempotent callbacks, entitlements (doc 07, 11 §5)
 
 ### Phase 3 — Teacher Features  (goal 3)
@@ -380,12 +392,11 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - Profile base URLs mirror Android flavors (dev/staging/prod api.brainbox.com).
 
 
-> Session status (2026-09-12): Phase 1 + 2A-2O done. The app-side prod hardening changed three
-> contracts (CBC public browse, news engagement, schools directory) and those are now aligned
-> server-side (2N, V24); study tools shipped as 2O (V25). Test suite 138 (0 failures) + PG18
-> parity. Next session: homework attachments/past-paper flows, class-group chat (WebSocket),
-> then Phase 3 teacher portal. Note doc 13 (updated analytics / traditional-exam reports) is a
-> Phase 3/4 surface to fold into the teacher-portal goal.
+> Session status (2026-09-12): Phase 1 + 2A-2P done. App-hardening contract alignment (2N, V24),
+> study tools (2O, V25) and homework attachments + past-paper content (2P, V26) all shipped.
+> Test suite 142 (0 failures) + PG18 parity. Next session: class-group chat (WebSocket), then
+> Phase 3 teacher portal. Note doc 13 (updated analytics / traditional-exam reports) is a Phase
+> 3/4 surface to fold into the teacher-portal goal.
 
 ## 7. Tracking
 
