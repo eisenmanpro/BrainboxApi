@@ -358,7 +358,12 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       (V32, creation-month fallback for legacy rows) and student analytics carries gradeLevel.
       The online /teacher/exams engine and the parent CBC report-card endpoint do not exist
       backend-side yet, so their term/gradeLevel additions land with those features.
-- [ ] Announcements CRUD + fan-out delivery + analytics (doc 04 §6)
+- [x] Announcements (ann, V36): client-id idempotent CRUD, own + received lists,
+      scheduledAt hold (a `delivered_at` marker + @Scheduled poller) and expiresAt hiding,
+      audience fan-out (CLASS/GRADE/SCHOOL/TEACHER/PARENT) over NotificationService with the
+      client-resolvable deep link announcements/{clientId}, and per-announcement analytics
+      (views/acknowledgements/studentStatus). Student/parent read list and a student ack
+      endpoint remain deferred per the handoff.
 - [ ] Feedback: templates, history, bulk (doc 04 §7)
 - [ ] Live class mgmt: CRUD, lifecycle, recordings, analytics, participants, polls (doc 04 §8)
 - [ ] Timetable, room bookings, house groups/peer circles, schedule changes (doc 04 §9)
