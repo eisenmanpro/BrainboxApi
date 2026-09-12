@@ -30,10 +30,6 @@ class ClassGroupEntity : BaseEntity() {
     @Column(name = "is_announcement_mode", nullable = false)
     var isAnnouncementMode: Boolean = false
 
-    /** When the owning teacher last opened the thread; drives unread counts. */
-    @Column(name = "teacher_last_read_at")
-    var teacherLastReadAt: Instant? = null
-
     @Column(name = "teacher_muted_until")
     var teacherMutedUntil: Instant? = null
 }

@@ -139,8 +139,10 @@ class NotificationService(
             Role.TEACHER -> teacherRenewalReminder(user, active)
             Role.ADMIN -> Unit
         }
-        // Drop server-generated reminders whose condition no longer holds.
+        // Drop server-generated subscription reminders whose condition no longer
+        // holds. Other keyed notifications (e.g. chat fan-out) are left in place.
         repository.findAllByUserIdAndDedupeKeyIsNotNull(user.id)
+            .filter { key -> REMINDER_KEY_PREFIXES.any { prefix -> key.dedupeKey!!.startsWith(prefix) } }
             .filter { it.dedupeKey !in active }
             .forEach { repository.delete(it) }
     }
@@ -340,6 +342,7 @@ class NotificationService(
     }
 
     private companion object {
+        val REMINDER_KEY_PREFIXES = listOf("sub-", "teacher-sub-")
         const val EXPIRING_DAYS = 14L
         const val URGENT_DAYS = 3L
         val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.US)

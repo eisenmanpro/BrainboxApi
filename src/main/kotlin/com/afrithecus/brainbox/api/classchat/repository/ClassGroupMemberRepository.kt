@@ -13,6 +13,8 @@ interface ClassGroupMemberRepository : JpaRepository<ClassGroupMemberEntity, UUI
 
     fun findByGroupIdAndMemberId(groupId: UUID, memberId: UUID): ClassGroupMemberEntity?
 
+    fun findAllByMemberId(memberId: UUID): List<ClassGroupMemberEntity>
+
     fun countByGroupId(groupId: UUID): Long
 
     /** Bulk delete executes immediately so a member re-sync cannot hit the unique key. */

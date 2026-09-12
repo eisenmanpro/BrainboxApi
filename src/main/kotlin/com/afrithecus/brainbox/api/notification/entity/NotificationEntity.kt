@@ -38,7 +38,7 @@ class NotificationEntity : BaseEntity() {
     @Column(nullable = false, length = 16)
     var priority: NotificationPriority = NotificationPriority.NORMAL
 
-    @Column(name = "action_route", length = 64)
+    @Column(name = "action_route", length = 255)
     var actionRoute: String? = null
 
     @Column(name = "action_label", length = 64)

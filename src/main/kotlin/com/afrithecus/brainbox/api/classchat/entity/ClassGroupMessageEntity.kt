@@ -35,6 +35,10 @@ class ClassGroupMessageEntity : BaseEntity() {
     @Column(name = "reply_to_id")
     var replyToId: UUID? = null
 
+    /** Stable client id used to de-duplicate replayed offline sends. */
+    @Column(name = "client_message_id", length = 128)
+    var clientMessageId: String? = null
+
     /** JSON array string of MessageAttachment. */
     @Column(columnDefinition = "text")
     var attachments: String? = null

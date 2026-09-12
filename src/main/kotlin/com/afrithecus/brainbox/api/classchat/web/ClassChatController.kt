@@ -3,7 +3,6 @@ package com.afrithecus.brainbox.api.classchat.web
 import com.afrithecus.brainbox.api.classchat.ClassChatService
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.live.web.LivePollPayload
-import com.afrithecus.brainbox.api.media.MediaService
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
@@ -27,10 +26,7 @@ import org.springframework.web.multipart.MultipartFile
 @RestController
 @RequestMapping("/teacher/class-groups")
 @PreAuthorize("hasAnyRole('TEACHER','CTEACHER','GRADE_COORDINATOR','ICT_ADMIN')")
-class ClassChatController(
-    private val service: ClassChatService,
-    private val mediaService: MediaService,
-) {
+class ClassChatController(private val service: ClassChatService) {
 
     @GetMapping
     fun groups(
@@ -53,8 +49,9 @@ class ClassChatController(
         @PathVariable groupId: String,
         @RequestParam(required = false) name: String?,
         @RequestParam(required = false) description: String?,
+        @RequestParam(required = false) isAnnouncementMode: Boolean?,
         @RequestBody(required = false) memberIds: List<String>?,
-    ): ClassGroupPayload = service.update(current, groupId, name, description, memberIds)
+    ): ClassGroupPayload = service.update(current, groupId, name, description, isAnnouncementMode, memberIds)
 
     @DeleteMapping("/{groupId}")
     fun delete(
@@ -80,9 +77,16 @@ class ClassChatController(
         @RequestParam text: String,
         @RequestParam(required = false) replyTo: String?,
         @RequestParam(defaultValue = "false") isAnnouncement: Boolean,
+        @RequestParam(required = false) clientMessageId: String?,
         @RequestBody(required = false) attachments: List<MessageAttachmentPayload>?,
-    ): ClassGroupMessagePayload =
-        service.send(current, groupId, SendMessageRequest(text = text, attachments = attachments), replyTo, isAnnouncement)
+    ): ClassGroupMessagePayload = service.send(
+        current,
+        groupId,
+        SendMessageRequest(text = text, attachments = attachments),
+        replyTo,
+        isAnnouncement,
+        clientMessageId,
+    )
 
     @PostMapping("/{groupId}/messages/{messageId}/pin")
     fun pin(
@@ -149,22 +153,7 @@ class ClassChatController(
     fun uploadAttachment(
         @PathVariable groupId: String,
         @RequestPart("file") file: MultipartFile,
-    ): MessageAttachmentPayload {
-        val stored = mediaService.store(file, allowDocuments = true)
-        return MessageAttachmentPayload(
-            url = stored.url,
-            type = attachmentType(file.contentType ?: "", stored.mediaType),
-            fileName = file.originalFilename,
-            fileSize = file.size,
-        )
-    }
-
-    private fun attachmentType(contentType: String, mediaType: String): String = when {
-        mediaType == "IMAGE" -> "IMAGE"
-        contentType == "application/pdf" -> "PDF"
-        contentType.startsWith("audio/") -> "AUDIO"
-        else -> "FILE"
-    }
+    ): MessageAttachmentPayload = service.attachment(file)
 }
 
 /** Poll voting lives on its own path (doc 04 §12.4). */

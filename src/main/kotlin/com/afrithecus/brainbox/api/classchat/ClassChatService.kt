@@ -5,10 +5,12 @@ import com.afrithecus.brainbox.api.classchat.entity.ClassGroupMemberEntity
 import com.afrithecus.brainbox.api.classchat.entity.ClassGroupMessageEntity
 import com.afrithecus.brainbox.api.classchat.entity.ClassGroupPollEntity
 import com.afrithecus.brainbox.api.classchat.entity.ClassGroupPollVoteEntity
+import com.afrithecus.brainbox.api.classchat.entity.ClassGroupReadEntity
 import com.afrithecus.brainbox.api.classchat.repository.ClassGroupMemberRepository
 import com.afrithecus.brainbox.api.classchat.repository.ClassGroupMessageRepository
 import com.afrithecus.brainbox.api.classchat.repository.ClassGroupPollRepository
 import com.afrithecus.brainbox.api.classchat.repository.ClassGroupPollVoteRepository
+import com.afrithecus.brainbox.api.classchat.repository.ClassGroupReadRepository
 import com.afrithecus.brainbox.api.classchat.repository.ClassGroupRepository
 import com.afrithecus.brainbox.api.classchat.web.ClassGroupMessagePayload
 import com.afrithecus.brainbox.api.classchat.web.ClassGroupPayload
@@ -31,18 +33,28 @@ import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.live.web.LivePollPayload
+import com.afrithecus.brainbox.api.media.MediaService
+import com.afrithecus.brainbox.api.notification.entity.NotificationEntity
+import com.afrithecus.brainbox.api.notification.model.NotificationPriority
+import com.afrithecus.brainbox.api.notification.model.NotificationType
+import com.afrithecus.brainbox.api.notification.model.NotificationUrgency
+import com.afrithecus.brainbox.api.notification.repository.NotificationRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.multipart.MultipartFile
 import tools.jackson.databind.ObjectMapper
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 
 /**
- * Teacher class-group chat (doc 04 §12). Groups belong to one of the teacher's
- * classes; only the owning teacher (or an admin) may create, moderate, poll or
- * read threads. Realtime WebSocket transport is Phase 6.
+ * Class-group chat (doc 04 §12 + docs/ongoing/api_class_group_chat_changes.md).
+ * Teacher, parent and student surfaces share one store; identity and role always
+ * come from the token, membership is enforced server-side, sends are idempotent
+ * on a client id, and unread is tracked per caller. Realtime transport is Phase 6.
  */
 @Service
 class ClassChatService(
@@ -51,19 +63,25 @@ class ClassChatService(
     private val messageRepository: ClassGroupMessageRepository,
     private val pollRepository: ClassGroupPollRepository,
     private val pollVoteRepository: ClassGroupPollVoteRepository,
+    private val readRepository: ClassGroupReadRepository,
     private val classRepository: TeacherClassRepository,
     private val membershipRepository: ClassMembershipRepository,
     private val userRepository: UserRepository,
     private val homeworkRepository: HomeworkRepository,
     private val submissionRepository: HomeworkSubmissionRepository,
+    private val notificationRepository: NotificationRepository,
+    private val mediaService: MediaService,
     private val mapper: ObjectMapper,
     private val clock: Clock,
 ) {
 
+    // ------------------------------------------------------ teacher surface
+
     @Transactional(readOnly = true)
     fun groups(current: CurrentUser, teacherIdRaw: String): List<ClassGroupPayload> {
         requireSelf(current, teacherIdRaw)
-        return groupRepository.findAllByTeacherIdOrderByUpdatedAtDesc(current.userId).map(::groupPayload)
+        return groupRepository.findAllByTeacherIdOrderByUpdatedAtDesc(current.userId)
+            .map { groupPayload(it, current.userId) }
     }
 
     @Transactional
@@ -79,14 +97,20 @@ class ClassChatService(
             teacherName = teacher.name
             this.name = name
             description = null
-            teacherLastReadAt = clock.instant()
         })
         replaceMembers(group, memberIds)
-        return groupPayload(group)
+        return groupPayload(group, current.userId)
     }
 
     @Transactional
-    fun update(current: CurrentUser, groupIdRaw: String, nameRaw: String?, descriptionRaw: String?, memberIds: List<String>?): ClassGroupPayload {
+    fun update(
+        current: CurrentUser,
+        groupIdRaw: String,
+        nameRaw: String?,
+        descriptionRaw: String?,
+        isAnnouncementMode: Boolean?,
+        memberIds: List<String>?,
+    ): ClassGroupPayload {
         val group = ownedGroup(current, groupIdRaw)
         nameRaw?.let {
             val name = it.trim()
@@ -94,9 +118,10 @@ class ClassChatService(
             group.name = name
         }
         descriptionRaw?.let { group.description = it.trim().takeIf { text -> text.isNotEmpty() } }
+        isAnnouncementMode?.let { group.isAnnouncementMode = it }
         if (memberIds != null) replaceMembers(group, memberIds)
         groupRepository.save(group)
-        return groupPayload(group)
+        return groupPayload(group, current.userId)
     }
 
     @Transactional
@@ -105,43 +130,24 @@ class ClassChatService(
     }
 
     @Transactional
-    fun messages(current: CurrentUser, groupIdRaw: String, limitRaw: Int, before: Long?): List<ClassGroupMessagePayload> {
-        val group = ownedGroup(current, groupIdRaw)
-        val limit = limitRaw.coerceIn(1, 200)
-        val rows = messageRepository.findAllByGroupIdOrderByCreatedAtDesc(group.id)
-            .filter { before == null || it.createdAt.toEpochMilli() < before }
-            .take(limit)
-        group.teacherLastReadAt = clock.instant()
-        groupRepository.save(group)
-        return rows.map(::messagePayload)
-    }
+    fun messages(current: CurrentUser, groupIdRaw: String, limitRaw: Int, before: Long?): List<ClassGroupMessagePayload> =
+        messagesFor(current, accessibleGroup(current, groupIdRaw), limitRaw, before)
 
     @Transactional
-    fun send(current: CurrentUser, groupIdRaw: String, request: SendMessageRequest, replyTo: String?, isAnnouncement: Boolean): ClassGroupMessagePayload {
-        val group = ownedGroup(current, groupIdRaw)
-        val text = request.text.trim()
-        val attachments = request.attachments.orEmpty()
-        if (text.isEmpty() && attachments.isEmpty()) throw invalidArgument("A message needs text or an attachment")
-        val replyToId = replyTo?.takeIf { it.isNotBlank() }?.let { parseUuid(it, "replyTo") }
-        if (replyToId != null) {
-            val parent = messageRepository.findById(replyToId).orElse(null)
-            if (parent == null || parent.groupId != group.id) throw notFound("Reply target not found")
+    fun send(
+        current: CurrentUser,
+        groupIdRaw: String,
+        request: SendMessageRequest,
+        replyTo: String?,
+        isAnnouncement: Boolean,
+        clientMessageId: String?,
+    ): ClassGroupMessagePayload {
+        val group = when (current.role) {
+            Role.PARENT -> parentAccessibleGroup(current, groupIdRaw)
+            Role.STUDENT -> studentAccessibleGroup(current, groupIdRaw)
+            else -> ownedGroup(current, groupIdRaw)
         }
-        val sender = user(current.userId)
-        val saved = messageRepository.save(ClassGroupMessageEntity().apply {
-            this.groupId = group.id
-            senderId = sender.id
-            senderName = sender.name
-            senderRole = apiRole(sender)
-            this.text = text
-            this.replyToId = replyToId
-            this.isAnnouncement = isAnnouncement
-            this.attachments = mapper.writeValueAsString(attachments)
-        })
-        if (isAnnouncement) group.isAnnouncementMode = true
-        group.teacherLastReadAt = clock.instant()
-        groupRepository.save(group)
-        return messagePayload(saved)
+        return sendFor(current, group, request, replyTo, isAnnouncement, clientMessageId)
     }
 
     @Transactional
@@ -180,26 +186,7 @@ class ClassChatService(
             this.question = question
             this.options = mapper.writeValueAsString(cleaned)
         })
-        return pollPayload(poll)
-    }
-
-    @Transactional
-    fun votePoll(current: CurrentUser, pollIdRaw: String, optionIndex: Int) {
-        val poll = pollRepository.findById(parseUuid(pollIdRaw, "poll id")).orElse(null) ?: throw notFound("Poll not found")
-        val options = parseStringList(poll.options)
-        if (optionIndex < 0 || optionIndex >= options.size) throw invalidArgument("optionIndex is out of range")
-        val existing = pollVoteRepository.findByPollIdAndUserId(poll.id, current.userId)
-        if (existing == null) {
-            pollVoteRepository.save(ClassGroupPollVoteEntity().apply {
-                pollId = poll.id
-                userId = current.userId
-                this.optionIndex = optionIndex
-            })
-        } else {
-            existing.optionIndex = optionIndex
-            existing.votedAt = clock.instant()
-            pollVoteRepository.save(existing)
-        }
+        return pollPayload(poll, current.userId)
     }
 
     @Transactional(readOnly = true)
@@ -249,13 +236,179 @@ class ClassChatService(
         }
     }
 
+    // ------------------------------------------------------ parent surface
+
+    @Transactional(readOnly = true)
+    fun groupsForChild(current: CurrentUser, childIdRaw: String): List<ClassGroupPayload> {
+        val child = linkedChild(current, childIdRaw)
+        return studentGroups(child.id).map { groupPayload(it, current.userId) }
+    }
+
+    @Transactional
+    fun parentMessages(current: CurrentUser, groupIdRaw: String, limitRaw: Int, before: Long?): List<ClassGroupMessagePayload> =
+        messagesFor(current, parentAccessibleGroup(current, groupIdRaw), limitRaw, before)
+
+    @Transactional
+    fun markRead(current: CurrentUser, groupIdRaw: String) {
+        val group = accessibleGroup(current, groupIdRaw)
+        markReadFor(group, current.userId)
+    }
+
+    @Transactional
+    fun votePoll(current: CurrentUser, pollIdRaw: String, optionIndex: Int) {
+        val poll = pollRepository.findById(parseUuid(pollIdRaw, "poll id")).orElse(null) ?: throw notFound("Poll not found")
+        accessibleGroup(current, poll.groupId.toString())
+        castVote(poll, current.userId, optionIndex)
+    }
+
+    // ------------------------------------------------------ student surface
+
+    @Transactional(readOnly = true)
+    fun groupsForStudent(current: CurrentUser): List<ClassGroupPayload> =
+        studentGroups(current.userId).map { groupPayload(it, current.userId) }
+
+    @Transactional
+    fun studentMessages(current: CurrentUser, groupIdRaw: String, limitRaw: Int, before: Long?): List<ClassGroupMessagePayload> =
+        messagesFor(current, studentAccessibleGroup(current, groupIdRaw), limitRaw, before)
+
+    // ------------------------------------------------------ attachments
+
+    fun attachment(file: MultipartFile): MessageAttachmentPayload {
+        val stored = mediaService.store(file, allowDocuments = true)
+        return MessageAttachmentPayload(
+            url = stored.url,
+            type = attachmentType(file.contentType ?: "", stored.mediaType),
+            fileName = file.originalFilename,
+            fileSize = file.size,
+        )
+    }
+
     // ------------------------------------------------------------ internals
 
-    private fun groupPayload(group: ClassGroupEntity): ClassGroupPayload {
+    private fun messagesFor(current: CurrentUser, group: ClassGroupEntity, limitRaw: Int, before: Long?): List<ClassGroupMessagePayload> {
+        val limit = limitRaw.coerceIn(1, 100)
+        val rows = messageRepository.findAllByGroupIdOrderByCreatedAtDesc(group.id)
+            .filter { before == null || it.createdAt.toEpochMilli() < before }
+            .take(limit)
+        markReadFor(group, current.userId)
+        return rows.map(::messagePayload)
+    }
+
+    private fun sendFor(
+        current: CurrentUser,
+        group: ClassGroupEntity,
+        request: SendMessageRequest,
+        replyTo: String?,
+        isAnnouncement: Boolean,
+        clientMessageId: String?,
+    ): ClassGroupMessagePayload {
+        val sender = user(current.userId)
+        if (group.isAnnouncementMode && sender.role != Role.TEACHER && sender.role != Role.ADMIN) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "This group is announcements-only")
+        }
+        memberRepository.findByGroupIdAndMemberId(group.id, sender.id)?.let { member ->
+            if (member.mutedUntil?.isAfter(clock.instant()) == true) {
+                throw ApiException(ApiErrorCode.FORBIDDEN, "You are muted in this group")
+            }
+        }
+        val stableId = clientMessageId?.trim()?.takeIf { it.isNotEmpty() }
+        if (stableId != null) {
+            messageRepository.findByGroupIdAndClientMessageId(group.id, stableId)?.let { return messagePayload(it) }
+        }
+        val text = request.text.trim()
+        val attachments = request.attachments.orEmpty()
+        if (text.isEmpty() && attachments.isEmpty()) throw invalidArgument("A message needs text or an attachment")
+        val replyToId = replyTo?.takeIf { it.isNotBlank() }?.let { parseUuid(it, "replyTo") }
+        if (replyToId != null) {
+            val parent = messageRepository.findById(replyToId).orElse(null)
+            if (parent == null || parent.groupId != group.id) throw notFound("Reply target not found")
+        }
+        val saved = messageRepository.save(ClassGroupMessageEntity().apply {
+            this.groupId = group.id
+            senderId = sender.id
+            senderName = sender.name
+            senderRole = apiRole(sender)
+            this.text = text
+            this.replyToId = replyToId
+            this.isAnnouncement = isAnnouncement
+            this.attachments = mapper.writeValueAsString(attachments)
+            this.clientMessageId = stableId
+        })
+        group.updatedAt = clock.instant()
+        groupRepository.save(group)
+        markReadFor(group, sender.id)
+        fanOut(group, saved, sender)
+        return messagePayload(saved)
+    }
+
+    private fun fanOut(group: ClassGroupEntity, message: ClassGroupMessageEntity, sender: UserEntity) {
+        val recipients = linkedSetOf<UUID>()
+        recipients += group.teacherId
+        memberRepository.findAllByGroupIdOrderByMemberNameAsc(group.id).forEach { recipients += it.memberId }
+        membershipRepository.findAllByClassId(group.classId).forEach { recipients += it.studentId }
+        recipients.toList().forEach { studentId ->
+            userRepository.findByParentUserId(studentId).forEach { recipients += it.id }
+        }
+        recipients.remove(sender.id)
+        if (recipients.isEmpty()) return
+        val route = "class_group_chat/" + group.id + "/" + URLEncoder.encode(group.name, StandardCharsets.UTF_8)
+        val body = sender.name + ": " + (message.text.takeIf { it.isNotBlank() } ?: "Attachment")
+        recipients.forEach { recipientId ->
+            notificationRepository.save(NotificationEntity().apply {
+                userId = recipientId
+                title = group.name
+                this.message = body
+                type = NotificationType.MESSAGE
+                urgency = NotificationUrgency.NORMAL
+                priority = NotificationPriority.NORMAL
+                actionRoute = route
+                actionLabel = "Open chat"
+                metadata = mapper.writeValueAsString(mapOf("groupId" to group.id.toString(), "messageId" to message.id.toString()))
+                dedupeKey = "chat:" + message.id
+            })
+        }
+    }
+
+    private fun markReadFor(group: ClassGroupEntity, userId: UUID) {
+        val row = readRepository.findByGroupIdAndUserId(group.id, userId)
+        if (row == null) {
+            readRepository.save(ClassGroupReadEntity().apply {
+                groupId = group.id
+                this.userId = userId
+                lastReadAt = clock.instant()
+            })
+        } else {
+            row.lastReadAt = clock.instant()
+            readRepository.save(row)
+        }
+    }
+
+    private fun castVote(poll: ClassGroupPollEntity, userId: UUID, optionIndex: Int) {
+        val options = parseStringList(poll.options)
+        if (optionIndex < 0 || optionIndex >= options.size) throw invalidArgument("optionIndex is out of range")
+        val existing = pollVoteRepository.findByPollIdAndUserId(poll.id, userId)
+        if (existing == null) {
+            pollVoteRepository.save(ClassGroupPollVoteEntity().apply {
+                pollId = poll.id
+                this.userId = userId
+                this.optionIndex = optionIndex
+            })
+        } else {
+            existing.optionIndex = optionIndex
+            existing.votedAt = clock.instant()
+            pollVoteRepository.save(existing)
+        }
+    }
+
+    private fun groupPayload(group: ClassGroupEntity, viewerId: UUID): ClassGroupPayload {
         val last = messageRepository.findFirstByGroupIdOrderByCreatedAtDesc(group.id)
-        val unread = group.teacherLastReadAt?.let { since ->
-            messageRepository.countByGroupIdAndCreatedAtAfterAndSenderIdNot(group.id, since, group.teacherId)
-        } ?: messageRepository.countByGroupIdAndCreatedAtAfterAndSenderIdNot(group.id, Instant.EPOCH, group.teacherId)
+        val since = readRepository.findByGroupIdAndUserId(group.id, viewerId)?.lastReadAt ?: Instant.EPOCH
+        val unread = messageRepository.countByGroupIdAndCreatedAtAfterAndSenderIdNot(group.id, since, viewerId)
+        val muted = if (viewerId == group.teacherId) {
+            group.teacherMutedUntil?.isAfter(clock.instant()) == true
+        } else {
+            memberRepository.findByGroupIdAndMemberId(group.id, viewerId)?.mutedUntil?.isAfter(clock.instant()) == true
+        }
         return ClassGroupPayload(
             id = group.id.toString(),
             name = group.name,
@@ -264,7 +417,7 @@ class ClassChatService(
             classId = group.classId.toString(),
             description = group.description,
             unreadCount = unread.toInt(),
-            isMuted = group.teacherMutedUntil?.isAfter(clock.instant()) == true,
+            isMuted = muted,
             isAnnouncementMode = group.isAnnouncementMode,
             lastMessage = last?.text?.takeIf { it.isNotBlank() } ?: last?.attachments?.let { "Attachment" },
             lastMessageTime = last?.createdAt?.toEpochMilli(),
@@ -286,20 +439,22 @@ class ClassChatService(
             isAnnouncement = message.isAnnouncement,
         )
 
-    private fun pollPayload(poll: ClassGroupPollEntity): LivePollPayload {
+    private fun pollPayload(poll: ClassGroupPollEntity, viewerId: UUID): LivePollPayload {
         val options = parseStringList(poll.options)
-        val counts = pollVoteRepository.findAllByPollId(poll.id).groupingBy { it.optionIndex }.eachCount()
-        val votes = LinkedHashMap<Int, Int>()
-        options.indices.forEach { votes[it] = counts[it] ?: 0 }
-        val results = LinkedHashMap<String, Int>()
-        options.forEachIndexed { index, option -> results[option] = counts[index] ?: 0 }
+        val votes = pollVoteRepository.findAllByPollId(poll.id)
+        val counts = votes.groupingBy { it.optionIndex }.eachCount()
+        val myVote = votes.firstOrNull { it.userId == viewerId }?.optionIndex
+        val voteMap = LinkedHashMap<Int, Int>()
+        options.indices.forEach { voteMap[it] = counts[it] ?: 0 }
+        val resultMap = LinkedHashMap<String, Int>()
+        options.forEachIndexed { index, option -> resultMap[option] = counts[index] ?: 0 }
         return LivePollPayload(
             id = poll.id.toString(),
             classId = poll.groupId.toString(),
             question = poll.question,
             options = options,
-            votes = votes,
-            results = results,
+            votes = voteMap,
+            results = resultMap,
             isActive = poll.isActive,
             createdAt = poll.createdAt.toEpochMilli(),
         )
@@ -312,7 +467,6 @@ class ClassChatService(
         return (0 until node.size()).mapNotNull { index ->
             val item = node.get(index)
             val url = item.get("url")?.asString() ?: return@mapNotNull null
-            val type = item.get("type")?.asString() ?: "FILE"
             val pollOptions = item.get("pollOptions")?.takeIf { it.isArray }?.let { array ->
                 (0 until array.size()).map { optionIndex ->
                     val option = array.get(optionIndex)
@@ -326,7 +480,7 @@ class ClassChatService(
             }
             MessageAttachmentPayload(
                 url = url,
-                type = type,
+                type = item.get("type")?.asString() ?: "FILE",
                 fileName = item.get("fileName")?.asString(),
                 fileSize = item.get("fileSize")?.longValue(),
                 durationMs = item.get("durationMs")?.longValue(),
@@ -346,6 +500,49 @@ class ClassChatService(
                 memberRole = apiRole(member)
             })
         }
+    }
+
+    /** Groups a student belongs to: their classes' groups plus explicit memberships. */
+    private fun studentGroups(studentId: UUID): List<ClassGroupEntity> {
+        val classIds = membershipRepository.findAllByStudentId(studentId).map { it.classId }.toSet()
+        val explicitGroupIds = memberRepository.findAllByMemberId(studentId).map { it.groupId }.toSet()
+        val byClass = classIds.flatMap { groupRepository.findAllByClassId(it) }
+        val byMembership = explicitGroupIds.mapNotNull { groupRepository.findById(it).orElse(null) }
+        return (byClass + byMembership).distinctBy { it.id }
+    }
+
+    private fun studentAccessibleGroup(current: CurrentUser, groupIdRaw: String): ClassGroupEntity {
+        val group = groupRepository.findById(parseUuid(groupIdRaw, "group id")).orElse(null)
+            ?: throw notFound("Class group not found")
+        if (!studentCanAccess(current.userId, group)) throw ApiException(ApiErrorCode.FORBIDDEN, "Not a member of this group")
+        return group
+    }
+
+    private fun parentAccessibleGroup(current: CurrentUser, groupIdRaw: String): ClassGroupEntity {
+        val group = groupRepository.findById(parseUuid(groupIdRaw, "group id")).orElse(null)
+            ?: throw notFound("Class group not found")
+        val allowed = userRepository.findByParentUserId(current.userId).any { studentCanAccess(it.id, group) }
+        if (!allowed) throw ApiException(ApiErrorCode.FORBIDDEN, "Not a member of this group")
+        return group
+    }
+
+    private fun studentCanAccess(studentId: UUID, group: ClassGroupEntity): Boolean {
+        if (memberRepository.findByGroupIdAndMemberId(group.id, studentId) != null) return true
+        return membershipRepository.findAllByStudentId(studentId).any { it.classId == group.classId }
+    }
+
+    private fun accessibleGroup(current: CurrentUser, groupIdRaw: String): ClassGroupEntity = when (current.role) {
+        Role.PARENT -> parentAccessibleGroup(current, groupIdRaw)
+        Role.STUDENT -> studentAccessibleGroup(current, groupIdRaw)
+        else -> ownedGroup(current, groupIdRaw)
+    }
+
+    private fun linkedChild(current: CurrentUser, childIdRaw: String): UserEntity {
+        val child = user(parseUuid(childIdRaw, "child id"))
+        if (current.role != Role.ADMIN && child.parentUserId != current.userId) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "Not your linked child")
+        }
+        return child
     }
 
     private fun ownedMessage(group: ClassGroupEntity, messageIdRaw: String): ClassGroupMessageEntity {
@@ -373,6 +570,13 @@ class ClassChatService(
             throw ApiException(ApiErrorCode.FORBIDDEN, "Not your class")
         }
         clazz
+    }
+
+    private fun attachmentType(contentType: String, mediaType: String): String = when {
+        mediaType == "IMAGE" -> "IMAGE"
+        contentType == "application/pdf" -> "PDF"
+        contentType.startsWith("audio/") -> "AUDIO"
+        else -> "FILE"
     }
 
     private fun user(userId: UUID): UserEntity = userRepository.findById(userId).orElseThrow { notFound("User not found") }
