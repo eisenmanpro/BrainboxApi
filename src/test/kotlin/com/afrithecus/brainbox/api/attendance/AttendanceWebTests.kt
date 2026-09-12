@@ -1,6 +1,9 @@
 package com.afrithecus.brainbox.api.attendance
 
+import com.afrithecus.brainbox.api.attendance.entity.AttendanceRecordEntity
+import com.afrithecus.brainbox.api.attendance.model.AttendanceStatus
 import com.afrithecus.brainbox.api.attendance.repository.AttendanceRecordRepository
+import com.afrithecus.brainbox.api.attendance.web.AttendanceAnalyticsPayload
 import com.afrithecus.brainbox.api.attendance.web.AttendanceRecordPayload
 import com.afrithecus.brainbox.api.auth.web.AuthResponse
 import com.afrithecus.brainbox.api.classes.entity.ClassMembershipEntity
@@ -28,9 +31,11 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.temporal.TemporalAdjusters
 import java.util.UUID
 
 /**
@@ -222,4 +227,83 @@ class AttendanceWebTests(
                 .contentType(MediaType.APPLICATION_JSON).content(plainBody)
         ).andExpect(status().isForbidden)
     }
+
+    private fun seed(clazz: TeacherClassEntity, student: UserEntity, day: LocalDate, status: String) {
+        recordRepository.save(AttendanceRecordEntity().apply {
+            classId = clazz.id
+            studentId = student.id
+            schoolId = this@AttendanceWebTests.schoolId
+            attendanceDate = day
+            this.status = AttendanceStatus.valueOf(status)
+        })
+    }
+
+    @Test
+    fun `analytics flags chronic absence and keys the weekly heatmap Monday-first`() {
+        val alice = user(Role.STUDENT, "Alice Mwangi", "0722000301")
+        val bob = user(Role.STUDENT, "Bob Otieno", "0722000302")
+        val teacher = user(Role.TEACHER, "Class Teacher", "0722000303", subRole = SubRole.CTEACHER)
+        val clazz = teacherClass(teacher, "Grade 6 West")
+        enroll(clazz, alice)
+        enroll(clazz, bob)
+        val token = token(teacher)
+
+        val today = LocalDate.now(zone)
+        var aliceAbsent = 0
+        var bobAbsent = 0
+        for (offset in 13 downTo 0) {
+            val day = today.minusDays(offset.toLong())
+            val aliceStatus = if (offset % 3 == 0 && aliceAbsent < 5) {
+                aliceAbsent++
+                "ABSENT"
+            } else {
+                "PRESENT"
+            }
+            val bobStatus = when {
+                offset == 2 && bobAbsent < 1 -> {
+                    bobAbsent++
+                    "ABSENT"
+                }
+                offset == 5 -> "LATE"
+                else -> "PRESENT"
+            }
+            seed(clazz, alice, day, aliceStatus)
+            seed(clazz, bob, day, bobStatus)
+        }
+
+        val startMillis = today.minusDays(13).atStartOfDay(zone).toInstant().toEpochMilli()
+        val endMillis = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val analytics = objectMapper.readValue(
+            mockMvc.perform(
+                get("/teacher/classes/${clazz.id}/attendance/analytics/range")
+                    .param("startDate", startMillis.toString()).param("endDate", endMillis.toString())
+                    .header("Authorization", auth(token))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            AttendanceAnalyticsPayload::class.java,
+        )
+        check(analytics.trendPoints.size == 14)
+        check(analytics.averageAttendance in 0.0..100.0)
+        check(analytics.weeklyHeatmap.keys.all { it in 1..7 })
+        check(analytics.monthlyHeatmap.isNotEmpty())
+        check(analytics.chronicAbsenteeismAlerts.any { it.studentId == alice.id.toString() && it.severity == "HIGH" })
+        check(analytics.chronicAbsenteeismAlerts.none { it.studentId == bob.id.toString() })
+
+        // A single known Monday at 50% (outside the 14-day window) must land on
+        // weekly key 1 (Monday first).
+        val monday = today.minusDays(21).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        seed(clazz, alice, monday, "PRESENT")
+        seed(clazz, bob, monday, "ABSENT")
+        val dayMillis = monday.atStartOfDay(zone).toInstant().toEpochMilli()
+        val single = objectMapper.readValue(
+            mockMvc.perform(
+                get("/teacher/classes/${clazz.id}/attendance/analytics/range")
+                    .param("startDate", dayMillis.toString()).param("endDate", dayMillis.toString())
+                    .header("Authorization", auth(token))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            AttendanceAnalyticsPayload::class.java,
+        )
+        check(single.weeklyHeatmap[1] == 50.0)
+        check(single.monthlyHeatmap[monday.dayOfMonth] == 50.0)
+    }
 }
+

@@ -3,7 +3,10 @@ package com.afrithecus.brainbox.api.attendance
 import com.afrithecus.brainbox.api.attendance.entity.AttendanceRecordEntity
 import com.afrithecus.brainbox.api.attendance.model.AttendanceStatus
 import com.afrithecus.brainbox.api.attendance.repository.AttendanceRecordRepository
+import com.afrithecus.brainbox.api.attendance.web.AttendanceAnalyticsPayload
 import com.afrithecus.brainbox.api.attendance.web.AttendanceRecordPayload
+import com.afrithecus.brainbox.api.attendance.web.AttendanceTrendPointPayload
+import com.afrithecus.brainbox.api.attendance.web.ChronicAbsenteeismAlertPayload
 import com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity
 import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
@@ -109,6 +112,83 @@ class AttendanceService(
         }
     }
 
+    // ------------------------------------------------------------ analytics
+
+    /**
+     * Class attendance analytics over [startMillis, endMillis] (doc 04 §4.4).
+     * Attendance rate = (PRESENT + LATE) / (PRESENT + LATE + ABSENT); EXCUSED is
+     * excluded from both sides. The weekly heatmap keys 1=Monday..7=Sunday.
+     */
+    @Transactional(readOnly = true)
+    fun analytics(current: CurrentUser, classIdRaw: String, startMillis: Long, endMillis: Long): AttendanceAnalyticsPayload {
+        val clazz = readableClass(user(current), classIdRaw)
+        val from = dayOf(minOf(startMillis, endMillis))
+        val to = dayOf(maxOf(startMillis, endMillis))
+        val records = recordRepository.findAllByClassIdAndAttendanceDateBetween(clazz.id, from, to)
+        val roster = rosterIds(clazz, records)
+        val byDay = records.groupBy { it.attendanceDate }.toSortedMap()
+
+        val dailyRates = byDay.mapNotNull { (day, dayRecords) ->
+            val rate = attendanceRate(dayRecords, roster.size) ?: return@mapNotNull null
+            day to rate
+        }
+        val trend = dailyRates.map { (day, rate) -> AttendanceTrendPointPayload(millisOf(day), rate) }
+        val average = if (dailyRates.isEmpty()) 0.0 else dailyRates.map { it.second }.average()
+        val weekly = dailyRates.groupBy { it.first.dayOfWeek.value }
+            .mapValues { (_, pairs) -> round2(pairs.map { it.second }.average()) }
+            .toSortedMap()
+        val monthly = dailyRates.groupBy { it.first.dayOfMonth }
+            .mapValues { (_, pairs) -> round2(pairs.map { it.second }.average()) }
+            .toSortedMap()
+        return AttendanceAnalyticsPayload(
+            classId = clazz.id.toString(),
+            averageAttendance = round2(average),
+            trendPoints = trend,
+            chronicAbsenteeismAlerts = chronicAlerts(clazz, records),
+            weeklyHeatmap = weekly,
+            monthlyHeatmap = monthly,
+        )
+    }
+
+    private fun chronicAlerts(clazz: TeacherClassEntity, records: List<AttendanceRecordEntity>): List<ChronicAbsenteeismAlertPayload> {
+        val students = userRepository.findAllById(records.map { it.studentId }).associateBy { it.id }
+        return records.groupBy { it.studentId }.mapNotNull { (studentId, rows) ->
+            val counted = rows.count { it.status != AttendanceStatus.EXCUSED }
+            val attended = rows.count { it.status == AttendanceStatus.PRESENT || it.status == AttendanceStatus.LATE }
+            val rate = if (counted == 0) 100.0 else round2(attended * 100.0 / counted)
+            val missed = rows.count { it.status == AttendanceStatus.ABSENT }
+            if (rate >= CHRONIC_RATE && missed < CHRONIC_MISSED) return@mapNotNull null
+            val lastAbsent = rows.filter { it.status == AttendanceStatus.ABSENT }.maxOfOrNull { it.attendanceDate }
+            ChronicAbsenteeismAlertPayload(
+                studentId = studentId.toString(),
+                studentName = students[studentId]?.name.orEmpty(),
+                attendancePercentage = rate,
+                missedDaysCount = missed,
+                lastAbsentDate = lastAbsent?.let(::millisOf) ?: 0L,
+                severity = when {
+                    rate < 70.0 -> "HIGH"
+                    rate < CHRONIC_RATE -> "MEDIUM"
+                    else -> "LOW"
+                },
+            )
+        }.sortedBy { it.attendancePercentage }.take(20)
+    }
+
+    /** (present + late) / counted, or null when the day has no countable records. */
+    private fun attendanceRate(dayRecords: List<AttendanceRecordEntity>, rosterSize: Int): Double? {
+        val counted = dayRecords.count { it.status != AttendanceStatus.EXCUSED }
+        if (counted == 0) return null
+        val attended = dayRecords.count { it.status == AttendanceStatus.PRESENT || it.status == AttendanceStatus.LATE }
+        return round2(attended * 100.0 / counted)
+    }
+
+    private fun rosterIds(clazz: TeacherClassEntity, records: List<AttendanceRecordEntity>): Set<UUID> {
+        val roster = membershipRepository.findAllByClassId(clazz.id).map { it.studentId }.toSet()
+        return if (roster.isNotEmpty()) roster else records.map { it.studentId }.toSet()
+    }
+
+    private fun round2(value: Double): Double = kotlin.math.round(value * 100) / 100.0
+
     // ------------------------------------------------------------ internals
 
     private fun apply(
@@ -213,6 +293,8 @@ class AttendanceService(
             ?: throw invalidArgument(field + " is not a valid identifier")
 
     private companion object {
+        const val CHRONIC_RATE = 80.0
+        const val CHRONIC_MISSED = 3
         val NOTIFIABLE = setOf(AttendanceStatus.ABSENT, AttendanceStatus.LATE)
         val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, dd MMM", Locale.US)
     }

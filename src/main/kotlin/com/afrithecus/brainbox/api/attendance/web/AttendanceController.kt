@@ -33,4 +33,28 @@ class AttendanceController(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @RequestBody records: List<AttendanceRecordPayload>,
     ): List<AttendanceRecordPayload> = service.submit(currentUser, records)
+
+    @GetMapping("/classes/{classId}/attendance/analytics")
+    fun analytics(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable classId: String,
+        @RequestParam(required = false) teacherId: String?,
+        @RequestParam(required = false) schoolId: String?,
+    ): AttendanceAnalyticsPayload {
+        val now = System.currentTimeMillis()
+        return service.analytics(currentUser, classId, now - DEFAULT_ANALYTICS_DAYS * DAY_MILLIS, now)
+    }
+
+    @GetMapping("/classes/{classId}/attendance/analytics/range")
+    fun analyticsRange(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable classId: String,
+        @RequestParam startDate: Long,
+        @RequestParam endDate: Long,
+    ): AttendanceAnalyticsPayload = service.analytics(currentUser, classId, startDate, endDate)
+
+    private companion object {
+        const val DEFAULT_ANALYTICS_DAYS = 30L
+        const val DAY_MILLIS = 24L * 60 * 60 * 1000
+    }
 }
