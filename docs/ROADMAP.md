@@ -366,7 +366,14 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       endpoint remain deferred per the handoff.
 - [ ] Feedback: templates, history, bulk (doc 04 §7)
 - [ ] Live class mgmt: CRUD, lifecycle, recordings, analytics, participants, polls (doc 04 §8)
-- [ ] Timetable, room bookings, house groups/peer circles, schedule changes (doc 04 §9)
+- [x] Timetable, room bookings, house/peer/community groups and schedule changes (tt, V38):
+      client-id idempotent timetable entry CRUD (repeat-safe delete), Kenyan export and an
+      idempotent auto-schedule that lays out practical blocks from the teacher's classes (LAB_PERIOD
+      for sciences, FIELD_WORK for agriculture, COMMUNITY_WORKSHOP for community subjects); room
+      bookings are school-visible with overlap clash rejection and repeat-safe cancel; house groups,
+      peer circles and community services as teacher-owned student-id lists; schedule change submit
+      (idempotent, never reopens a decided request) with school-wide coordinator/ICT-admin listing
+      and approve/reject. H2/PG parity (day_label avoids the reserved DAY keyword).
 - [x] Teacher digital exams (ex, V37): client-id idempotent exam CRUD + repeat-safe delete and
       publish, stored in the shared exams tables and served to students once published; question
       sections, the reusable teacher question bank, server-computed analysis (percentage scores,
