@@ -9,4 +9,6 @@ interface LiveAttendanceRepository : JpaRepository<LiveAttendanceEntity, UUID> {
     fun findByClassIdAndStudentId(classId: UUID, studentId: UUID): LiveAttendanceEntity?
 
     fun findAllByClassId(classId: UUID): List<LiveAttendanceEntity>
+
+    fun findAllByStudentIdOrderByRecordedAtDesc(studentId: UUID): List<LiveAttendanceEntity>
 }

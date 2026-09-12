@@ -78,6 +78,19 @@ data class AttendancePerformanceAnalyticsPayload(
     val trendSeries: List<AttendancePerformanceTrendPointPayload>,
 )
 
+/** Parent-facing record (models/ParentModels.kt) merging the register with live times. */
+data class ParentAttendanceRecordPayload(
+    val date: Long,
+    val status: String,
+    val reason: String? = null,
+    val checkInTime: Long? = null,
+    val leaveTime: Long? = null,
+    val durationMinutes: Int = 0,
+    val isPresent: Boolean = true,
+    val classId: String? = null,
+    val userId: String? = null,
+)
+
 data class ChildAttendanceTrendPointPayload(
     val date: Long,
     val attendancePercentage: Double,

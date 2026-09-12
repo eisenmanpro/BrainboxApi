@@ -8,6 +8,9 @@ import com.afrithecus.brainbox.api.attendance.web.AttendancePerformanceAnalytics
 import com.afrithecus.brainbox.api.attendance.web.AttendancePerformanceRiskSummaryPayload
 import com.afrithecus.brainbox.api.attendance.web.AttendancePerformanceTrendPointPayload
 import com.afrithecus.brainbox.api.attendance.web.AttendanceRecordPayload
+import com.afrithecus.brainbox.api.attendance.web.ChildAttendancePerformancePayload
+import com.afrithecus.brainbox.api.attendance.web.ChildAttendanceTrendPointPayload
+import com.afrithecus.brainbox.api.attendance.web.ParentAttendanceRecordPayload
 import com.afrithecus.brainbox.api.attendance.web.StudentAttendancePerformancePayload
 import com.afrithecus.brainbox.api.attendance.web.AttendanceTrendPointPayload
 import com.afrithecus.brainbox.api.attendance.web.ChronicAbsenteeismAlertPayload
@@ -198,6 +201,102 @@ class AttendanceService(
     }
 
     private fun round2(value: Double): Double = kotlin.math.round(value * 100) / 100.0
+
+    // ------------------------------------------------------------ parent
+
+    /** Parent view of a linked child's attendance, most recent first (docs/ongoing §parent). */
+    @Transactional(readOnly = true)
+    fun parentAttendance(current: CurrentUser, childIdRaw: String): List<ParentAttendanceRecordPayload> {
+        val child = linkedChild(current, childIdRaw)
+        val sessions = liveAttendanceRepository.findAllByStudentIdOrderByRecordedAtDesc(child.id)
+            .filter { it.joinedAt != null }
+            .groupBy { LocalDate.ofInstant(it.joinedAt!!, zone) }
+            .mapValues { (_, rows) -> rows.maxByOrNull { it.recordedAt }!! }
+        return recordRepository.findAllByStudentIdOrderByAttendanceDateDesc(child.id).map { row ->
+            val session = sessions[row.attendanceDate]
+            ParentAttendanceRecordPayload(
+                date = millisOf(row.attendanceDate),
+                status = row.status.name,
+                reason = row.notes,
+                checkInTime = session?.joinedAt?.toEpochMilli(),
+                leaveTime = session?.leftAt?.toEpochMilli(),
+                durationMinutes = session?.durationMinutes ?: 0,
+                isPresent = session?.isPresent ?: (row.status != AttendanceStatus.ABSENT),
+                classId = row.classId.toString(),
+                userId = child.id.toString(),
+            )
+        }
+    }
+
+    /** Server-computed attendance/performance intelligence for a linked child (doc 07 §5.2). */
+    @Transactional(readOnly = true)
+    fun parentPerformance(current: CurrentUser, childIdRaw: String): ChildAttendancePerformancePayload {
+        val child = linkedChild(current, childIdRaw)
+        val today = LocalDate.ofInstant(clock.instant(), zone)
+        val from = today.minusDays(DEFAULT_WINDOW_DAYS - 1)
+        val records = recordRepository.findAllByStudentIdOrderByAttendanceDateDesc(child.id)
+            .filter { it.attendanceDate >= from && it.attendanceDate <= today }
+        val counted = records.count { it.status != AttendanceStatus.EXCUSED }
+        val attended = records.count { it.status == AttendanceStatus.PRESENT || it.status == AttendanceStatus.LATE }
+        val percentage = if (counted == 0) 100.0 else round2(attended * 100.0 / counted)
+        val startInstant = from.atStartOfDay(zone).toInstant()
+        val submissions = examSubmissionRepository.findAllByUserId(child.id)
+        val inWindow = submissions.filter { it.submittedAt >= startInstant }
+        val scores = (if (inWindow.isNotEmpty()) inWindow else submissions).map { it.percentage.toDouble() }
+        val averageScore = if (scores.isEmpty()) 0.0 else round2(scores.average())
+        val benchmark = benchmarkAverage(child)
+        val tier = riskTier(percentage, averageScore)
+        val daily = records.groupBy { it.attendanceDate }.toSortedMap().map { (day, rows) ->
+            val dayCounted = rows.count { it.status != AttendanceStatus.EXCUSED }
+            val dayAttended = rows.count { it.status == AttendanceStatus.PRESENT || it.status == AttendanceStatus.LATE }
+            ChildAttendanceTrendPointPayload(
+                date = millisOf(day),
+                attendancePercentage = if (dayCounted == 0) 0.0 else round2(dayAttended * 100.0 / dayCounted),
+                averageScore = averageScore,
+            )
+        }
+        return ChildAttendancePerformancePayload(
+            attendancePercentage = percentage,
+            averageScore = averageScore,
+            benchmarkAverage = benchmark,
+            riskTier = tier,
+            impactInsight = impactInsight(tier),
+            missedDaysCount = records.count { it.status == AttendanceStatus.ABSENT },
+            trendSeries = daily,
+        )
+    }
+
+    private fun benchmarkAverage(child: UserEntity): Double {
+        val peerIds = linkedSetOf<UUID>()
+        membershipRepository.findAllByStudentId(child.id).forEach { membership ->
+            membershipRepository.findAllByClassId(membership.classId)
+                .forEach { peerIds += it.studentId }
+        }
+        peerIds.remove(child.id)
+        if (peerIds.isEmpty() && child.schoolId != null && child.gradeLevel != null) {
+            userRepository.findAllBySchoolIdAndGradeLevelAndRole(child.schoolId!!, child.gradeLevel!!, Role.STUDENT)
+                .forEach { if (it.id != child.id) peerIds += it.id }
+        }
+        if (peerIds.isEmpty()) return 0.0
+        val scores = examSubmissionRepository.findAllByUserIdIn(peerIds).map { it.percentage.toDouble() }
+        return if (scores.isEmpty()) 0.0 else round2(scores.average())
+    }
+
+    private fun impactInsight(tier: String): String = when (tier) {
+        "CRITICAL" -> "Attendance is critically low and scores are suffering. Please contact the class teacher."
+        "HIGH" -> "Frequent absences are linked to lower scores. A follow-up is recommended."
+        "MEDIUM" -> "Attendance dips are starting to affect performance. Keep monitoring."
+        else -> "Attendance and performance are on track."
+    }
+
+    private fun linkedChild(current: CurrentUser, childIdRaw: String): UserEntity {
+        val child = userRepository.findById(parseUuid(childIdRaw, "childId")).orElse(null)
+            ?: throw notFound("Child not found")
+        if (current.role != Role.ADMIN && child.parentUserId != current.userId) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "Not your linked child")
+        }
+        return child
+    }
 
     // ------------------------------------------------------------ auto-mark
 
@@ -495,6 +594,7 @@ class AttendanceService(
         const val CHRONIC_RATE = 80.0
         const val CHRONIC_MISSED = 3
         const val MIN_PRESENT_MINUTES = 5
+        const val DEFAULT_WINDOW_DAYS = 30L
         const val HIGH_ATTENDANCE = 90.0
         const val HIGH_PERFORMANCE = 65.0
         val NOTIFIABLE = setOf(AttendanceStatus.ABSENT, AttendanceStatus.LATE)

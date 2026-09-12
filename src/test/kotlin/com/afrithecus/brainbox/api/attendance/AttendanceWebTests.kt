@@ -16,6 +16,8 @@ import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.attendance.web.AttendancePerformanceAnalyticsPayload
+import com.afrithecus.brainbox.api.attendance.web.ChildAttendancePerformancePayload
+import com.afrithecus.brainbox.api.attendance.web.ParentAttendanceRecordPayload
 import com.afrithecus.brainbox.api.exams.entity.ExamEntity
 import com.afrithecus.brainbox.api.exams.entity.ExamSubmissionEntity
 import com.afrithecus.brainbox.api.exams.repository.ExamRepository
@@ -427,6 +429,58 @@ class AttendanceWebTests(
         check(performance.riskSummary.low + performance.riskSummary.medium + performance.riskSummary.high + performance.riskSummary.critical == 2)
         check(performance.trendSeries.isNotEmpty())
     }
+
+    @Test
+    fun `parent sees a linked child's register and server-computed performance`() {
+        val parent = user(Role.PARENT, "Parent One", "0722000500")
+        val stranger = user(Role.PARENT, "Other Parent", "0722000501")
+        val alice = user(Role.STUDENT, "Alice Mwangi", "0722000502", parentId = parent.id)
+        val bob = user(Role.STUDENT, "Bob Otieno", "0722000503")
+        val teacher = user(Role.TEACHER, "Class Teacher", "0722000504", subRole = SubRole.CTEACHER)
+        val clazz = teacherClass(teacher, "Grade 8 East")
+        enroll(clazz, alice)
+        enroll(clazz, bob)
+
+        val today = LocalDate.now(zone)
+        val statuses = listOf("PRESENT", "PRESENT", "EXCUSED", "ABSENT", "PRESENT")
+        statuses.forEachIndexed { index, status ->
+            seed(clazz, alice, today.minusDays((statuses.size - 1 - index).toLong()), status)
+        }
+        for (offset in 4 downTo 0) seed(clazz, bob, today.minusDays(offset.toLong()), "PRESENT")
+        submission(teacher, alice, 90, today.minusDays(2))
+        submission(teacher, bob, 50, today.minusDays(2))
+
+        val parentToken = token(parent)
+        val strangerToken = token(stranger)
+
+        val records = objectMapper.readValue(
+            mockMvc.perform(get("/parent/child/${alice.id}/attendance").header("Authorization", auth(parentToken)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<ParentAttendanceRecordPayload>::class.java,
+        )
+        check(records.size == 5)
+        check(records.first().date >= records.last().date)
+        check(records.any { it.status == "EXCUSED" })
+        check(records.first { it.status == "ABSENT" }.isPresent.not())
+
+        val performance = objectMapper.readValue(
+            mockMvc.perform(get("/parent/child/${alice.id}/attendance/performance").header("Authorization", auth(parentToken)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            ChildAttendancePerformancePayload::class.java,
+        )
+        check(performance.attendancePercentage == 75.0)
+        check(performance.averageScore == 90.0)
+        check(performance.benchmarkAverage == 50.0)
+        check(performance.riskTier == "HIGH")
+        check(performance.missedDaysCount == 1)
+        check(performance.impactInsight.isNotBlank())
+        check(performance.trendSeries.size == 5)
+
+        // A parent who is not linked to the child is forbidden.
+        mockMvc.perform(get("/parent/child/${alice.id}/attendance").header("Authorization", auth(strangerToken)))
+            .andExpect(status().isForbidden)
+    }
 }
+
 
 
