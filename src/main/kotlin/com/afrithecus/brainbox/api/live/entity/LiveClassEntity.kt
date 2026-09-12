@@ -58,4 +58,37 @@ class LiveClassEntity : BaseEntity() {
     /** JSON array string of {name,url} materials. */
     @Column(columnDefinition = "text")
     var materials: String? = null
+
+    /** Client-supplied id; makes the host's offline writes replay-safe. */
+    @Column(name = "client_id", length = 80)
+    var clientId: String? = null
+
+    @Column(nullable = false, length = 32)
+    var visibility: String = "CLASS_ONLY"
+
+    @Column(name = "auto_record", nullable = false)
+    var autoRecord: Boolean = true
+
+    @Column(name = "mute_on_join", nullable = false)
+    var muteOnJoin: Boolean = true
+
+    @Column(name = "waiting_room", nullable = false)
+    var waitingRoom: Boolean = false
+
+    @Column(name = "allow_chat", nullable = false)
+    var allowChat: Boolean = true
+
+    @Column(name = "allow_q_and_a", nullable = false)
+    var allowQandA: Boolean = true
+
+    /** JSON array string of invited participant ids. */
+    @Column(name = "participant_ids", columnDefinition = "text")
+    var participantIds: String? = null
+
+    /** JSON array string of attached material ids. */
+    @Column(name = "material_ids", columnDefinition = "text")
+    var materialIds: String? = null
+
+    @Column(name = "analytics_id", length = 80)
+    var analyticsId: String? = null
 }

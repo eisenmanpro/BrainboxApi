@@ -235,7 +235,7 @@ class LiveClassService(
 
     // ------------------------------------------------------------ internals
 
-    private fun payload(clazz: LiveClassEntity, includeScheduleLabels: Boolean = false): LiveClassPayload {
+    internal fun payload(clazz: LiveClassEntity, includeScheduleLabels: Boolean = false): LiveClassPayload {
         val registered = registrationRepository.countByClassId(clazz.id).toInt()
         val zoned = ZonedDateTime.ofInstant(clazz.scheduledStart, clock.zone)
         return LiveClassPayload(

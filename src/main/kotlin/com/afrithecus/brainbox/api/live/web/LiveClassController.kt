@@ -3,6 +3,7 @@ package com.afrithecus.brainbox.api.live.web
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.live.LiveClassService
+import com.afrithecus.brainbox.api.live.TeacherLiveClassService
 import jakarta.validation.Valid
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
@@ -16,7 +17,10 @@ import org.springframework.web.bind.annotation.RestController
 /** Live classes (doc 05 §4): list/detail/register/attendance/polls. */
 @RestController
 @RequestMapping("/live")
-class LiveClassController(private val service: LiveClassService) {
+class LiveClassController(
+    private val service: LiveClassService,
+    private val hosting: TeacherLiveClassService,
+) {
 
     @GetMapping("/now")
     fun liveNow(): List<LiveClassPayload> = service.ongoing()
@@ -54,6 +58,13 @@ class LiveClassController(private val service: LiveClassService) {
 
     @GetMapping("/class/{classId}/polls")
     fun polls(@PathVariable classId: String): List<LivePollPayload> = service.polls(classId)
+
+    @PostMapping("/class/{classId}/messages")
+    fun sendMessage(
+        @AuthenticationPrincipal current: CurrentUser,
+        @PathVariable classId: String,
+        @RequestBody message: ChatMessagePayload,
+    ): ChatMessagePayload = hosting.sendMessage(current, classId, message)
 
     @PostMapping("/class/{classId}/poll")
     fun createPoll(

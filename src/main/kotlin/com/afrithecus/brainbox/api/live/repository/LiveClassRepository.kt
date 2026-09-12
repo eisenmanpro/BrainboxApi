@@ -14,4 +14,16 @@ interface LiveClassRepository : JpaRepository<LiveClassEntity, UUID> {
     fun findAllByOrderByScheduledStartDesc(): List<LiveClassEntity>
 
     fun findAllByTeacherIdOrderByScheduledStartDesc(teacherId: UUID): List<LiveClassEntity>
+
+    fun findByClientId(clientId: String): LiveClassEntity?
+
+    fun findAllByTeacherIdAndStatusOrderByScheduledStartDesc(
+        teacherId: UUID,
+        status: LiveClassStatus,
+    ): List<LiveClassEntity>
+
+    fun findAllByTeacherIdAndStatusAndRecordingUrlIsNotNullOrderByScheduledStartDesc(
+        teacherId: UUID,
+        status: LiveClassStatus,
+    ): List<LiveClassEntity>
 }
