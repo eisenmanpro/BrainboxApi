@@ -77,6 +77,17 @@ data class LearnerTimetableSlotPayload(
     val endMillis: Long = 0,
 )
 
+/** A parent-facing calendar event (GET parent/child/{childId}/calendar). */
+data class CalendarEventPayload(
+    val id: String,
+    val title: String,
+    val date: Long,
+    val type: String = "ACADEMIC",
+    val childId: String = "",
+    val location: String? = null,
+    val rsvpStatus: String? = null,
+)
+
 data class ScheduleChangePayload(
     val id: String = "",
     val teacherId: String = "",

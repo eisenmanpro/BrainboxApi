@@ -11,6 +11,7 @@ import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
+import com.afrithecus.brainbox.api.timetable.web.CalendarEventPayload
 import com.afrithecus.brainbox.api.timetable.web.CommunityServicePayload
 import com.afrithecus.brainbox.api.timetable.web.LearnerTimetableSlotPayload
 import com.afrithecus.brainbox.api.timetable.web.HouseGroupPayload
@@ -245,6 +246,41 @@ class TeacherTimetableWebTests(
         // A learner cannot read someone else's timetable.
         mockMvc.perform(get("/student/timetable?studentId=" + outsider.id)
             .header("Authorization", auth(token(member))))
+            .andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `parent calendar materialises the linked child's classes`() {
+        val teacher = user(Role.TEACHER, "Class Teacher", "0755020080")
+        val parent = user(Role.PARENT, "Parent One", "0755020081")
+        val child = user(Role.STUDENT, "Child Learner", "0755020082").also {
+            it.parentUserId = parent.id
+            userRepository.save(it)
+        }
+        val clazz = teachClass(teacher, "Grade 4 South", "Mathematics")
+        membershipRepository.save(ClassMembershipEntity().apply {
+            classId = clazz.id
+            studentId = child.id
+        })
+        val t = token(teacher)
+        mockMvc.perform(post("/teacher/timetable/entries").header("Authorization", auth(t))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(entry().copy(classId = clazz.id.toString()))))
+            .andExpect(status().isOk)
+
+        val events = objectMapper.readValue(
+            mockMvc.perform(get("/parent/child/" + child.id + "/calendar").header("Authorization", auth(token(parent))))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<CalendarEventPayload>::class.java,
+        )
+        check(events.size == 1)
+        check(events.single().type == "ACADEMIC")
+        check(events.single().title == "Mathematics with Class Teacher")
+        check(events.single().location == "Room 101")
+        check(events.single().date > 0)
+
+        val stranger = user(Role.PARENT, "Other Parent", "0755020083")
+        mockMvc.perform(get("/parent/child/" + child.id + "/calendar").header("Authorization", auth(token(stranger))))
             .andExpect(status().isForbidden)
     }
 
