@@ -59,6 +59,34 @@ class AnnouncementService(
             .map(::payload)
     }
 
+    /**
+     * Announcements targeting the signed-in learner (or a parent's children):
+     * delivered, unexpired and matching the account's school, grade, class or
+     * explicit student target.
+     */
+    @Transactional(readOnly = true)
+    fun forMe(user: UserEntity, grade: String?): List<TeacherAnnouncementPayload> {
+        val schoolId = user.schoolId ?: return emptyList()
+        val now = clock.instant()
+        val subjectIds: Set<UUID> = if (user.role == Role.PARENT) {
+            userRepository.findByParentUserId(user.id).map { it.id }.toSet() + user.id
+        } else {
+            setOf(user.id)
+        }
+        val subjects = userRepository.findAllById(subjectIds)
+        val classIds = subjects
+            .flatMap { subject ->
+                membershipRepository.findAllByStudentId(subject.id).map { it.classId.toString() }
+            }
+            .toSet()
+        val grades = subjects.mapNotNull { GradeNormalizer.canonicalKey(it.gradeLevel) }.toMutableSet()
+        GradeNormalizer.canonicalKey(grade)?.let { grades += it }
+        return announcementRepository.findAllBySchoolIdAndDeliveredAtIsNotNullOrderBySentAtDesc(schoolId)
+            .filter { !hidden(it, now) }
+            .filter { visibleTo(it, user, subjectIds, classIds, grades) }
+            .map(::payload)
+    }
+
     /** Idempotent upsert keyed on the client-supplied id. */
     @Transactional
     fun create(teacher: UserEntity, request: TeacherAnnouncementPayload): TeacherAnnouncementPayload {
@@ -217,6 +245,28 @@ class AnnouncementService(
     private fun hidden(entity: TeacherAnnouncementEntity, now: Instant): Boolean =
         entity.expiresAt?.isBefore(now) == true
 
+    private fun visibleTo(
+        entity: TeacherAnnouncementEntity,
+        user: UserEntity,
+        subjectIds: Set<UUID>,
+        classIds: Set<String>,
+        grades: Set<Int>,
+    ): Boolean {
+        val explicitStudents = codec.parseList(entity.targetStudentIds).orEmpty()
+            .mapNotNull { runCatching { UUID.fromString(it) }.getOrNull() }
+        if (explicitStudents.isNotEmpty()) return explicitStudents.any { it in subjectIds }
+        return when (entity.audience) {
+            "SCHOOL" -> true
+            "PARENT" -> user.role == Role.PARENT
+            "TEACHER" -> user.role == Role.TEACHER
+            "GRADE" -> codec.parseList(entity.targetGradeLevels).orEmpty()
+                .mapNotNull { it.toIntOrNull() }
+                .any { it in grades }
+            "CLASS" -> codec.parseList(entity.targetClassIds).orEmpty().any { it in classIds }
+            else -> false
+        }
+    }
+
     private fun enumValue(allowed: Set<String>, raw: String, label: String): String {
         val upper = raw.trim().uppercase()
         if (upper in allowed) return upper
@@ -226,6 +276,7 @@ class AnnouncementService(
     private fun payload(entity: TeacherAnnouncementEntity) = TeacherAnnouncementPayload(
         id = entity.clientId,
         teacherId = entity.teacherId.toString(),
+        teacherName = userRepository.findById(entity.teacherId).orElse(null)?.name ?: "",
         title = entity.title,
         content = entity.content,
         type = entity.announcementType,

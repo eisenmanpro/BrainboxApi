@@ -210,4 +210,67 @@ class AnnouncementWebTests(
         mockMvc.perform(delete("/teacher/announcements/ann_1").header("Authorization", auth(t1)))
             .andExpect(status().isNoContent)
     }
+
+    @Test
+    fun `learner for-me returns only targeted delivered announcements`() {
+        val parent = user(Role.PARENT, "Parent One", "0755000200")
+        val member = user(Role.STUDENT, "Member Learner", "0755000201", parentId = parent.id, grade = "Grade 4")
+        val outsider = user(Role.STUDENT, "Outsider Learner", "0755000202", grade = "Grade 5")
+        val teacher = user(Role.TEACHER, "Class Teacher", "0755000203", grade = "Grade 4")
+        val clazz = classRepository.save(TeacherClassEntity().apply {
+            teacherUserId = teacher.id
+            this.schoolId = this@AnnouncementWebTests.schoolId
+            name = "Grade 4 South"
+            gradeLevel = "Grade 4"
+            subject = "Mathematics"
+            isActive = true
+        })
+        membershipRepository.save(ClassMembershipEntity().apply {
+            classId = clazz.id
+            studentId = member.id
+        })
+        val t = token(teacher)
+        val memberToken = token(member)
+        val outsiderToken = token(outsider)
+        val parentToken = token(parent)
+
+        fun post(payload: TeacherAnnouncementPayload) {
+            mockMvc.perform(post("/teacher/announcements").header("Authorization", auth(t))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload)))
+                .andExpect(status().isOk)
+        }
+        post(announcement("ann_cls", clazz.id.toString()))
+        post(announcement("ann_grade", clazz.id.toString()).copy(
+            audience = "GRADE", targetClassIds = emptyList(), targetGradeLevels = listOf(4),
+        ))
+        post(announcement("ann_scheduled", clazz.id.toString(), scheduledAt = System.currentTimeMillis() + 3_600_000))
+        post(announcement("ann_expired", clazz.id.toString(), expiresAt = System.currentTimeMillis() - 1_000))
+
+        val memberFeed = objectMapper.readValue(
+            mockMvc.perform(get("/announcements/for-me?grade=Grade 4").header("Authorization", auth(memberToken)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<TeacherAnnouncementPayload>::class.java,
+        )
+        check(memberFeed.any { it.id == "ann_cls" })
+        check(memberFeed.any { it.id == "ann_grade" })
+        check(memberFeed.none { it.id == "ann_scheduled" })
+        check(memberFeed.none { it.id == "ann_expired" })
+        check(memberFeed.first { it.id == "ann_cls" }.teacherName == "Class Teacher")
+
+        val outsiderFeed = objectMapper.readValue(
+            mockMvc.perform(get("/announcements/for-me?grade=Grade 5").header("Authorization", auth(outsiderToken)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<TeacherAnnouncementPayload>::class.java,
+        )
+        check(outsiderFeed.none { it.id == "ann_cls" })
+        check(outsiderFeed.none { it.id == "ann_grade" })
+
+        val parentFeed = objectMapper.readValue(
+            mockMvc.perform(get("/announcements/for-me").header("Authorization", auth(parentToken)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<TeacherAnnouncementPayload>::class.java,
+        )
+        check(parentFeed.any { it.id == "ann_cls" })
+    }
 }

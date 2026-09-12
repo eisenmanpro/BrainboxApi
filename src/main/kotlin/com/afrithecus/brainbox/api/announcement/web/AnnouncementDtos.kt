@@ -5,6 +5,8 @@ package com.afrithecus.brainbox.api.announcement.web
 data class TeacherAnnouncementPayload(
     val id: String,
     val teacherId: String,
+    /** Author display name; the learner surface shows "From <teacherName>". */
+    val teacherName: String = "",
     val title: String,
     val content: String,
     val type: String = "NOTICE",

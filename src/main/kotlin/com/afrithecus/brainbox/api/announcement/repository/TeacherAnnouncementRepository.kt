@@ -14,4 +14,6 @@ interface TeacherAnnouncementRepository : JpaRepository<TeacherAnnouncementEntit
     fun findAllByTeacherIdNotAndSchoolIdOrderBySentAtDesc(teacherId: UUID, schoolId: UUID): List<TeacherAnnouncementEntity>
 
     fun findAllByDeliveredAtIsNullAndScheduledAtLessThanEqual(now: Instant): List<TeacherAnnouncementEntity>
+
+    fun findAllBySchoolIdAndDeliveredAtIsNotNullOrderBySentAtDesc(schoolId: UUID): List<TeacherAnnouncementEntity>
 }
