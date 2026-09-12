@@ -6,9 +6,7 @@ import java.util.UUID
 
 interface CbcProjectVoteRepository : JpaRepository<CbcProjectVoteEntity, UUID> {
 
-    fun findByProjectIdAndUserId(projectId: UUID, userId: UUID): CbcProjectVoteEntity?
+    fun findByProjectIdAndVoterKey(projectId: UUID, voterKey: String): CbcProjectVoteEntity?
 
-    fun findAllByProjectId(projectId: UUID): List<CbcProjectVoteEntity>
-
-    fun findAllByUserIdAndProjectIdIn(userId: UUID, projectIds: Collection<UUID>): List<CbcProjectVoteEntity>
+    fun findAllByVoterKeyAndProjectIdIn(voterKey: String, projectIds: Collection<UUID>): List<CbcProjectVoteEntity>
 }

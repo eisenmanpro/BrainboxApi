@@ -22,6 +22,22 @@ class SchoolEntity : BaseEntity() {
     @Column(name = "logo_url", length = 512)
     var logoUrl: String? = null
 
+    /** JSON array string of logo/cover image URLs for the public list card. */
+    @Column(name = "logo_urls", columnDefinition = "text")
+    var logoUrls: String? = null
+
+    @Column(nullable = false)
+    var rating: Double = 0.0
+
+    @Column(name = "reviews_count", nullable = false)
+    var reviewsCount: Int = 0
+
+    @Column(name = "placement_rate", nullable = false)
+    var placementRate: Int = 0
+
+    @Column(name = "school_rank", nullable = false)
+    var schoolRank: Int = 0
+
     @Column(name = "is_active", nullable = false)
     var isActive: Boolean = true
 }

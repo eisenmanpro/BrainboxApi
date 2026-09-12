@@ -28,6 +28,10 @@ spring:
     locations: classpath:db/migration
   jackson:
     default-property-inclusion: non_null
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 30MB
 
 server:
   error:
@@ -48,6 +52,9 @@ management:
         enabled: true
 
 app:
+  media:
+    # Local disk storage for uploaded project media until S3/MinIO (Phase 6).
+    local-dir: ${MEDIA_DIR:./data/media}
   security:
     jwt:
       # Base64-encoded HMAC secret. Override in each environment. Dev default only.

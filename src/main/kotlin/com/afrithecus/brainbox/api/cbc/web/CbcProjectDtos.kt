@@ -2,6 +2,7 @@ package com.afrithecus.brainbox.api.cbc.web
 
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotEmpty
+import jakarta.validation.constraints.Size
 
 /** CBC project payloads matching the Android CbcProjectModels exactly. */
 
@@ -49,7 +50,8 @@ data class ProjectCommentPayload(
     val userId: String,
     val userName: String,
     val userAvatarUrl: String? = null,
-    val userRole: String,
+    /** Null for anonymous (guest) commenters. */
+    val userRole: String? = null,
     val content: String,
     val parentCommentId: String? = null,
     val replies: List<ProjectCommentPayload> = emptyList(),
@@ -94,4 +96,45 @@ data class AddProjectCommentRequest(
     val userId: String? = null,
     val userName: String? = null,
     val userRole: String? = null,
+)
+
+/** Public (guest) engagement payloads (docs/ongoing/api_cbc_public_changes.md). */
+data class PublicVoteResponsePayload(
+    val projectId: String,
+    val upvotes: Int,
+    val downvotes: Int,
+    val userVote: String? = null,
+)
+
+data class PublicCommentRequestPayload(
+    @field:NotBlank @field:Size(max = 2000) val content: String,
+    val parentCommentId: String? = null,
+    val mentions: List<String> = emptyList(),
+)
+
+data class PublicTrackRequestPayload(
+    @field:NotBlank @field:Size(max = 200) val email: String,
+)
+
+data class PublicTrackResponsePayload(
+    val projectId: String,
+    val email: String,
+    val tracked: Boolean,
+    val message: String? = null,
+)
+
+data class PublicReportRequestPayload(
+    @field:NotBlank @field:Size(max = 64) val reason: String,
+    @field:Size(max = 2000) val details: String? = null,
+)
+
+data class PublicReportResponsePayload(
+    val projectId: String,
+    val reported: Boolean,
+    val message: String? = null,
+)
+
+data class MediaUploadResponsePayload(
+    val url: String,
+    val mediaType: String = "IMAGE",
 )

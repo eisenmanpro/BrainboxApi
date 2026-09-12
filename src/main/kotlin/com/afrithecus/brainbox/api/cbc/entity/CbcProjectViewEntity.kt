@@ -19,8 +19,13 @@ class CbcProjectViewEntity {
     @Column(name = "project_id", nullable = false)
     var projectId: UUID = UUID.randomUUID()
 
-    @Column(name = "user_id", nullable = false)
-    var userId: UUID = UUID.randomUUID()
+    /** Null for anonymous (guest) views. */
+    @Column(name = "user_id")
+    var userId: UUID? = null
+
+    /** Stable viewer identity: "user:<uuid>" or "guest:<guestId>". */
+    @Column(name = "viewer_key", nullable = false, length = 80)
+    var viewerKey: String = ""
 
     @Column(name = "viewed_at", nullable = false, updatable = false)
     var viewedAt: Instant = Instant.now()

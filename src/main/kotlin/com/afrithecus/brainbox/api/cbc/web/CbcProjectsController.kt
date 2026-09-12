@@ -1,6 +1,7 @@
 package com.afrithecus.brainbox.api.cbc.web
 
 import com.afrithecus.brainbox.api.cbc.CbcProjectService
+import com.afrithecus.brainbox.api.cbc.MediaService
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
@@ -14,12 +15,17 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.multipart.MultipartFile
 
-/** CBC projects (doc 06 §3): feed, submission, moderation, votes, comments, views. */
+/** CBC projects (doc 06 §3): feed, submission, moderation, votes, comments, views, media. */
 @RestController
 @RequestMapping("/cbc/projects")
-class CbcProjectsController(private val service: CbcProjectService) {
+class CbcProjectsController(
+    private val service: CbcProjectService,
+    private val mediaService: MediaService,
+) {
 
     @GetMapping
     fun list(
@@ -36,10 +42,17 @@ class CbcProjectsController(private val service: CbcProjectService) {
     ): ProjectListResponsePayload = service.list(current, gradeBand, subject, cbcStrand, schoolId, status, sort, page, limit, search)
 
     @GetMapping("/featured")
-    fun featured(@RequestParam(defaultValue = "5") limit: Int): List<CbcProjectPayload> = service.featured(limit)
+    fun featured(
+        @AuthenticationPrincipal current: CurrentUser,
+        @RequestParam(defaultValue = "5") limit: Int,
+    ): List<CbcProjectPayload> = service.featured(current, limit)
 
     @GetMapping("/mine")
-    fun mine(@AuthenticationPrincipal current: CurrentUser): List<CbcProjectPayload> = service.mine(current)
+    fun mine(
+        @AuthenticationPrincipal current: CurrentUser,
+        @RequestParam(defaultValue = "1") page: Int,
+        @RequestParam(defaultValue = "50") limit: Int,
+    ): ProjectListResponsePayload = service.mine(current, page, limit)
 
     @GetMapping("/{projectId}")
     fun detail(
@@ -52,6 +65,9 @@ class CbcProjectsController(private val service: CbcProjectService) {
         @AuthenticationPrincipal current: CurrentUser,
         @Valid @RequestBody request: SubmitCbcProjectRequest,
     ): CbcProjectPayload = service.submit(current, request)
+
+    @PostMapping("/media")
+    fun uploadMedia(@RequestPart("file") file: MultipartFile): MediaUploadResponsePayload = mediaService.store(file)
 
     @PatchMapping("/{projectId}/status")
     fun updateStatus(

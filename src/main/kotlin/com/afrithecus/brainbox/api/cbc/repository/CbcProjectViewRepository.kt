@@ -6,5 +6,5 @@ import java.util.UUID
 
 interface CbcProjectViewRepository : JpaRepository<CbcProjectViewEntity, UUID> {
 
-    fun findByProjectIdAndUserId(projectId: UUID, userId: UUID): CbcProjectViewEntity?
+    fun findByProjectIdAndViewerKey(projectId: UUID, viewerKey: String): CbcProjectViewEntity?
 }

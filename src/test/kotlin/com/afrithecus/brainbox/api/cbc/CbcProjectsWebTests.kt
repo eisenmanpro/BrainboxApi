@@ -142,9 +142,9 @@ class CbcProjectsWebTests(
         val mine = objectMapper.readValue(
             mockMvc.perform(get("/cbc/projects/mine").header("Authorization", auth(student.sessionToken!!)))
                 .andExpect(status().isOk).andReturn().response.contentAsString,
-            Array<CbcProjectPayload>::class.java,
+            ProjectListResponsePayload::class.java,
         )
-        check(mine.any { it.id == pending.id })
+        check(mine.projects.any { it.id == pending.id })
 
         approve(teacher, pending.id, "FEATURED")
         val featured = objectMapper.readValue(

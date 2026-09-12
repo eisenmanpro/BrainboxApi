@@ -211,13 +211,13 @@ class AdminIdentityWebTests(
 
         val all = mockMvc.perform(get("/schools/all")).andExpect(status().isOk)
             .andReturn().response.contentAsString
-        val allSchools = objectMapper.readValue(all, Array<SchoolPayload>::class.java)
+        val allSchools = objectMapper.readValue(all, Array<SchoolListPayload>::class.java)
         check(allSchools.any { it.name == "Discovery Academy" })
         check(allSchools.any { it.name == "Other Academy" })
 
         val search = mockMvc.perform(get("/schools/search?query=Discovery"))
             .andExpect(status().isOk).andReturn().response.contentAsString
-        val found = objectMapper.readValue(search, Array<SchoolPayload>::class.java)
+        val found = objectMapper.readValue(search, Array<SchoolListPayload>::class.java)
         check(found.any { it.name == "Discovery Academy" })
         check(found.none { it.name == "Other Academy" })
 
@@ -225,7 +225,7 @@ class AdminIdentityWebTests(
         val schoolId = found.first { it.name == "Discovery Academy" }.id
         val detail = mockMvc.perform(get("/schools/${schoolId}"))
             .andExpect(status().isOk).andReturn().response.contentAsString
-        check(objectMapper.readValue(detail, SchoolPayload::class.java).name == "Discovery Academy")
+        check(objectMapper.readValue(detail, SchoolDetailPayload::class.java).basicInfo.name == "Discovery Academy")
         // Invalid identifiers return the public validation error, not 401.
         mockMvc.perform(get("/schools/some-id")).andExpect(status().isBadRequest)
     }

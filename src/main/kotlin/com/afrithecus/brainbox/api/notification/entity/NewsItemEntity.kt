@@ -27,6 +27,10 @@ class NewsItemEntity : BaseEntity() {
     @Column(nullable = false, length = 64)
     var category: String = "General"
 
+    /** Display attribution shown as the article byline; blank hides it. */
+    @Column(length = 160)
+    var author: String = ""
+
     @Column(name = "author_id")
     var authorId: UUID? = null
 

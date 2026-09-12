@@ -22,8 +22,13 @@ class CbcProjectVoteEntity {
     @Column(name = "project_id", nullable = false)
     var projectId: UUID = UUID.randomUUID()
 
-    @Column(name = "user_id", nullable = false)
-    var userId: UUID = UUID.randomUUID()
+    /** Null for anonymous (guest) votes. */
+    @Column(name = "user_id")
+    var userId: UUID? = null
+
+    /** Stable voter identity: "user:<uuid>" or "guest:<guestId>". */
+    @Column(name = "voter_key", nullable = false, length = 80)
+    var voterKey: String = ""
 
     @Enumerated(EnumType.STRING)
     @Column(name = "vote_type", nullable = false, length = 16)

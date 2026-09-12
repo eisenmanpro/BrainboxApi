@@ -282,6 +282,24 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       tests + PG18 parity
       [push delivery (FCM) and a background scheduler for reminder generation are Phase 6; news
       likes/dislikes have no client endpoints so remain counter-only]
+- [x] App-hardening contract alignment (2N): brought the backend in line with the Android prod-hardening
+      commit (BrainBox/docs/ongoing/api_*_changes.md). V24 migration.
+      * CBC public flow: /cbc/public/projects (list/featured/detail/vote/remove/comments/track/report/view),
+        unauthenticated, guest identity via X-Guest-Id (validated guest_<uuid>); APPROVED/FEATURED only;
+        voter identity unified as user:<uuid> / guest:<id>; /cbc/projects/mine now paginated
+        (ProjectListResponse); POST /cbc/projects/media multipart upload returns {url, mediaType} with
+        local-disk storage served from /media/{file} (S3/MinIO presign stays Phase 6)
+      * News engagement: NewsItem.author; public GET /news, /news/{id}, /news/{id}/comments;
+        authenticated POST comments (server-derived author), vote (UPVOTE/DOWNVOTE/NONE with authoritative
+        tallies), report; admin POST/PUT/DELETE on /news (CreateNewsRequest); /admin/news is now read-only
+      * Schools directory: public GET /schools/all + /schools/{id} reshaped to School/SchoolDetail
+        (basicInfo/contact/academics/faculty/studentBody/tuition/reviews/enrollment/importantDates) with
+        rating/reviews/placementRate/rank/logoUrls; authenticated POST /schools/{id}/reviews (server-derived
+        author + rating aggregate), join-requests and reports (references, duplicate 409); public
+        GET /landing/trending-schools
+      * SecurityConfig now scopes permitAll to GET /schools/**, GET /news/**, GET /landing/**, GET /media/**
+        and all /cbc/public/**, so the new write endpoints stay authenticated
+      Tests + PG18 parity (135 tests)
 - [ ] Study tools + study sessions/insights (doc 03 §9)
 - [ ] Subscription & payments: M-Pesa STK push, idempotent callbacks, entitlements (doc 07, 11 §5)
 
@@ -354,15 +372,12 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - Profile base URLs mirror Android flavors (dev/staging/prod api.brainbox.com).
 
 
-> Session status (2026-09-10 late): Phase 1 + 2A-2K done (auth/identity, exams, contests, learning hub,
-> classes, homework incl. question-set auto-grading, messaging core, doubt solving,
-> dashboard/profile/analytics, career + school matching + goals, mock interviews, mastery +
-> achievements + rewards, live classes, CBC projects, news + notifications incl. subscription
-> reminders). Test suite 125 (0 failures) + PG18 parity. Hardening: AutoGrader whitespace
-> normalisation and clock-based JWT expiry validation. Next session: study tools, homework
-> attachments/past-paper flows, class-group chat (WebSocket), then Phase 3 teacher portal. Note
-> doc 13 (updated analytics / traditional-exam reports) is a Phase 3/4 surface to fold into the
-> teacher-portal goal.
+> Session status (2026-09-12): Phase 1 + 2A-2N done. The app-side prod hardening changed three
+> contracts (CBC public browse, news engagement, schools directory) and those are now aligned
+> server-side (2N, V24). Test suite 135 (0 failures) + PG18 parity. Next session: study tools,
+> homework attachments/past-paper flows, class-group chat (WebSocket), then Phase 3 teacher
+> portal. Note doc 13 (updated analytics / traditional-exam reports) is a Phase 3/4 surface to
+> fold into the teacher-portal goal.
 
 ## 7. Tracking
 

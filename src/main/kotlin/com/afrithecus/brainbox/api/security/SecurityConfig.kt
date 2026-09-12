@@ -53,13 +53,20 @@ class SecurityConfig(
                         "/auth/login",
                         "/auth/signup",
                         "/auth/refresh",
-                        // Public school directory (landing/web + app school browsing):
-                        // listing, search AND detail are reachable pre-auth.
-                        "/schools/**",
+                        // Public CBC project browse flow (landing page + guest id).
+                        "/cbc/public/**",
                         "/actuator/health",
                         "/actuator/health/**",
                         "/actuator/info",
                         "/error",
+                    ).permitAll()
+                    // Public reads: school directory, news feed/article, hosted media.
+                    .requestMatchers(
+                        org.springframework.http.HttpMethod.GET,
+                        "/schools/**",
+                        "/news/**",
+                        "/landing/**",
+                        "/media/**",
                     ).permitAll()
                     .anyRequest().authenticated()
             }

@@ -235,7 +235,7 @@ class NotificationNewsWebTests(
 
         val published = objectMapper.readValue(
             mockMvc.perform(
-                post("/admin/news").header("Authorization", auth(adminToken))
+                post("/news").header("Authorization", auth(adminToken))
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(CreateNewsRequest("STEM Scholarships Open", "Applications are now open.", imageUrl = "https://cdn.brainbox.com/n1.jpg", category = "Scholarships", tags = listOf("stem", "funding"))))
             ).andExpect(status().isOk).andReturn().response.contentAsString,
@@ -246,7 +246,7 @@ class NotificationNewsWebTests(
 
         // a draft stays out of the public feed
         mockMvc.perform(
-            post("/admin/news").header("Authorization", auth(adminToken))
+            post("/news").header("Authorization", auth(adminToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(CreateNewsRequest("Draft Story", "Not ready", status = "DRAFT")))
         ).andExpect(status().isOk)
@@ -273,14 +273,19 @@ class NotificationNewsWebTests(
         )
         check(detail.content == "Applications are now open.")
 
-        mockMvc.perform(get("/news")).andExpect(status().isUnauthorized)
+        // the feed is public: signed-out readers get the same list
+        val publicFeed = objectMapper.readValue(
+            mockMvc.perform(get("/news")).andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<NewsItemPayload>::class.java,
+        )
+        check(publicFeed.any { it.id == published.id })
         mockMvc.perform(
-            post("/admin/news").header("Authorization", auth(student.sessionToken!!))
+            post("/news").header("Authorization", auth(student.sessionToken!!))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(CreateNewsRequest("Nope", "not allowed")))
         ).andExpect(status().isForbidden)
         mockMvc.perform(
-            post("/admin/news").header("Authorization", auth(adminToken))
+            post("/news").header("Authorization", auth(adminToken))
                 .contentType(MediaType.APPLICATION_JSON).content("""{"title":"","content":"x"}""")
         ).andExpect(status().isBadRequest)
         mockMvc.perform(get("/news/not-a-uuid").header("Authorization", auth(student.sessionToken!!)))

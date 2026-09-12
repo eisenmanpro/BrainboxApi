@@ -19,14 +19,20 @@ class CbcProjectCommentEntity {
     @Column(name = "project_id", nullable = false)
     var projectId: UUID = UUID.randomUUID()
 
-    @Column(name = "user_id", nullable = false)
-    var userId: UUID = UUID.randomUUID()
+    /** Null for anonymous (guest) comments. */
+    @Column(name = "user_id")
+    var userId: UUID? = null
+
+    /** Device guest id when the comment is anonymous. */
+    @Column(name = "guest_id", length = 64)
+    var guestId: String? = null
 
     @Column(name = "user_name", nullable = false, length = 160)
     var userName: String = ""
 
-    @Column(name = "user_role", nullable = false, length = 16)
-    var userRole: String = "STUDENT"
+    /** Null for anonymous commenters (client omits the role). */
+    @Column(name = "user_role", length = 16)
+    var userRole: String? = null
 
     @Column(nullable = false, columnDefinition = "text")
     var content: String = ""
