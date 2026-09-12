@@ -84,7 +84,12 @@ class ExamResultProjector(
         val graded: Boolean,
     )
 
-    private data class Entry(val questionId: String, val isCorrect: Boolean, val pointsEarned: Int)
+    private data class Entry(
+        val questionId: String,
+        val isCorrect: Boolean,
+        val pointsEarned: Int,
+        val reviewed: Boolean,
+    )
 
     private fun project(json: String?, questions: List<ExamQuestionEntity>): Projection {
         val meta = questions.associateBy { it.id.toString() }
@@ -101,8 +106,11 @@ class ExamResultProjector(
             val topic = info.topic?.takeIf { it.isNotBlank() } ?: "General"
             val essay = !autoGrader.isAutoGradable(info.qType)
             if (essay) {
+                // The exam still requires teacher marking, but a reviewed essay
+                // contributes its awarded mark instead of the whole question
+                // staying in the pending-review pot.
                 hasEssay = true
-                pendingReview += info.points
+                if (entry.reviewed) autoGraded += entry.pointsEarned else pendingReview += info.points
             } else {
                 autoGraded += entry.pointsEarned
             }
@@ -180,6 +188,7 @@ class ExamResultProjector(
                 questionId = questionId,
                 isCorrect = item.get("isCorrect")?.asBoolean() ?: false,
                 pointsEarned = item.get("pointsEarned")?.intValue() ?: 0,
+                reviewed = item.get("reviewed")?.asBoolean() ?: false,
             )
         }
     }

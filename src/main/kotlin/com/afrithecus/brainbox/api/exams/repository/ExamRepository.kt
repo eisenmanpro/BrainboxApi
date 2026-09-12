@@ -10,4 +10,8 @@ interface ExamRepository : JpaRepository<ExamEntity, UUID> {
     fun findAllByStatus(status: ExamStatus): List<ExamEntity>
 
     fun findAllByStatusAndSubjectIgnoreCase(status: ExamStatus, subject: String): List<ExamEntity>
+
+    fun findByClientId(clientId: String): ExamEntity?
+
+    fun findAllByCreatedByOrderByCreatedAtDesc(createdBy: UUID): List<ExamEntity>
 }

@@ -356,8 +356,8 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       and gradebook band identically. Retired class-average endpoint not built.
       Follow-ups from the same handoff: homework now accepts and echoes an explicit term
       (V32, creation-month fallback for legacy rows) and student analytics carries gradeLevel.
-      The online /teacher/exams engine and the parent CBC report-card endpoint do not exist
-      backend-side yet, so their term/gradeLevel additions land with those features.
+      The parent CBC report-card endpoint still does not exist backend-side, so its
+      term/gradeLevel additions land with that feature.
 - [x] Announcements (ann, V36): client-id idempotent CRUD, own + received lists,
       scheduledAt hold (a `delivered_at` marker + @Scheduled poller) and expiresAt hiding,
       audience fan-out (CLASS/GRADE/SCHOOL/TEACHER/PARENT) over NotificationService with the
@@ -367,7 +367,15 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - [ ] Feedback: templates, history, bulk (doc 04 §7)
 - [ ] Live class mgmt: CRUD, lifecycle, recordings, analytics, participants, polls (doc 04 §8)
 - [ ] Timetable, room bookings, house groups/peer circles, schedule changes (doc 04 §9)
-- [ ] Teacher exams: CRUD, review queue, key questions, remediation (doc 02 §9)
+- [x] Teacher digital exams (ex, V37): client-id idempotent exam CRUD + repeat-safe delete and
+      publish, stored in the shared exams tables and served to students once published; question
+      sections, the reusable teacher question bank, server-computed analysis (percentage scores,
+      0-1 pass rate/mastery, key-question stats from `answersJson`, class weak areas with
+      severity + recommended remediation), the essay/explanation review queue and delta-safe
+      review marks recomputed server-side from the previous mark so re-review cannot inflate,
+      plus replace-all remediation assignments. AutoGrader now resolves the teacher app's
+      `__IDX__n__` MCQ keys against the options and tolerates CSV multi-select keys; a reviewed
+      essay is folded back into the student result (`reviewed` grading detail).
 - [ ] Learning contracts: contracts, commitments, reminders, templates (doc 04 §11)
 - [x] Class chat REST (2Q, doc 04 §12): V27 class_groups + members + messages + polls/votes;
       teacher group CRUD (owner/class scoped, member sync is an immediate bulk replace), thread reads

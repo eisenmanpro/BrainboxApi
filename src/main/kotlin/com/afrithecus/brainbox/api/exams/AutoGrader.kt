@@ -21,7 +21,7 @@ data class GradeOutcome(
 class AutoGrader(private val mapper: ObjectMapper) {
 
     fun grade(question: ExamQuestionEntity, userValue: JsonNode?): GradeOutcome =
-        grade(question.qType, question.correctAnswer, question.matchingPairs, question.points, userValue)
+        grade(question.qType, resolvedKey(question), question.matchingPairs, question.points, userValue)
 
     /** Type-based grading shared by exams and contests (any keyed question shape). */
     fun grade(
@@ -60,8 +60,25 @@ class AutoGrader(private val mapper: ObjectMapper) {
         return user.isNotEmpty() && user == expected
     }
 
+    /**
+     * MCQ keys authored by the teacher app encode the correct option as
+     * __IDX__n__ rather than its text; resolve it against the option list so
+     * those exams grade exactly like admin-authored ones.
+     */
+    private fun resolvedKey(question: ExamQuestionEntity): String? {
+        val raw = question.correctAnswer ?: return null
+        if (question.qType != QuestionType.MCQ) return raw
+        val index = mcqIndex(raw) ?: return raw
+        return parseList(question.options)?.getOrNull(index) ?: raw
+    }
+
+    private fun mcqIndex(raw: String): Int? {
+        if (!raw.startsWith(MCQ_INDEX_PREFIX) || !raw.endsWith(MCQ_INDEX_SUFFIX)) return null
+        return raw.removePrefix(MCQ_INDEX_PREFIX).removeSuffix(MCQ_INDEX_SUFFIX).toIntOrNull()
+    }
+
     private fun multiSelectEquals(userValue: JsonNode, correctRaw: String?): Boolean {
-        val expected = parseList(correctRaw) ?: return false
+        val expected = parseSelection(correctRaw) ?: return false
         if (!userValue.isArray) return false
         val user = buildSet { userValue.forEach { add(normalize(it.asString())) } }
         val normalizedExpected = expected.map(::normalize).toSet()
@@ -88,6 +105,13 @@ class AutoGrader(private val mapper: ObjectMapper) {
         return out
     }
 
+    /** Accepts a JSON array or a comma-separated list of selected options. */
+    private fun parseSelection(raw: String?): List<String>? {
+        if (raw.isNullOrBlank()) return null
+        parseList(raw)?.let { return it }
+        return raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }.takeIf { it.isNotEmpty() }
+    }
+
     private fun parseMap(json: String?): Map<String, String>? {
         if (json.isNullOrBlank()) return null
         val node = runCatching { mapper.readTree(json) }.getOrNull() ?: return null
@@ -99,4 +123,9 @@ class AutoGrader(private val mapper: ObjectMapper) {
 
     private fun normalize(value: String?): String =
         value?.trim()?.lowercase()?.replace(Regex("""\s+"""), " ") ?: ""
+
+    private companion object {
+        const val MCQ_INDEX_PREFIX = "__IDX__"
+        const val MCQ_INDEX_SUFFIX = "__"
+    }
 }

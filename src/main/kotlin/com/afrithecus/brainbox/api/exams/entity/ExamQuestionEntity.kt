@@ -59,4 +59,23 @@ class ExamQuestionEntity {
 
     @Column(name = "order_index", nullable = false)
     var orderIndex: Int = 0
+
+    /** Client-supplied question id; stable across exam re-saves so marks survive. */
+    @Column(name = "client_id", length = 80)
+    var clientId: String? = null
+
+    @Column(name = "section_id", length = 80)
+    var sectionId: String? = null
+
+    @Column(name = "cbc_strand_tag", length = 128)
+    var cbcStrandTag: String? = null
+
+    @Column(name = "is_key_question", nullable = false)
+    var isKeyQuestion: Boolean = false
+
+    @Column(name = "requires_explanation", nullable = false)
+    var requiresExplanation: Boolean = false
+
+    @Column(name = "is_from_bank", nullable = false)
+    var isFromBank: Boolean = false
 }

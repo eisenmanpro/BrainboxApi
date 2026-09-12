@@ -9,6 +9,7 @@ import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Table
+import java.time.Instant
 import java.util.UUID
 
 /** An authored exam (doc 02 §2.4). Answer keys live in its questions, never in student payloads. */
@@ -57,4 +58,28 @@ class ExamEntity : BaseEntity() {
 
     @Column(name = "created_by", nullable = false)
     var createdBy: UUID = UUID.randomUUID()
+
+    /** Client-supplied id (teacher authoring); absent for admin-authored exams. */
+    @Column(name = "client_id", length = 80)
+    var clientId: String? = null
+
+    /** Class this exam was authored for, when the teacher scoped it to one. */
+    @Column(name = "class_id")
+    var classId: UUID? = null
+
+    @Column(name = "grade_level")
+    var gradeLevel: Int? = null
+
+    @Column(name = "total_points", nullable = false)
+    var totalPoints: Int = 0
+
+    /** Academic term (TERM_1/TERM_2/TERM_3) the gradebook term filter reads. */
+    @Column(length = 16)
+    var term: String? = null
+
+    @Column(name = "open_at")
+    var openAt: Instant? = null
+
+    @Column(name = "close_at")
+    var closeAt: Instant? = null
 }

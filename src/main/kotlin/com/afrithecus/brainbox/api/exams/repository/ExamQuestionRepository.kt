@@ -13,4 +13,6 @@ interface ExamQuestionRepository : JpaRepository<ExamQuestionEntity, UUID> {
     fun findAllByExamIdIn(examIds: Collection<UUID>): List<ExamQuestionEntity>
 
     fun findFirstByTopicIgnoreCase(topic: String): ExamQuestionEntity?
+
+    fun findByExamIdAndClientId(examId: UUID, clientId: String): ExamQuestionEntity?
 }
