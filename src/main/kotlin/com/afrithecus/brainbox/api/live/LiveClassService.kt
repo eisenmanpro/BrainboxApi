@@ -33,6 +33,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZonedDateTime
@@ -81,6 +82,8 @@ class LiveClassService(
                     views = formatViews(views),
                     thumbnail = clazz.thumbnailUrl ?: "",
                     videoUrl = clazz.recordingUrl,
+                    durationSeconds = Duration.between(clazz.scheduledStart, clazz.scheduledEnd).seconds.coerceAtLeast(0),
+                    createdAt = clazz.scheduledStart.toEpochMilli(),
                 )
             }
 
