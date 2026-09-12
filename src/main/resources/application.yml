@@ -52,6 +52,8 @@ management:
         enabled: true
 
 app:
+  # Calendar zone used to bucket attendance registers (client sends local midnight).
+  school-zone: ${SCHOOL_ZONE:Africa/Nairobi}
   media:
     # Local disk storage for uploaded project media until S3/MinIO (Phase 6).
     local-dir: ${MEDIA_DIR:./data/media}

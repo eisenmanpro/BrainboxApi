@@ -66,6 +66,7 @@ class PostgresParityTests(
                     "traditional_exams", "traditional_exam_subjects", "traditional_marks",
                     "traditional_subject_configs", "traditional_grading_configs", "traditional_confirmations",
                     "traditional_edit_requests", "traditional_edit_permissions",
+                    "attendance_records",
                 )) {
                     require(expected in names) { "missing table " + expected + "; got " + names }
                 }
