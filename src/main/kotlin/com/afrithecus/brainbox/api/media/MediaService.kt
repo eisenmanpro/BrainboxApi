@@ -25,17 +25,36 @@ class MediaService(
 
     private val root: Path = Paths.get(localDir).toAbsolutePath().normalize()
 
-    fun store(file: MultipartFile): MediaUploadResponsePayload {
+    /**
+     * Stores an upload and returns its absolute URL. Images/videos are always
+     * accepted; [allowDocuments] additionally permits PDFs, audio and plain text
+     * for class-chat attachments.
+     */
+    fun store(file: MultipartFile, allowDocuments: Boolean = false): MediaUploadResponsePayload {
         if (file.isEmpty) throw invalidArgument("An upload file is required")
         val contentType = file.contentType ?: ""
         val isImage = contentType.startsWith("image/")
         val isVideo = contentType.startsWith("video/")
-        if (!isImage && !isVideo) throw invalidArgument("Only image or video uploads are supported")
+        val isDocument = allowDocuments && (
+            contentType == "application/pdf" ||
+                contentType.startsWith("audio/") ||
+                contentType == "text/plain" ||
+                contentType == "application/msword" ||
+                contentType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
+        if (!isImage && !isVideo && !isDocument) throw invalidArgument("Unsupported upload type")
         Files.createDirectories(root)
         val filename = UUID.randomUUID().toString() + extensionFor(file.originalFilename, contentType)
         file.transferTo(root.resolve(filename).toFile())
         val url = ServletUriComponentsBuilder.fromCurrentContextPath().path("/media/").path(filename).toUriString()
-        return MediaUploadResponsePayload(url = url, mediaType = if (isVideo) "VIDEO" else "IMAGE")
+        return MediaUploadResponsePayload(
+            url = url,
+            mediaType = when {
+                isVideo -> "VIDEO"
+                isImage -> "IMAGE"
+                else -> "FILE"
+            },
+        )
     }
 
     fun load(filenameRaw: String): Pair<Resource, String> {

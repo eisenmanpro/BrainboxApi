@@ -335,7 +335,14 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - [ ] Timetable, room bookings, house groups/peer circles, schedule changes (doc 04 §9)
 - [ ] Teacher exams: CRUD, review queue, key questions, remediation (doc 02 §9)
 - [ ] Learning contracts: contracts, commitments, reminders, templates (doc 04 §11)
-- [ ] Class chat: class groups REST + WebSocket (doc 04 §12)
+- [x] Class chat REST (2Q, doc 04 §12): V27 class_groups + members + messages + polls/votes;
+      teacher group CRUD (owner/class scoped, member sync is an immediate bulk replace), thread reads
+      with before/limit pagination + unread tracking via teacherLastReadAt, send with attachments and
+      reply threading, pin/unpin/delete moderation, member mute with duration, polls + single-count
+      votes (LivePoll shape shared with live classes), multipart attachments through the shared media
+      store (now accepts PDFs/audio/text), group teachers (TeacherClass shape) and gradebook
+      contributions derived from graded homework; tests + PG18 parity
+      [WebSocket transport /ws/teacher/class-chat/{groupId} remains Phase 6]
 - [ ] CBC analytics: class report, student report card, strand mastery, ratings, curriculum map (doc 04 §13)
 - [ ] Student analytics (doc 04 §14)
 - [ ] Conferences: slots + bookings with constraints (doc 04 §15)
@@ -392,11 +399,13 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - Profile base URLs mirror Android flavors (dev/staging/prod api.brainbox.com).
 
 
-> Session status (2026-09-12): Phase 1 + 2A-2P done. App-hardening contract alignment (2N, V24),
-> study tools (2O, V25) and homework attachments + past-paper content (2P, V26) all shipped.
-> Test suite 142 (0 failures) + PG18 parity. Next session: class-group chat (WebSocket), then
-> Phase 3 teacher portal. Note doc 13 (updated analytics / traditional-exam reports) is a Phase
-> 3/4 surface to fold into the teacher-portal goal.
+> Session status (2026-09-12): Phase 1 + 2A-2Q done. App-hardening contract alignment (2N, V24),
+> study tools (2O, V25), homework attachments + past-paper content (2P, V26) and class chat REST
+> (2Q, V27) all shipped. Test suite 146 (0 failures) + PG18 parity. Pending: app-side results
+> pipeline changes (student report mirroring teacher publish) to be patched when the app lands.
+> Next backend work: class-chat WebSocket transport (Phase 6), then Phase 3 teacher portal. Note
+> doc 13 (updated analytics / traditional-exam reports) is a Phase 3/4 surface to fold into the
+> teacher-portal goal.
 
 ## 7. Tracking
 
