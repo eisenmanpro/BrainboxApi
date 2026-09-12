@@ -90,6 +90,7 @@ class TraditionalExamService(
     private val markRepository: TraditionalMarkRepository,
     private val subjectConfigRepository: TraditionalSubjectConfigRepository,
     private val gradingConfigRepository: TraditionalGradingConfigRepository,
+    private val gradingConfigService: TraditionalGradingConfigService,
     private val confirmationRepository: TraditionalConfirmationRepository,
     private val editRequestRepository: TraditionalEditRequestRepository,
     private val editPermissionRepository: TraditionalEditPermissionRepository,
@@ -920,30 +921,17 @@ class TraditionalExamService(
 
     // ---------------------------------------------------------------- grading
 
-    private fun gradingFor(gradeLevel: String, schoolId: UUID?): GradingConfigDto {
-        val rows = if (schoolId != null) {
-            gradingConfigRepository.findAllBySchoolIdAndGradeLevel(schoolId, gradeLevel)
-        } else {
-            gradingConfigRepository.findAllByGradeLevel(gradeLevel)
-        }
-        val row = rows.firstOrNull() ?: return GradingConfigDto()
-        val bands = parseBands(row.bands).ifEmpty { GradingConfigDefaults.bands() }
-        return GradingConfigDto(bands, parseOverallBands(row.overallBands))
-    }
+    private fun gradingFor(gradeLevel: String, schoolId: UUID?): GradingConfigDto =
+        gradingConfigService.configFor(gradeLevel, schoolId)
 
     private fun percentage(raw: Int, max: Int): Double =
         if (max > 0) (raw.toDouble() / max * 100.0).coerceIn(0.0, 100.0) else 0.0
 
-    private fun gradeBand(percentage: Double, config: GradingConfigDto): String {
-        config.bands.sortedByDescending { it.minPercentage }.forEach { if (percentage >= it.minPercentage) return it.grade }
-        return config.bands.minByOrNull { it.minPercentage }?.grade ?: "E"
-    }
+    private fun gradeBand(percentage: Double, config: GradingConfigDto): String =
+        gradingConfigService.band(percentage, config)
 
-    private fun overallBand(totalScore: Int, config: GradingConfigDto): String {
-        val bands = config.overallBands ?: GradingConfigDefaults.overallBands()
-        bands.sortedByDescending { it.minRawScore }.forEach { if (totalScore >= it.minRawScore) return it.grade }
-        return bands.minByOrNull { it.minRawScore }?.grade ?: "E"
-    }
+    private fun overallBand(totalScore: Int, config: GradingConfigDto): String =
+        gradingConfigService.overallBand(totalScore, config)
 
     // ---------------------------------------------------------------- payload mapping
 
@@ -1156,28 +1144,6 @@ class TraditionalExamService(
         val node = runCatching { mapper.readTree(json) }.getOrNull() ?: return emptyMap()
         if (!node.isObject) return emptyMap()
         return node.properties().associate { it.key to (it.value.intValue()) }
-    }
-
-    private fun parseBands(json: String?): List<GradingBandDto> {
-        if (json.isNullOrBlank()) return emptyList()
-        val node = runCatching { mapper.readTree(json) }.getOrNull() ?: return emptyList()
-        if (!node.isArray) return emptyList()
-        return (0 until node.size()).mapNotNull { i ->
-            val item = node.get(i)
-            val grade = item.get("grade")?.asString() ?: return@mapNotNull null
-            GradingBandDto(grade, item.get("minPercentage")?.intValue() ?: 0)
-        }
-    }
-
-    private fun parseOverallBands(json: String?): List<OverallGradingBandDto>? {
-        if (json.isNullOrBlank()) return null
-        val node = runCatching { mapper.readTree(json) }.getOrNull() ?: return null
-        if (!node.isArray) return null
-        return (0 until node.size()).mapNotNull { i ->
-            val item = node.get(i)
-            val grade = item.get("grade")?.asString() ?: return@mapNotNull null
-            OverallGradingBandDto(grade, item.get("minRawScore")?.intValue() ?: 0)
-        }
     }
 
     private fun validateSubjects(subjects: List<SubjectConfigDto>) {
