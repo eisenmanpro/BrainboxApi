@@ -47,7 +47,7 @@ class ExamResultProjector(
             percentile = percentile,
             topicBreakdown = projection.topicBreakdown,
             timePerQuestion = emptyMap(),
-            status = STATUS_PUBLISHED,
+            status = if (projection.pendingReviewScore > 0) STATUS_PENDING else STATUS_PUBLISHED,
             markingType = projection.markingType,
             gradingDetails = projection.gradingDetails,
             weakAreas = projection.weakAreas,
@@ -62,15 +62,18 @@ class ExamResultProjector(
         submission: ExamSubmissionEntity,
         questions: List<ExamQuestionEntity>,
         questionPayloads: List<QuestionPayload>,
-    ): ExamSubmissionDetailsPayload = ExamSubmissionDetailsPayload(
-        examId = exam.id.toString(),
-        title = exam.title,
-        questions = questionPayloads,
-        userAnswers = answersAsMap(submission.answers),
-        submittedAt = submission.submittedAt.toEpochMilli(),
-        status = STATUS_PUBLISHED,
-        markingType = markingType(questions),
-    )
+    ): ExamSubmissionDetailsPayload {
+        val projection = project(submission.questionResults, questions)
+        return ExamSubmissionDetailsPayload(
+            examId = exam.id.toString(),
+            title = exam.title,
+            questions = questionPayloads,
+            userAnswers = answersAsMap(submission.answers),
+            submittedAt = submission.submittedAt.toEpochMilli(),
+            status = if (projection.pendingReviewScore > 0) STATUS_PENDING else STATUS_PUBLISHED,
+            markingType = markingType(questions),
+        )
+    }
 
     // ------------------------------------------------------------ internals
 
@@ -195,6 +198,7 @@ class ExamResultProjector(
 
     private companion object {
         const val STATUS_PUBLISHED = "PUBLISHED"
+        const val STATUS_PENDING = "PENDING"
         const val MARKING_AUTOMATIC = "AUTOMATIC"
         const val MARKING_TEACHER_REVIEW = "TEACHER_REVIEW"
         const val KEY_QUESTION_DIFFICULTY = 4

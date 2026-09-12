@@ -176,10 +176,13 @@ class ExamSessionWebTests(
         ).andExpect(status().isOk).andReturn().response.contentAsString
         check(objectMapper.readValue(result2, ExamResultPayload::class.java).score == 5)
 
-        mockMvc.perform(
+        // Resubmission is idempotent per (examId, userId): the same answers return
+        // the stored result instead of rejecting or double-grading.
+        val replayed = mockMvc.perform(
             post("/exams/${examId}/session/submit").header("Authorization", auth(token))
                 .contentType(MediaType.APPLICATION_JSON).content(submitBody)
-        ).andExpect(status().isConflict)
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        check(objectMapper.readValue(replayed, ExamResultPayload::class.java).score == 5)
     }
 
     @Test
@@ -352,6 +355,14 @@ class ExamSessionWebTests(
         check(result.autoGradedScore == 2)
         check(result.pendingReviewScore == 10)
         check(result.score == 2)
+        // Marking is not done, so the result is a stable PENDING, not a final score.
+        check(result.status == "PENDING")
+        val pending = objectMapper.readValue(
+            mockMvc.perform(get("/exams/${examId}/result").header("Authorization", auth(token)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            ExamResultPayload::class.java,
+        )
+        check(pending.status == "PENDING")
         check(result.gradingDetails.size == 2)
         check(result.gradingDetails.first { it.requiresExplanation }.isCorrect.not())
         check(result.topicBreakdown["Arithmetic"] == 1.0)

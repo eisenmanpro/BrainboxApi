@@ -3,7 +3,6 @@ package com.afrithecus.brainbox.api.exams
 import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
-import com.afrithecus.brainbox.api.common.error.conflict
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.exams.admin.ExamAuthoringService
@@ -109,11 +108,18 @@ class ExamSessionService(
         val now = clock.instant()
         val session = sessionRepository.findByUserIdAndExamId(userId, exam.id)
             ?: throw ApiException(ApiErrorCode.CONFLICT, "No exam session in progress; start one first")
-        if (session.status == SessionStatus.COMPLETED) {
-            throw conflict("Exam already submitted")
-        }
-
         val questions = authoringService.questionsOf(exam.id)
+
+        // Idempotent per (examId, userId): a replay of the same answers returns the
+        // stored result instead of rejecting or double-grading the learner.
+        val previous = submissionRepository.findByUserIdAndExamId(userId, exam.id)
+        if (previous != null && sameAnswers(previous.answers, answersBody)) {
+            session.status = SessionStatus.COMPLETED
+            session.completedAt = session.completedAt ?: now
+            session.updatedAt = now
+            sessionRepository.save(session)
+            return resultProjector.result(exam, previous, questions, percentileFor(previous))
+        }
         val totalPoints = questions.sumOf { it.points }
         var score = 0
         var correctCount = 0
@@ -136,7 +142,6 @@ class ExamSessionService(
         val percentage = if (totalPoints > 0) (score * 100.0 / totalPoints).roundToInt() else 0
         val timeTaken = java.time.Duration.between(session.startedAt, now).seconds.toInt().coerceAtLeast(0)
 
-        val previous = submissionRepository.findByUserIdAndExamId(userId, exam.id)
         val submission = (previous ?: ExamSubmissionEntity().apply {
             this.examId = exam.id
             this.userId = userId
@@ -245,6 +250,13 @@ class ExamSessionService(
         val out = mutableListOf<String>()
         for (i in 0 until node.size()) out.add(node.get(i).asString())
         return out
+    }
+
+    /** Structural comparison so a replayed submit with identical answers is a no-op. */
+    private fun sameAnswers(stored: String?, incoming: JsonNode): Boolean {
+        if (stored.isNullOrBlank()) return false
+        val node = runCatching { mapper.readTree(stored) }.getOrNull() ?: return false
+        return node == incoming
     }
 
     private fun answerText(node: JsonNode): String = when {
