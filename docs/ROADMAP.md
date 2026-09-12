@@ -327,7 +327,13 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - [ ] Teacher auth/dashboard; class mgmt; roster (doc 04 §1-2)
 - [ ] Content mgmt: materials, posts/documents, drafts, content analytics (doc 04 §2)
 - [ ] Homework mgmt + grading + return/feedback + reminders (doc 04 §3)
-- [ ] Attendance: mark-by-exception, summaries, analytics (doc 04 §4)
+- [x] Attendance (att 1-5, V30): idempotent day-bucketed teacher register (school zone),
+      mark-by-exception defensiveness, CTEACHER/coordinator role gate, weekly (Mon=1) + monthly
+      heatmaps, trend and chronic-absence alerts, attendance-performance intelligence (quadrant,
+      risk tiers, correlation), live-class auto-mark (<5 min rule), parent child register +
+      server-computed performance, absence push to linked parents, PDF register export
+      (PDFBox via the existing spring-ai reader dependency). Retired endpoints (summary,
+      student stats, record update, bulk) intentionally not built.
 - [ ] Gradebook entries/assessments (doc 04 §5)
 - [ ] Announcements CRUD + fan-out delivery + analytics (doc 04 §6)
 - [ ] Feedback: templates, history, bulk (doc 04 §7)
@@ -430,8 +436,10 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 > App-hardening contract alignment (2N, V24), study tools (2O, V25), homework attachments +
 > past-paper content (2P, V26) and class chat REST (2Q, V27) all shipped. 2R-p1 class-chat
 > transport alignment (V28), 2R-p2 exam-hub result/submission shapes, 2R-p3 traditional exam
-> engine + student reports (V29) and 2R-p4 dashboard contract 14 alignment all shipped. Test
-> suite 157 (0 failures) + PG18 parity. Wave 2R is complete; payments/IntaSend relay (doc 14 §6)
+> engine + student reports (V29) and 2R-p4 dashboard contract 14 alignment all shipped. Wave 2R
+> is complete, and the teacher phase has begun with attendance (att-p1..p5, V30): register,
+> analytics, performance intelligence, auto-mark, parent view + performance, absence push and
+> PDF export. Test suite 163 (0 failures) + PG18 parity. Payments/IntaSend relay (doc 14 §6)
 > remains a separate Phase 6 item. Next backend work: class-chat WebSocket transport (Phase 6),
 > then Phase 3 teacher portal; doc 13 analytics beyond the exam-engine outputs folds into the
 > teacher-portal goal.

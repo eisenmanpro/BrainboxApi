@@ -53,6 +53,14 @@ class AttendanceController(
         @RequestParam endDate: Long,
     ): AttendanceAnalyticsPayload = service.analytics(currentUser, classId, startDate, endDate)
 
+    @GetMapping("/classes/{classId}/attendance/export-pdf")
+    fun exportPdf(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable classId: String,
+        @RequestParam startDate: Long,
+        @RequestParam endDate: Long,
+    ): PdfResultPayload = service.exportPdf(currentUser, classId, startDate, endDate)
+
     @GetMapping("/classes/{classId}/attendance/performance")
     fun performance(
         @AuthenticationPrincipal currentUser: CurrentUser,

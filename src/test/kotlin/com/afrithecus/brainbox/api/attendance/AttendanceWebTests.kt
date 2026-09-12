@@ -18,6 +18,7 @@ import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.attendance.web.AttendancePerformanceAnalyticsPayload
 import com.afrithecus.brainbox.api.attendance.web.ChildAttendancePerformancePayload
 import com.afrithecus.brainbox.api.attendance.web.ParentAttendanceRecordPayload
+import com.afrithecus.brainbox.api.attendance.web.PdfResultPayload
 import com.afrithecus.brainbox.api.exams.entity.ExamEntity
 import com.afrithecus.brainbox.api.exams.entity.ExamSubmissionEntity
 import com.afrithecus.brainbox.api.exams.repository.ExamRepository
@@ -480,7 +481,43 @@ class AttendanceWebTests(
         mockMvc.perform(get("/parent/child/${alice.id}/attendance").header("Authorization", auth(strangerToken)))
             .andExpect(status().isForbidden)
     }
+
+    @Test
+    fun `export-pdf renders and stores a real PDF register`() {
+        val alice = user(Role.STUDENT, "Alice Mwangi", "0722000601")
+        val bob = user(Role.STUDENT, "Bob Otieno", "0722000602")
+        val teacher = user(Role.TEACHER, "Class Teacher", "0722000603", subRole = SubRole.CTEACHER)
+        val clazz = teacherClass(teacher, "Grade 9 West")
+        enroll(clazz, alice)
+        enroll(clazz, bob)
+        val token = token(teacher)
+        val today = LocalDate.now(zone)
+        seed(clazz, alice, today, "PRESENT")
+        seed(clazz, bob, today, "ABSENT")
+
+        val from = today.minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val to = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val pdf = objectMapper.readValue(
+            mockMvc.perform(
+                get("/teacher/classes/${clazz.id}/attendance/export-pdf")
+                    .param("startDate", from.toString()).param("endDate", to.toString())
+                    .header("Authorization", auth(token))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            PdfResultPayload::class.java,
+        )
+        check(pdf.fileUrl.contains("/media/"))
+        check(pdf.fileName.endsWith(".pdf"))
+        check(pdf.fileSize > 0)
+        check(pdf.generatedAt > 0)
+
+        val filename = pdf.fileUrl.substringAfterLast("/media/")
+        val bytes = mockMvc.perform(get("/media/${filename}").header("Authorization", auth(token)))
+            .andExpect(status().isOk).andReturn().response.contentAsByteArray
+        check(bytes.size.toLong() == pdf.fileSize)
+        check(bytes.decodeToString(0, 5) == "%PDF-")
+    }
 }
+
 
 
 

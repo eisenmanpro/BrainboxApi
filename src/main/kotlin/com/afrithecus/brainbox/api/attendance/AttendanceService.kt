@@ -11,6 +11,7 @@ import com.afrithecus.brainbox.api.attendance.web.AttendanceRecordPayload
 import com.afrithecus.brainbox.api.attendance.web.ChildAttendancePerformancePayload
 import com.afrithecus.brainbox.api.attendance.web.ChildAttendanceTrendPointPayload
 import com.afrithecus.brainbox.api.attendance.web.ParentAttendanceRecordPayload
+import com.afrithecus.brainbox.api.attendance.web.PdfResultPayload
 import com.afrithecus.brainbox.api.attendance.web.StudentAttendancePerformancePayload
 import com.afrithecus.brainbox.api.attendance.web.AttendanceTrendPointPayload
 import com.afrithecus.brainbox.api.attendance.web.ChronicAbsenteeismAlertPayload
@@ -20,6 +21,7 @@ import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.exams.repository.ExamSubmissionRepository
 import com.afrithecus.brainbox.api.live.repository.LiveAttendanceRepository
 import com.afrithecus.brainbox.api.mastery.MasteryService
+import com.afrithecus.brainbox.api.media.MediaService
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.invalidArgument
@@ -61,6 +63,8 @@ class AttendanceService(
     private val liveAttendanceRepository: LiveAttendanceRepository,
     private val examSubmissionRepository: ExamSubmissionRepository,
     private val masteryService: MasteryService,
+    private val pdfService: AttendancePdfService,
+    private val mediaService: MediaService,
     private val userRepository: UserRepository,
     private val notificationService: NotificationService,
     private val clock: Clock,
@@ -201,6 +205,42 @@ class AttendanceService(
     }
 
     private fun round2(value: Double): Double = kotlin.math.round(value * 100) / 100.0
+
+    // ------------------------------------------------------------ export
+
+    /** Renders and stores a printable register PDF for the window (doc 04 §4.1). */
+    @Transactional
+    fun exportPdf(current: CurrentUser, classIdRaw: String, startMillis: Long, endMillis: Long): PdfResultPayload {
+        val clazz = readableClass(user(current), classIdRaw)
+        val from = dayOf(minOf(startMillis, endMillis))
+        val to = dayOf(maxOf(startMillis, endMillis))
+        val records = recordRepository.findAllByClassIdAndAttendanceDateBetween(clazz.id, from, to)
+        val students = userRepository.findAllById(rosterIds(clazz, records)).associateBy { it.id }
+        val rows = students.values.sortedBy { it.name.lowercase() }.map { student ->
+            val studentRecords = records.filter { it.studentId == student.id }
+            val counted = studentRecords.count { it.status != AttendanceStatus.EXCUSED }
+            AttendancePdfRow(
+                studentName = student.name,
+                present = studentRecords.count { it.status == AttendanceStatus.PRESENT },
+                late = studentRecords.count { it.status == AttendanceStatus.LATE },
+                absent = studentRecords.count { it.status == AttendanceStatus.ABSENT },
+                excused = studentRecords.count { it.status == AttendanceStatus.EXCUSED },
+                rate = if (counted == 0) 100.0 else round2(
+                    studentRecords.count { it.status == AttendanceStatus.PRESENT || it.status == AttendanceStatus.LATE } * 100.0 / counted
+                ),
+            )
+        }
+        val average = if (rows.isEmpty()) 0.0 else round2(rows.map { it.rate }.average())
+        val bytes = pdfService.render(clazz.name, from.toString() + " to " + to.toString(), rows, average)
+        val fileName = "attendance_" + from + "_" + to + ".pdf"
+        val stored = mediaService.storeBytes(bytes, UUID.randomUUID().toString() + ".pdf", "application/pdf")
+        return PdfResultPayload(
+            fileUrl = stored.url,
+            fileName = fileName,
+            fileSize = bytes.size.toLong(),
+            generatedAt = clock.millis(),
+        )
+    }
 
     // ------------------------------------------------------------ parent
 
