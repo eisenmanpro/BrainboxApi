@@ -61,6 +61,8 @@ data class TeacherShoutoutPayload(
     val dueDate: String,
     val classAvg: Int,
     val userLast: Int,
+    /** Unix ms the feedback was sent; 0 hides the timestamp on the client. */
+    val sentAt: Long = 0,
 )
 
 data class PeerComparisonPayload(

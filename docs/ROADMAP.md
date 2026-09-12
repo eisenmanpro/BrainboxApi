@@ -362,7 +362,12 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
         computes the client TraditionalStudentReport (own/linked-child, PUBLISHED gate, class
         position); analytics, grade-analysis, grade-wide/per-class rankings; edit requests +
         24h edit permissions; new NotificationService.notifyUser for server fan-out
-      - 2R-p4 dashboard contract 14 alignment (profile/progress/subscriptions/insights/recs)
+      - 2R-p4 dashboard contract 14 alignment (no migration): GET users/{userId}/profile
+        (subscription status Active/Expiring/Expired, numeric grade), GET users/{userId}/progress
+        (XP/level at multiples of 500, streak, badges, trend), GET subscriptions/me;
+        GET recommendations/user/{userId} (RecommendationsResponse) and GET recommendations/trending;
+        dashboard/insights.teacherShoutout.sentAt added (featured contest already derives from the
+        same published-contest query as dashboard/contests)
 - [ ] CBC analytics: class report, student report card, strand mastery, ratings, curriculum map (doc 04 §13)
 - [ ] Student analytics (doc 04 §14)
 - [ ] Conferences: slots + bookings with constraints (doc 04 §15)
@@ -422,11 +427,12 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 > Session status (2026-09-12): Phase 1 + 2A-2Q done, plus contract-hardening wave 2R in progress.
 > App-hardening contract alignment (2N, V24), study tools (2O, V25), homework attachments +
 > past-paper content (2P, V26) and class chat REST (2Q, V27) all shipped. 2R-p1 class-chat
-> transport alignment (V28), 2R-p2 exam-hub result/submission shapes and 2R-p3 traditional exam
-> engine + student reports (V29) shipped. Test suite 155 (0 failures) + PG18 parity. Wave 2R
-> order: p4 dashboard contract 14 alignment (backend_contracts/14_STUDENT_DASHBOARD_API.md).
-> Next backend work after 2R: class-chat WebSocket transport (Phase 6), then Phase 3 teacher
-> portal; doc 13 analytics beyond the exam-engine outputs folds into the teacher-portal goal.
+> transport alignment (V28), 2R-p2 exam-hub result/submission shapes, 2R-p3 traditional exam
+> engine + student reports (V29) and 2R-p4 dashboard contract 14 alignment all shipped. Test
+> suite 157 (0 failures) + PG18 parity. Wave 2R is complete; payments/IntaSend relay (doc 14 §6)
+> remains a separate Phase 6 item. Next backend work: class-chat WebSocket transport (Phase 6),
+> then Phase 3 teacher portal; doc 13 analytics beyond the exam-engine outputs folds into the
+> teacher-portal goal.
 
 ## 7. Tracking
 

@@ -161,7 +161,7 @@ class DashboardService(
     }
 
     private fun teacherShoutout(student: UserEntity): TeacherShoutoutPayload {
-        val latest = latestHomework(student) ?: return TeacherShoutoutPayload("", "", "", 0, 0)
+        val latest = latestHomework(student) ?: return TeacherShoutoutPayload("", "", "", 0, 0, 0)
         val submissions = homeworkSubmissionRepository.findAllByHomeworkId(latest.id)
         val graded = submissions.mapNotNull { it.grade }
         val mine = submissions.firstOrNull { it.studentId == student.id }?.grade ?: 0
@@ -171,6 +171,7 @@ class DashboardService(
             dueDate = dueLabel(latest.dueDate, clock.instant()),
             classAvg = if (graded.isEmpty()) 0 else graded.average().roundToInt(),
             userLast = mine,
+            sentAt = latest.updatedAt.toEpochMilli(),
         )
     }
 
