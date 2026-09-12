@@ -65,6 +65,18 @@ data class CommunityServicePayload(
     val isActive: Boolean = true,
 )
 
+/** A learner's own scheduled class (GET student/timetable). */
+data class LearnerTimetableSlotPayload(
+    val id: String,
+    val classId: String,
+    val subject: String,
+    val teacherName: String = "",
+    val room: String? = null,
+    val dayOfWeek: Int = 1,
+    val startMillis: Long = 0,
+    val endMillis: Long = 0,
+)
+
 data class ScheduleChangePayload(
     val id: String = "",
     val teacherId: String = "",

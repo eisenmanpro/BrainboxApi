@@ -1,7 +1,9 @@
 package com.afrithecus.brainbox.api.timetable
 
 import com.afrithecus.brainbox.api.auth.web.AuthResponse
+import com.afrithecus.brainbox.api.classes.entity.ClassMembershipEntity
 import com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity
+import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
@@ -10,6 +12,7 @@ import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.timetable.web.CommunityServicePayload
+import com.afrithecus.brainbox.api.timetable.web.LearnerTimetableSlotPayload
 import com.afrithecus.brainbox.api.timetable.web.HouseGroupPayload
 import com.afrithecus.brainbox.api.timetable.web.PeerCirclePayload
 import com.afrithecus.brainbox.api.timetable.web.RoomBookingPayload
@@ -48,6 +51,7 @@ class TeacherTimetableWebTests(
     @Autowired private val userRepository: UserRepository,
     @Autowired private val schoolRepository: SchoolRepository,
     @Autowired private val classRepository: TeacherClassRepository,
+    @Autowired private val membershipRepository: ClassMembershipRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
 ) {
     private lateinit var schoolId: UUID
@@ -198,6 +202,50 @@ class TeacherTimetableWebTests(
             Array<TimetableEntryPayload>::class.java,
         )
         check(kenyan.size == 2)
+    }
+
+    @Test
+    fun `learner timetable returns only enrolled class slots`() {
+        val teacher = user(Role.TEACHER, "Class Teacher", "0755020070")
+        val member = user(Role.STUDENT, "Enrolled Learner", "0755020071")
+        val outsider = user(Role.STUDENT, "Other Learner", "0755020072")
+        val clazz = teachClass(teacher, "Grade 4 South", "Mathematics")
+        membershipRepository.save(ClassMembershipEntity().apply {
+            classId = clazz.id
+            studentId = member.id
+        })
+        val t = token(teacher)
+        val body = objectMapper.writeValueAsString(entry().copy(classId = clazz.id.toString()))
+        mockMvc.perform(post("/teacher/timetable/entries").header("Authorization", auth(t))
+            .contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isOk)
+
+        val slots = objectMapper.readValue(
+            mockMvc.perform(get("/student/timetable?studentId=" + member.id)
+                .header("Authorization", auth(token(member))))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<LearnerTimetableSlotPayload>::class.java,
+        )
+        check(slots.size == 1)
+        check(slots.single().subject == "Mathematics")
+        check(slots.single().teacherName == "Class Teacher")
+        check(slots.single().room == "Room 101")
+        check(slots.single().dayOfWeek == 1)
+        check(slots.single().startMillis > 0)
+        check(slots.single().endMillis > slots.single().startMillis)
+
+        val outsiderSlots = objectMapper.readValue(
+            mockMvc.perform(get("/student/timetable?studentId=" + outsider.id)
+                .header("Authorization", auth(token(outsider))))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<LearnerTimetableSlotPayload>::class.java,
+        )
+        check(outsiderSlots.isEmpty())
+
+        // A learner cannot read someone else's timetable.
+        mockMvc.perform(get("/student/timetable?studentId=" + outsider.id)
+            .header("Authorization", auth(token(member))))
+            .andExpect(status().isForbidden)
     }
 
     @Test

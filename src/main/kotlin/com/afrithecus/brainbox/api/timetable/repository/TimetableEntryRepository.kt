@@ -11,4 +11,6 @@ interface TimetableEntryRepository : JpaRepository<TimetableEntryEntity, UUID> {
     fun findAllByTeacherIdOrderByDayOfWeekAscStartTimeAsc(teacherId: UUID): List<TimetableEntryEntity>
 
     fun findAllByTeacherIdAndDayOfWeekOrderByStartTimeAsc(teacherId: UUID, dayOfWeek: Int): List<TimetableEntryEntity>
+
+    fun findAllByClassIdIn(classIds: Collection<String>): List<TimetableEntryEntity>
 }
