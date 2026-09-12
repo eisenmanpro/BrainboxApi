@@ -465,6 +465,32 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 
 ---
 
+### Client production catch-up (docs/ongoing, V39-V41)
+
+The client's production-hardening wave was audited and every documented backend gap closed:
+
+- **Learner reads**: `GET student/timetable` (own weekly classes) and the linked-child
+  calendar `GET parent/child/{childId}/calendar`, both materialised from the current week's
+  teacher timetable entries; `GET announcements/for-me` scoped by school/grade/class/student
+  with the author `teacherName` now carried on every announcement payload.
+- **Content lifecycle (V39)**: post `PUBLISHED | SCHEDULED | ARCHIVED`; `publishDate` holds a
+  scheduled post until a poller releases it; `POST/DELETE teacher/content/material/{id}/archive`
+  archive/restore; archived and not-yet-due posts never reach learners. Document upload and the
+  analytics payload (`engagementRate`, `averageTimeSpentSeconds`, `studentEngagement`) were
+  already client-shaped.
+- **Digital exams (learner)**: `POST exams/{id}/session/submit` is idempotent per
+  `(examId, userId)` — replaying the same answers returns the stored result instead of a 409 —
+  and `GET exams/{id}/result` reports a stable `PENDING` until teacher marking completes.
+- **Admin school announcements (V40)**: `admin/schools/{schoolId}/announcements` CRUD for the
+  offline admin studio, with repeat-safe delete.
+- **Live class hosting (V41)**: teacher lifecycle CRUD/start/end, recordings, analytics, the
+  persisted host roster with idempotent MUTE/UNMUTE/REMOVE/KICK/PROMOTE_TO_COHOST actions, the
+  chat transcript plus idempotent learner sends, and host polls.
+- **Traditional exams**: `pre-final` and `finalize` are now replay-safe for the offline outbox.
+
+Broader parent-dashboard and admin-panel endpoints (docs 07/08) remain main-plan work, not part
+of this catch-up.
+
 ## 6. Engineering Standards (apply to all phases)
 
 - Real-world production code: no dead code, no stubs, no hardcoded network/repository
