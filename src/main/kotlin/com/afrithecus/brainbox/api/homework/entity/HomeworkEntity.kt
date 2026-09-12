@@ -3,6 +3,7 @@ package com.afrithecus.brainbox.api.homework.entity
 import com.afrithecus.brainbox.api.homework.model.GradingMode
 import com.afrithecus.brainbox.api.homework.model.HomeworkScope
 import com.afrithecus.brainbox.api.homework.model.SubmissionType
+import com.afrithecus.brainbox.api.traditional.model.ExamTerm
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
@@ -47,6 +48,11 @@ class HomeworkEntity {
 
     @Column(name = "grade_level", nullable = false)
     var gradeLevel: Int = 0
+
+    /** Academic term; null only for legacy rows written before V32. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    var term: ExamTerm? = null
 
     @Column(name = "due_date", nullable = false)
     var dueDate: Instant = Instant.now()

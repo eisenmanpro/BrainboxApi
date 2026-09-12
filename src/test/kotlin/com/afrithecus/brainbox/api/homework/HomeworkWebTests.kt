@@ -6,6 +6,7 @@ import com.afrithecus.brainbox.api.classes.web.TeacherClassPayload
 import com.afrithecus.brainbox.api.homework.web.HomeworkPayload
 import com.afrithecus.brainbox.api.homework.web.HomeworkUpsertRequest
 import com.afrithecus.brainbox.api.homework.web.SubmissionPayload
+import com.afrithecus.brainbox.api.traditional.model.ExamTerm
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
@@ -97,10 +98,11 @@ class HomeworkWebTests(
         checklist: List<String>? = null,
         type: String = "FREE_TEXT",
         isDraft: Boolean = false,
+        term: ExamTerm? = null,
     ) = HomeworkUpsertRequest(
         id = id, classId = classId, title = title,
         description = "Complete the following textbook exercises and show all working.",
-        subject = "MATHEMATICS", gradeLevel = 3,
+        subject = "MATHEMATICS", gradeLevel = 3, term = term,
         dueDate = System.currentTimeMillis() + 24L * 3600 * 1000,
         submissionType = type, checklistItems = checklist,
         gradingMode = "MANUAL", assignedStudentIds = assigned,
@@ -319,7 +321,33 @@ class HomeworkWebTests(
         check(revealedPayload.grade == 0)
     }
 
+    @Test
+    fun `homework echoes an explicit term and defaults from the creation month`() {
+        val host = signupStudent("0775000020", "HW High")
+        val teacher = newTeacher(host.user.schoolId!!, "0775777004")
+        val student = signupStudent("0775000021", "HW High")
+        val classId = createClass(teacher, listOf(student))
+
+        val explicit = objectMapper.readValue(
+            upsert(teacher, hwRequest("hw_t1", classId, term = ExamTerm.TERM_2)),
+            HomeworkPayload::class.java,
+        )
+        check(explicit.term == ExamTerm.TERM_2)
+
+        val derived = objectMapper.readValue(
+            upsert(teacher, hwRequest("hw_t2", classId)),
+            HomeworkPayload::class.java,
+        )
+        val expected = when (java.time.LocalDate.now(java.time.ZoneOffset.UTC).monthValue) {
+            1, 2, 3, 4 -> ExamTerm.TERM_1
+            5, 6, 7, 8 -> ExamTerm.TERM_2
+            else -> ExamTerm.TERM_3
+        }
+        check(derived.term == expected)
+    }
+
     private companion object {
         val nextTeacher = AtomicInteger(0)
     }
 }
+

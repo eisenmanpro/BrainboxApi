@@ -67,6 +67,7 @@ data class AnalyticsExamResultPayload(
 
 data class StudentPerformancePayload(
     val student: StudentPayload,
+    val gradeLevel: String = "",
     val overallPercentage: Double,
     val overallGrade: String,
     val previousPercentage: Double? = null,

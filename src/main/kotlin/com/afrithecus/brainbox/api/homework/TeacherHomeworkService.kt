@@ -27,6 +27,7 @@ import com.afrithecus.brainbox.api.homework.web.SubmissionPayload
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
+import com.afrithecus.brainbox.api.traditional.model.ExamTerm
 import com.afrithecus.brainbox.api.exams.QuestionCodec
 import com.afrithecus.brainbox.api.exams.model.QuestionType
 import com.afrithecus.brainbox.api.exams.web.QuestionPayload
@@ -35,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
 import java.time.Clock
 import java.time.Instant
+import java.time.LocalDate
 import java.util.UUID
 
 /**
@@ -226,6 +228,7 @@ class TeacherHomeworkService(
         entity.description = request.description.trim()
         entity.subject = request.subject.trim()
         entity.gradeLevel = request.gradeLevel
+        entity.term = request.term ?: entity.term ?: termFor(entity.createdAt)
         entity.dueDate = Instant.ofEpochMilli(request.dueDate)
         val submissionType = parseSubmissionType(request.submissionType)
         if (submissionType == SubmissionType.PAST_PAPER_REVIEW && request.relatedPaperCode.isNullOrBlank()) {
@@ -243,6 +246,13 @@ class TeacherHomeworkService(
         entity.isDraft = request.isDraft
         entity.isActive = request.isActive
         entity.updatedAt = clock.instant()
+    }
+
+    /** Month heuristic fallback (Jan-Apr = 1, May-Aug = 2, Sep-Dec = 3). */
+    private fun termFor(instant: Instant): ExamTerm = when (LocalDate.ofInstant(instant, clock.zone).monthValue) {
+        1, 2, 3, 4 -> ExamTerm.TERM_1
+        5, 6, 7, 8 -> ExamTerm.TERM_2
+        else -> ExamTerm.TERM_3
     }
 
     private fun parseSubmissionType(raw: String): SubmissionType =
@@ -270,6 +280,7 @@ class TeacherHomeworkService(
         description = homework.description,
         subject = homework.subject,
         gradeLevel = homework.gradeLevel,
+        term = homework.term,
         dueDate = homework.dueDate.toEpochMilli(),
         submissionType = homework.submissionType.name,
         checklistItems = codec.parseList(homework.checklistItems),

@@ -81,6 +81,7 @@ class AnalyticsService(
                 className = classNameOf(student.id),
                 admissionNumber = student.studentAdmissionNumber ?: "",
             ),
+            gradeLevel = student.gradeLevel ?: "",
             overallPercentage = overall,
             overallGrade = CbcGrades.grade(overall),
             previousPercentage = previous,

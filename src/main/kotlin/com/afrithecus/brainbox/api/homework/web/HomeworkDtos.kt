@@ -1,6 +1,7 @@
 package com.afrithecus.brainbox.api.homework.web
 
 import com.afrithecus.brainbox.api.exams.web.QuestionPayload
+import com.afrithecus.brainbox.api.traditional.model.ExamTerm
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
@@ -37,6 +38,8 @@ data class HomeworkUpsertRequest(
     val subject: String,
     @field:Min(1) @field:Max(12)
     val gradeLevel: Int,
+    /** Explicit term; the server derives it from the creation month when absent. */
+    val term: ExamTerm? = null,
     val dueDate: Long,
     @field:NotBlank
     val submissionType: String,
@@ -70,6 +73,7 @@ data class HomeworkPayload(
     val description: String,
     val subject: String,
     val gradeLevel: Int,
+    val term: ExamTerm? = null,
     val dueDate: Long,
     val submissionType: String,
     val checklistItems: List<String>? = null,

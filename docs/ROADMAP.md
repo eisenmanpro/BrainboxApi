@@ -340,8 +340,10 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       (GET student/grades) and parent (GET parent/child/{childId}/grades) published views with
       server-computed school bands. Shared TraditionalGradingConfigService extracted so reports
       and gradebook band identically. Retired class-average endpoint not built.
-      Follow-ups from the same handoff: echo an explicit term on online teacher exams/homework,
-      and include gradeLevel on the CBC report card + student analytics.
+      Follow-ups from the same handoff: homework now accepts and echoes an explicit term
+      (V32, creation-month fallback for legacy rows) and student analytics carries gradeLevel.
+      The online /teacher/exams engine and the parent CBC report-card endpoint do not exist
+      backend-side yet, so their term/gradeLevel additions land with those features.
 - [ ] Announcements CRUD + fan-out delivery + analytics (doc 04 §6)
 - [ ] Feedback: templates, history, bulk (doc 04 §7)
 - [ ] Live class mgmt: CRUD, lifecycle, recordings, analytics, participants, polls (doc 04 §8)
@@ -448,8 +450,9 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 > analytics, performance intelligence, auto-mark, parent view + performance, absence push and
 > PDF export (V30). The gradebook followed (gb, V31): assessments + manual grades with
 > client-id/(class,assessment,student) idempotency, publish gate + term + counts-toward-average,
-> and learner/parent published grades with server bands. Test suite 165 (0 failures) + PG18
-> parity. Payments/IntaSend relay (doc 14 §6)
+> and learner/parent published grades with server bands. Gradebook follow-ups shipped too
+> (V32): homework echoes an explicit term with a creation-month fallback, and student analytics
+> carries gradeLevel. Test suite 166 (0 failures) + PG18 parity. Payments/IntaSend relay (doc 14 §6)
 > remains a separate Phase 6 item. Next backend work: class-chat WebSocket transport (Phase 6),
 > then Phase 3 teacher portal; doc 13 analytics beyond the exam-engine outputs folds into the
 > teacher-portal goal.

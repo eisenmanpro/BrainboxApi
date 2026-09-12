@@ -189,6 +189,7 @@ class AnalyticsWebTests(
         ).andExpect(status().isOk).andReturn().response.contentAsString
         val performance = objectMapper.readValue(body, StudentPerformancePayload::class.java)
         check(performance.student.id == f.student.id.toString())
+        check(performance.gradeLevel == "Form 3")
         check(performance.overallPercentage == 75.0)
         check(performance.overallGrade == "ME")
         check(performance.subjects.size == 1)
