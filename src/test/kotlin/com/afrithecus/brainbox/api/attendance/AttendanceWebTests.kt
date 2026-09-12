@@ -15,7 +15,16 @@ import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
+import com.afrithecus.brainbox.api.attendance.web.AttendancePerformanceAnalyticsPayload
+import com.afrithecus.brainbox.api.exams.entity.ExamEntity
+import com.afrithecus.brainbox.api.exams.entity.ExamSubmissionEntity
+import com.afrithecus.brainbox.api.exams.repository.ExamRepository
+import com.afrithecus.brainbox.api.exams.repository.ExamSubmissionRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
+import com.afrithecus.brainbox.api.live.entity.LiveAttendanceEntity
+import com.afrithecus.brainbox.api.live.entity.LiveClassEntity
+import com.afrithecus.brainbox.api.live.repository.LiveAttendanceRepository
+import com.afrithecus.brainbox.api.live.repository.LiveClassRepository
 import com.afrithecus.brainbox.api.notification.web.AppNotificationPayload
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -55,6 +64,10 @@ class AttendanceWebTests(
     @Autowired private val classRepository: TeacherClassRepository,
     @Autowired private val membershipRepository: ClassMembershipRepository,
     @Autowired private val recordRepository: AttendanceRecordRepository,
+    @Autowired private val liveClassRepository: LiveClassRepository,
+    @Autowired private val liveAttendanceRepository: LiveAttendanceRepository,
+    @Autowired private val examSubmissionRepository: ExamSubmissionRepository,
+    @Autowired private val examRepository: ExamRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
 ) {
 
@@ -305,5 +318,115 @@ class AttendanceWebTests(
         check(single.weeklyHeatmap[1] == 50.0)
         check(single.monthlyHeatmap[monday.dayOfMonth] == 50.0)
     }
+
+    private fun submission(creator: UserEntity, student: UserEntity, percentage: Int, at: LocalDate) {
+        val exam = ExamEntity()
+        exam.title = "Attendance Maths " + percentage
+        exam.subject = "Mathematics"
+        exam.createdBy = creator.id
+        exam.schoolId = schoolId
+        exam.durationMinutes = 60
+        exam.questionCount = 10
+        examRepository.save(exam)
+        examSubmissionRepository.save(ExamSubmissionEntity().apply {
+            this.examId = exam.id
+            userId = student.id
+            score = percentage
+            totalPoints = 100
+            this.percentage = percentage
+            correctCount = percentage
+            questionCount = 100
+            timeTakenSeconds = 600
+            submittedAt = at.atStartOfDay(zone).toInstant().plusSeconds(3600)
+        })
+    }
+
+    @Test
+    fun `auto-mark honors the minute rule and performance relates attendance to scores`() {
+        val alice = user(Role.STUDENT, "Alice Mwangi", "0722000401")
+        val bob = user(Role.STUDENT, "Bob Otieno", "0722000402")
+        val teacher = user(Role.TEACHER, "Class Teacher", "0722000403", subRole = SubRole.CTEACHER)
+        val clazz = teacherClass(teacher, "Grade 7 Central")
+        enroll(clazz, alice)
+        enroll(clazz, bob)
+        val token = token(teacher)
+        val today = LocalDate.now(zone)
+
+        val live = LiveClassEntity()
+        live.teacherId = teacher.id
+        live.teacherName = teacher.name
+        live.schoolId = schoolId
+        live.title = "Live Maths"
+        live.subject = "Mathematics"
+        live.description = ""
+        live.scheduledStart = Instant.now()
+        live.scheduledEnd = Instant.now().plusSeconds(3600)
+        liveClassRepository.save(live)
+
+        val aliceAtt = LiveAttendanceEntity()
+        aliceAtt.classId = live.id
+        aliceAtt.studentId = alice.id
+        aliceAtt.status = "PRESENT"
+        aliceAtt.isPresent = true
+        aliceAtt.durationMinutes = 30
+        aliceAtt.joinedAt = Instant.now().minusSeconds(1800)
+        aliceAtt.leftAt = Instant.now()
+        liveAttendanceRepository.save(aliceAtt)
+
+        val bobAtt = LiveAttendanceEntity()
+        bobAtt.classId = live.id
+        bobAtt.studentId = bob.id
+        bobAtt.status = "PRESENT"
+        bobAtt.isPresent = true
+        bobAtt.durationMinutes = 3
+        bobAtt.joinedAt = Instant.now().minusSeconds(180)
+        bobAtt.leftAt = Instant.now()
+        liveAttendanceRepository.save(bobAtt)
+
+        val day = today.atStartOfDay(zone).toInstant().toEpochMilli()
+        val auto = objectMapper.readValue(
+            mockMvc.perform(
+                post("/teacher/classes/${clazz.id}/attendance/auto-mark")
+                    .param("liveClassId", live.id.toString()).param("date", day.toString())
+                    .header("Authorization", auth(token))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<AttendanceRecordPayload>::class.java,
+        )
+        // Bob's 3-minute session is not present; only Alice is auto-marked.
+        check(auto.size == 1)
+        check(auto.single().studentId == alice.id.toString())
+        check(auto.single().status == "PRESENT")
+        check(auto.single().isAutoFromLiveClass)
+
+        for (offset in 10 downTo 1) {
+            val d = today.minusDays(offset.toLong())
+            seed(clazz, alice, d, if (offset == 4) "LATE" else "PRESENT")
+            seed(clazz, bob, d, if (offset % 2 == 0) "ABSENT" else "PRESENT")
+        }
+        submission(teacher, alice, 82, today.minusDays(5))
+        submission(teacher, alice, 88, today.minusDays(2))
+        submission(teacher, bob, 40, today.minusDays(3))
+
+        val start = today.minusDays(10).atStartOfDay(zone).toInstant().toEpochMilli()
+        val end = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val performance = objectMapper.readValue(
+            mockMvc.perform(
+                get("/teacher/classes/${clazz.id}/attendance/performance")
+                    .param("startDate", start.toString()).param("endDate", end.toString())
+                    .header("Authorization", auth(token))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            AttendancePerformanceAnalyticsPayload::class.java,
+        )
+        check(performance.students.size == 2)
+        val aliceRow = performance.students.first { it.studentId == alice.id.toString() }
+        val bobRow = performance.students.first { it.studentId == bob.id.toString() }
+        check(aliceRow.attendancePercentage > bobRow.attendancePercentage)
+        check(aliceRow.averageScore > bobRow.averageScore)
+        check(bobRow.riskTier == "CRITICAL")
+        check(performance.correlation in -1.0..1.0)
+        check(performance.riskSummary.low + performance.riskSummary.medium + performance.riskSummary.high + performance.riskSummary.critical == 2)
+        check(performance.trendSeries.isNotEmpty())
+    }
 }
+
 

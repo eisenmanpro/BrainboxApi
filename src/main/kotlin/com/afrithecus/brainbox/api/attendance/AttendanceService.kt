@@ -4,12 +4,19 @@ import com.afrithecus.brainbox.api.attendance.entity.AttendanceRecordEntity
 import com.afrithecus.brainbox.api.attendance.model.AttendanceStatus
 import com.afrithecus.brainbox.api.attendance.repository.AttendanceRecordRepository
 import com.afrithecus.brainbox.api.attendance.web.AttendanceAnalyticsPayload
+import com.afrithecus.brainbox.api.attendance.web.AttendancePerformanceAnalyticsPayload
+import com.afrithecus.brainbox.api.attendance.web.AttendancePerformanceRiskSummaryPayload
+import com.afrithecus.brainbox.api.attendance.web.AttendancePerformanceTrendPointPayload
 import com.afrithecus.brainbox.api.attendance.web.AttendanceRecordPayload
+import com.afrithecus.brainbox.api.attendance.web.StudentAttendancePerformancePayload
 import com.afrithecus.brainbox.api.attendance.web.AttendanceTrendPointPayload
 import com.afrithecus.brainbox.api.attendance.web.ChronicAbsenteeismAlertPayload
 import com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity
 import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
+import com.afrithecus.brainbox.api.exams.repository.ExamSubmissionRepository
+import com.afrithecus.brainbox.api.live.repository.LiveAttendanceRepository
+import com.afrithecus.brainbox.api.mastery.MasteryService
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.invalidArgument
@@ -48,6 +55,9 @@ class AttendanceService(
     private val recordRepository: AttendanceRecordRepository,
     private val classRepository: TeacherClassRepository,
     private val membershipRepository: ClassMembershipRepository,
+    private val liveAttendanceRepository: LiveAttendanceRepository,
+    private val examSubmissionRepository: ExamSubmissionRepository,
+    private val masteryService: MasteryService,
     private val userRepository: UserRepository,
     private val notificationService: NotificationService,
     private val clock: Clock,
@@ -189,6 +199,195 @@ class AttendanceService(
 
     private fun round2(value: Double): Double = kotlin.math.round(value * 100) / 100.0
 
+    // ------------------------------------------------------------ auto-mark
+
+    /**
+     * Populate a day's register from a live-class session (doc 04 §4.1). Only
+     * attended learners are written (PRESENT, flagged auto) and a manually filed
+     * status is never overwritten; everyone else is left for the teacher.
+     */
+    @Transactional
+    fun autoMark(current: CurrentUser, classIdRaw: String, liveClassIdRaw: String, dateMillis: Long): List<AttendanceRecordPayload> {
+        val user = user(current)
+        val clazz = classRepository.findById(parseUuid(classIdRaw, "classId")).orElse(null)
+            ?: throw notFound("Class not found")
+        requireWriter(user, clazz)
+        val liveClassId = parseUuid(liveClassIdRaw, "liveClassId")
+        val day = dayOf(dateMillis)
+        val attended = liveAttendanceRepository.findAllByClassId(liveClassId)
+            .filter { countsAsAttended(it) }
+            .map { it.studentId }
+            .toSet()
+        if (attended.isNotEmpty()) {
+            val roster = membershipRepository.findAllByClassId(clazz.id).map { it.studentId }.toSet()
+            val existing = recordRepository.findAllByClassIdAndAttendanceDate(clazz.id, day).associateBy { it.studentId }
+            for (studentId in attended.filter { it in roster }) {
+                val current = existing[studentId]
+                if (current != null && !current.isAutoFromLiveClass) continue
+                val row = current ?: AttendanceRecordEntity().apply {
+                    classId = clazz.id
+                    this.studentId = studentId
+                    attendanceDate = day
+                }
+                row.status = AttendanceStatus.PRESENT
+                row.schoolId = clazz.schoolId
+                row.recordedBy = user.id
+                row.recordedByName = user.name
+                row.isAutoFromLiveClass = true
+                recordRepository.save(row)
+            }
+        }
+        return payloads(clazz, recordRepository.findAllByClassIdAndAttendanceDate(clazz.id, day))
+    }
+
+    private fun countsAsAttended(row: com.afrithecus.brainbox.api.live.entity.LiveAttendanceEntity): Boolean {
+        if (!row.isPresent) return false
+        // Sessions under 5 minutes do not count (client rule); in-progress counts.
+        if (row.leftAt != null && row.durationMinutes < MIN_PRESENT_MINUTES) return false
+        return true
+    }
+
+    // ------------------------------------------------------------ performance
+
+    /**
+     * Attendance-vs-performance intelligence (doc 04 §4.4). Attendance percentage
+     * uses the same rate rule as analytics; the score comes from the learner's exam
+     * submissions in the window (falling back to all-time).
+     */
+    @Transactional(readOnly = true)
+    fun performance(current: CurrentUser, classIdRaw: String, startMillis: Long, endMillis: Long): AttendancePerformanceAnalyticsPayload {
+        val clazz = readableClass(user(current), classIdRaw)
+        val from = dayOf(minOf(startMillis, endMillis))
+        val to = dayOf(maxOf(startMillis, endMillis))
+        val records = recordRepository.findAllByClassIdAndAttendanceDateBetween(clazz.id, from, to)
+        val roster = rosterIds(clazz, records).toMutableSet()
+        val unknown = records.map { it.studentId }.filter { it !in roster }
+        roster += unknown
+        val attendanceByStudent = records.groupBy { it.studentId }.mapValues { (_, rows) ->
+            val counted = rows.count { it.status != AttendanceStatus.EXCUSED }
+            if (counted == 0) 100.0 else round2(rows.count { it.status == AttendanceStatus.PRESENT || it.status == AttendanceStatus.LATE } * 100.0 / counted)
+        }
+        val students = userRepository.findAllById(roster).associateBy { it.id }
+        val startInstant = from.atStartOfDay(zone).toInstant()
+        val endInstant = to.plusDays(1).atStartOfDay(zone).toInstant()
+
+        val rows = roster.mapNotNull { studentId ->
+            val student = students[studentId] ?: return@mapNotNull null
+            val percentage = attendanceByStudent[studentId] ?: 100.0
+            val submissions = examSubmissionRepository.findAllByUserId(studentId)
+            val inWindow = submissions.filter { it.submittedAt >= startInstant && it.submittedAt < endInstant }
+            val scores = (if (inWindow.isNotEmpty()) inWindow else submissions).map { it.percentage.toDouble() }
+            val averageScore = if (scores.isEmpty()) 0.0 else round2(scores.average())
+            val half = (from.toEpochDay() + to.toEpochDay()) / 2
+            val first = inWindow.filter { it.submittedAt < java.time.Instant.ofEpochSecond(half * 86400) }.map { it.percentage.toDouble() }
+            val second = inWindow.filter { it.submittedAt >= java.time.Instant.ofEpochSecond(half * 86400) }.map { it.percentage.toDouble() }
+            val masteryDelta = if (first.isNotEmpty() && second.isNotEmpty()) round2(second.average() - first.average()) else 0.0
+            val studentRecords = records.filter { it.studentId == studentId }
+            val trend = attendanceTrend(studentRecords, from, to)
+            StudentAttendancePerformancePayload(
+                studentId = studentId.toString(),
+                studentName = student.name,
+                attendancePercentage = percentage,
+                averageScore = averageScore,
+                masteryLevel = round2(runCatching { masteryService.overallScore(studentId) }.getOrDefault(0.0)),
+                quadrant = quadrant(percentage, averageScore),
+                riskTier = riskTier(percentage, averageScore),
+                trend = trend,
+                missedAssessmentsCount = studentRecords.count { it.status == AttendanceStatus.ABSENT },
+                masteryDelta = masteryDelta,
+            )
+        }.sortedBy { it.studentName.lowercase() }
+
+        val classAverageAttendance = if (rows.isEmpty()) 0.0 else round2(rows.map { it.attendancePercentage }.average())
+        val classAverageScore = if (rows.isEmpty()) 0.0 else round2(rows.map { it.averageScore }.average())
+        val correlation = pearson(rows.map { it.attendancePercentage }, rows.map { it.averageScore })
+        val trendSeries = attendanceTrendSeries(clazz, records, from, to, classAverageScore)
+        return AttendancePerformanceAnalyticsPayload(
+            classId = clazz.id.toString(),
+            startDate = millisOf(from),
+            endDate = millisOf(to),
+            classAverageAttendance = classAverageAttendance,
+            classAverageScore = classAverageScore,
+            correlation = correlation,
+            riskSummary = AttendancePerformanceRiskSummaryPayload(
+                low = rows.count { it.riskTier == "LOW" },
+                medium = rows.count { it.riskTier == "MEDIUM" },
+                high = rows.count { it.riskTier == "HIGH" },
+                critical = rows.count { it.riskTier == "CRITICAL" },
+            ),
+            students = rows,
+            trendSeries = trendSeries,
+        )
+    }
+
+    private fun attendanceTrend(rows: List<AttendanceRecordEntity>, from: LocalDate, to: LocalDate): String {
+        if (rows.isEmpty()) return "STABLE"
+        val midpoint = from.plusDays((to.toEpochDay() - from.toEpochDay()) / 2)
+        val first = rateOf(rows.filter { it.attendanceDate <= midpoint })
+        val second = rateOf(rows.filter { it.attendanceDate > midpoint })
+        if (first == null || second == null) return "STABLE"
+        return when {
+            second > first + 2.0 -> "UP"
+            second < first - 2.0 -> "DOWN"
+            else -> "STABLE"
+        }
+    }
+
+    private fun rateOf(rows: List<AttendanceRecordEntity>): Double? {
+        val counted = rows.count { it.status != AttendanceStatus.EXCUSED }
+        if (counted == 0) return null
+        return rows.count { it.status == AttendanceStatus.PRESENT || it.status == AttendanceStatus.LATE } * 100.0 / counted
+    }
+
+    private fun quadrant(attendance: Double, score: Double): String = when {
+        attendance >= HIGH_ATTENDANCE && score >= HIGH_PERFORMANCE -> "HIGH_ATTEND_HIGH_PERF"
+        attendance >= HIGH_ATTENDANCE -> "HIGH_ATTEND_LOW_PERF"
+        score >= HIGH_PERFORMANCE -> "LOW_ATTEND_HIGH_PERF"
+        else -> "LOW_ATTEND_LOW_PERF"
+    }
+
+    private fun riskTier(attendance: Double, score: Double): String = when {
+        attendance < 70.0 && score < 50.0 -> "CRITICAL"
+        attendance < 80.0 || score < 55.0 -> "HIGH"
+        attendance < 90.0 || score < 65.0 -> "MEDIUM"
+        else -> "LOW"
+    }
+
+    private fun attendanceTrendSeries(
+        clazz: TeacherClassEntity,
+        records: List<AttendanceRecordEntity>,
+        from: LocalDate,
+        to: LocalDate,
+        classAverageScore: Double,
+    ): List<AttendancePerformanceTrendPointPayload> {
+        val rosterSize = rosterIds(clazz, records).size
+        return records.groupBy { it.attendanceDate }.toSortedMap().map { (day, dayRecords) ->
+            AttendancePerformanceTrendPointPayload(
+                date = millisOf(day),
+                attendancePercentage = attendanceRate(dayRecords, rosterSize) ?: 0.0,
+                averageScore = classAverageScore,
+            )
+        }
+    }
+
+    private fun pearson(x: List<Double>, y: List<Double>): Double {
+        if (x.size < 2 || x.size != y.size) return 0.0
+        val mx = x.average()
+        val my = y.average()
+        var num = 0.0
+        var dx2 = 0.0
+        var dy2 = 0.0
+        for (i in x.indices) {
+            val dx = x[i] - mx
+            val dy = y[i] - my
+            num += dx * dy
+            dx2 += dx * dx
+            dy2 += dy * dy
+        }
+        val denom = kotlin.math.sqrt(dx2 * dy2)
+        return if (denom == 0.0) 0.0 else round2((num / denom).coerceIn(-1.0, 1.0))
+    }
+
     // ------------------------------------------------------------ internals
 
     private fun apply(
@@ -295,6 +494,9 @@ class AttendanceService(
     private companion object {
         const val CHRONIC_RATE = 80.0
         const val CHRONIC_MISSED = 3
+        const val MIN_PRESENT_MINUTES = 5
+        const val HIGH_ATTENDANCE = 90.0
+        const val HIGH_PERFORMANCE = 65.0
         val NOTIFIABLE = setOf(AttendanceStatus.ABSENT, AttendanceStatus.LATE)
         val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, dd MMM", Locale.US)
     }

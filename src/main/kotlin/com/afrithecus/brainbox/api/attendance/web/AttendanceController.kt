@@ -53,6 +53,22 @@ class AttendanceController(
         @RequestParam endDate: Long,
     ): AttendanceAnalyticsPayload = service.analytics(currentUser, classId, startDate, endDate)
 
+    @GetMapping("/classes/{classId}/attendance/performance")
+    fun performance(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable classId: String,
+        @RequestParam startDate: Long,
+        @RequestParam endDate: Long,
+    ): AttendancePerformanceAnalyticsPayload = service.performance(currentUser, classId, startDate, endDate)
+
+    @PostMapping("/classes/{classId}/attendance/auto-mark")
+    fun autoMark(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable classId: String,
+        @RequestParam liveClassId: String,
+        @RequestParam date: Long,
+    ): List<AttendanceRecordPayload> = service.autoMark(currentUser, classId, liveClassId, date)
+
     private companion object {
         const val DEFAULT_ANALYTICS_DAYS = 30L
         const val DAY_MILLIS = 24L * 60 * 60 * 1000
