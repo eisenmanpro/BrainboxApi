@@ -123,20 +123,23 @@ class TraditionalExamWebTests(
     }
 
     private fun publishExam(examId: String, token: String, coordinatorId: UUID) {
-        mockMvc.perform(
-            post("/traditional/exams/${examId}/confirm").param("grade", "Grade 4").header("Authorization", auth(token))
-        ).andExpect(status().isNoContent)
-        mockMvc.perform(
-            post("/traditional/exams/${examId}/pre-final").header("Authorization", auth(token))
-        ).andExpect(status().isOk)
-        mockMvc.perform(
-            post("/traditional/exams/${examId}/finalize").param("coordinatorId", coordinatorId.toString())
-                .param("remarks", "Great term").header("Authorization", auth(token))
-        ).andExpect(status().isOk)
-        mockMvc.perform(
-            post("/traditional/exams/${examId}/publish").param("coordinatorId", coordinatorId.toString())
-                .header("Authorization", auth(token))
-        ).andExpect(status().isOk)
+        // Replaying each lifecycle step must be safe (the client outbox retries them).
+        repeat(2) {
+            mockMvc.perform(
+                post("/traditional/exams/${examId}/confirm").param("grade", "Grade 4").header("Authorization", auth(token))
+            ).andExpect(status().isNoContent)
+            mockMvc.perform(
+                post("/traditional/exams/${examId}/pre-final").header("Authorization", auth(token))
+            ).andExpect(status().isOk)
+            mockMvc.perform(
+                post("/traditional/exams/${examId}/finalize").param("coordinatorId", coordinatorId.toString())
+                    .param("remarks", "Great term").header("Authorization", auth(token))
+            ).andExpect(status().isOk)
+            mockMvc.perform(
+                post("/traditional/exams/${examId}/publish").param("coordinatorId", coordinatorId.toString())
+                    .header("Authorization", auth(token))
+            ).andExpect(status().isOk)
+        }
     }
 
     @Test

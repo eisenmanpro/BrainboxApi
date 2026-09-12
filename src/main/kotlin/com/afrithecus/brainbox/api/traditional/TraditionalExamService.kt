@@ -245,6 +245,10 @@ class TraditionalExamService(
     fun advanceToPreFinal(current: CurrentUser, examIdRaw: String): TraditionalExamDto {
         requireCoordinator(current)
         val exam = exam(examIdRaw)
+        // Idempotent for the offline outbox: re-sending an applied transition is a no-op.
+        if (TraditionalExamStatus.entries.indexOf(exam.status) >= TraditionalExamStatus.entries.indexOf(TraditionalExamStatus.PRE_FINAL)) {
+            return examDto(exam)
+        }
         if (exam.status != TraditionalExamStatus.CONFIRMED) throw conflict("Exam must be CONFIRMED to advance to PRE_FINAL")
         val rows = confirmationRepository.findAllByExamId(exam.id)
         if (rows.isEmpty() || rows.any { it.confirmedAt == null }) throw conflict("All teachers must confirm before PRE_FINAL")
@@ -257,6 +261,10 @@ class TraditionalExamService(
     fun finalize(current: CurrentUser, examIdRaw: String, coordinatorId: String?, remarks: String?): TraditionalExamDto {
         requireCoordinator(current)
         val exam = exam(examIdRaw)
+        // Idempotent for the offline outbox: re-sending an applied finalize is a no-op.
+        if (TraditionalExamStatus.entries.indexOf(exam.status) >= TraditionalExamStatus.entries.indexOf(TraditionalExamStatus.FINALIZED)) {
+            return examDto(exam)
+        }
         if (exam.status != TraditionalExamStatus.CONFIRMED && exam.status != TraditionalExamStatus.PRE_FINAL) {
             throw conflict("Exam must be CONFIRMED or PRE_FINAL to finalize")
         }
