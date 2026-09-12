@@ -360,7 +360,9 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
         pre-final/finalize/publish with student+parent notification fan-out
         (exam_results/{examId} / student_report/{studentId}); GET traditional/exams/{examId}/results/me
         computes the client TraditionalStudentReport (own/linked-child, PUBLISHED gate, class
-        position); analytics, grade-analysis, grade-wide/per-class rankings; edit requests +
+        position; overallGrade uses the percentage band to match the client's offline report
+        fallback, while the teacher workbook/rankings keep the legacy raw G.TOTAL bands);
+        analytics, grade-analysis, grade-wide/per-class rankings; edit requests +
         24h edit permissions; new NotificationService.notifyUser for server fan-out
       - 2R-p4 dashboard contract 14 alignment (no migration): GET users/{userId}/profile
         (subscription status Active/Expiring/Expired, numeric grade), GET users/{userId}/progress

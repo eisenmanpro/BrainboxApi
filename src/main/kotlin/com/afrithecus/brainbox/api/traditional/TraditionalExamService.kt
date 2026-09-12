@@ -795,7 +795,10 @@ class TraditionalExamService(
             subjectResults = subjectResults,
             totalScore = totalScore,
             overallPercentage = round2(overallPercentage),
-            overallGrade = overallBand(totalScore, grading),
+            // Mirror the client's offline report fallback (percentage-band), so an
+            // online report and a cached offline report agree on the overall grade.
+            // The teacher workbook/rankings keep the legacy raw-total G.TOTAL bands.
+            overallGrade = gradeBand(overallPercentage, grading),
             classPosition = position,
             totalStudentsInClass = ordered.size,
             teacherRemarks = exam.coordinatorRemarks,

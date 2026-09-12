@@ -224,7 +224,8 @@ class TraditionalExamWebTests(
         check(report.subjectResults.size == 2)
         check(report.totalScore == 140)
         check(report.overallPercentage == 70.0)
-        check(report.overallGrade == "BE")
+        // Percentage-band (70% -> ME) to match the client's offline report fallback.
+        check(report.overallGrade == "ME")
         check(report.classPosition == 2)
         check(report.totalStudentsInClass == 2)
 
