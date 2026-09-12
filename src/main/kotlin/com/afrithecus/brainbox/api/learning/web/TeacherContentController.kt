@@ -14,7 +14,9 @@ import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.multipart.MultipartFile
 
 /**
  * Teacher content management (docs/ongoing/api_content_changes.md). The signed-in
@@ -89,6 +91,49 @@ class TeacherContentController(
         @PathVariable draftId: String,
     ): ResponseEntity<Void> {
         service.deleteDraft(teacher(currentUser), draftId)
+        return ResponseEntity.noContent().build()
+    }
+
+    @GetMapping("/documents")
+    fun documents(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @RequestParam(required = false) teacherId: String?,
+    ): List<TeacherDocumentPayload> = service.documents(teacher(currentUser))
+
+    @PostMapping("/content/document")
+    fun uploadDocument(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @RequestPart("title") title: String,
+        @RequestPart(value = "description", required = false) description: String?,
+        @RequestPart("type") type: String,
+        @RequestPart(value = "authorName", required = false) authorName: String?,
+        @RequestPart(value = "gradeLevel", required = false) gradeLevel: String?,
+        @RequestPart(value = "subject", required = false) subject: String?,
+        @RequestPart(value = "topic", required = false) topic: String?,
+        @RequestPart(value = "fileSizeBytes", required = false) fileSizeBytes: String?,
+        @RequestPart(value = "teacherId", required = false) teacherId: String?,
+        @RequestPart(value = "id", required = false) id: String?,
+        @RequestPart(value = "file", required = false) file: MultipartFile?,
+    ): TeacherDocumentPayload = service.uploadDocument(
+        teacher(currentUser),
+        id,
+        title,
+        description,
+        type,
+        authorName,
+        gradeLevel,
+        subject,
+        topic,
+        fileSizeBytes?.trim()?.toLongOrNull(),
+        file,
+    )
+
+    @DeleteMapping("/content/document/{documentId}")
+    fun deleteDocument(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable documentId: String,
+    ): ResponseEntity<Void> {
+        service.deleteDocument(teacher(currentUser), documentId)
         return ResponseEntity.noContent().build()
     }
 

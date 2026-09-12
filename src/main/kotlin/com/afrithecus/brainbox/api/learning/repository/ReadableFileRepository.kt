@@ -7,4 +7,8 @@ import java.util.UUID
 interface ReadableFileRepository : JpaRepository<ReadableFileEntity, UUID> {
 
     fun findAllByIsActiveTrue(): List<ReadableFileEntity>
+
+    fun findAllByCreatedByAndIsActiveTrueOrderByCreatedAtDesc(createdBy: UUID): List<ReadableFileEntity>
+
+    fun findByClientId(clientId: String): ReadableFileEntity?
 }

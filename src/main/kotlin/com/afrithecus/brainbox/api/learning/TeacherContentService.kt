@@ -18,6 +18,13 @@ import com.afrithecus.brainbox.api.learning.repository.LearningContentRepository
 import com.afrithecus.brainbox.api.learning.repository.LearningPostRepository
 import com.afrithecus.brainbox.api.learning.repository.LearningProgressRepository
 import com.afrithecus.brainbox.api.learning.repository.LearningViewRepository
+import com.afrithecus.brainbox.api.learning.repository.ReadableFileRepository
+import com.afrithecus.brainbox.api.learning.entity.ReadableFileEntity
+import com.afrithecus.brainbox.api.learning.model.FileType
+import com.afrithecus.brainbox.api.learning.web.DocumentSourcePayload
+import com.afrithecus.brainbox.api.learning.web.TeacherDocumentPayload
+import com.afrithecus.brainbox.api.media.MediaService
+import org.springframework.web.multipart.MultipartFile
 import com.afrithecus.brainbox.api.learning.web.ContentAnalyticsPayload
 import com.afrithecus.brainbox.api.learning.web.MaterialUpdateRequest
 import com.afrithecus.brainbox.api.learning.web.StudentEngagementPayload
@@ -42,6 +49,8 @@ class TeacherContentService(
     private val draftRepository: ContentDraftRepository,
     private val viewRepository: LearningViewRepository,
     private val progressRepository: LearningProgressRepository,
+    private val fileRepository: ReadableFileRepository,
+    private val mediaService: MediaService,
     private val userRepository: UserRepository,
     private val codec: QuestionCodec,
     private val clock: Clock,
@@ -165,6 +174,97 @@ class TeacherContentService(
         val row = draftRepository.findByClientId(draftIdRaw) ?: return
         if (row.teacherId != teacher.id) throw ApiException(ApiErrorCode.FORBIDDEN, "Not your draft")
         draftRepository.delete(row)
+    }
+
+    // ---------------------------------------------------------------- documents
+
+    @Transactional(readOnly = true)
+    fun documents(teacher: UserEntity): List<TeacherDocumentPayload> {
+        requireTeacher(teacher)
+        return fileRepository.findAllByCreatedByAndIsActiveTrueOrderByCreatedAtDesc(teacher.id).map(::documentPayload)
+    }
+
+    /** Idempotent by the client-supplied document id (multipart replays converge). */
+    @Transactional
+    fun uploadDocument(
+        teacher: UserEntity,
+        id: String?,
+        title: String,
+        description: String?,
+        type: String,
+        authorName: String?,
+        gradeLevel: String?,
+        subject: String?,
+        topic: String?,
+        fileSizeBytes: Long?,
+        file: MultipartFile?,
+    ): TeacherDocumentPayload {
+        requireTeacher(teacher)
+        if (title.isBlank()) throw invalidArgument("Document title is required")
+        val docType = documentType(type)
+        val clientId = id?.takeIf { it.isNotBlank() } ?: "doc_" + UUID.randomUUID()
+        val existing = fileRepository.findByClientId(clientId)
+        if (existing != null && existing.createdBy != teacher.id) throw ApiException(ApiErrorCode.FORBIDDEN, "Not your document")
+        val entity = existing ?: ReadableFileEntity().apply {
+            this.clientId = clientId
+            createdBy = teacher.id
+        }
+        if (file != null && !file.isEmpty) {
+            val stored = mediaService.storeDocument(file)
+            mediaService.delete(entity.fileUrl)
+            entity.fileUrl = stored.url
+            entity.sizeBytes = file.size
+        } else if (fileSizeBytes != null) {
+            entity.sizeBytes = fileSizeBytes
+        }
+        entity.title = title.trim()
+        entity.description = description
+        entity.authorName = authorName ?: teacher.name
+        entity.gradeLevel = gradeLevel
+        entity.subject = subject?.takeIf { it.isNotBlank() } ?: "GENERAL"
+        entity.topic = topic
+        entity.docType = docType
+        entity.fileType = if (docType == "PLAINTEXT") FileType.TXT else FileType.PDF
+        entity.scope = LearningScope.SCHOOL
+        entity.schoolId = teacher.schoolId
+        entity.isActive = true
+        fileRepository.save(entity)
+        return documentPayload(entity)
+    }
+
+    /** Repeat-safe: an unknown document is treated as already deleted. */
+    @Transactional
+    fun deleteDocument(teacher: UserEntity, documentIdRaw: String) {
+        val entity = fileRepository.findByClientId(documentIdRaw)
+            ?: runCatching { UUID.fromString(documentIdRaw) }.getOrNull()?.let { fileRepository.findById(it).orElse(null) }
+            ?: return
+        if (entity.createdBy != teacher.id) throw ApiException(ApiErrorCode.FORBIDDEN, "Not your document")
+        mediaService.delete(entity.fileUrl)
+        fileRepository.delete(entity)
+    }
+
+    private fun documentPayload(entity: ReadableFileEntity) = TeacherDocumentPayload(
+        id = entity.clientId ?: entity.id.toString(),
+        title = entity.title,
+        author = entity.authorName.orEmpty(),
+        description = entity.description.orEmpty(),
+        type = entity.docType ?: entity.fileType.name,
+        source = DocumentSourcePayload(entity.fileUrl),
+        sourcePath = entity.fileUrl,
+        pageCount = entity.pageCount.takeIf { it > 0 },
+        fileSizeBytes = entity.sizeBytes.takeIf { it > 0 },
+        addedAt = entity.createdAt.toEpochMilli(),
+        teacherId = entity.createdBy.toString(),
+        grade = entity.gradeLevel,
+        subject = entity.subject,
+        scope = entity.scope.name,
+        schoolId = entity.schoolId?.toString(),
+    )
+
+    private fun documentType(raw: String): String {
+        val upper = raw.trim().uppercase()
+        if (upper in DOCUMENT_TYPES) return upper
+        throw invalidArgument("Unsupported document type: " + raw)
     }
 
     // ---------------------------------------------------------------- analytics
@@ -328,5 +428,6 @@ class TeacherContentService(
     private companion object {
         const val TRENDING_VIEWS = 100
         val MATERIAL_TYPES = setOf("NOTES", "VIDEO", "QUIZ", "FLASHCARDS", "PDF", "EPUB", "PLAINTEXT", "DIAGRAM", "DOCUMENT")
+        val DOCUMENT_TYPES = setOf("PDF", "EPUB", "PLAINTEXT")
     }
 }

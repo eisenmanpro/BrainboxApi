@@ -8,6 +8,7 @@ import com.afrithecus.brainbox.api.learning.web.ContentAnalyticsPayload
 import com.afrithecus.brainbox.api.learning.web.MaterialUpdateRequest
 import com.afrithecus.brainbox.api.learning.web.TeacherContentDraftPayload
 import com.afrithecus.brainbox.api.learning.web.TeacherContentPayload
+import com.afrithecus.brainbox.api.learning.web.TeacherDocumentPayload
 import com.afrithecus.brainbox.api.learning.web.TeacherPostPayload
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -20,7 +21,9 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
+import org.springframework.mock.web.MockMultipartFile
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
@@ -165,4 +168,52 @@ class TeacherContentWebTests(
             ).isEmpty()
         )
     }
+
+    @Test
+    fun `documents upload idempotently, list and delete`() {
+        val teacher = teacher("0744000102")
+        val token = token(teacher)
+
+        fun upload(id: String, type: String, body: ByteArray, fileName: String, contentType: String) = mockMvc.perform(
+            multipart("/teacher/content/document")
+                .file(MockMultipartFile("file", fileName, contentType, body))
+                .file(MockMultipartFile("id", null, "text/plain", id.toByteArray()))
+                .file(MockMultipartFile("title", null, "text/plain", "Chapter 1".toByteArray()))
+                .file(MockMultipartFile("type", null, "text/plain", type.toByteArray()))
+                .header("Authorization", auth(token))
+        )
+
+        val first = read(upload("doc_1", "PDF", byteArrayOf(0x25, 0x50, 0x44, 0x46), "ch1.pdf", "application/pdf")
+            .andExpect(status().isOk).andReturn().response.contentAsString, TeacherDocumentPayload::class.java)
+        check(first.id == "doc_1" && first.type == "PDF" && first.sourcePath.isNotBlank())
+
+        // Replay of the same client id updates instead of duplicating.
+        upload("doc_1", "PDF", byteArrayOf(0x25, 0x50, 0x44, 0x46), "ch1.pdf", "application/pdf")
+            .andExpect(status().isOk)
+        check(
+            read(
+                mockMvc.perform(get("/teacher/documents").header("Authorization", auth(token)))
+                    .andExpect(status().isOk).andReturn().response.contentAsString,
+                Array<TeacherDocumentPayload>::class.java,
+            ).size == 1
+        )
+
+        // Unsupported document type is rejected.
+        upload("doc_2", "DOCX", byteArrayOf(1, 2, 3), "ch.docx", "application/msword")
+            .andExpect(status().isBadRequest)
+
+        // Delete is repeat-safe.
+        mockMvc.perform(delete("/teacher/content/document/doc_1").header("Authorization", auth(token)))
+            .andExpect(status().isNoContent)
+        mockMvc.perform(delete("/teacher/content/document/doc_1").header("Authorization", auth(token)))
+            .andExpect(status().isNoContent)
+        check(
+            read(
+                mockMvc.perform(get("/teacher/documents").header("Authorization", auth(token)))
+                    .andExpect(status().isOk).andReturn().response.contentAsString,
+                Array<TeacherDocumentPayload>::class.java,
+            ).isEmpty()
+        )
+    }
 }
+

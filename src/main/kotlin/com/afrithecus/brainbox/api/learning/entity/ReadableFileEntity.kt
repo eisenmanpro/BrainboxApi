@@ -15,8 +15,25 @@ import java.util.UUID
 @Table(name = "readable_files")
 class ReadableFileEntity : BaseEntity() {
 
+    /** The client-supplied document id, for idempotent upload replays. */
+    @Column(name = "client_id", length = 80)
+    var clientId: String? = null
+
     @Column(nullable = false)
     var title: String = ""
+
+    @Column(columnDefinition = "text")
+    var description: String? = null
+
+    @Column(name = "author_name", length = 160)
+    var authorName: String? = null
+
+    @Column(length = 255)
+    var topic: String? = null
+
+    /** Client document type (PDF/EPUB/PLAINTEXT); null for legacy/admin rows. */
+    @Column(name = "doc_type", length = 16)
+    var docType: String? = null
 
     @Column(nullable = false, length = 128)
     var subject: String = ""
