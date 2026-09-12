@@ -31,6 +31,7 @@ import com.afrithecus.brainbox.api.learning.web.StudentEngagementPayload
 import com.afrithecus.brainbox.api.learning.web.TeacherContentDraftPayload
 import com.afrithecus.brainbox.api.learning.web.TeacherContentPayload
 import com.afrithecus.brainbox.api.learning.web.TeacherPostPayload
+import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
@@ -113,16 +114,70 @@ class TeacherContentService(
         return contentPayload(content)
     }
 
-    /** Publishes the parent post so learners can see the material. */
+    /**
+     * Publishes the parent post immediately, or holds it as SCHEDULED until the
+     * supplied publish instant (docs/ongoing/api_content_changes.md section 1.3).
+     */
     @Transactional
-    fun publishMaterial(teacher: UserEntity, materialIdRaw: String): TeacherContentPayload {
+    fun publishMaterial(teacher: UserEntity, materialIdRaw: String, publishDate: Long?): TeacherContentPayload {
         requireTeacher(teacher)
         val content = ownContent(teacher, materialIdRaw)
         val post = postRepository.findById(content.postId).orElseThrow { notFound("Post not found") }
+        val now = clock.instant()
+        if (publishDate != null && publishDate > now.toEpochMilli()) {
+            post.status = SCHEDULED
+            post.publishAt = Instant.ofEpochMilli(publishDate)
+            post.isPublished = false
+        } else {
+            post.status = PUBLISHED
+            post.publishAt = null
+            post.isPublished = true
+        }
+        post.updatedAt = now
+        postRepository.save(post)
+        return contentPayload(content)
+    }
+
+    /** Hides the material from learners without deleting it. Idempotent. */
+    @Transactional
+    fun archiveMaterial(teacher: UserEntity, materialIdRaw: String): TeacherContentPayload {
+        requireTeacher(teacher)
+        val content = ownContent(teacher, materialIdRaw)
+        val post = postRepository.findById(content.postId).orElseThrow { notFound("Post not found") }
+        post.status = ARCHIVED
+        post.publishAt = null
+        post.isPublished = false
+        post.updatedAt = clock.instant()
+        postRepository.save(post)
+        return contentPayload(content)
+    }
+
+    /** Restores an archived material. Idempotent. */
+    @Transactional
+    fun unarchiveMaterial(teacher: UserEntity, materialIdRaw: String): TeacherContentPayload {
+        requireTeacher(teacher)
+        val content = ownContent(teacher, materialIdRaw)
+        val post = postRepository.findById(content.postId).orElseThrow { notFound("Post not found") }
+        post.status = PUBLISHED
+        post.publishAt = null
         post.isPublished = true
         post.updatedAt = clock.instant()
         postRepository.save(post)
         return contentPayload(content)
+    }
+
+    /** Flips scheduled posts whose instant has arrived so learners can see them. */
+    @Scheduled(fixedDelay = 60_000)
+    @Transactional
+    fun publishDueContent() {
+        postRepository.findAllByStatusAndPublishAtLessThanEqual(SCHEDULED, clock.instant())
+            .forEach { post ->
+                post.status = PUBLISHED
+                post.isPublished = true
+                post.publishAt = null
+                post.updatedAt = clock.instant()
+                postRepository.save(post)
+            }
     }
 
     @Transactional
@@ -321,7 +376,10 @@ class TeacherContentService(
         entity.cbcSubStrand = payload.cbcSubStrand
         entity.customSubjectName = payload.customSubjectName
         entity.isFeatured = payload.isFeatured
-        entity.isPublished = payload.isPublished
+        val status = normalizeStatus(payload.status, payload.isPublished)
+        entity.status = status
+        entity.isPublished = status == PUBLISHED
+        if (status != SCHEDULED) entity.publishAt = null
         entity.updatedAt = clock.instant()
     }
 
@@ -362,6 +420,7 @@ class TeacherContentService(
         teacherId = entity.teacherId?.toString(),
         customSubjectName = entity.customSubjectName,
         isPublished = entity.isPublished,
+        status = effectiveStatus(entity),
     )
 
     private fun contentPayload(entity: LearningContentEntity) = TeacherContentPayload(
@@ -425,8 +484,26 @@ class TeacherContentService(
         if (user.role != Role.TEACHER) throw ApiException(ApiErrorCode.FORBIDDEN, "Teacher access only")
     }
 
+    private fun normalizeStatus(raw: String?, published: Boolean): String {
+        val value = raw?.trim()?.uppercase().orEmpty()
+        if (value in STATUSES) return value
+        return if (published) PUBLISHED else ARCHIVED
+    }
+
+    /** A scheduled post whose instant has passed reports (and files) as PUBLISHED. */
+    private fun effectiveStatus(entity: LearningPostEntity): String {
+        val status = entity.status
+        val due = entity.publishAt
+        if (status == SCHEDULED && due != null && !due.isAfter(clock.instant())) return PUBLISHED
+        return status
+    }
+
     private companion object {
         const val TRENDING_VIEWS = 100
+        const val PUBLISHED = "PUBLISHED"
+        const val SCHEDULED = "SCHEDULED"
+        const val ARCHIVED = "ARCHIVED"
+        val STATUSES = setOf(PUBLISHED, SCHEDULED, ARCHIVED)
         val MATERIAL_TYPES = setOf("NOTES", "VIDEO", "QUIZ", "FLASHCARDS", "PDF", "EPUB", "PLAINTEXT", "DIAGRAM", "DOCUMENT")
         val DOCUMENT_TYPES = setOf("PDF", "EPUB", "PLAINTEXT")
     }

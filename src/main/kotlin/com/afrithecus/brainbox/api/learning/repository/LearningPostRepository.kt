@@ -2,6 +2,7 @@ package com.afrithecus.brainbox.api.learning.repository
 
 import com.afrithecus.brainbox.api.learning.entity.LearningPostEntity
 import org.springframework.data.jpa.repository.JpaRepository
+import java.time.Instant
 import java.util.UUID
 
 interface LearningPostRepository : JpaRepository<LearningPostEntity, UUID> {
@@ -11,4 +12,5 @@ interface LearningPostRepository : JpaRepository<LearningPostEntity, UUID> {
     fun findAllByCreatedByOrderByCreatedAtDesc(createdBy: UUID): List<LearningPostEntity>
 
     fun findAllByCreatedByIn(createdBy: Collection<UUID>): List<LearningPostEntity>
+    fun findAllByStatusAndPublishAtLessThanEqual(status: String, at: Instant): List<LearningPostEntity>
 }

@@ -31,6 +31,8 @@ data class TeacherPostPayload(
     val teacherId: String? = null,
     val customSubjectName: String? = null,
     val isPublished: Boolean = true,
+    /** PUBLISHED | SCHEDULED | ARCHIVED; archived posts are hidden from learners. */
+    val status: String = "PUBLISHED",
 )
 
 data class TeacherContentPayload(

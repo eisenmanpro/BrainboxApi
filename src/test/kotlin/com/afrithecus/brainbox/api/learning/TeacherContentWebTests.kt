@@ -50,6 +50,16 @@ class TeacherContentWebTests(
         isVerified = true
     })
 
+    private fun learner(phone: String): UserEntity = userRepository.save(UserEntity().apply {
+        phoneNumber = phone
+        email = phone + "@content.test"
+        passwordHash = passwordEncoder.encode("password123") ?: error("encode")
+        name = "Content Learner"
+        role = Role.STUDENT
+        isActive = true
+        isVerified = true
+    })
+
     private fun token(user: UserEntity): String {
         val body = mockMvc.perform(
             post("/auth/login").contentType(MediaType.APPLICATION_JSON)
@@ -214,6 +224,79 @@ class TeacherContentWebTests(
                 Array<TeacherDocumentPayload>::class.java,
             ).isEmpty()
         )
+    }
+
+    @Test
+    fun `archive restore and scheduled publish control learner visibility`() {
+        val teacher = teacher("0744000103")
+        val student = learner("0744000104")
+        val token = token(teacher)
+        val studentToken = token(student)
+        val postId = UUID.randomUUID().toString()
+        val materialId = UUID.randomUUID().toString()
+
+        val post = TeacherPostPayload(
+            id = postId, title = "Photosynthesis", subject = "BIOLOGY",
+            gradeLevel = "Form 2", description = "Notes", scope = "GLOBAL",
+        )
+        mockMvc.perform(post("/teacher/content/post").header("Authorization", auth(token))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(post)))
+            .andExpect(status().isOk)
+        val content = TeacherContentPayload(
+            id = materialId, postId = postId, type = "NOTES", title = "Chapter 1",
+            content = "Plants make food", durationMinutes = 10, orderIndex = 0,
+        )
+        mockMvc.perform(put("/teacher/content/material/" + materialId).header("Authorization", auth(token))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(MaterialUpdateRequest(post, content))))
+            .andExpect(status().isOk)
+
+        fun postStatus(): TeacherPostPayload = read(
+            mockMvc.perform(get("/teacher/posts").header("Authorization", auth(token)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<TeacherPostPayload>::class.java,
+        ).single()
+
+        check(postStatus().status == "PUBLISHED")
+        mockMvc.perform(get("/learning/post/" + postId).header("Authorization", auth(studentToken)))
+            .andExpect(status().isOk)
+
+        // Scheduled publish holds the post until its instant.
+        val future = System.currentTimeMillis() + 3_600_000
+        mockMvc.perform(post("/teacher/content/material/" + materialId + "/publish")
+            .param("publishDate", future.toString()).header("Authorization", auth(token)))
+            .andExpect(status().isOk)
+        check(postStatus().status == "SCHEDULED")
+        check(!postStatus().isPublished)
+        mockMvc.perform(get("/learning/post/" + postId).header("Authorization", auth(studentToken)))
+            .andExpect(status().isNotFound)
+
+        // Immediate publish makes it visible.
+        mockMvc.perform(post("/teacher/content/material/" + materialId + "/publish")
+            .header("Authorization", auth(token)))
+            .andExpect(status().isOk)
+        check(postStatus().status == "PUBLISHED")
+        mockMvc.perform(get("/learning/post/" + postId).header("Authorization", auth(studentToken)))
+            .andExpect(status().isOk)
+
+        // Archive hides it; restore brings it back. Both are repeat-safe.
+        mockMvc.perform(post("/teacher/content/material/" + materialId + "/archive")
+            .header("Authorization", auth(token)))
+            .andExpect(status().isOk)
+        check(postStatus().status == "ARCHIVED")
+        mockMvc.perform(get("/learning/post/" + postId).header("Authorization", auth(studentToken)))
+            .andExpect(status().isNotFound)
+        mockMvc.perform(post("/teacher/content/material/" + materialId + "/archive")
+            .header("Authorization", auth(token)))
+            .andExpect(status().isOk)
+
+        mockMvc.perform(delete("/teacher/content/material/" + materialId + "/archive")
+            .header("Authorization", auth(token)))
+            .andExpect(status().isOk)
+        check(postStatus().status == "PUBLISHED")
+        mockMvc.perform(get("/learning/post/" + postId).header("Authorization", auth(studentToken)))
+            .andExpect(status().isOk)
     }
 }
 

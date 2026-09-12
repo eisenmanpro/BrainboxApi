@@ -62,7 +62,19 @@ class TeacherContentController(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @PathVariable materialId: String,
         @RequestParam(required = false) publishDate: Long?,
-    ): TeacherContentPayload = service.publishMaterial(teacher(currentUser), materialId)
+    ): TeacherContentPayload = service.publishMaterial(teacher(currentUser), materialId, publishDate)
+
+    @PostMapping("/content/material/{materialId}/archive")
+    fun archiveMaterial(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable materialId: String,
+    ): TeacherContentPayload = service.archiveMaterial(teacher(currentUser), materialId)
+
+    @DeleteMapping("/content/material/{materialId}/archive")
+    fun unarchiveMaterial(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable materialId: String,
+    ): TeacherContentPayload = service.unarchiveMaterial(teacher(currentUser), materialId)
 
     @DeleteMapping("/content/material/{materialId}")
     fun deleteMaterial(

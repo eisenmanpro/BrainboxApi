@@ -7,6 +7,7 @@ import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Table
+import java.time.Instant
 import java.util.UUID
 
 /** A learning post (doc 03 content model). */
@@ -69,6 +70,14 @@ class LearningPostEntity : BaseEntity() {
 
     @Column(name = "is_published", nullable = false)
     var isPublished: Boolean = true
+
+    /** PUBLISHED | SCHEDULED | ARCHIVED (docs/ongoing/api_content_changes.md). */
+    @Column(nullable = false, length = 16)
+    var status: String = "PUBLISHED"
+
+    /** When a SCHEDULED post becomes visible; null otherwise. */
+    @Column(name = "publish_at")
+    var publishAt: Instant? = null
 
     @Column(name = "view_count", nullable = false)
     var viewCount: Int = 0
