@@ -35,6 +35,10 @@ class HomeworkSubmissionEntity {
     @Column(name = "attachment_url", length = 512)
     var attachmentUrl: String? = null
 
+    /** Stable client id for one submission attempt (offline replay de-duplication). */
+    @Column(name = "client_submission_id", length = 80)
+    var clientSubmissionId: String? = null
+
     /** JSON object of question answers (EXAM_QUESTION_SET). */
     @Column(name = "answers_json", columnDefinition = "text")
     var answersJson: String? = null

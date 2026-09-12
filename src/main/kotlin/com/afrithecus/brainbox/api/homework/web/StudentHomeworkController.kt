@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
@@ -29,24 +30,29 @@ class StudentHomeworkController(
         userRepository.findById(current.userId).orElseThrow { notFound("User not found") }
 
     @GetMapping
-    fun list(@AuthenticationPrincipal currentUser: CurrentUser): List<HomeworkPayload> =
-        service.myHomework(student(currentUser))
+    fun list(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @RequestParam(required = false) schoolId: String?,
+        @RequestParam(required = false) grade: String?,
+        @RequestParam(required = false) classId: String?,
+    ): List<StudentHomeworkPayload> =
+        service.myHomework(student(currentUser), schoolId, grade, classId)
 
     @GetMapping("/{homeworkId}")
     fun detail(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @PathVariable homeworkId: String,
-    ): HomeworkPayload = service.detail(student(currentUser), homeworkId)
+    ): StudentHomeworkPayload = service.detail(student(currentUser), homeworkId)
 
     /** Uploads an attachment for a FREE_TEXT/OFFLINE submission; returns its hosted URL. */
     @PostMapping("/attachments")
     fun uploadAttachment(@RequestPart("file") file: MultipartFile): MediaUploadResponsePayload =
-        mediaService.store(file)
+        mediaService.storeHomeworkAttachment(file)
 
     @PostMapping("/{homeworkId}/submit")
     fun submit(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @PathVariable homeworkId: String,
         @Valid @RequestBody request: StudentSubmitRequest,
-    ): HomeworkPayload = service.submit(student(currentUser), homeworkId, request)
+    ): StudentHomeworkPayload = service.submit(student(currentUser), homeworkId, request)
 }

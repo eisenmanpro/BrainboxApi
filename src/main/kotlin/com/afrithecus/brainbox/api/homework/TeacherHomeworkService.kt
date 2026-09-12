@@ -17,6 +17,7 @@ import com.afrithecus.brainbox.api.homework.model.SubmissionType
 import com.afrithecus.brainbox.api.homework.repository.HomeworkQuestionRepository
 import com.afrithecus.brainbox.api.homework.repository.HomeworkRepository
 import com.afrithecus.brainbox.api.homework.repository.HomeworkSubmissionRepository
+import com.afrithecus.brainbox.api.homework.web.BulkGradeItem
 import com.afrithecus.brainbox.api.homework.web.GradeSubmissionRequest
 import com.afrithecus.brainbox.api.homework.web.HomeworkPayload
 import com.afrithecus.brainbox.api.homework.web.HomeworkProgressItem
@@ -139,20 +140,58 @@ class TeacherHomeworkService(
     @Transactional
     fun grade(teacher: UserEntity, submissionIdRaw: String, request: GradeSubmissionRequest): SubmissionPayload {
         val submission = ownSubmission(teacher, submissionIdRaw)
+        val clientAt = request.clientTimestamp?.let(Instant::ofEpochMilli)
+        // Last write wins: a stale offline grade must not clobber a newer server value.
+        if (clientAt == null || submission.gradedAt?.isAfter(clientAt) != true) {
+            applyGrade(submission, teacher, request.grade, request.feedback, request.cbcStrandTag)
+            submissionRepository.save(submission)
+        }
+        return toSubmissionPayload(submission, studentName(submission.studentId))
+    }
+
+    /** Grades many submissions for one homework in a single transaction. */
+    @Transactional
+    fun gradeBulk(teacher: UserEntity, homeworkId: String, items: List<BulkGradeItem>): List<SubmissionPayload> {
+        val homework = ownHomework(teacher, homeworkId)
+        val resolved = items.map { item ->
+            val submission = ownSubmission(teacher, item.submissionId)
+            if (submission.homeworkId != homework.id) throw notFound("Submission does not belong to this homework")
+            submission to item
+        }
+        val names = userRepository.findAllById(resolved.map { it.first.studentId }.distinct()).associateBy { it.id }
+        return resolved.map { (submission, item) ->
+            val clientAt = item.clientTimestamp?.let(Instant::ofEpochMilli)
+            if (clientAt == null || submission.gradedAt?.isAfter(clientAt) != true) {
+                applyGrade(submission, teacher, item.grade, item.feedback, null)
+                submissionRepository.save(submission)
+            }
+            toSubmissionPayload(submission, names[submission.studentId]?.name ?: "Student")
+        }
+    }
+
+    private fun applyGrade(
+        submission: HomeworkSubmissionEntity,
+        teacher: UserEntity,
+        grade: Int,
+        feedback: String?,
+        cbcStrandTag: String?,
+    ) {
         submission.status = SubmissionStatus.GRADED
-        submission.grade = request.grade
-        submission.feedback = request.feedback
-        request.cbcStrandTag?.let { submission.cbcStrandTag = it }
+        submission.grade = grade
+        submission.feedback = feedback
+        cbcStrandTag?.let { submission.cbcStrandTag = it }
         submission.gradedBy = teacher.id
         submission.gradedAt = clock.instant()
         submission.updatedAt = clock.instant()
-        submissionRepository.save(submission)
-        return toSubmissionPayload(submission, studentName(submission.studentId))
     }
 
     @Transactional
     fun returnSubmission(teacher: UserEntity, submissionIdRaw: String, request: ReturnSubmissionRequest): SubmissionPayload {
         val submission = ownSubmission(teacher, submissionIdRaw)
+        val clientAt = request.clientTimestamp?.let(Instant::ofEpochMilli)
+        if (clientAt != null && submission.updatedAt.isAfter(clientAt)) {
+            return toSubmissionPayload(submission, studentName(submission.studentId))
+        }
         submission.status = SubmissionStatus.RETURNED
         submission.grade = null
         submission.feedback = request.feedback
@@ -161,6 +200,15 @@ class TeacherHomeworkService(
         submission.updatedAt = clock.instant()
         submissionRepository.save(submission)
         return toSubmissionPayload(submission, studentName(submission.studentId))
+    }
+
+    /** Closes homework without deleting it or its submissions. */
+    @Transactional
+    fun archive(teacher: UserEntity, homeworkId: String) {
+        val entity = ownHomework(teacher, homeworkId)
+        entity.isActive = false
+        entity.updatedAt = clock.instant()
+        homeworkRepository.save(entity)
     }
 
     @Transactional(readOnly = true)
@@ -319,11 +367,13 @@ class TeacherHomeworkService(
         studentName = studentName,
         submissionText = sub.submissionText,
         attachmentUrl = sub.attachmentUrl,
-        status = sub.status.name,
+        // Client vocabulary: a filed, not-yet-graded submission is SUBMITTED.
+        status = if (sub.status == SubmissionStatus.PENDING) "SUBMITTED" else sub.status.name,
         submittedAt = sub.submittedAt.toEpochMilli(),
         grade = sub.grade,
         feedback = sub.feedback,
         cbcStrandTag = sub.cbcStrandTag,
         gradedAt = sub.gradedAt?.toEpochMilli(),
+        isGraded = sub.status == SubmissionStatus.GRADED,
     )
 }

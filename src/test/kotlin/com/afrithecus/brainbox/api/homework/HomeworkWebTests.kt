@@ -4,6 +4,7 @@ import com.afrithecus.brainbox.api.auth.web.AuthResponse
 import com.afrithecus.brainbox.api.classes.web.CreateClassRequest
 import com.afrithecus.brainbox.api.classes.web.TeacherClassPayload
 import com.afrithecus.brainbox.api.homework.web.HomeworkPayload
+import com.afrithecus.brainbox.api.homework.web.StudentHomeworkPayload
 import com.afrithecus.brainbox.api.homework.web.HomeworkUpsertRequest
 import com.afrithecus.brainbox.api.homework.web.SubmissionPayload
 import com.afrithecus.brainbox.api.traditional.model.ExamTerm
@@ -15,11 +16,13 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
+import org.springframework.mock.web.MockMultipartFile
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
@@ -136,12 +139,12 @@ class HomeworkWebTests(
         val mine1 = mockMvc.perform(
             get("/homework").header("Authorization", auth(student1.sessionToken!!))
         ).andExpect(status().isOk).andReturn().response.contentAsString
-        check(objectMapper.readValue(mine1, Array<HomeworkPayload>::class.java).any { it.id == "hw_12345" })
+        check(objectMapper.readValue(mine1, Array<StudentHomeworkPayload>::class.java).any { it.id == "hw_12345" })
 
         val mine2 = mockMvc.perform(
             get("/homework").header("Authorization", auth(student2.sessionToken!!))
         ).andExpect(status().isOk).andReturn().response.contentAsString
-        check(objectMapper.readValue(mine2, Array<HomeworkPayload>::class.java).none { it.id == "hw_12345" })
+        check(objectMapper.readValue(mine2, Array<StudentHomeworkPayload>::class.java).none { it.id == "hw_12345" })
 
         // submit -> pending
         mockMvc.perform(
@@ -156,7 +159,8 @@ class HomeworkWebTests(
         ).andExpect(status().isOk).andReturn().response.contentAsString
         val list = objectMapper.readValue(subs, Array<SubmissionPayload>::class.java)
         check(list.size == 1)
-        check(list.single().status == "PENDING")
+        check(list.single().status == "SUBMITTED")
+        check(!list.single().isGraded)
         val submissionId = list.single().id
 
         mockMvc.perform(
@@ -169,8 +173,8 @@ class HomeworkWebTests(
         val detail = mockMvc.perform(
             get("/homework/hw_12345").header("Authorization", auth(student1.sessionToken!!))
         ).andExpect(status().isOk).andReturn().response.contentAsString
-        val payload = objectMapper.readValue(detail, HomeworkPayload::class.java)
-        check(payload.submissionStatus == "GRADED")
+        val payload = objectMapper.readValue(detail, StudentHomeworkPayload::class.java)
+        check(payload.status == "GRADED")
         check(payload.grade == 85)
 
         mockMvc.perform(
@@ -214,7 +218,7 @@ class HomeworkWebTests(
         val mine = mockMvc.perform(
             get("/homework").header("Authorization", auth(student.sessionToken!!))
         ).andExpect(status().isOk).andReturn().response.contentAsString
-        check(objectMapper.readValue(mine, Array<HomeworkPayload>::class.java).none { it.id == "hw_draft_1" })
+        check(objectMapper.readValue(mine, Array<StudentHomeworkPayload>::class.java).none { it.id == "hw_draft_1" })
 
         // checklist with no items is rejected
         val bad = hwRequest("hw_bad_1", classId, type = "CHECKLIST", checklist = emptyList())
@@ -234,7 +238,7 @@ class HomeworkWebTests(
         val after = mockMvc.perform(
             get("/homework").header("Authorization", auth(student.sessionToken!!))
         ).andExpect(status().isOk).andReturn().response.contentAsString
-        check(objectMapper.readValue(after, Array<HomeworkPayload>::class.java).none { it.id == "hw_archive_1" })
+        check(objectMapper.readValue(after, Array<StudentHomeworkPayload>::class.java).none { it.id == "hw_archive_1" })
     }
 
     private fun qsetRequest(
@@ -277,47 +281,52 @@ class HomeworkWebTests(
         check(created.questions?.size == 3)
         check(createdBody.contains("correctAnswer")) // teacher keeps keys
 
-        // student detail strips keys
+        // Student payload exposes the type but never question keys.
         val studentDetailRaw = mockMvc.perform(
             get("/homework/hw_q1").header("Authorization", auth(student.sessionToken!!))
         ).andExpect(status().isOk).andReturn().response.contentAsString
         check(!studentDetailRaw.contains("correctAnswer"))
-        check(studentDetailRaw.contains("2+2?"))
-        val studentDetail = objectMapper.readValue(studentDetailRaw, HomeworkPayload::class.java)
-        check(studentDetail.questions?.size == 3)
+        check(!studentDetailRaw.contains("2+2?"))
+        val studentDetail = objectMapper.readValue(studentDetailRaw, StudentHomeworkPayload::class.java)
+        check(studentDetail.type == "EXAM_QUESTION_SET")
+        check(studentDetail.status == "PENDING")
 
         // answers reference the real question ids; all correct -> 100%
         val answers = mutableMapOf<String, String>()
-        studentDetail.questions!!.forEach { answers[it.id] = if (it.text.startsWith("2+2")) "4" else if (it.text.startsWith("3+3")) "6" else "2" }
-        val submit2 = mockMvc.perform(
-            post("/homework/hw_q1/submit").header("Authorization", auth(student.sessionToken!!))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"answers":${objectMapper.writeValueAsString(answers)}}""")
-        ).andExpect(status().isOk).andReturn().response.contentAsString
-        val after = objectMapper.readValue(submit2, HomeworkPayload::class.java)
-        check(after.submissionStatus == "GRADED")
-        check(after.grade == 100)
-
-        // AUTO_POST_COMPLETION with a past due date reveals on read; future stays hidden
-        val pastDue = qsetRequest("hw_q2", classId, "AUTO_POST_COMPLETION", student.user.id, dueAgoMs = 48L * 3600 * 1000)
-        upsert(teacher, pastDue)
-        val answersWrong = mutableMapOf<String, String>()
-        val q2detail = objectMapper.readValue(
-            mockMvc.perform(get("/homework/hw_q2").header("Authorization", auth(student.sessionToken!!)))
-                .andExpect(status().isOk).andReturn().response.contentAsString,
-            HomeworkPayload::class.java,
+        created.questions!!.forEach { answers[it.id] = if (it.text.startsWith("2+2")) "4" else if (it.text.startsWith("3+3")) "6" else "2" }
+        val submitBody = """{"answers":${objectMapper.writeValueAsString(answers)},"clientSubmissionId":"sub_q1"}"""
+        val after = objectMapper.readValue(
+            mockMvc.perform(
+                post("/homework/hw_q1/submit").header("Authorization", auth(student.sessionToken!!))
+                    .contentType(MediaType.APPLICATION_JSON).content(submitBody)
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            StudentHomeworkPayload::class.java,
         )
-        q2detail.questions!!.forEach { answersWrong[it.id] = "wrong" }
+        check(after.status == "GRADED")
+        check(after.grade == 100)
+        check(after.clientSubmissionId == "sub_q1")
+        // Replaying the same attempt is an idempotent no-op.
+        mockMvc.perform(
+            post("/homework/hw_q1/submit").header("Authorization", auth(student.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON).content(submitBody)
+        ).andExpect(status().isOk)
+
+        // AUTO_POST_COMPLETION with a past due date reveals on read
+        val pastDue = qsetRequest("hw_q2", classId, "AUTO_POST_COMPLETION", student.user.id, dueAgoMs = 48L * 3600 * 1000)
+        val q2created = objectMapper.readValue(upsert(teacher, pastDue), HomeworkPayload::class.java)
+        val answersWrong = mutableMapOf<String, String>()
+        q2created.questions!!.forEach { answersWrong[it.id] = "wrong" }
         mockMvc.perform(
             post("/homework/hw_q2/submit").header("Authorization", auth(student.sessionToken!!))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"answers":${objectMapper.writeValueAsString(answersWrong)}}""")
         ).andExpect(status().isOk)
-        val revealed = mockMvc.perform(
-            get("/homework/hw_q2").header("Authorization", auth(student.sessionToken!!))
-        ).andExpect(status().isOk).andReturn().response.contentAsString
-        val revealedPayload = objectMapper.readValue(revealed, HomeworkPayload::class.java)
-        check(revealedPayload.submissionStatus == "GRADED")
+        val revealedPayload = objectMapper.readValue(
+            mockMvc.perform(get("/homework/hw_q2").header("Authorization", auth(student.sessionToken!!)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            StudentHomeworkPayload::class.java,
+        )
+        check(revealedPayload.status == "GRADED")
         check(revealedPayload.grade == 0)
     }
 
@@ -344,6 +353,81 @@ class HomeworkWebTests(
             else -> ExamTerm.TERM_3
         }
         check(derived.term == expected)
+    }
+
+    @Test
+    fun `bulk grading, archive and the attachment guard`() {
+        val host = signupStudent("0775000030", "HW High")
+        val teacher = newTeacher(host.user.schoolId!!, "0775777005")
+        val s1 = signupStudent("0775000031", "HW High")
+        val s2 = signupStudent("0775000032", "HW High")
+        val classId = createClass(teacher, listOf(s1, s2))
+        upsert(teacher, hwRequest("hw_bulk", classId))
+
+        listOf(s1, s2).forEach { s ->
+            mockMvc.perform(
+                post("/homework/hw_bulk/submit").header("Authorization", auth(s.sessionToken!!))
+                    .contentType(MediaType.APPLICATION_JSON).content("""{"submissionText":"answer"}""")
+            ).andExpect(status().isOk)
+        }
+        val subs = objectMapper.readValue(
+            mockMvc.perform(
+                get("/teacher/homework/hw_bulk/submissions").header("Authorization", auth(teacher.sessionToken!!))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<SubmissionPayload>::class.java,
+        )
+        check(subs.size == 2)
+        check(subs.all { it.status == "SUBMITTED" && !it.isGraded })
+
+        val bulkBody = objectMapper.writeValueAsString(
+            subs.map { mapOf("submissionId" to it.id, "grade" to 90, "feedback" to "Nice") }
+        )
+        val graded = objectMapper.readValue(
+            mockMvc.perform(
+                post("/teacher/homework/hw_bulk/grade-bulk").header("Authorization", auth(teacher.sessionToken!!))
+                    .contentType(MediaType.APPLICATION_JSON).content(bulkBody)
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<SubmissionPayload>::class.java,
+        )
+        check(graded.size == 2)
+        check(graded.all { it.status == "GRADED" && it.isGraded && it.grade == 90 })
+
+        // A stale offline replay must not overwrite the newer server grade.
+        val stale = objectMapper.writeValueAsString(
+            listOf(mapOf("submissionId" to subs.first().id, "grade" to 10, "clientTimestamp" to 1L))
+        )
+        val afterStale = objectMapper.readValue(
+            mockMvc.perform(
+                post("/teacher/homework/hw_bulk/grade-bulk").header("Authorization", auth(teacher.sessionToken!!))
+                    .contentType(MediaType.APPLICATION_JSON).content(stale)
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<SubmissionPayload>::class.java,
+        )
+        check(afterStale.single().grade == 90)
+
+        // Archive closes the homework without deleting submissions.
+        mockMvc.perform(
+            post("/teacher/homework/hw_bulk/archive").header("Authorization", auth(teacher.sessionToken!!))
+        ).andExpect(status().isNoContent)
+        check(
+            objectMapper.readValue(
+                mockMvc.perform(get("/teacher/homework").header("Authorization", auth(teacher.sessionToken!!)))
+                    .andExpect(status().isOk).andReturn().response.contentAsString,
+                Array<HomeworkPayload>::class.java,
+            ).none { it.id == "hw_bulk" }
+        )
+
+        // Attachment guard: text accepted, zip rejected.
+        mockMvc.perform(
+            multipart("/homework/attachments")
+                .file(MockMultipartFile("file", "note.txt", "text/plain", "working".toByteArray()))
+                .header("Authorization", auth(s1.sessionToken!!))
+        ).andExpect(status().isOk)
+        mockMvc.perform(
+            multipart("/homework/attachments")
+                .file(MockMultipartFile("file", "bad.zip", "application/zip", ByteArray(16)))
+                .header("Authorization", auth(s1.sessionToken!!))
+        ).andExpect(status().isBadRequest)
     }
 
     private companion object {

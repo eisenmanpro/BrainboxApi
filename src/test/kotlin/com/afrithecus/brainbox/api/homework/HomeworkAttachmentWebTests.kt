@@ -140,8 +140,15 @@ class HomeworkAttachmentWebTests(
         val path = URI(uploaded.url).path
         mockMvc.perform(get(path)).andExpect(status().isOk)
 
-        // non-media uploads are rejected
-        val bad = MockMultipartFile("file", "note.txt", "text/plain", "hello".toByteArray())
+        // documents/plain text are accepted (api_homework_changes.md attachment guard)
+        val text = MockMultipartFile("file", "note.txt", "text/plain", "hello".toByteArray())
+        mockMvc.perform(
+            multipart("/homework/attachments").file(text)
+                .header("Authorization", auth(student.sessionToken!!))
+        ).andExpect(status().isOk)
+
+        // unsupported binaries are rejected
+        val bad = MockMultipartFile("file", "note.zip", "application/zip", byteArrayOf(1, 2, 3))
         mockMvc.perform(
             multipart("/homework/attachments").file(bad)
                 .header("Authorization", auth(student.sessionToken!!))

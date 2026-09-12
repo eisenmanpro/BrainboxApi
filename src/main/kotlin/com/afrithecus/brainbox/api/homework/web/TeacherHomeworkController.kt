@@ -85,6 +85,22 @@ class TeacherHomeworkController(
         @RequestBody(required = false) request: ReturnSubmissionRequest?,
     ): SubmissionPayload = service.returnSubmission(teacher(currentUser), submissionId, request ?: ReturnSubmissionRequest())
 
+    @PostMapping("/{homeworkId}/grade-bulk")
+    fun gradeBulk(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable homeworkId: String,
+        @Valid @RequestBody items: List<BulkGradeItem>,
+    ): List<SubmissionPayload> = service.gradeBulk(teacher(currentUser), homeworkId, items)
+
+    @PostMapping("/{homeworkId}/archive")
+    fun archive(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable homeworkId: String,
+    ): ResponseEntity<Void> {
+        service.archive(teacher(currentUser), homeworkId)
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build()
+    }
+
     @GetMapping("/progress")
     fun progress(
         @AuthenticationPrincipal currentUser: CurrentUser,

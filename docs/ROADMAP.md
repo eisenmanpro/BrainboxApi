@@ -326,7 +326,13 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 ### Phase 3 — Teacher Features  (goal 3)
 - [ ] Teacher auth/dashboard; class mgmt; roster (doc 04 §1-2)
 - [ ] Content mgmt: materials, posts/documents, drafts, content analytics (doc 04 §2)
-- [ ] Homework mgmt + grading + return/feedback + reminders (doc 04 §3)
+- [x] Homework lifecycle hardening (hw, V33): student payload/request aligned to the client
+      Homework model (type/taskSteps/gradeLevel-string/answerNotes/clientSubmissionId), optimistic
+      student status PENDING/SUBMITTED/GRADED/RETURNED, submission status + isGraded on every
+      teacher response, POST teacher/homework/{id}/grade-bulk, POST .../archive (close without
+      delete), last-write-wins grade/return via an optional clientTimestamp, GET homework
+      schoolId/grade/classId filters, and a 10 MB PDF/DOC/DOCX/JPEG/PNG/text attachment guard.
+      Bulk-remind and server-side homework push remain optional/deferred.
 - [x] Attendance (att 1-5, V30): idempotent day-bucketed teacher register (school zone),
       mark-by-exception defensiveness, CTEACHER/coordinator role gate, weekly (Mon=1) + monthly
       heatmaps, trend and chronic-absence alerts, attendance-performance intelligence (quadrant,
@@ -452,7 +458,9 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 > client-id/(class,assessment,student) idempotency, publish gate + term + counts-toward-average,
 > and learner/parent published grades with server bands. Gradebook follow-ups shipped too
 > (V32): homework echoes an explicit term with a creation-month fallback, and student analytics
-> carries gradeLevel. Test suite 166 (0 failures) + PG18 parity. Payments/IntaSend relay (doc 14 §6)
+> carries gradeLevel. Homework then followed (V33): student payload/request alignment, submission
+> status/isGraded, grade-bulk + archive, timestamped idempotent grade/return, list filters and the
+> attachment guard. Test suite 167 (0 failures) + PG18 parity. Payments/IntaSend relay (doc 14 §6)
 > remains a separate Phase 6 item. Next backend work: class-chat WebSocket transport (Phase 6),
 > then Phase 3 teacher portal; doc 13 analytics beyond the exam-engine outputs folds into the
 > teacher-portal goal.

@@ -100,10 +100,22 @@ data class GradeSubmissionRequest(
     val grade: Int,
     val feedback: String? = null,
     val cbcStrandTag: String? = null,
+    /** Client write time (ms); an older value never overwrites a newer server grade. */
+    val clientTimestamp: Long? = null,
 )
 
 data class ReturnSubmissionRequest(
     val feedback: String? = null,
+    val clientTimestamp: Long? = null,
+)
+
+/** One row of POST teacher/homework/{homeworkId}/grade-bulk. */
+data class BulkGradeItem(
+    val submissionId: String,
+    @field:Min(0) @field:Max(100)
+    val grade: Int,
+    val feedback: String? = null,
+    val clientTimestamp: Long? = null,
 )
 
 data class SubmissionPayload(
@@ -119,6 +131,7 @@ data class SubmissionPayload(
     val feedback: String? = null,
     val cbcStrandTag: String? = null,
     val gradedAt: Long? = null,
+    val isGraded: Boolean = false,
 )
 
 data class HomeworkProgressItem(
@@ -132,6 +145,47 @@ data class HomeworkProgressItem(
 data class StudentSubmitRequest(
     val submissionText: String? = null,
     val checklistAnswers: List<Int>? = null,
+    /** The client sends checklist indices as a comma-separated string. */
+    val answerNotes: String? = null,
     val attachmentUrl: String? = null,
+    val clientSubmissionId: String? = null,
     val answers: JsonNode? = null,
+    // Tolerated client fields (the body is the full Homework model).
+    val status: String? = null,
+    val studentId: String? = null,
+)
+
+/**
+ * The learner-facing Homework shape (models/Homework.kt). Field names differ from
+ * the teacher [HomeworkPayload] (type/taskSteps/gradeLevel-as-string) so the client
+ * maps it directly.
+ */
+data class StudentHomeworkPayload(
+    val id: String,
+    val title: String,
+    val description: String,
+    val subject: String,
+    val dueDate: Long,
+    val teacherId: String,
+    val teacherName: String,
+    val studentId: String? = null,
+    val status: String,
+    val grade: Int? = null,
+    val feedback: String? = null,
+    val type: String,
+    val relatedDocumentId: String? = null,
+    val relatedPaperCode: String? = null,
+    val questionSetId: String? = null,
+    val submissionText: String? = null,
+    val taskSteps: List<String>? = null,
+    val answerNotes: String? = null,
+    val attachmentUrl: String? = null,
+    val schoolId: String = "",
+    val classId: String = "",
+    val scope: String = "GLOBAL",
+    val gradeLevel: String? = null,
+    val assignedStudentIds: List<String> = emptyList(),
+    val gradingMode: String? = null,
+    val cbcStrandTag: String? = null,
+    val clientSubmissionId: String? = null,
 )
