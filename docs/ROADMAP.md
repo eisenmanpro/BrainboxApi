@@ -348,7 +348,11 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
         parent (/parent) and student (/student) transport controllers, per-user read state via
         class_group_reads (replaces teacherLastReadAt), announcement-only mode on the teacher PUT,
         mute enforcement on send, wider notifications.action_route for chat deep links
-      - 2R-p2 exam submission detail: GET exams/{id}/submission (PENDING/PUBLISHED + markingType)
+      - 2R-p2 exam-hub result + submission shape (no migration): ExamResultProjector builds the
+        client ExamResult (title/percentile/0..1 topicBreakdown/gradingDetails/weakAreas/
+        autoGradedScore/pendingReviewScore/status/markingType) and the key-free
+        ExamSubmissionDetails (GET exams/{id}/submission, userAnswers as Map<String,String>);
+        stored grading JSON and API payloads no longer carry correctAnswer/explanation
       - 2R-p3 student reports: traditional exam engine + GET traditional/exams/{examId}/results/me
       - 2R-p4 dashboard contract 14 alignment (profile/progress/subscriptions/insights/recs)
 - [ ] CBC analytics: class report, student report card, strand mastery, ratings, curriculum map (doc 04 §13)
@@ -410,9 +414,9 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 > Session status (2026-09-12): Phase 1 + 2A-2Q done, plus contract-hardening wave 2R in progress.
 > App-hardening contract alignment (2N, V24), study tools (2O, V25), homework attachments +
 > past-paper content (2P, V26) and class chat REST (2Q, V27) all shipped. 2R-p1 class-chat
-> transport alignment (V28) shipped. Test suite 149 (0 failures) + PG18 parity. Wave 2R order:
-> p2 exam submission detail, p3 traditional exam engine + student reports (docs/ongoing
-> api_student_reports_changes.md), p4 dashboard contract 14 alignment. Next backend work after
+> transport alignment (V28) and 2R-p2 exam-hub result/submission shapes shipped. Test suite 152
+> (0 failures) + PG18 parity. Wave 2R order: p3 traditional exam engine + student reports
+> (docs/ongoing api_student_reports_changes.md), p4 dashboard contract 14 alignment. Next backend work after
 > 2R: class-chat WebSocket transport (Phase 6), then Phase 3 teacher portal; doc 13 (updated
 > analytics / traditional-exam reports) folds into the p3/p4 work and the teacher-portal goal.
 

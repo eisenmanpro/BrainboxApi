@@ -7,19 +7,18 @@ import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.exams.admin.ExamAuthoringService
 import com.afrithecus.brainbox.api.exams.entity.ExamEntity
-import com.afrithecus.brainbox.api.exams.entity.ExamQuestionEntity
 import com.afrithecus.brainbox.api.exams.entity.ExamSessionEntity
 import com.afrithecus.brainbox.api.exams.entity.ExamSubmissionEntity
 import com.afrithecus.brainbox.api.exams.model.ExamScope
 import com.afrithecus.brainbox.api.exams.model.ExamStatus
 import com.afrithecus.brainbox.api.exams.model.ExamType
-import com.afrithecus.brainbox.api.exams.model.QuestionType
 import com.afrithecus.brainbox.api.exams.model.SessionStatus
 import com.afrithecus.brainbox.api.exams.repository.ExamRepository
 import com.afrithecus.brainbox.api.exams.repository.ExamSessionRepository
 import com.afrithecus.brainbox.api.exams.repository.ExamSubmissionRepository
 import com.afrithecus.brainbox.api.exams.web.ExamResultPayload
 import com.afrithecus.brainbox.api.exams.web.ExamSessionResponse
+import com.afrithecus.brainbox.api.exams.web.ExamSubmissionDetailsPayload
 import com.afrithecus.brainbox.api.exams.web.QuestionResultPayload
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import org.springframework.stereotype.Service
@@ -43,6 +42,7 @@ class ExamSessionService(
     private val submissionRepository: ExamSubmissionRepository,
     private val authoringService: ExamAuthoringService,
     private val autoGrader: AutoGrader,
+    private val resultProjector: ExamResultProjector,
     private val userRepository: UserRepository,
     private val mapper: ObjectMapper,
     private val clock: Clock,
@@ -121,12 +121,12 @@ class ExamSessionService(
             val outcome = autoGrader.grade(question, userValue)
             score += outcome.pointsEarned
             if (outcome.isCorrect) correctCount++
+            // Stored detail stays key-free: the projector rebuilds the student
+            // view from correctness and points only.
             QuestionResultPayload(
                 questionId = question.id.toString(),
                 isCorrect = outcome.isCorrect,
                 userAnswer = userValue?.let(::answerText),
-                correctAnswer = correctText(question),
-                explanation = question.explanation,
                 pointsEarned = outcome.pointsEarned,
             )
         }
@@ -158,7 +158,7 @@ class ExamSessionService(
         session.answers = mapper.writeValueAsString(answersBody)
         sessionRepository.save(session)
 
-        return toResult(exam, submission, results)
+        return resultProjector.result(exam, submission, questions, percentileFor(submission))
     }
 
     @Transactional(readOnly = true)
@@ -166,8 +166,18 @@ class ExamSessionService(
         val exam = examForUser(userId, examIdRaw)
         val submission = submissionRepository.findByUserIdAndExamId(userId, exam.id)
             ?: throw notFound("No result yet for this exam")
-        val results = parseQuestionResults(submission.questionResults)
-        return toResult(exam, submission, results)
+        return resultProjector.result(exam, submission, authoringService.questionsOf(exam.id), percentileFor(submission))
+    }
+
+    /** Exam-hub submission detail for review (doc 02 §3.4). */
+    @Transactional(readOnly = true)
+    fun submission(userId: UUID, examIdRaw: String): ExamSubmissionDetailsPayload {
+        val exam = examForUser(userId, examIdRaw)
+        val submission = submissionRepository.findByUserIdAndExamId(userId, exam.id)
+            ?: throw notFound("No submission yet for this exam")
+        val questions = authoringService.questionsOf(exam.id)
+        val payloads = questions.map { authoringService.toQuestionPayload(it, includeKeys = false) }
+        return resultProjector.submissionDetails(exam, submission, questions, payloads)
     }
 
     // ------------------------------------------------------------ internals
@@ -214,46 +224,12 @@ class ExamSessionService(
         )
     }
 
-    private fun toResult(
-        exam: ExamEntity,
-        submission: ExamSubmissionEntity,
-        results: List<QuestionResultPayload>,
-    ): ExamResultPayload = ExamResultPayload(
-        id = submission.id.toString(),
-        examId = exam.id.toString(),
-        userId = submission.userId.toString(),
-        score = submission.score,
-        totalPoints = submission.totalPoints,
-        percentage = submission.percentage,
-        grade = submission.grade,
-        correctAnswers = submission.correctCount,
-        totalQuestions = submission.questionCount,
-        timeTakenSeconds = submission.timeTakenSeconds,
-        submittedAt = submission.submittedAt.toEpochMilli(),
-        answers = submission.answers?.let { runCatching { mapper.readTree(it) }.getOrNull() },
-        questionResults = results,
-        masteryUpdates = emptyList(),
-    )
-
-    private fun parseQuestionResults(json: String?): List<QuestionResultPayload> {
-        if (json.isNullOrBlank()) return emptyList()
-        val node = runCatching { mapper.readTree(json) }.getOrNull() ?: return emptyList()
-        if (!node.isArray) return emptyList()
-        val out = mutableListOf<QuestionResultPayload>()
-        for (i in 0 until node.size()) {
-            val item = node.get(i)
-            out.add(
-                QuestionResultPayload(
-                    questionId = item.get("questionId")?.asString() ?: "",
-                    isCorrect = item.get("isCorrect")?.asBoolean() ?: false,
-                    userAnswer = item.get("userAnswer")?.asString(),
-                    correctAnswer = item.get("correctAnswer")?.asString(),
-                    explanation = item.get("explanation")?.asString(),
-                    pointsEarned = item.get("pointsEarned")?.intValue() ?: 0,
-                )
-            )
-        }
-        return out
+    /** Percentile rank of this submission among all attempts at the same exam. */
+    private fun percentileFor(submission: ExamSubmissionEntity): Int {
+        val peers = submissionRepository.findAllByExamId(submission.examId)
+        if (peers.isEmpty()) return 0
+        val atOrBelow = peers.count { it.percentage <= submission.percentage }
+        return (100.0 * atOrBelow / peers.size).roundToInt().coerceIn(0, 100)
     }
 
     private fun parseIdList(json: String?): List<String>? {
@@ -272,14 +248,6 @@ class ExamSessionService(
             node.properties().joinToString(", ") { it.key + ": " + it.value.asString() }
         }
         else -> node.toString()
-    }
-
-    private fun correctText(question: ExamQuestionEntity): String? = when (question.qType) {
-        QuestionType.MULTI_SELECT ->
-            runCatching { mapper.readTree(question.correctAnswer) }.getOrNull()
-                ?.takeIf { it.isArray }
-                ?.let { array -> (0 until array.size()).joinToString(", ") { array.get(it).asString() } }
-        else -> question.correctAnswer
     }
 
     private fun gradeFor(percentage: Int): String = when {

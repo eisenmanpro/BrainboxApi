@@ -75,7 +75,7 @@ class ExamController(
     fun submission(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @PathVariable id: String,
-    ): ExamResultPayload = sessions.result(currentUser.userId, id)
+    ): ExamSubmissionDetailsPayload = sessions.submission(currentUser.userId, id)
 
     @GetMapping("/{id}/result")
     fun result(

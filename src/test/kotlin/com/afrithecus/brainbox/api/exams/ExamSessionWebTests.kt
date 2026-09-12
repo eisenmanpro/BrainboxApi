@@ -7,6 +7,7 @@ import com.afrithecus.brainbox.api.exams.web.DocumentItem
 import com.afrithecus.brainbox.api.exams.web.ExamDetail
 import com.afrithecus.brainbox.api.exams.web.ExamResultPayload
 import com.afrithecus.brainbox.api.exams.web.ExamSessionResponse
+import com.afrithecus.brainbox.api.exams.web.ExamSubmissionDetailsPayload
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
@@ -50,7 +51,7 @@ class ExamSessionWebTests(
     }
 
     private fun adminToken(): String {
-        val admin = UserEntity().apply {
+        val admin = userRepository.findByEmail("admin@session.test") ?: UserEntity().apply {
             phoneNumber = "0799000200"
             email = "admin@session.test"
             passwordHash = passwordEncoder.encode("adminpass123") ?: error("encode")
@@ -58,8 +59,7 @@ class ExamSessionWebTests(
             role = Role.ADMIN
             isVerified = true
             isActive = true
-        }
-        userRepository.save(admin)
+        }.also { userRepository.save(it) }
         val login = mockMvc.perform(
             post("/auth/login").contentType(MediaType.APPLICATION_JSON)
                 .content("""{"identifier":"admin@session.test","password":"adminpass123"}""")
@@ -157,10 +157,18 @@ class ExamSessionWebTests(
         val result = objectMapper.readValue(resultBody, ExamResultPayload::class.java)
         check(result.score == 5)
         check(result.totalPoints == 5)
-        check(result.percentage == 100)
-        check(result.grade == "A")
-        check(result.correctAnswers == 3)
-        check(result.questionResults.size == 3)
+        check(result.percentage == 100.0)
+        check(result.title == "Session Maths")
+        check(result.status == "PUBLISHED")
+        check(result.markingType == "AUTOMATIC")
+        check(result.autoGradedScore == 5)
+        check(result.pendingReviewScore == 0)
+        check(result.percentile == 100)
+        check(result.gradingDetails.size == 3)
+        check(result.gradingDetails.count { it.isCorrect } == 3)
+        // Key material must never reach the student, not even after grading.
+        check(!resultBody.contains("correctAnswer"))
+        check(!resultBody.contains("explanation"))
 
         // result endpoint returns the same result; resubmission is rejected
         val result2 = mockMvc.perform(
@@ -195,9 +203,9 @@ class ExamSessionWebTests(
         ).andExpect(status().isOk).andReturn().response.contentAsString
         val result = objectMapper.readValue(resultBody, ExamResultPayload::class.java)
         check(result.score == 2)
-        check(result.percentage == 40)
-        check(result.grade == "E")
-        check(result.correctAnswers == 1)
+        check(result.percentage == 40.0)
+        check(result.autoGradedScore == 2)
+        check(result.gradingDetails.count { it.isCorrect } == 1)
     }
 
     @Test
@@ -248,10 +256,116 @@ class ExamSessionWebTests(
                 .contentType(MediaType.APPLICATION_JSON).content(attempt)
         ).andExpect(status().isNoContent)
 
+
         // client-scored attempt is readable back as the exam result
         val resultBody = mockMvc.perform(
             get("/exams/${examId}/result").header("Authorization", auth(student.sessionToken!!))
         ).andExpect(status().isOk).andReturn().response.contentAsString
-        check(objectMapper.readValue(resultBody, ExamResultPayload::class.java).percentage == 80)
+        val pastResult = objectMapper.readValue(resultBody, ExamResultPayload::class.java)
+        check(pastResult.percentage == 80.0)
+        check(pastResult.status == "PUBLISHED")
+        check(pastResult.autoGradedScore == 80)
+    }
+
+    @Test
+    fun `submission detail returns key-free questions and the student answers`() {
+        val student = signup("0770000005")
+        val examId = seedDigitalExam()
+        val token = student.sessionToken!!
+
+        val startBody = mockMvc.perform(
+            get("/exams/${examId}/session").header("Authorization", auth(token))
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val qids = objectMapper.readValue(startBody, ExamSessionResponse::class.java).questions.map { it.id }
+        val submitBody = objectMapper.writeValueAsString(
+            mapOf(qids[0] to "4", qids[1] to listOf("A", "C"), qids[2] to mapOf("a" to "1", "b" to "2"))
+        )
+        mockMvc.perform(
+            post("/exams/${examId}/session/submit").header("Authorization", auth(token))
+                .contentType(MediaType.APPLICATION_JSON).content(submitBody)
+        ).andExpect(status().isOk)
+
+        val body = mockMvc.perform(
+            get("/exams/${examId}/submission").header("Authorization", auth(token))
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val details = objectMapper.readValue(body, ExamSubmissionDetailsPayload::class.java)
+        check(details.examId == examId)
+        check(details.title == "Session Maths")
+        check(details.questions.size == 3)
+        check(details.userAnswers?.get(qids[0]) == "4")
+        check(details.userAnswers?.get(qids[1]) == "A, C")
+        check(details.status == "PUBLISHED")
+        check(details.markingType == "AUTOMATIC")
+        check(details.submittedAt > 0)
+        check(!body.contains("correctAnswer"))
+        check(!body.contains("explanation"))
+    }
+
+    @Test
+    fun `submission before attempting an exam is not found`() {
+        val student = signup("0770000006")
+        val examId = seedDigitalExam()
+        mockMvc.perform(
+            get("/exams/${examId}/submission").header("Authorization", auth(student.sessionToken!!))
+        ).andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `essay exams report teacher review marking and pending review score`() {
+        val student = signup("0770000007")
+        val admin = adminToken()
+        val request = CreateExamRequest(
+            title = "Essay Paper", subject = "English", examType = "DIGITAL",
+            durationMinutes = 30, difficulty = 3,
+            questions = listOf(
+                CreateExamQuestionRequest(
+                    text = "Describe the theme", type = "ESSAY", correctAnswer = "expected",
+                    explanation = "rubric", points = 10, topic = "Comprehension",
+                ),
+                CreateExamQuestionRequest(
+                    text = "2 + 2?", type = "MCQ", options = listOf("3", "4"),
+                    correctAnswer = "4", points = 2, topic = "Arithmetic",
+                ),
+            ),
+        )
+        val created = mockMvc.perform(
+            post("/admin/exams").header("Authorization", auth(admin))
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request))
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val examId = objectMapper.readValue(created, ExamDetail::class.java).id
+
+        val token = student.sessionToken!!
+        val startBody = mockMvc.perform(
+            get("/exams/${examId}/session").header("Authorization", auth(token))
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val qids = objectMapper.readValue(startBody, ExamSessionResponse::class.java).questions.map { it.id }
+
+        val submitBody = objectMapper.writeValueAsString(
+            mapOf(qids[0] to "My essay answer", qids[1] to "4")
+        )
+        val resultBody = mockMvc.perform(
+            post("/exams/${examId}/session/submit").header("Authorization", auth(token))
+                .contentType(MediaType.APPLICATION_JSON).content(submitBody)
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val result = objectMapper.readValue(resultBody, ExamResultPayload::class.java)
+        check(result.markingType == "TEACHER_REVIEW")
+        check(result.autoGradedScore == 2)
+        check(result.pendingReviewScore == 10)
+        check(result.score == 2)
+        check(result.gradingDetails.size == 2)
+        check(result.gradingDetails.first { it.requiresExplanation }.isCorrect.not())
+        check(result.topicBreakdown["Arithmetic"] == 1.0)
+        check(result.topicBreakdown["Comprehension"] == 0.0)
+        check(result.weakAreas.any { it.cbcStrand == "Comprehension" })
+
+        val detailsBody = mockMvc.perform(
+            get("/exams/${examId}/submission").header("Authorization", auth(token))
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val details = objectMapper.readValue(detailsBody, ExamSubmissionDetailsPayload::class.java)
+        check(details.markingType == "TEACHER_REVIEW")
+        check(details.questions.size == 2)
+        check(!detailsBody.contains("correctAnswer"))
+        check(!detailsBody.contains("explanation"))
     }
 }
+

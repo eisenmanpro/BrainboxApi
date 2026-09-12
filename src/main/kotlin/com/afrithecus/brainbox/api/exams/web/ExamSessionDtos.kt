@@ -29,30 +29,64 @@ data class QuestionResultPayload(
     val pointsEarned: Int,
 )
 
-/** Mastery deltas (populated once mastery tracking integrates; empty today). */
-data class MasteryUpdatePayload(
-    val topicId: String,
-    val correctAnswers: Int,
-    val totalQuestions: Int,
-    val timeSpentSeconds: Int,
+/**
+ * Per-question grading detail (doc 02 §3.3). Exposes correctness and points
+ * only; correctAnswer/explanation never leave the server.
+ */
+data class QuestionGradingDetailPayload(
+    val questionId: String,
+    val questionText: String,
+    val isCorrect: Boolean,
+    val scoreAwarded: Int,
+    val pointsPossible: Int,
+    val requiresExplanation: Boolean,
+    val isKeyQuestion: Boolean,
+    val cbcStrand: String? = null,
 )
 
-/** Exam result (doc 02 §3.3). */
+/** A topic the student has not yet mastered (doc 02 §3.3). */
+data class ExamWeakAreaPayload(
+    val cbcStrand: String,
+    val masteryLevel: Double,
+    val severity: String,
+    val affectedStudents: Int,
+    val recommendedAction: String,
+)
+
+/**
+ * Exam result (doc 02 §3.3) — mirrors
+ * com.afrithecus.brainbox.models.ExamResult exactly. `percentage` is 0..100 and
+ * `topicBreakdown` values are 0..1 fractions, the scale the client renders.
+ */
 data class ExamResultPayload(
     val id: String,
-    val examId: String,
-    val userId: String,
+    val title: String,
     val score: Int,
+    val percentage: Double,
     val totalPoints: Int,
-    val percentage: Int,
-    val grade: String? = null,
-    val correctAnswers: Int,
-    val totalQuestions: Int,
-    val timeTakenSeconds: Int,
+    val percentile: Int,
+    val topicBreakdown: Map<String, Double>,
+    val timePerQuestion: Map<Int, Long>,
+    val status: String,
+    val markingType: String,
+    val gradingDetails: List<QuestionGradingDetailPayload>,
+    val weakAreas: List<ExamWeakAreaPayload>,
+    val autoGradedScore: Int,
+    val pendingReviewScore: Int,
+)
+
+/**
+ * Exam-hub submission detail for post-exam review (doc 02 §3.4) — mirrors
+ * com.afrithecus.brainbox.models.ExamSubmissionDetails. Questions are key-free.
+ */
+data class ExamSubmissionDetailsPayload(
+    val examId: String,
+    val title: String,
+    val questions: List<QuestionPayload>,
+    val userAnswers: Map<String, String>? = null,
     val submittedAt: Long,
-    val answers: JsonNode? = null,
-    val questionResults: List<QuestionResultPayload>,
-    val masteryUpdates: List<MasteryUpdatePayload> = emptyList(),
+    val status: String,
+    val markingType: String,
 )
 
 /** Past-paper attempt recorded from the client's self-graded result (doc 02 §5.3). */
