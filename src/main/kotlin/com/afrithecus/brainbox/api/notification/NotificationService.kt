@@ -87,6 +87,38 @@ class NotificationService(
         return payload(saved)
     }
 
+    /**
+     * Server-originated notification delivered to [userId]. Used by feature
+     * fan-out (result publishing, reminders, moderation decisions) where the
+     * actor is not the recipient, so it deliberately bypasses the self check in
+     * [create].
+     */
+    @Transactional
+    fun notifyUser(
+        userId: UUID,
+        title: String,
+        message: String,
+        type: NotificationType = NotificationType.SYSTEM,
+        urgency: NotificationUrgency = NotificationUrgency.NORMAL,
+        priority: NotificationPriority = NotificationPriority.NORMAL,
+        actionRoute: String? = null,
+        actionLabel: String? = null,
+        metadata: Map<String, String> = emptyMap(),
+    ): AppNotificationPayload {
+        val saved = repository.save(NotificationEntity().apply {
+            this.userId = userId
+            this.title = title.trim()
+            this.message = message
+            this.type = type
+            this.urgency = urgency
+            this.priority = priority
+            this.actionRoute = actionRoute
+            this.actionLabel = actionLabel
+            this.metadata = mapper.writeValueAsString(metadata)
+        })
+        return payload(saved)
+    }
+
     @Transactional
     fun markRead(current: CurrentUser, notificationIdRaw: String) {
         val row = owned(current, notificationIdRaw)

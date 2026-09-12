@@ -35,6 +35,10 @@ interface UserRepository : JpaRepository<UserEntity, UUID> {
 
     fun findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId: UUID): List<UserEntity>
 
+    fun findAllBySchoolIdAndGradeLevelAndRole(schoolId: UUID, gradeLevel: String, role: Role): List<UserEntity>
+
+    fun findAllByGradeLevelAndRole(gradeLevel: String, role: Role): List<UserEntity>
+
     fun findByPhoneNumber(phoneNumber: String): UserEntity?
 
     fun findByEmail(email: String): UserEntity?
