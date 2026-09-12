@@ -9,4 +9,6 @@ interface LearningProgressRepository : JpaRepository<LearningProgressEntity, UUI
     fun findByUserIdAndPostId(userId: UUID, postId: UUID): LearningProgressEntity?
 
     fun findAllByUserId(userId: UUID): List<LearningProgressEntity>
+
+    fun findAllByPostId(postId: UUID): List<LearningProgressEntity>
 }

@@ -55,6 +55,15 @@ class LearningPostEntity : BaseEntity() {
     @Column(name = "teacher_id")
     var teacherId: UUID? = null
 
+    @Column(name = "cbc_strand", length = 128)
+    var cbcStrand: String? = null
+
+    @Column(name = "cbc_sub_strand", length = 128)
+    var cbcSubStrand: String? = null
+
+    @Column(name = "custom_subject_name", length = 128)
+    var customSubjectName: String? = null
+
     @Column(name = "is_featured", nullable = false)
     var isFeatured: Boolean = false
 

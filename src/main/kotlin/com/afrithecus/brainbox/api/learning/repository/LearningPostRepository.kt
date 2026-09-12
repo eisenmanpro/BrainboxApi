@@ -7,4 +7,8 @@ import java.util.UUID
 interface LearningPostRepository : JpaRepository<LearningPostEntity, UUID> {
 
     fun findAllByIsPublishedTrue(): List<LearningPostEntity>
+
+    fun findAllByCreatedByOrderByCreatedAtDesc(createdBy: UUID): List<LearningPostEntity>
+
+    fun findAllByCreatedByIn(createdBy: Collection<UUID>): List<LearningPostEntity>
 }

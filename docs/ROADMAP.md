@@ -325,7 +325,14 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 
 ### Phase 3 — Teacher Features  (goal 3)
 - [ ] Teacher auth/dashboard; class mgmt; roster (doc 04 §1-2)
-- [ ] Content mgmt: materials, posts/documents, drafts, content analytics (doc 04 §2)
+- [x] Content mgmt core (content, V34): teacher posts/content (materials) list + create +
+      edit-in-place (preserving id/analytics) + publish + delete, client-id idempotent content
+      drafts, and content analytics (views/completions/engagement + per-student list). Reuses
+      learning_posts/learning_content, adds a content_type_label so PDF/EPUB/PLAINTEXT/FLASHCARDS
+      materials survive the canonical enum. Documents (POST/GET/DELETE teacher/content/document
+      over readable_files) are deferred: the client DocumentItem.source is a sealed class with no
+      Gson adapter, so a real documents response cannot deserialize until the client maps a wire
+      DTO (flagged for the app side).
 - [x] Homework lifecycle hardening (hw, V33): student payload/request aligned to the client
       Homework model (type/taskSteps/gradeLevel-string/answerNotes/clientSubmissionId), optimistic
       student status PENDING/SUBMITTED/GRADED/RETURNED, submission status + isGraded on every

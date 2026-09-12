@@ -7,4 +7,6 @@ import java.util.UUID
 interface LearningViewRepository : JpaRepository<LearningViewEntity, UUID> {
 
     fun findByUserIdAndPostIdAndDayKey(userId: UUID, postId: UUID, dayKey: String): LearningViewEntity?
+
+    fun countByPostId(postId: UUID): Long
 }

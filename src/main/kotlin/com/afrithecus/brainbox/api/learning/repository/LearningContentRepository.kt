@@ -7,4 +7,6 @@ import java.util.UUID
 interface LearningContentRepository : JpaRepository<LearningContentEntity, UUID> {
 
     fun findAllByPostIdOrderByOrderIndexAsc(postId: UUID): List<LearningContentEntity>
+
+    fun findAllByPostIdIn(postIds: Collection<UUID>): List<LearningContentEntity>
 }

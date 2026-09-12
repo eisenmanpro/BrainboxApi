@@ -25,6 +25,10 @@ class LearningContentEntity {
     @Column(name = "c_type", nullable = false, length = 16)
     var contentType: ContentType = ContentType.NOTES
 
+    /** The client-facing material type when it exceeds the canonical enum. */
+    @Column(name = "content_type_label", length = 16)
+    var contentTypeLabel: String? = null
+
     @Column(length = 255)
     var title: String? = null
 
