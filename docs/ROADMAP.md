@@ -300,7 +300,15 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       * SecurityConfig now scopes permitAll to GET /schools/**, GET /news/**, GET /landing/**, GET /media/**
         and all /cbc/public/**, so the new write endpoints stay authenticated
       Tests + PG18 parity (135 tests)
-- [ ] Study tools + study sessions/insights (doc 03 §9)
+- [x] Study tools + study sessions/insights (2O, doc 03 §9): V25 study_sessions (user/subject/topic
+      window/duration/focus) with a unique key on (user, subject, topic, start) so replayed offline sync
+      is idempotent; POST /study/sessions validates the window and computes duration server-side
+      (rejecting >12h), GET /study/sessions/{userId} lists newest-first, GET /study/insights/{userId}
+      derives totalStudyHours, averageSessionDuration, mostStudiedSubject, streakDays, weekly
+      goal/progress (7 sessions) and data-driven recommendations server-side; self-only scoping;
+      tests + PG18 parity
+      [client still computes StudyInsight locally in core/ml/StudyPatternEngine; the server contract is
+      ready to wire when the app moves study data off-device]
 - [ ] Subscription & payments: M-Pesa STK push, idempotent callbacks, entitlements (doc 07, 11 §5)
 
 ### Phase 3 — Teacher Features  (goal 3)
@@ -372,12 +380,12 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - Profile base URLs mirror Android flavors (dev/staging/prod api.brainbox.com).
 
 
-> Session status (2026-09-12): Phase 1 + 2A-2N done. The app-side prod hardening changed three
+> Session status (2026-09-12): Phase 1 + 2A-2O done. The app-side prod hardening changed three
 > contracts (CBC public browse, news engagement, schools directory) and those are now aligned
-> server-side (2N, V24). Test suite 135 (0 failures) + PG18 parity. Next session: study tools,
-> homework attachments/past-paper flows, class-group chat (WebSocket), then Phase 3 teacher
-> portal. Note doc 13 (updated analytics / traditional-exam reports) is a Phase 3/4 surface to
-> fold into the teacher-portal goal.
+> server-side (2N, V24); study tools shipped as 2O (V25). Test suite 138 (0 failures) + PG18
+> parity. Next session: homework attachments/past-paper flows, class-group chat (WebSocket),
+> then Phase 3 teacher portal. Note doc 13 (updated analytics / traditional-exam reports) is a
+> Phase 3/4 surface to fold into the teacher-portal goal.
 
 ## 7. Tracking
 
