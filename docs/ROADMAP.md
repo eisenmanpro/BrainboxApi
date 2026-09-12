@@ -375,7 +375,9 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       review marks recomputed server-side from the previous mark so re-review cannot inflate,
       plus replace-all remediation assignments. AutoGrader now resolves the teacher app's
       `__IDX__n__` MCQ keys against the options and tolerates CSV multi-select keys; a reviewed
-      essay is folded back into the student result (`reviewed` grading detail).
+      essay is folded back into the student result (`reviewed` grading detail). A class-scoped
+      exam (classId set) is now visible/takeable only by students enrolled in that class in the
+      catalog and session engine; classId-less SCHOOL_GRADE_CLASS exams stay school-wide.
 - [ ] Learning contracts: contracts, commitments, reminders, templates (doc 04 §11)
 - [x] Class chat REST (2Q, doc 04 §12): V27 class_groups + members + messages + polls/votes;
       teacher group CRUD (owner/class scoped, member sync is an immediate bulk replace), thread reads

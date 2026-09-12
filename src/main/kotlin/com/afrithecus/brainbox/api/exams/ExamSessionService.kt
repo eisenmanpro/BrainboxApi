@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.exams
 
+import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.conflict
@@ -44,6 +45,7 @@ class ExamSessionService(
     private val autoGrader: AutoGrader,
     private val resultProjector: ExamResultProjector,
     private val userRepository: UserRepository,
+    private val membershipRepository: ClassMembershipRepository,
     private val mapper: ObjectMapper,
     private val clock: Clock,
 ) {
@@ -196,8 +198,12 @@ class ExamSessionService(
         val user = userRepository.findById(userId).orElseThrow { notFound("User not found") }
         val visible = when (exam.scope) {
             ExamScope.GLOBAL -> true
-            ExamScope.SCHOOL, ExamScope.SCHOOL_GRADE_CLASS ->
-                user.schoolId != null && exam.schoolId != null && exam.schoolId == user.schoolId
+            ExamScope.SCHOOL, ExamScope.SCHOOL_GRADE_CLASS -> {
+                val sameSchool = user.schoolId != null && exam.schoolId != null && exam.schoolId == user.schoolId
+                val classId = exam.classId
+                sameSchool &&
+                    (classId == null || membershipRepository.findByClassIdAndStudentId(classId, user.id) != null)
+            }
         }
         if (!visible) throw notFound("Exam not found")
         return exam

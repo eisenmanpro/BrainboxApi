@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.exams
 
+import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.exams.admin.ExamAuthoringService
 import com.afrithecus.brainbox.api.exams.entity.ExamEntity
@@ -32,6 +33,7 @@ class ExamCatalogService(
     private val submissionRepository: ExamSubmissionRepository,
     private val authoringService: ExamAuthoringService,
     private val userRepository: UserRepository,
+    private val membershipRepository: ClassMembershipRepository,
 ) {
 
     @Transactional(readOnly = true)
@@ -138,10 +140,18 @@ class ExamCatalogService(
     private fun visiblePublished(user: UserEntity): List<ExamEntity> =
         examRepository.findAllByStatus(ExamStatus.PUBLISHED).filter { isVisible(it, user) }
 
+    /**
+     * A class-scoped exam (one authored for a specific teacher class) is only
+     * visible to a student enrolled in that class; every other scope keeps the
+     * existing school-level rule.
+     */
     private fun isVisible(exam: ExamEntity, user: UserEntity): Boolean = when (exam.scope) {
         ExamScope.GLOBAL -> true
-        ExamScope.SCHOOL, ExamScope.SCHOOL_GRADE_CLASS ->
-            user.schoolId != null && exam.schoolId != null && exam.schoolId == user.schoolId
+        ExamScope.SCHOOL, ExamScope.SCHOOL_GRADE_CLASS -> {
+            val sameSchool = user.schoolId != null && exam.schoolId != null && exam.schoolId == user.schoolId
+            val classId = exam.classId
+            sameSchool && (classId == null || membershipRepository.findByClassIdAndStudentId(classId, user.id) != null)
+        }
     }
 
     private fun loadUser(userId: UUID): UserEntity =

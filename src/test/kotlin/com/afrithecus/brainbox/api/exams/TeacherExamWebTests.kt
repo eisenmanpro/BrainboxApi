@@ -1,13 +1,16 @@
 package com.afrithecus.brainbox.api.exams
 
 import com.afrithecus.brainbox.api.auth.web.AuthResponse
+import com.afrithecus.brainbox.api.classes.entity.ClassMembershipEntity
 import com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity
+import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.exams.repository.ExamRepository
 import com.afrithecus.brainbox.api.exams.repository.ExamSubmissionRepository
 import com.afrithecus.brainbox.api.exams.web.ExamAnalysisReportPayload
 import com.afrithecus.brainbox.api.exams.web.ExamResultPayload
 import com.afrithecus.brainbox.api.exams.web.ExamSessionResponse
+import com.afrithecus.brainbox.api.exams.web.ExamSummary
 import com.afrithecus.brainbox.api.exams.web.RemediationAssignmentPayload
 import com.afrithecus.brainbox.api.exams.web.RemediationSavePayload
 import com.afrithecus.brainbox.api.exams.web.TeacherExamPayload
@@ -51,6 +54,7 @@ class TeacherExamWebTests(
     @Autowired private val userRepository: UserRepository,
     @Autowired private val schoolRepository: SchoolRepository,
     @Autowired private val classRepository: TeacherClassRepository,
+    @Autowired private val membershipRepository: ClassMembershipRepository,
     @Autowired private val examRepository: ExamRepository,
     @Autowired private val submissionRepository: ExamSubmissionRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
@@ -91,6 +95,13 @@ class TeacherExamWebTests(
     }
 
     private fun auth(token: String) = "Bearer " + token
+
+    private fun enroll(clazz: TeacherClassEntity, student: UserEntity) {
+        membershipRepository.save(ClassMembershipEntity().apply {
+            classId = clazz.id
+            this.studentId = student.id
+        })
+    }
 
     private fun teacherClass(teacher: UserEntity): TeacherClassEntity =
         classRepository.save(TeacherClassEntity().apply {
@@ -255,6 +266,7 @@ class TeacherExamWebTests(
         val teacher = user(Role.TEACHER, "Class Teacher", "0755010020")
         val student = user(Role.STUDENT, "Alice Mwangi", "0755010021")
         val clazz = teacherClass(teacher)
+        enroll(clazz, student)
         val t = token(teacher)
         val s = token(student)
 
@@ -347,6 +359,7 @@ class TeacherExamWebTests(
         val teacher = user(Role.TEACHER, "Class Teacher", "0755010030")
         val student = user(Role.STUDENT, "Alice Mwangi", "0755010031")
         val clazz = teacherClass(teacher)
+        enroll(clazz, student)
         val t = token(teacher)
         val s = token(student)
 
@@ -500,5 +513,49 @@ class TeacherExamWebTests(
         check(listed.size == 1)
         check(listed.single().isFromBank)
         check(listed.single().correctAnswer == "Nairobi")
+    }
+
+    @Test
+    fun `class scoped exam is hidden from non members`() {
+        val teacher = user(Role.TEACHER, "Class Teacher", "0755010060")
+        val member = user(Role.STUDENT, "Member", "0755010061")
+        val outsider = user(Role.STUDENT, "Outsider", "0755010062")
+        val clazz = teacherClass(teacher)
+        enroll(clazz, member)
+        val t = token(teacher)
+
+        postExam(
+            t,
+            exam(
+                "exam_scope_1", clazz.id.toString(), published = true,
+                questions = listOf(question("q1", "Q", "MCQ", 1, options = listOf("a", "b"), correct = "__IDX__0__")),
+            ),
+        )
+        val serverExamId = examRepository.findByClientId("exam_scope_1")!!.id
+
+        // An enrolled student can open and start the exam.
+        mockMvc.perform(get("/exams/" + serverExamId + "/session").header("Authorization", auth(token(member))))
+            .andExpect(status().isOk)
+        mockMvc.perform(get("/exams/" + serverExamId).header("Authorization", auth(token(member))))
+            .andExpect(status().isOk)
+
+        // A same-school student outside the class cannot, and existence is not leaked.
+        mockMvc.perform(get("/exams/" + serverExamId + "/session").header("Authorization", auth(token(outsider))))
+            .andExpect(status().isNotFound)
+        mockMvc.perform(get("/exams/" + serverExamId).header("Authorization", auth(token(outsider))))
+            .andExpect(status().isNotFound)
+
+        val memberList = objectMapper.readValue(
+            mockMvc.perform(get("/exams").header("Authorization", auth(token(member))))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<ExamSummary>::class.java,
+        )
+        check(memberList.any { it.id == serverExamId.toString() })
+        val outsiderList = objectMapper.readValue(
+            mockMvc.perform(get("/exams").header("Authorization", auth(token(outsider))))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<ExamSummary>::class.java,
+        )
+        check(outsiderList.none { it.id == serverExamId.toString() })
     }
 }
