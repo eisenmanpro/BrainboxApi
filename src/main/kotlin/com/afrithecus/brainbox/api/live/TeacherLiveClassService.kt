@@ -18,6 +18,7 @@ import com.afrithecus.brainbox.api.live.repository.LiveClassParticipantRepositor
 import com.afrithecus.brainbox.api.live.repository.LiveClassRepository
 import com.afrithecus.brainbox.api.live.repository.LivePollRepository
 import com.afrithecus.brainbox.api.live.repository.LivePollVoteRepository
+import com.afrithecus.brainbox.api.live.ws.LiveSignalingHandler
 import com.afrithecus.brainbox.api.live.web.AttendanceDetailPayload
 import com.afrithecus.brainbox.api.live.web.ChatMessagePayload
 import com.afrithecus.brainbox.api.live.web.CreatePollRequest
@@ -51,6 +52,7 @@ class TeacherLiveClassService(
     private val attendanceRepository: LiveAttendanceRepository,
     private val userRepository: UserRepository,
     private val liveClassService: LiveClassService,
+    private val signaling: LiveSignalingHandler,
     private val mapper: ObjectMapper,
     private val clock: Clock,
 ) {
@@ -105,6 +107,7 @@ class TeacherLiveClassService(
         requireTeacher(teacher)
         val entity = resolveOwned(teacher, classIdRaw) ?: return
         classRepository.delete(entity)
+        signaling.broadcastClassEnded(entity.id, "Class cancelled")
     }
 
     @Transactional
@@ -122,6 +125,8 @@ class TeacherLiveClassService(
         val entity = requireOwned(teacher, classIdRaw)
         entity.status = LiveClassStatus.COMPLETED
         classRepository.saveAndFlush(entity)
+        // Tell any connected signaling peers the session is over.
+        signaling.broadcastClassEnded(entity.id, "Host ended the class")
         return liveClassService.payload(entity)
     }
 

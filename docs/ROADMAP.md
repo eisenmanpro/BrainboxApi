@@ -365,7 +365,13 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       (views/acknowledgements/studentStatus). Student/parent read list and a student ack
       endpoint remain deferred per the handoff.
 - [ ] Feedback: templates, history, bulk (doc 04 §7)
-- [ ] Live class mgmt: CRUD, lifecycle, recordings, analytics, participants, polls (doc 04 §8)
+- [x] Live class mgmt (lc, V21 + V41): teacher CRUD/lifecycle (client-id idempotent, offline
+      outbox), recordings with real duration/date, analytics, the persisted host roster with
+      idempotent MUTE/UNMUTE/REMOVE/KICK/PROMOTE actions, host polls and the chat transcript with
+      replay-safe sends; the learner surface (/live/now|upcoming|ongoing|completed|replays|
+      spotlight, register/attendance/polls) was already in place. The real-time WebRTC signaling
+      channel /ws/live/{classId} now serves the finished client: JWT handshake authorization,
+      join/leave presence, verbatim SDP/ICE relay, heartbeat acks and class-ended on REST end/cancel.
 - [x] Timetable, room bookings, house/peer/community groups and schedule changes (tt, V38):
       client-id idempotent timetable entry CRUD (repeat-safe delete), Kenyan export and an
       idempotent auto-schedule that lays out practical blocks from the teacher's classes (LAB_PERIOD
@@ -442,7 +448,9 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - [ ] System settings (authoritative), audit logs, analytics & reports, leaderboard mgmt
 
 ### Phase 6 — Integrations & Polish  (goal 6; doc 11)
-- [ ] WebRTC signaling server + TURN/STUN config (teacher live classes, student live)
+- [x] WebRTC signaling server (teacher/learner live classes): /ws/live/{classId} relay with
+      JWT handshake auth, presence, heartbeat and class-ended. TURN/STUN stays client/deployment
+      configuration (the app already carries per-flavor SIGNALING_TURN_* values).
 - [ ] M-Pesa production integration (idempotent STK push + callbacks, state transitions)
 - [ ] FCM push notifications + deep links
 - [ ] Media/file upload (presigned S3/MinIO) + file security (scan URLs, size/type policy)

@@ -59,6 +59,9 @@ class SecurityConfig(
                         "/actuator/health/**",
                         "/actuator/info",
                         "/error",
+                        // WebSocket handshakes authenticate themselves in the
+                        // LiveSignalingHandshakeInterceptor (Bearer token).
+                        "/ws/**",
                     ).permitAll()
                     // Public reads: school directory, news feed/article, hosted media.
                     .requestMatchers(
