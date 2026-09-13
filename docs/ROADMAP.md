@@ -566,6 +566,12 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 
 ### Phase 7 — Agentic Content Generation Pipeline  (goal 7; ARCHITECTURE §13)
 
+> **Delivery model from Phase 7 on: server-first.** The backend implements the full contract as it
+> should be, then publishes a client adaptation document (API + UI + expectations). The client
+> adapts to the server; the server is not bent to the current client code. There is no user base,
+> so contracts cut over cleanly rather than carrying dual shapes or shims. The authoritative client
+> document is `BrainBox/docs/ongoing/api_phase7_changes.md`, updated as each slice lands.
+
 > **Cold-start research:** `docs/PHASE7_CONTENT_RESEARCH.md` maps what the client expects of
 > learning materials (the three material surfaces and their exact shapes), the content taxonomy
 > the agent must cover, a ~850-topic seed-corpus target, and the open-licensing constraints —
