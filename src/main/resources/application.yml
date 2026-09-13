@@ -85,6 +85,16 @@ app:
       service-account-file: ${PUSH_FCM_SERVICE_ACCOUNT_FILE:}
       project-id: ${PUSH_FCM_PROJECT_ID:}
       channel-id: system_notifications_channel
+  ai:
+    # Phase 7.2 generation provider seam. Disabled by default so the API boots
+    # and serves the content cache without a model key. When enabled, the
+    # DeepSeek provider owns the chat-completions wire format; the Spring AI
+    # DeepSeek autoconfiguration above stays excluded.
+    enabled: ${AI_ENABLED:false}
+    deepseek:
+      api-key: ${DEEPSEEK_API_KEY:}
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      model: ${DEEPSEEK_MODEL:deepseek-chat}
   security:
     jwt:
       # Base64-encoded HMAC secret. Override in each environment. Dev default only.

@@ -11,4 +11,7 @@ interface CurriculumMapRepository : JpaRepository<CurriculumMapEntity, UUID> {
         curriculum: String,
         gradeLevel: String,
     ): List<CurriculumMapEntity>
+
+    /** Country-level lookup used by the concept_lookup MCP tool (grade/strand filtered in memory). */
+    fun findAllByCountryCodeAndCurriculum(countryCode: String, curriculum: String): List<CurriculumMapEntity>
 }

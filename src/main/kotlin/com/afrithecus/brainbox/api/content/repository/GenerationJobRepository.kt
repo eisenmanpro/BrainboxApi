@@ -7,4 +7,7 @@ import java.util.UUID
 interface GenerationJobRepository : JpaRepository<GenerationJobEntity, UUID> {
 
     fun findAllByStatusOrderByCreatedAtAsc(status: String): List<GenerationJobEntity>
+
+    /** Router upsert lookup: the newest job row for a generation key. */
+    fun findAllByGenerationKeyOrderByCreatedAtAsc(generationKey: String): List<GenerationJobEntity>
 }
