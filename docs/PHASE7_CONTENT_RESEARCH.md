@@ -76,8 +76,10 @@ interchangeable and the pipeline must feed all three.
 
 Not "learning materials" in the hub sense, but the same generation capability: digital-exam
 questions + remediation (doc 02), homework tasks and rubrics, CBC project briefs, revision
-explanations for a weak topic, flashcards, and study guides. Career, news, interview and
-contract content is **curated/static** today (seeded in migrations) and should stay that way.
+explanations for a weak topic, flashcards, study guides, and **doubt/Q&A answers** (the client
+has a full Doubt surface with its own cache and outbox). Career, news, interview and contract
+content is **curated/static** today (seeded in migrations) and should stay that way; learner
+announcements are authored by teachers, not generated.
 
 ### 1.5 Backend state, verified
 
@@ -103,6 +105,40 @@ Verified against the code, not the docs:
   are declared but their auto-config is excluded.
 - **Bonus gap:** the *student* homework payload (`StudentHomeworkPayload`) never carries
   `questions`, so generated homework questions have no delivery path yet.
+
+### 1.6 Delivery contract blockers (fix before generating anything)
+
+The client inventory also found that several **existing** endpoints do not match the client
+models, so content would not render even if it were seeded. These are Phase 7.0, not Phase 7.5:
+
+1. **Readable materials field names.** The server sends `fileUrl` / `pageCount` / `sizeBytes`;
+   the client reads `filePath` / `totalPages` / `fileSize` and also wants `author`,
+   `description`, `thumbnailUrl`, `isFromAssets`. As written, the entity mapping cannot
+   populate the Materials Hub.
+2. **Hub post `subject`.** The server sends a free string; the client field is the 8-value
+   `Subject` enum, so `"Mathematics"` does not survive Gson (it needs `MATHEMATICS`). Either
+   canonicalise server-side or add a client `String` + parser.
+3. **Hub content payload.** `LearningContentPayload` omits `postId` and types `metadata` as raw
+   JSON; the client needs a non-null `postId` and `metadata` as a **JSON string**, so quiz and
+   flashcard blocks currently fail to parse.
+4. **Hub post `status`.** The server omits `status`; the client defaults a missing status to
+   `PUBLISHED`, so **archived and scheduled posts would leak to learners**. `authorName`,
+   `cbcStrand`, `cbcSubStrand` and `isTrending` are also omitted and never render.
+5. **Past-paper listing.** The server returns a different `DocumentItem`; the client also needs
+   `grade`, `author`, `description`, `type`, `source`, `coverUrl`, `pageCount`, `sizeBytes`.
+   Without `grade` the hub grade filter is meaningless.
+6. **Homework submit path.** The client posts `homework/submit` with the full `Homework` body;
+   the server exposes `POST /homework/{homeworkId}/submit` with a different request object, so
+   every learner submission 404s.
+7. **Doubt/Q&A** (a content surface the first pass missed): the client calls
+   `POST doubt/questions/{id}/bookmark` with no server mapping, and expects accept/vote to
+   return the updated resource while the server returns `204`.
+8. **Progress payloads** drop data: reading progress ignores bookmarks/highlights/annotations
+   and completion; learning progress has no `completedContentIds`. Past-paper attempts are
+   never uploaded and `GET past-papers/all` ignores `grade`.
+
+Until these are aligned, seeding or generating content cannot make staging/prod look
+populated — the dev mocks are what make dev look full.
 
 ---
 
@@ -244,8 +280,12 @@ versioned table that content is tagged against.
 
 ## 8. Suggested phasing
 
+0. **7.0 Delivery contract alignment** (§1.6): fix the existing endpoint/model mismatches —
+   materials field names, hub `subject`/`status`/`metadata`/`postId`, past-paper listing,
+   homework submit path, doubt bookmark/return bodies, and the progress payloads — so generated
+   content can actually render in staging/prod.
 1. **7.1 Schema + taxonomy**: content-cache table, taxonomy tables (`cbc_substrands`/`topics`),
-   generation-request key, moderation states.
+   generation-request key, moderation states, versioned band/pathway catalogue.
 2. **7.2 Router + provider abstraction**: cache-first lookup, one LLM provider behind an
    interface, idempotent jobs, token accounting.
 3. **7.3 One domain end to end**: Mathematics NOTES + QUIZ + FLASHCARDS delivered through
@@ -253,7 +293,7 @@ versioned table that content is tagged against.
 4. **7.4 Moderation + observability**: validator chain, human queue, audit trail.
 5. **7.5 Seed batch**: run Tier 1 for the priority grade band and subjects; verify the rails.
 6. **7.6 Expand**: past papers + marking schemes, readable study guides, homework/exam/project
-   generation, remaining subjects.
+   and doubt generation, remaining subjects.
 
 ---
 
