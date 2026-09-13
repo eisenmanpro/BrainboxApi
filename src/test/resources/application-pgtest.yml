@@ -24,3 +24,7 @@ app:
   security:
     rate-limit:
       enabled: false
+  reports:
+    # Tests render branded PDFs without fetching remote logos and store them in temp.
+    embed-logo: false
+    storage-dir: ${java.io.tmpdir}/brainbox-reports-test

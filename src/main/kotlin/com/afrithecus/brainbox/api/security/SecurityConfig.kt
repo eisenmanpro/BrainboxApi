@@ -59,6 +59,9 @@ class SecurityConfig(
                         "/actuator/health/**",
                         "/actuator/info",
                         "/error",
+                        // Signed report downloads: the client fetches fileUrl with no
+                        // bearer header, so the HMAC-bound token is the authorization.
+                        "/teacher/reports/download/**",
                         // WebSocket handshakes authenticate themselves in the
                         // LiveSignalingHandshakeInterceptor (Bearer token).
                         "/ws/**",

@@ -445,7 +445,14 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       (audience-targeted), idempotent book, repeat-safe cancel and authoritative own-bookings list.
       Slot status (OPEN/FULL) is recomputed from the confirmed booking count; the student-analytics
       conferences component now returns real bookings.
-- [ ] Reports: async generation, branding, authorization, history (doc 04 §16)
+- [x] Reports (V48): async generation with a client idempotency key (`jobRequestId`), bulk,
+      job poll with progress/message/`pollAfterMillis`, repeat-safe cancel, paged export history
+      (`limit`/`before`), server-authoritative schedules (idempotent create, repeat-safe delete,
+      `nextRunAt`/`lastRunAt`) and a server-side weekly export quota. Downloads use short-lived
+      HMAC-signed URLs (the client fetches `fileUrl` without a bearer header). A PDFBox server
+      renderer applies the school `SchoolConfig` branding to grade tables (combined, per-class,
+      grade analysis) and traditional/CBC student cards. The actor is always derived from the
+      token and generate/history/schedules re-check coordinator role and ownership.
 - [x] Teacher settings & profile (V44): GET/PUT /teacher/settings (preferences, notification
       switches, grade weighting, subjects/TSC/grade) and GET/PUT /teacher/profile (the account
       shape with teacher code, classes, subjects and verification state), self-scoped.
@@ -460,7 +467,8 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 ### Phase 5 — Admin & School Management  (goal 5; doc 08)
 - [ ] Admin auth + dashboards
 - [ ] User management incl. approvals and role mgmt
-- [ ] School config: SchoolConfig, GradeConfig, ClassGroup, attendance overview
+- [ ] School config: SchoolConfig branding store + GET/PUT admin/schools/{id}/config shipped
+      with Reports (V48); GradeConfig, ClassGroup and attendance overview remain
 - [ ] Content moderation + announcements + news management
 - [ ] System settings (authoritative), audit logs, analytics & reports, leaderboard mgmt
 

@@ -57,6 +57,17 @@ app:
   media:
     # Local disk storage for uploaded project media until S3/MinIO (Phase 6).
     local-dir: ${MEDIA_DIR:./data/media}
+  reports:
+    # Rendered report PDFs, signed-download lifetime, weekly quota and the
+    # server-side sync/async thresholds (docs/ongoing/api_reports_changes.md).
+    storage-dir: ${REPORT_STORAGE_DIR:./data/reports}
+    download-secret: ${REPORT_DOWNLOAD_SECRET:dev-only-report-download-secret-change-me}
+    download-ttl: 30m
+    weekly-quota: 3
+    sync-threshold-rows: 300
+    sync-threshold-students: 5
+    poll-hint-millis: 2000
+    retention-days: 90
   security:
     jwt:
       # Base64-encoded HMAC secret. Override in each environment. Dev default only.

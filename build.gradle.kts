@@ -35,6 +35,9 @@ dependencies {
     implementation("org.springframework.security:spring-security-oauth2-jose")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.springframework.ai:spring-ai-pdf-document-reader")
+    // Server-side report rendering (Apache-2.0). Already on the classpath via the
+    // Spring AI PDF reader; declared explicitly because we use it directly.
+    implementation("org.apache.pdfbox:pdfbox:3.0.7")
     implementation("org.springframework.ai:spring-ai-starter-model-deepseek")
     implementation("tools.jackson.module:jackson-module-kotlin")
     developmentOnly("org.springframework.boot:spring-boot-devtools")
