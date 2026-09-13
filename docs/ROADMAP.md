@@ -580,7 +580,10 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 > **Agent architecture (draft):** `docs/PHASE7_AGENT_ARCHITECTURE.md` transcribes the proposed
 > task-loop / prompt-router / subject-agent / critique / human-review workflow into components,
 > stores and provenance, and records the separate locally-served moderation console.
-- [ ] Content cache table (JSONB) + cache-first Router; idempotent generation keyed by topic/grade/scope
+- [x] Content cache + taxonomy schema (V61): `concepts`, `curriculum_map`, `content_units` with a
+      unique generation key, `content_unit_steps`/`content_unit_questions` and `generation_jobs`, with
+      entities, repositories and a round-trip test. The cache-first Router lands in 7.2.
+- [ ] Cache-first Router; idempotent generation keyed by topic/grade/scope
 - [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences)
 - [ ] Agent tools: DB metric queries, internet search, content validators
 - [ ] LLM provider routing by cost/latency; per-generation token tracking (DeepSeek + others)
