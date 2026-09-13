@@ -75,6 +75,37 @@ the task type (hub book, readable chunk, quiz, past paper, homework), loads the 
 curriculum mapping + learner context, selects the subject agent, routes a versioned prompt, and
 decides when to escalate to a human.
 
+### 2.1.1 Task-loop placement — the three options
+
+| | **A. Tightly coupled** (in-process module) | **B. Internal, decoupled runtime** (same project, own process) | **C. External** (third-party / separate codebase) |
+| --- | --- | --- | --- |
+| Shape | Spring beans in the API JVM; the router is a bean | Same repo, same contracts, own deployable(s), shares DB/queue | Outside the project boundary |
+| Build speed | **fastest** | medium | fastest to prototype |
+| Ops burden | **lowest** (one artifact) | medium (a second deployable, config, health) | low for us, vendor-managed |
+| Failure isolation | poor — a generation leak/GC can starve the API | **good** | good |
+| Scaling | all-or-nothing (scale the API to scale agents) | **independent workers** | vendor |
+| Release cadence | agent change = API redeploy | **independent** | independent |
+| Language freedom | JVM only | **any runtime** (Python LLM ecosystem if wanted) | any |
+| Data / IP / DPA 2019 | inside | inside | **leaves our boundary** — student data, licensing/provenance |
+| Router / capture integrity | **trivial** — one bean, nothing bypasses it | needs a protocol + trace ids at the boundary | **hardest** — "nothing bypasses the router" cannot be guaranteed |
+| Consistency / idempotency | single transaction boundary | distributed failure, duplicate jobs, contract versioning | same, plus vendor churn |
+| Testability | one process, easy | **contract tests required** | end-to-end hard |
+| Cost control | fine at low volume | fine, explicit | opaque, lock-in risk |
+
+**Recommendation: B, reached through A.** Build the task loop as a module with a real seam from
+day one — the router interface, a **durable DB-backed job queue** (`generation_jobs`, idempotent
+per key) and a worker interface — and run it **in-process first** on a dedicated executor so bulk
+generation never shares threads with request serving. Because the seam exists, extracting it to a
+separate worker process later is a deployment change, not a rewrite.
+
+**Extraction triggers:** concurrent generations saturating the API executor; API latency SLO
+breaches correlated with generation load; a decision to write agents in a non-JVM language; or
+pre-generation batch windows large enough to need dedicated nodes.
+
+**Scope note:** DSH and MCP are *tooling* used to build and operate this. The production runtime
+that serves learners is the app plus its worker — not a developer harness, and not an external
+agent platform that the content standard, capture and licensing would depend on.
+
 ### 2.2 Prompt library (Library 1)
 
 Prompts are **versioned data**, keyed by `(taskType, subject, gradeBand, standardVersion)`, not
