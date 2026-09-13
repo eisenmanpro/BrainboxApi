@@ -52,6 +52,7 @@ class SchoolConfigService(
         entity.watermarkText = request.watermarkText?.trim()?.takeIf { it.isNotEmpty() }
         entity.academicCalendar = codec.toJson(request.academicCalendar.filter { it.isNotBlank() })
         entity.cbcStrands = codec.toJson(request.cbcStrands.filter { it.isNotBlank() })
+        entity.rooms = codec.toJson(cleanRooms(request.rooms))
         entity.updatedAt = clock.instant()
         repository.saveAndFlush(entity)
         auditLogService.record(schoolId, actor, "Updated school config")
@@ -102,7 +103,15 @@ class SchoolConfigService(
         if (request.academicCalendar.size > MAX_CALENDAR_TERMS) {
             throw invalidArgument("academicCalendar must have at most " + MAX_CALENDAR_TERMS + " entries")
         }
+        if (request.rooms.size > MAX_ROOMS) throw invalidArgument("rooms must have at most " + MAX_ROOMS + " entries")
+        request.rooms.filter { it.isNotBlank() }.forEach {
+            if (it.trim().length > MAX_ROOM_NAME) throw invalidArgument("room names must be at most " + MAX_ROOM_NAME + " characters")
+        }
     }
+
+    /** Trim, drop blanks and de-duplicate while preserving the caller's order. */
+    private fun cleanRooms(rooms: List<String>): List<String> =
+        rooms.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
 
     private fun payload(schoolId: UUID, entity: SchoolConfigEntity?): SchoolConfigPayload {
         val fallbackName = schoolRepository.findById(schoolId).orElse(null)?.name.orEmpty()
@@ -118,6 +127,7 @@ class SchoolConfigService(
             watermarkText = entity?.watermarkText,
             academicCalendar = codec.parseList(entity?.academicCalendar).orEmpty(),
             cbcStrands = codec.parseList(entity?.cbcStrands).orEmpty(),
+            rooms = codec.parseList(entity?.rooms).orEmpty(),
         )
     }
 
@@ -127,6 +137,8 @@ class SchoolConfigService(
         const val MAX_MOTTO = 160
         const val MAX_WATERMARK = 120
         const val MAX_CALENDAR_TERMS = 12
+        const val MAX_ROOMS = 100
+        const val MAX_ROOM_NAME = 120
         val HEX_COLOR = Regex("^#[0-9A-Fa-f]{6}$")
         val EMAIL = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
     }

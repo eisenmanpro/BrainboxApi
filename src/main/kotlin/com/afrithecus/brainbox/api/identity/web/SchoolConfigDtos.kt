@@ -16,4 +16,6 @@ data class SchoolConfigPayload(
     val watermarkText: String? = null,
     val academicCalendar: List<String> = emptyList(),
     val cbcStrands: List<String> = emptyList(),
+    /** Server-owned room list for the timetable/room pickers (TT-3). */
+    val rooms: List<String> = emptyList(),
 )

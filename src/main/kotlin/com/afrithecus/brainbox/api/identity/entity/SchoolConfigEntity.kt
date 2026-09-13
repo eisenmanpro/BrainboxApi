@@ -53,6 +53,9 @@ class SchoolConfigEntity {
     @Column(name = "cbc_strands", columnDefinition = "text")
     var cbcStrands: String? = null
 
+    @Column(columnDefinition = "text")
+    var rooms: String? = null
+
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant = Instant.now()
 

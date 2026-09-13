@@ -77,7 +77,13 @@ data class GroupTeacherPayload(
     val isActive: Boolean = true,
 )
 
-/** GradebookEntry shape used by GET /teacher/class-groups/{id}/gradebook. */
+/**
+ * Read-only gradebook contribution used by GET /teacher/class-groups/{id}/gradebook.
+ * The row is backed by a graded homework submission, so `id` is an opaque
+ * contribution id ("contrib_<submissionId>") that is NOT a gradebook entry id:
+ * it is never accepted by PUT/DELETE teacher/gradebook/{entryId}. Homework
+ * grades are edited through the homework grading endpoint instead (GB-1).
+ */
 data class GradebookContributionPayload(
     val id: String,
     val classId: String,

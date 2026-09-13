@@ -355,6 +355,7 @@ class ReportWebTests(
                 watermarkText = "Alliance",
                 academicCalendar = listOf("Term 1", "Term 2"),
                 cbcStrands = listOf("ENG"),
+                rooms = listOf("Room 101", "Science Lab", "Room 101"),
             )
         )
         val saved = objectMapper.readValue(
@@ -365,6 +366,8 @@ class ReportWebTests(
             SchoolConfigPayload::class.java,
         )
         check(saved.motto == "Knowledge is Power" && saved.academicCalendar.size == 2)
+        // TT-3: rooms are server-owned, trimmed and de-duplicated.
+        check(saved.rooms == listOf("Room 101", "Science Lab"))
         val reread = objectMapper.readValue(
             mockMvc.perform(get("/admin/schools/" + schoolId + "/config").header("Authorization", auth(token(admin))))
                 .andExpect(status().isOk).andReturn().response.contentAsString,

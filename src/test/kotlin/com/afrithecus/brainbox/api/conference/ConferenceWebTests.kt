@@ -228,4 +228,47 @@ class ConferenceWebTests(
             ).isEmpty()
         )
     }
+
+    @Test
+    fun `recurring slot materialises occurrences`() {
+        val teacher = user(Role.TEACHER, "Recurring Teacher", "0755120090")
+        val t = token(teacher)
+        val slot = ConferenceSlotPayload(
+            id = "series_1",
+            title = "Weekly Check-in",
+            date = System.currentTimeMillis() + 86_400_000L,
+            startTime = "10:00",
+            endTime = "10:30",
+            durationMinutes = 30,
+            maxBookings = 1,
+            audienceTarget = "WHOLE_SCHOOL",
+            isRecurring = true,
+            recurrenceRule = "FREQ=WEEKLY;COUNT=3",
+        )
+        val created = objectMapper.readValue(
+            mockMvc.perform(post("/teacher/conference/slot").header("Authorization", auth(t))
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(slot)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            ConferenceSlotPayload::class.java,
+        )
+        check(created.isRecurring)
+        val slots = objectMapper.readValue(
+            mockMvc.perform(get("/teacher/conference/" + teacher.id + "/slots").header("Authorization", auth(t)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<ConferenceSlotPayload>::class.java,
+        )
+        check(slots.size == 3) { "expected 3 occurrences, got " + slots.size }
+        check(slots.map { it.date }.toSet().size == 3)
+        check(slots.count { it.isRecurring } == 1)
+        // Replaying the create must not duplicate the series.
+        mockMvc.perform(post("/teacher/conference/slot").header("Authorization", auth(t))
+            .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(slot)))
+            .andExpect(status().isOk)
+        val afterReplay = objectMapper.readValue(
+            mockMvc.perform(get("/teacher/conference/" + teacher.id + "/slots").header("Authorization", auth(t)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<ConferenceSlotPayload>::class.java,
+        )
+        check(afterReplay.size == 3)
+    }
 }

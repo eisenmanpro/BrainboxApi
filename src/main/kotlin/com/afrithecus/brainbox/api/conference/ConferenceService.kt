@@ -68,6 +68,9 @@ class ConferenceService(
         }
         applySlot(entity, request, teacher)
         slotRepository.saveAndFlush(entity)
+        if (existing == null && entity.isRecurring && !entity.recurrenceRule.isNullOrBlank()) {
+            expandSeries(entity, clientId)
+        }
         return slotPayload(entity)
     }
 
@@ -273,6 +276,38 @@ class ConferenceService(
         entity.audienceTarget = validateAudience(request.audienceTarget)
         entity.createdByRole = request.createdByRole.trim().ifEmpty { "TEACHER" }
         entity.linkedLiveClassId = request.linkedLiveClassId?.trim()?.takeIf { it.isNotEmpty() }
+    }
+
+    /**
+     * Materialises a recurring slot's occurrences as concrete sibling slots. The
+     * ids are deterministic (`<baseClientId>_r<n>`) so an offline replay upserts
+     * instead of duplicating the series (CONF-1).
+     */
+    private fun expandSeries(base: ConferenceSlotEntity, baseClientId: String) {
+        val zone = runCatching { ZoneId.of(schoolZone) }.getOrDefault(ZoneId.of("Africa/Nairobi"))
+        val occurrences = RecurrenceExpander.expand(base.slotDate, base.recurrenceRule, zone).occurrences.drop(1)
+        occurrences.forEachIndexed { index, instant ->
+            val siblingId = baseClientId + "_r" + (index + 1)
+            if (slotRepository.findByClientId(siblingId) != null) return@forEachIndexed
+            slotRepository.save(ConferenceSlotEntity().apply {
+                this.clientId = siblingId
+                teacherId = base.teacherId
+                teacherName = base.teacherName
+                title = base.title
+                slotDate = instant
+                startTime = base.startTime
+                endTime = base.endTime
+                durationMinutes = base.durationMinutes
+                maxBookings = base.maxBookings
+                isVirtual = base.isVirtual
+                location = base.location
+                status = "OPEN"
+                audienceTarget = base.audienceTarget
+                createdByRole = base.createdByRole
+                isRecurring = false
+                recurrenceRule = null
+            })
+        }
     }
 
     private fun parentAudienceVisible(slot: ConferenceSlotEntity): Boolean = when (slot.audienceTarget) {

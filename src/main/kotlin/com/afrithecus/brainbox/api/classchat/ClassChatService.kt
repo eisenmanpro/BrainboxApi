@@ -236,7 +236,7 @@ class ClassChatService(
             submissionRepository.findAllByHomeworkId(homework.id).mapNotNull { submission ->
                 val grade = submission.grade ?: return@mapNotNull null
                 GradebookContributionPayload(
-                    id = "gb_" + submission.id,
+                    id = "contrib_" + submission.id,
                     classId = homework.classId.toString(),
                     teacherId = homework.teacherId.toString(),
                     assessmentId = homework.id,

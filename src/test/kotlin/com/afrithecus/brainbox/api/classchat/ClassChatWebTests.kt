@@ -319,6 +319,9 @@ class ClassChatWebTests(
         check(contributions.single().assessmentType == "HOMEWORK")
         check(contributions.single().rawScore == 88)
         check(contributions.single().studentName == f.studentA.name)
+        // Read-only contribution ids live in a separate namespace from gradebook entries.
+        check(contributions.single().id.startsWith("contrib_"))
+        check(contributions.single().assessmentId == "hw_chat_1")
 
         // another teacher cannot read the group
         val other = newUser("0779600010", "chat.teacher2@test", Role.TEACHER)
