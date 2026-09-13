@@ -102,30 +102,53 @@ lookup, subject Notes & Guides read/write, exam templates, the learner's mastery
 web fetch/scrape, diagram rendering, and the validator suite. This is also how the future
 moderation console can reuse the same tool surface.
 
-### 2.6 Critique / Reviewer — validators + critic
+### 2.6 Quality and safety — validators, critic and two moderation tiers
 
-Two layers in one stage: a **deterministic validator chain** (schema, reading level, step
-length, visual presence, nested-question cadence, answer-key correctness, duplication,
-licensing/provenance) and an **LLM critic** for pedagogical quality. It returns structured
-findings the loop can act on; a hard-fail escalates instead of looping forever.
+**Quality** is two layers: a deterministic validator chain (schema, reading level, step length,
+visual presence, nested-question cadence, answer-key correctness, duplication, licensing) and an
+LLM critic for pedagogy. Both return structured findings the loop acts on; a hard-fail escalates.
 
-### 2.7 Human reviewer + moderation console
+**Safety has two tiers, because the latency budgets differ:**
 
-The HITL gate: `GENERATED → AUTO_REVIEW → HUMAN_REVIEW → APPROVED | REJECTED → PUBLISHED`,
-with reviewer identity, comments, side-by-side diff and rollback. Served by the separate local
-web console (§5).
+- **Real-time tier (route-time).** Personalised quizzes and anything a learner waits on pass a
+  **synchronous, rule-based filter** before leaving the router: deny-lists and pattern rules for
+  profanity, sexual/violent content, unsafe advice, politics, off-topic and jailbreak artefacts,
+  plus PII checks. Cheap, deterministic and **fail-closed** — if the filter errors, the content
+  is withheld. A model-based classifier replaces or augments it later behind the same seam.
+- **Bulk tier (write-time).** Larger content written into the client-facing tables (books,
+  chunks, papers, homework) is tagged **`REVIEWED` / `UNREVIEWED`**; the moderator console
+  toggles the tag to confirm. Only `REVIEWED` content is learner-visible.
+
+### 2.7 Write-through, the human reviewer and the teacher feedback loop
+
+The HITL gate is `GENERATED → AUTO_REVIEW → REVIEWED | REJECTED`, with reviewer identity,
+comments, side-by-side diff and rollback, served by the local console (§5). Three rules:
+
+- **Write-through.** Whatever the model generates is written into the *specific* table the client
+  already calls (notes/guides, exam hub, readable materials) with its moderation state and
+  provenance — no side store, no separate sync job.
+- **Provenance attribute.** Anything fully model-authored carries `generated = true` (plus
+  author/created-by and source URLs), and the client shows it, so a teacher always knows what
+  the model wrote versus what a human did.
+- **Teacher feedback.** Teachers can **rate** model materials and flag what they dislike. A
+  rating is stored against the exact generation — prompt version, model, run id from the router
+  (§2.0) — so the aggregate ("what most teachers do / do not want") becomes the preference
+  signal that steers prompt selection and future model choice.
 
 ### 2.8 Data stores
 
 - **Subject Notes & Guides DB** — the canonical learning units (concept-first, versioned).
   This doubles as the **generation cache**: unique per `(taskType, concept, grade, standard,
   schemaVersion, promptVersion)` so identical requests are idempotent.
-- **Library 2 / Exam hub DB (private vs public)** — `private` = generated/awaiting review,
-  `public` = approved and learner-visible. Same split should apply to notes/guides.
+- **Library 2 / Exam hub DB (private vs public)** — `private` = generated / `UNREVIEWED`,
+  `public` = `REVIEWED` and learner-visible. Same split applies to notes, guides and chunks.
 - **Exam Templates & Resources** — paper blueprints (subject, grade, sections, marks, duration)
   and reusable resource assets.
-- Every row carries **provenance**: `generated` vs `uploaded`, author/created-by, source URLs,
-  licence, prompt version, model, tokens, moderation outcome.
+- Every row carries its **review state** (`UNREVIEWED` / `REVIEWED` / `REJECTED`) and
+  **provenance**: `generated` vs `uploaded`, author/created-by, source URLs, licence, prompt
+  version, model, tokens, moderation outcome.
+- **`content_feedback`** — teacher ratings/flags joined to the generation (prompt, model, run id),
+  the preference dataset that steers the pipeline.
 
 ### 2.9 Web intel / scraping — grounding with rules
 
@@ -146,6 +169,11 @@ Public store → existing client surfaces (`learning/post/{id}/content`, `materi
 learning unit (steps with nested questions + figures) → validators + critic → revise → human
 review → public store. A chunk is the same unit projected short; a book is the full unit.
 
+**A2. Real-time personalised quiz.** The learner asks for practice; the router admits the job,
+returns the generated quiz **after the synchronous rule filter only** (no human wait), and stores
+it tagged `UNREVIEWED` — a later moderator pass promotes or pulls it. Bulk content takes the full
+queue; the latency budget is what separates the two.
+
 **B. Quiz / flashcards.** Same unit, projected as an assessment block; answer keys stored
 separately and stripped for hub delivery, kept for past papers.
 
@@ -161,8 +189,9 @@ provenance, bypasses generation but not moderation.
 
 - **Backend schema:** the router capture tables (`agent_runs`, `model_calls`, `tool_calls`,
   cache keys), `concepts`, `curriculum_map` (per-country), `learning_units` + `steps` +
-  `unit_questions` + `unit_figures`, `generation_jobs`, `prompt_versions`, `moderation_reviews`,
-  `provenance`/licence columns, and private/public state on all content.
+  `unit_questions` + `unit_figures`, `generation_jobs`, `prompt_versions`, `content_reviews`
+  (reviewed/unreviewed), `content_feedback` (teacher ratings), `provenance`/licence columns, and
+  private/public state on all content.
 - **Backend delivery:** the §1.6 contract fixes (materials body, hub `postId`/`metadata`/`status`,
   enum subject, doubt, progress) plus a **rich chunk body** so visual chunks are not plain text.
 - **Client:** the existing `LearningContent` block order already supports nested questions if the
@@ -176,8 +205,10 @@ provenance, bypasses generation but not moderation.
 A new app — not the Android client, not `BrainboxWeb` — served locally/internal, with:
 
 - an authentication/role model (reviewer, subject expert, platform moderator, admin);
-- the content review queue with side-by-side diffs, approve/reject/request-changes, and publish
-  / unpublish / rollback;
+- the content review queue with side-by-side diffs, the **Reviewed/Unreviewed** toggle,
+  approve/reject/request-changes, and publish / unpublish / rollback;
+- the teacher-feedback view (ratings aggregated per concept, prompt version and model), which is
+  how "what most teachers want" is read back out;
 - prompt and curriculum management (versions, eval scores);
 - platform-wide moderation of user-generated surfaces (CBC projects, doubt, class chat, news),
   which is broader than Phase 7;
