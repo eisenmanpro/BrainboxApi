@@ -25,6 +25,10 @@ class ReadableFileEntity : BaseEntity() {
     @Column(columnDefinition = "text")
     var description: String? = null
 
+    /** Inline body for a generated PLAINTEXT chunk (no external file URL). */
+    @Column(columnDefinition = "text")
+    var body: String? = null
+
     @Column(name = "author_name", length = 160)
     var authorName: String? = null
 

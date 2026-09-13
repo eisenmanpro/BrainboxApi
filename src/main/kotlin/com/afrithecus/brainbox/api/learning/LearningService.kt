@@ -124,13 +124,13 @@ class LearningService(
         ContentScope.isVisible(post.scope, post.schoolId, post.gradeLevel, post.teacherId, user)
 
     private fun toPost(post: LearningPostEntity, trending: Boolean = false): LearningPostPayload {
-        val canonical = canonicalSubject(post.subject)
+        val canonical = CanonicalSubject.canonical(post.subject)
         val custom = post.customSubjectName?.takeIf { it.isNotBlank() }
             ?: post.subject.takeIf { canonical == null }?.trim()?.takeIf { it.isNotEmpty() }
         return LearningPostPayload(
             id = post.id.toString(),
             title = post.title,
-            subject = canonical ?: DEFAULT_SUBJECT,
+            subject = canonical ?: CanonicalSubject.DEFAULT,
             topic = post.topic,
             subtopic = post.subtopic,
             imageUrl = post.imageUrl,
@@ -190,16 +190,6 @@ class LearningService(
             ContentType.DOCUMENT -> "PDF"
             else -> block.contentType.name
         }
-    }
-
-    /**
-     * The client Subject enum is fixed to eight values, so the wire value must be an enum name;
-     * anything else rides customSubjectName with a safe placeholder enum.
-     */
-    private fun canonicalSubject(raw: String): String? {
-        val cleaned = raw.trim().uppercase().replace(Regex("\\s+"), "_")
-        if (cleaned in SUBJECTS) return cleaned
-        return SUBJECT_ALIASES[cleaned] ?: SUBJECT_ALIASES[cleaned.replace("_", "")]
     }
 
     private fun stripKeys(node: JsonNode): JsonNode {
@@ -323,24 +313,5 @@ class LearningService(
 
     private companion object {
         const val TRENDING_LIMIT = 20
-        const val DEFAULT_SUBJECT = "MATHEMATICS"
-
-        val SUBJECTS = setOf(
-            "MATHEMATICS", "ENGLISH", "KISWAHILI", "PHYSICS",
-            "CHEMISTRY", "BIOLOGY", "HISTORY", "GEOGRAPHY",
-        )
-
-        val SUBJECT_ALIASES = mapOf(
-            "MATH" to "MATHEMATICS",
-            "MATHS" to "MATHEMATICS",
-            "MATHEMATIC" to "MATHEMATICS",
-            "SWAHILI" to "KISWAHILI",
-            "BIO" to "BIOLOGY",
-            "CHEM" to "CHEMISTRY",
-            "PHYS" to "PHYSICS",
-            "HIST" to "HISTORY",
-            "GEO" to "GEOGRAPHY",
-            "ENG" to "ENGLISH",
-        )
     }
 }

@@ -21,6 +21,9 @@ class ContentUnitEntity : BaseEntity() {
     @Column(name = "task_type", nullable = false, length = 32)
     var taskType: String = ""
 
+    @Column(length = 255)
+    var title: String? = null
+
     @Column(name = "concept_id")
     var conceptId: UUID? = null
 
