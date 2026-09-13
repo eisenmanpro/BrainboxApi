@@ -204,6 +204,21 @@ constraints: **Brainbox moderators are excluded** from this ladder (they are the
 teachers on it), and **tiers never gate eligibility** — a teacher who has never reviewed can
 always start; trust only changes how much their review counts.
 
+**Promotion gate (locked).** A personalised paper is never promoted as an instance. What
+graduates is its **new questions and its blueprint**, and only when all of these hold:
+
+- every question is `REVIEWED` or confidence-auto-approved above threshold;
+- ≥3 ratings from ≥2 distinct teachers, mean ≥4/5, no "wrong answer" or "unsafe" tags, and fewer
+  than 20% of ratings at ≤2 (no polarised content);
+- at least one reuse by a teacher **other than** the one whose learner triggered it (independent
+  validation, and impossible to reach by a single teacher assigning repeatedly);
+- safety clear, and a PII / learner-specificity check passes — no learner names or data inside
+  the promoted items.
+
+Promotion snapshots its evidence and is **reversible**: a later qualifying negative signal
+demotes the item and reopens it for review. Every threshold lives in the moderation policy, so
+it can be tightened or loosened without a deploy.
+
 ### 2.8 Data stores
 
 - **Subject Notes & Guides DB** — the canonical learning units (concept-first, versioned).
@@ -279,8 +294,9 @@ locally/internal. It is the **Brainbox staff screen**, so moderation is only one
 
 - **Platform analytics:** total and active users, schools, signups/growth, engagement, content
   volume and review throughput, and the all-platform view.
-- **Account and school administration:** suspend / unfreeze accounts, manage school admins, and
-  the platform-wide account actions that today sit behind the admin API.
+- **Account and school administration (platform level):** suspend / unfreeze **any** account,
+  manage school admins, and the platform-wide actions behind the admin API. School admins keep
+  their own **school-scoped** freeze/unfreeze; the console is the platform-level capability.
 - **Content review (HITL):** the queue with side-by-side diffs, the Reviewed/Unreviewed toggle,
   approve/reject/request-changes, publish / unpublish / rollback, and promotion overrides.
 - **Teacher feedback:** ratings aggregated per concept, prompt version and model — what teachers
@@ -314,8 +330,13 @@ moderation/generation screens.
 - **Auto-promotion:** a personalised paper that performs well is published back automatically;
   promotion **generalises** it (learner-specific ordering and data stripped) before it enters the
   shared bank, and a moderator can still demote it.
-- **Brainbox team console scope:** platform analytics, account/school administration
-  (suspend / unfreeze), moderation, prompts/policy and generation monitoring — one internal app.
+- **Account authority:** school admins keep their **school-scoped** freeze/unfreeze; the
+  Brainbox console holds the **platform-level** suspend/unfreeze for any account.
+- **Promotion gate (locked):** new questions and the blueprint graduate — not the learner-specific
+  paper instance — through the evidence gate in §2.7 (reviewed, ≥3 ratings from ≥2 teachers, mean
+  ≥4/5, independent reuse, safety/PII clear), snapshotted and reversible.
+- **Brainbox team console scope:** platform analytics, platform-level account/school
+  administration, moderation, prompts/policy and generation monitoring — one internal app.
 - **Approval authority:** default quorum = **two approvals from any teacher of the matching
   subject/grade**. A versioned policy the Brainbox moderator can switch to weighted-expertise or
   moderator-only at any time; the switch applies to new reviews.
@@ -334,13 +355,10 @@ moderation/generation screens.
 
 **Still open:**
 
-1. **Personalised exam papers** — learner-private practice, teacher-assigned, or both? That
-   decides the private/public split, the client surface, and whether a generated paper can be
-   assigned as homework.
-2. **MCP** — self-hosted servers per store, or in-process tools behind one MCP client?
-3. **Languages** beyond English/Kiswahili for the localisation agent?
-4. **Every country after Kenya** — build the concept layer now rather than retrofit after the
+1. **MCP** — self-hosted servers per store, or in-process tools behind one MCP client?
+2. **Languages** beyond English/Kiswahili for the localisation agent?
+3. **Every country after Kenya** — build the concept layer now rather than retrofit after the
    Kenyan corpus? (Confirm.)
-5. **Accuracy measurement** — per-dimension targets and the golden-set size and growth; how
+4. **Accuracy measurement** — per-dimension targets and the golden-set size and growth; how
    "approximate" agreement is defined for tier advancement; how much a coordinator approval
    counts once expert mode is on.
