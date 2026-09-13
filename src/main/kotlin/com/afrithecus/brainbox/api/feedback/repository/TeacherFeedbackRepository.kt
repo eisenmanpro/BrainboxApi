@@ -14,4 +14,6 @@ interface TeacherFeedbackRepository : JpaRepository<TeacherFeedbackEntity, UUID>
         teacherId: UUID,
         studentId: UUID,
     ): List<TeacherFeedbackEntity>
+
+    fun findAllByStudentIdOrderByCreatedAtDesc(studentId: UUID): List<TeacherFeedbackEntity>
 }
