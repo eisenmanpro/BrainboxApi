@@ -3,8 +3,11 @@ package com.afrithecus.brainbox.api.report
 import com.afrithecus.brainbox.api.cbcratings.CbcAnalyticsService
 import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.common.error.invalidArgument
+import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
+import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
+import com.afrithecus.brainbox.api.studentanalytics.StudentAnalyticsService
 import com.afrithecus.brainbox.api.report.web.ReportGenerationRequestPayload
 import com.afrithecus.brainbox.api.report.web.ReportType
 import com.afrithecus.brainbox.api.traditional.TraditionalExamService
@@ -25,6 +28,7 @@ import java.util.UUID
 class ReportDataService(
     private val traditional: TraditionalExamService,
     private val cbc: CbcAnalyticsService,
+    private val studentAnalyticsService: StudentAnalyticsService,
     private val userRepository: UserRepository,
     private val membershipRepository: ClassMembershipRepository,
 ) {
@@ -51,11 +55,13 @@ class ReportDataService(
             TraditionalStudentsSpec("Student Traditional Exam Report", branding, reports)
         }
         ReportType.CBC_STUDENT, ReportType.DETAILED_CBC_STUDENT -> {
-            val card = cbcStudentCards(request, actor)
+            val detailed = request.reportType == ReportType.DETAILED_CBC_STUDENT
+            val card = cbcStudentCards(request, actor, detailed)
             CbcStudentsSpec(
-                title = if (request.reportType == ReportType.DETAILED_CBC_STUDENT) "Detailed Student CBC Report" else "Student CBC Report",
+                title = if (detailed) "Detailed Student CBC Report" else "Student CBC Report",
                 branding = branding,
                 cards = card,
+                detailed = detailed,
             )
         }
         ReportType.CBC_CLASS, ReportType.DETAILED_CBC_CLASS -> {
@@ -66,6 +72,7 @@ class ReportDataService(
                 title = if (request.reportType == ReportType.DETAILED_CBC_CLASS) "Detailed Class CBC Report" else "Class CBC Report",
                 branding = branding,
                 classReport = report,
+                detailed = request.reportType == ReportType.DETAILED_CBC_CLASS,
             )
         }
         ReportType.TEACHER_PERFORMANCE -> {
@@ -107,13 +114,26 @@ class ReportDataService(
         return GradeTableSpec(title, branding, exam, ranked, perClass)
     }
 
-    private fun cbcStudentCards(request: ReportGenerationRequestPayload, actor: CurrentUser): List<CbcStudentCard> {
+    private fun cbcStudentCards(request: ReportGenerationRequestPayload, actor: CurrentUser, detailed: Boolean): List<CbcStudentCard> {
         if (request.studentIds.isEmpty()) throw invalidArgument("studentIds are required for a CBC student report")
-        val teacher = teacher(actor)
+        val viewer = userRepository.findById(actor.userId).orElseThrow { invalidArgument("Report owner not found") }
         return request.studentIds.map { studentId ->
-            val card = cbc.studentReport(teacher, studentId, request.term)
-            CbcStudentCard(studentId, card.studentName, card.gradeLevel, card.term, card)
+            val card = cbc.studentReportForViewer(viewer, studentId, request.term)
+            CbcStudentCard(studentId, card.studentName, card.gradeLevel, card.term, card, detailFor(viewer, studentId, detailed))
         }
+    }
+
+    /** Engagement analytics for the detailed page; teacher-scoped and best-effort. */
+    private fun detailFor(viewer: UserEntity, studentId: String, detailed: Boolean): CbcStudentDetail? {
+        if (!detailed || viewer.role != Role.TEACHER) return null
+        val analytics = runCatching { studentAnalyticsService.studentAnalytics(viewer, studentId) }.getOrNull()
+            ?: return null
+        return CbcStudentDetail(
+            learningStreakDays = analytics.quickStats.streakDays,
+            totalXp = analytics.quickStats.totalXP,
+            classAverageScore = analytics.classComparisons?.classAverageScore,
+            classPercentile = analytics.classComparisons?.studentPercentile,
+        )
     }
 
     /** Appends rostered students with no marks as zero rows, mirroring the client. */

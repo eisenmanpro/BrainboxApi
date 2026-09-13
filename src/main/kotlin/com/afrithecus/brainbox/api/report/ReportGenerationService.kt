@@ -54,6 +54,24 @@ class ReportGenerationService(
         return payload(created, baseUrl)
     }
 
+    /**
+     * Learner/parent submission. The caller has already resolved and authorized the
+     * target learner and built the (learner-safe) request; ownership stays with the
+     * actor so they poll and download through the normal job path.
+     */
+    fun submitStudent(
+        actor: CurrentUser,
+        student: UserEntity,
+        request: ReportGenerationRequestPayload,
+        baseUrl: String?,
+    ): ReportJobPayload {
+        val user = userRepository.findById(actor.userId).orElse(null) ?: throw notFound("User not found")
+        val requestId = request.jobRequestId?.trim()?.takeIf { it.isNotEmpty() } ?: UUID.randomUUID().toString()
+        state.byRequest(user.id, requestId)?.let { return payload(it, baseUrl) }
+        val created = createAndDispatch(user, student.schoolId ?: user.schoolId, request, requestId)
+        return payload(created, baseUrl)
+    }
+
     @Transactional(readOnly = true)
     fun get(actor: CurrentUser, jobIdRaw: String, baseUrl: String?): ReportJobPayload {
         val job = state.find(parseJobId(jobIdRaw)) ?: throw notFound("Report job not found")

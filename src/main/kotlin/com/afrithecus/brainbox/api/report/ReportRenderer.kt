@@ -223,67 +223,111 @@ class ReportRenderer(private val properties: ReportProperties) {
         canvas.titleBlock(spec.title, "Competency-based curriculum reports")
         spec.cards.forEachIndexed { index, entry ->
             if (index > 0) canvas.newPage()
-            val card = entry.card
-            canvas.sectionHeading(entry.studentName)
-            val meta = listOfNotNull(
-                entry.gradeLevel?.takeIf { it.isNotBlank() },
-                card.term.takeIf { it.isNotBlank() },
-            ).joinToString("  |  ")
-            if (meta.isNotEmpty()) {
-                canvas.text(meta, canvas.margin, canvas.cursor, 9f, color = MUTED)
-                canvas.cursor -= 14f
-            }
-            canvas.text(
-                "Attendance: " + oneDecimal(card.attendancePercentage) + "%    Overall: " + card.overallGrade,
-                canvas.margin,
-                canvas.cursor,
-                10f,
-                bold = true,
-            )
-            canvas.cursor -= 16f
-            if (card.strandRatings.isNotEmpty()) {
-                val widths = listOf(150f, 250f, 70f)
-                canvas.tableHeader(listOf("Strand", "Descriptor", "Rating"), widths)
-                card.strandRatings.forEach { rating ->
-                    canvas.ensure(TABLE_ROW_HEIGHT)
-                    canvas.tableRow(
-                        listOf(rating.strandCode, rating.descriptor, rating.rating),
-                        widths,
-                        TABLE_ROW_FONT,
-                    )
-                }
-                canvas.cursor -= 12f
-            }
-            if (card.paperExamResults.isNotEmpty()) {
-                canvas.ensure(50f)
-                canvas.text("Paper exams", canvas.margin, canvas.cursor, 10f, bold = true)
-                canvas.cursor -= 14f
-                val widths = listOf(180f, 70f, 70f, 70f, 60f)
-                canvas.tableHeader(listOf("Subject", "Score", "Max", "%", "Grade"), widths)
-                card.paperExamResults.forEach { exam ->
-                    canvas.ensure(TABLE_ROW_HEIGHT)
-                    canvas.tableRow(
-                        listOf(
-                            exam.subject,
-                            oneDecimal(exam.score),
-                            oneDecimal(exam.maxScore),
-                            oneDecimal(exam.percentage),
-                            exam.grade,
-                        ),
-                        widths,
-                        TABLE_ROW_FONT,
-                    )
-                }
-                canvas.cursor -= 12f
-            }
-            if (card.teacherComments.isNotBlank()) {
-                canvas.ensure(60f)
-                canvas.text("Teacher comments", canvas.margin, canvas.cursor, 10f, bold = true)
-                canvas.cursor -= 14f
-                canvas.wrappedParagraph(card.teacherComments, canvas.margin, canvas.cursor, canvas.width - 2 * canvas.margin, 9f)
+            renderCbcStudentCard(canvas, entry)
+            if (spec.detailed) {
+                canvas.newPage()
+                renderCbcStudentDetail(canvas, entry)
             }
         }
         canvas.finish()
+    }
+
+    private fun renderCbcStudentCard(canvas: PdfCanvas, entry: CbcStudentCard) {
+        val card = entry.card
+        canvas.sectionHeading(entry.studentName)
+        val meta = listOfNotNull(
+            entry.gradeLevel?.takeIf { it.isNotBlank() },
+            card.term.takeIf { it.isNotBlank() },
+        ).joinToString("  |  ")
+        if (meta.isNotEmpty()) {
+            canvas.text(meta, canvas.margin, canvas.cursor, 9f, color = MUTED)
+            canvas.cursor -= 14f
+        }
+        canvas.text(
+            "Attendance: " + oneDecimal(card.attendancePercentage) + "%    Overall: " + card.overallGrade,
+            canvas.margin,
+            canvas.cursor,
+            10f,
+            bold = true,
+        )
+        canvas.cursor -= 16f
+        if (card.strandRatings.isNotEmpty()) {
+            val widths = listOf(150f, 250f, 70f)
+            canvas.tableHeader(listOf("Strand", "Descriptor", "Rating"), widths)
+            card.strandRatings.forEach { rating ->
+                canvas.ensure(TABLE_ROW_HEIGHT)
+                canvas.tableRow(
+                    listOf(rating.strandCode, rating.descriptor, rating.rating),
+                    widths,
+                    TABLE_ROW_FONT,
+                )
+            }
+            canvas.cursor -= 12f
+        }
+        if (card.paperExamResults.isNotEmpty()) {
+            canvas.ensure(50f)
+            canvas.text("Paper exams", canvas.margin, canvas.cursor, 10f, bold = true)
+            canvas.cursor -= 14f
+            val widths = listOf(180f, 70f, 70f, 70f, 60f)
+            canvas.tableHeader(listOf("Subject", "Score", "Max", "%", "Grade"), widths)
+            card.paperExamResults.forEach { exam ->
+                canvas.ensure(TABLE_ROW_HEIGHT)
+                canvas.tableRow(
+                    listOf(
+                        exam.subject,
+                        oneDecimal(exam.score),
+                        oneDecimal(exam.maxScore),
+                        oneDecimal(exam.percentage),
+                        exam.grade,
+                    ),
+                    widths,
+                    TABLE_ROW_FONT,
+                )
+            }
+            canvas.cursor -= 12f
+        }
+        if (card.teacherComments.isNotBlank()) {
+            canvas.ensure(60f)
+            canvas.text("Teacher comments", canvas.margin, canvas.cursor, 10f, bold = true)
+            canvas.cursor -= 14f
+            canvas.wrappedParagraph(card.teacherComments, canvas.margin, canvas.cursor, canvas.width - 2 * canvas.margin, 9f)
+        }
+    }
+
+    private fun renderCbcStudentDetail(canvas: PdfCanvas, entry: CbcStudentCard) {
+        val card = entry.card
+        canvas.titleBlock("CBC Analytics Report", entry.studentName + "  |  " + card.term)
+        canvas.sectionHeading("CBC Learning Areas")
+        val widths = listOf(320f, 130f)
+        canvas.tableHeader(listOf("CBC Learning Area", "Competency Level"), widths)
+        if (card.strandRatings.isEmpty()) {
+            canvas.tableRow(listOf("No strand ratings recorded", "-"), widths, TABLE_ROW_FONT)
+        } else {
+            card.strandRatings.forEach { rating ->
+                canvas.ensure(TABLE_ROW_HEIGHT)
+                canvas.tableRow(listOf(rating.descriptor, rating.rating), widths, TABLE_ROW_FONT)
+            }
+        }
+        canvas.cursor -= 14f
+        canvas.sectionHeading("Attendance & Engagement")
+        val engagement = listOfNotNull(
+            "Attendance" to (oneDecimal(card.attendancePercentage) + "% of school days"),
+            entry.detail?.learningStreakDays?.takeIf { it > 0 }?.let { "Learning streak" to (it.toString() + " days") },
+            entry.detail?.totalXp?.takeIf { it > 0 }?.let { "Total XP" to (it.toString() + " XP") },
+            entry.detail?.classAverageScore?.let { "Class average score" to (oneDecimal(it) + "%") },
+            entry.detail?.classPercentile?.takeIf { it > 0 }?.let { "Class percentile" to (it.toString() + "th") },
+        )
+        engagement.forEach { (label, value) ->
+            canvas.ensure(14f)
+            canvas.text(label, canvas.margin, canvas.cursor, 9.5f, bold = true)
+            canvas.text(value, canvas.margin + 180f, canvas.cursor, 9.5f)
+            canvas.cursor -= 14f
+        }
+        canvas.cursor -= 10f
+        canvas.sectionHeading("CBC Assessment Levels")
+        canvas.text("EE - Exceeding Expectations     ME - Meeting Expectations", canvas.margin, canvas.cursor, 9f, color = MUTED)
+        canvas.cursor -= 14f
+        canvas.text("AE - Approaching Expectations     BE - Below Expectations", canvas.margin, canvas.cursor, 9f, color = MUTED)
     }
 
     // ----------------------------------------------------- CBC class reports
@@ -302,22 +346,49 @@ class ReportRenderer(private val properties: ReportProperties) {
         canvas.cursor -= 16f
         if (report.strandMastery.isNotEmpty()) {
             canvas.sectionHeading("Strand mastery")
-            val widths = listOf(150f, 60f, 50f, 250f)
-            canvas.tableHeader(listOf("Strand", "Average", "Weak", "Recommendation"), widths)
-            report.strandMastery.forEach { strand ->
-                canvas.ensure(TABLE_ROW_HEIGHT)
-                canvas.tableRow(
-                    listOf(
-                        strand.strandName,
-                        oneDecimal(strand.classAverage),
-                        if (strand.isWeakStrand) "Yes" else "No",
-                        strand.recommendation.orEmpty(),
-                    ),
-                    widths,
-                    TABLE_ROW_FONT,
-                )
+            if (spec.detailed) {
+                val widths = listOf(200f, 90f, 70f)
+                canvas.tableHeader(listOf("Strand", "Average", "Weak"), widths)
+                report.strandMastery.forEach { strand ->
+                    canvas.ensure(TABLE_ROW_HEIGHT)
+                    canvas.tableRow(
+                        listOf(strand.strandName, oneDecimal(strand.classAverage), if (strand.isWeakStrand) "Yes" else "No"),
+                        widths,
+                        TABLE_ROW_FONT,
+                    )
+                }
+            } else {
+                val widths = listOf(150f, 60f, 50f, 250f)
+                canvas.tableHeader(listOf("Strand", "Average", "Weak", "Recommendation"), widths)
+                report.strandMastery.forEach { strand ->
+                    canvas.ensure(TABLE_ROW_HEIGHT)
+                    canvas.tableRow(
+                        listOf(
+                            strand.strandName,
+                            oneDecimal(strand.classAverage),
+                            if (strand.isWeakStrand) "Yes" else "No",
+                            strand.recommendation.orEmpty(),
+                        ),
+                        widths,
+                        TABLE_ROW_FONT,
+                    )
+                }
             }
             canvas.cursor -= 12f
+        }
+        if (spec.detailed) {
+            val recommendations = report.strandMastery.filter { it.isWeakStrand && !it.recommendation.isNullOrBlank() }
+            if (recommendations.isNotEmpty()) {
+                canvas.ensure(50f)
+                canvas.sectionHeading("Weak Strand Recommendations")
+                val widths = listOf(180f, 380f)
+                canvas.tableHeader(listOf("Strand", "Recommendation"), widths)
+                recommendations.forEach { strand ->
+                    canvas.ensure(TABLE_ROW_HEIGHT)
+                    canvas.tableRow(listOf(strand.strandName, strand.recommendation.orEmpty()), widths, TABLE_ROW_FONT)
+                }
+                canvas.cursor -= 12f
+            }
         }
         val performance = report.subjectTeacherPerformance
             .filter { spec.focusTeacher == null || it.teacherName.equals(spec.focusTeacher, ignoreCase = true) }

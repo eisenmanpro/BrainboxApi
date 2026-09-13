@@ -41,12 +41,24 @@ data class CbcStudentCard(
     val gradeLevel: String?,
     val term: String,
     val card: CbcReportCardPayload,
+    /** Extra analytics rendered only on the detailed second page. */
+    val detail: CbcStudentDetail? = null,
+)
+
+/** Engagement data for the detailed CBC student page; every field is optional. */
+data class CbcStudentDetail(
+    val learningStreakDays: Int = 0,
+    val totalXp: Int = 0,
+    val classAverageScore: Double? = null,
+    val classPercentile: Int? = null,
 )
 
 data class CbcStudentsSpec(
     override val title: String,
     override val branding: ReportBranding,
     val cards: List<CbcStudentCard>,
+    /** DETAILED_CBC_STUDENT adds a second analytics page per learner. */
+    val detailed: Boolean = false,
 ) : ReportRenderSpec
 
 data class CbcClassSpec(
@@ -55,6 +67,8 @@ data class CbcClassSpec(
     val classReport: CbcClassReportPayload,
     /** When set (teacher-performance report) only this teacher's row is shown. */
     val focusTeacher: String? = null,
+    /** DETAILED_CBC_CLASS renders weak-strand recommendations as a separate section. */
+    val detailed: Boolean = false,
 ) : ReportRenderSpec
 
 /** A blank, branded template (no report data) for the templates screen. */

@@ -139,6 +139,23 @@ class CbcAnalyticsService(
         val student = userRepository.findById(parseUuid(studentIdRaw, "studentId")).orElse(null)
             ?: throw notFound("Learner not found")
         requireStudentAccess(teacher, student)
+        return reportCard(student, termRaw)
+    }
+
+    /**
+     * Report card for a learner/parent viewer as well as staff: a learner sees only
+     * their own, a parent only a linked child, and a teacher only a learner they teach
+     * (coordinators/ICT/admin may read any).
+     */
+    @Transactional(readOnly = true)
+    fun studentReportForViewer(viewer: UserEntity, studentIdRaw: String, termRaw: String): CbcReportCardPayload {
+        val student = userRepository.findById(parseUuid(studentIdRaw, "studentId")).orElse(null)
+            ?: throw notFound("Learner not found")
+        requireViewerAccess(viewer, student)
+        return reportCard(student, termRaw)
+    }
+
+    private fun reportCard(student: UserEntity, termRaw: String): CbcReportCardPayload {
         val term = termRaw.trim().ifEmpty { "TERM_1" }
         val ratings = ratingRepository.findAllByStudentIdAndTermOrderByStrandCodeAsc(student.id, term)
         val strands = strandRepository.findAllByCodeIn(ratings.map { it.strandCode }.toSet()).associateBy { it.code }
@@ -218,6 +235,14 @@ class CbcAnalyticsService(
             .map { it.id }
             .toSet()
         if (studentClasses.intersect(teacherClasses).isEmpty()) throw forbidden("Not your learner")
+    }
+    private fun requireViewerAccess(viewer: UserEntity, student: UserEntity) {
+        when (viewer.role) {
+            Role.STUDENT -> if (viewer.id != student.id) throw forbidden("Not your report")
+            Role.PARENT -> if (student.parentUserId != viewer.id) throw forbidden("Not your linked child")
+            Role.ADMIN -> Unit
+            else -> requireStudentAccess(viewer, student)
+        }
     }
 
     private fun ratingScore(rating: String): Double = when (rating.uppercase()) {

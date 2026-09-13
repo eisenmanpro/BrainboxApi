@@ -168,4 +168,46 @@ class ReportRendererTests {
         val detailed = text(renderer.render(TemplateSpec("Template - CBC", branding, ReportType.DETAILED_CBC_CLASS)))
         assertTrue(detailed.contains("Weak Strand Recommendations"), "detailed class section missing")
     }
+
+    @Test
+    fun `detailed cbc student renders a second analytics page`() {
+        val card = CbcReportCardPayload(
+            studentName = "Alice Mwangi",
+            term = "Term 2",
+            strandRatings = listOf(CbcStrandRatingPayload("ENG", "Reads fluently", "MEETING")),
+            teacherComments = "Good progress",
+            attendancePercentage = 95.0,
+            overallGrade = "ME",
+            gradeLevel = "Grade 4",
+        )
+        val student = CbcStudentCard(
+            "s_1", "Alice Mwangi", "Grade 4", "Term 2", card,
+            CbcStudentDetail(learningStreakDays = 12, totalXp = 450, classAverageScore = 71.5, classPercentile = 80),
+        )
+        val detailed = CbcStudentsSpec("Detailed Student CBC Report", branding, listOf(student), detailed = true)
+        assertPdf(
+            renderer.render(detailed),
+            listOf("CBC Analytics Report", "Attendance & Engagement", "CBC Assessment Levels", "Reads fluently", "12 days", "450 XP", "71.5%", "80th"),
+        )
+        val plain = text(renderer.render(CbcStudentsSpec("Student CBC Report", branding, listOf(student))))
+        assertTrue(!plain.contains("CBC Assessment Levels"), "plain CBC report must not include the analytics page")
+    }
+
+    @Test
+    fun `detailed cbc class separates weak strand recommendations`() {
+        val classReport = CbcClassReportPayload(
+            classId = "c_1",
+            className = "Grade 4 East",
+            term = "Term 2",
+            strandMastery = listOf(
+                CbcStrandMasteryPayload("ENG", "English", 70.0, emptyMap(), false, "Keep reading daily"),
+                CbcStrandMasteryPayload("MATH", "Mathematics", 40.0, emptyMap(), true, "Reteach fractions"),
+            ),
+            overallClassAverage = 55.0,
+            subjectTeacherPerformance = emptyList(),
+        )
+        val detailed = text(renderer.render(CbcClassSpec("Detailed Class CBC Report", branding, classReport, detailed = true)))
+        assertTrue(detailed.contains("Weak Strand Recommendations"), "detailed class report needs the separate section")
+        assertTrue(detailed.contains("Reteach fractions"), "weak strand recommendation missing")
+    }
 }
