@@ -134,8 +134,9 @@ class ClassChatController(private val service: ClassChatService) {
         @AuthenticationPrincipal current: CurrentUser,
         @PathVariable groupId: String,
         @RequestParam question: String,
+        @RequestParam(required = false) clientPollId: String?,
         @RequestBody options: List<String>,
-    ): LivePollPayload = service.createPoll(current, groupId, question, options)
+    ): LivePollPayload = service.createPoll(current, groupId, question, options, clientPollId)
 
     @GetMapping("/{groupId}/gradebook")
     fun gradebook(

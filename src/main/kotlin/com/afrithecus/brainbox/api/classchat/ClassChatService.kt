@@ -181,8 +181,19 @@ class ClassChatService(
     }
 
     @Transactional
-    fun createPoll(current: CurrentUser, groupIdRaw: String, questionRaw: String, options: List<String>): LivePollPayload {
+    fun createPoll(
+        current: CurrentUser,
+        groupIdRaw: String,
+        questionRaw: String,
+        options: List<String>,
+        clientPollId: String? = null,
+    ): LivePollPayload {
         val group = ownedGroup(current, groupIdRaw)
+        val stableId = clientPollId?.trim()?.takeIf { it.isNotEmpty() }
+        // Idempotent per clientPollId: an offline poll-create replay returns the original poll.
+        if (stableId != null) {
+            pollRepository.findByClientId(stableId)?.let { return pollPayload(it, current.userId) }
+        }
         val question = questionRaw.trim()
         if (question.isEmpty()) throw invalidArgument("question must not be blank")
         val cleaned = options.map { it.trim() }.filter { it.isNotEmpty() }
@@ -192,6 +203,7 @@ class ClassChatService(
             createdBy = current.userId
             this.question = question
             this.options = mapper.writeValueAsString(cleaned)
+            this.clientId = stableId
         })
         return pollPayload(poll, current.userId)
     }

@@ -7,4 +7,6 @@ import java.util.UUID
 interface ClassGroupPollRepository : JpaRepository<ClassGroupPollEntity, UUID> {
 
     fun findAllByGroupIdOrderByCreatedAtAsc(groupId: UUID): List<ClassGroupPollEntity>
+
+    fun findByClientId(clientId: String): ClassGroupPollEntity?
 }

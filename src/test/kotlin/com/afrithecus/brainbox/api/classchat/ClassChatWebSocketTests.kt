@@ -167,4 +167,26 @@ class ClassChatWebSocketTests(
         }
         check(failed.isFailure)
     }
+
+    @Test
+    fun `class group poll create is idempotent per client poll id`() {
+        val teacher = user(Role.TEACHER, "Poll Teacher", "0755110021")
+        val clazz = classRepository.save(TeacherClassEntity().apply {
+            teacherUserId = teacher.id
+            name = "Grade 4 Polls"
+            gradeLevel = "Grade 4"
+            subject = "Mathematics"
+            isActive = true
+        })
+        val group = groupRepository.save(ClassGroupEntity().apply {
+            classId = clazz.id
+            teacherId = teacher.id
+            teacherName = teacher.name
+            name = "Grade 4 Polls Chat"
+        })
+        val current = CurrentUser(teacher.id, Role.TEACHER)
+        val first = classChatService.createPoll(current, group.id.toString(), "2 + 2?", listOf("3", "4"), "poll_1")
+        val replayed = classChatService.createPoll(current, group.id.toString(), "2 + 2?", listOf("3", "4"), "poll_1")
+        check(first.id == replayed.id)
+    }
 }

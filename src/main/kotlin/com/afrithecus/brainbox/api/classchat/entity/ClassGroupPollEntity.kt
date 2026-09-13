@@ -26,4 +26,8 @@ class ClassGroupPollEntity : BaseEntity() {
 
     @Column(name = "is_active", nullable = false)
     var isActive: Boolean = true
+
+    /** Client-supplied poll id; makes an offline poll-create replay idempotent. */
+    @Column(name = "client_id", length = 80)
+    var clientId: String? = null
 }
