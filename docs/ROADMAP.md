@@ -461,7 +461,12 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       booking status PATCH, windowed idempotent reminders, stable meet links; parent browse
       (audience-targeted), idempotent book, repeat-safe cancel and authoritative own-bookings list.
       Slot status (OPEN/FULL) is recomputed from the confirmed booking count; the student-analytics
-      conferences component now returns real bookings.
+      conferences component now returns real bookings. Booking approval gate (V51,
+      api_conference_changes.md section 7): parent bookings start PENDING with requestedAt/
+      confirmedAt/confirmedBy; the slot owner (coordinator/admin may override) confirms or cancels
+      idempotently; a PENDING request soft-holds the single seat when maxBookings == 1; a scheduled
+      job expires stale requests (48 h or 24 h before the slot) to EXPIRED and frees the hold;
+      teacher/dashboard conferenceRequestsCount now counts pending requests.
 - [x] Reports (V48): async generation with a client idempotency key (`jobRequestId`), bulk,
       job poll with progress/message/`pollAfterMillis`, repeat-safe cancel, paged export history
       (`limit`/`before`), server-authoritative schedules (idempotent create, repeat-safe delete,

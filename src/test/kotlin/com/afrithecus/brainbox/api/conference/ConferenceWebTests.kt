@@ -146,11 +146,21 @@ class ConferenceWebTests(
         )
         check(saved.teacherName == "Class Teacher")
         check(saved.parentId == parent.id.toString())
-        check(saved.status == "CONFIRMED")
+        check(saved.status == "PENDING")
+        check(saved.requestedAt != null)
 
         mockMvc.perform(post("/parent/conference/book").header("Authorization", auth(p))
             .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(booking)))
             .andExpect(status().isOk)
+
+        // A pending request soft-holds the only seat of a maxBookings == 1 slot.
+        val heldSlots = objectMapper.readValue(
+            mockMvc.perform(get("/parent/conference/slots").header("Authorization", auth(p)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<ConferenceSlotPayload>::class.java,
+        )
+        check(heldSlots.single().isBooked)
+        check(heldSlots.single().status == "FULL")
         val parentBookings = objectMapper.readValue(
             mockMvc.perform(get("/parent/conference/bookings").header("Authorization", auth(p)))
                 .andExpect(status().isOk).andReturn().response.contentAsString,
@@ -166,14 +176,20 @@ class ConferenceWebTests(
         check(teacherBookings.size == 1)
         check(teacherBookings.single().childName == "Alice Learner")
         check(teacherBookings.single().childGrade == "Grade 4")
+        check(teacherBookings.single().status == "PENDING")
 
         val confirmed = objectMapper.readValue(
             mockMvc.perform(patch("/teacher/conference/booking/" + saved.id + "/status").header("Authorization", auth(t))
-                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"ATTENDED\"}"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"CONFIRMED\"}"))
                 .andExpect(status().isOk).andReturn().response.contentAsString,
             ConferenceBookingPayload::class.java,
         )
-        check(confirmed.status == "ATTENDED")
+        check(confirmed.status == "CONFIRMED")
+        check(confirmed.confirmedAt != null)
+        // Replaying the decision is idempotent.
+        mockMvc.perform(patch("/teacher/conference/booking/" + saved.id + "/status").header("Authorization", auth(t))
+            .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"CONFIRMED\"}"))
+            .andExpect(status().isOk)
 
         // Reminder (JSON string body) notifies the parent once per window.
         mockMvc.perform(post("/teacher/conference/booking/" + saved.id + "/reminder").header("Authorization", auth(t))

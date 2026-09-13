@@ -94,11 +94,9 @@ class TeacherDashboardService(
         val studentNames = userRepository.findAllById(ungraded.map { it.studentId }.distinct())
             .associate { it.id to it.name }
 
-        // Bookings are auto-confirmed server-side, so the teacher's actionable
-        // "conference requests" are confirmed bookings on still-open future slots.
+        // Booking requests awaiting the teacher's decision (api_conference_changes.md §7).
         val conferenceCount = conferenceSlotRepository.findAllByTeacherIdOrderBySlotDateAsc(teacher.id)
-            .filter { !it.slotDate.isBefore(now) && it.status != "CANCELLED" && it.status != "COMPLETED" }
-            .sumOf { conferenceBookingRepository.countBySlotIdAndStatus(it.id, "CONFIRMED").toInt() }
+            .sumOf { conferenceBookingRepository.countBySlotIdAndStatus(it.id, "PENDING").toInt() }
 
         val pendingStudents = userRepository.findByJoinedTeacherId(teacher.id)
             .count { it.role == Role.STUDENT && it.verificationStatus == AccountStatus.PENDING_VERIFICATION }

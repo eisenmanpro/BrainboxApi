@@ -18,11 +18,14 @@ import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.notification.NotificationService
 import com.afrithecus.brainbox.api.notification.model.NotificationType
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalTime
+import java.time.ZoneId
 import java.util.UUID
 
 /**
@@ -39,6 +42,7 @@ class ConferenceService(
     private val classRepository: TeacherClassRepository,
     private val notificationService: NotificationService,
     private val clock: Clock,
+    @Value("\${app.school-zone:Africa/Nairobi}") private val schoolZone: String,
 ) {
 
     // ------------------------------------------------------------ teacher
@@ -88,18 +92,26 @@ class ConferenceService(
     fun bookingsForSlot(teacher: UserEntity, slotIdRaw: String): List<ConferenceBookingPayload> {
         requireTeacher(teacher)
         val slot = requireOwnedSlot(teacher, slotIdRaw)
-        return bookingPayloads(bookingRepository.findAllBySlotIdOrderByCreatedAtAsc(slot.id))
+        // Pending requests surface first so the teacher sees the decision queue.
+        val rows = bookingRepository.findAllBySlotIdOrderByCreatedAtAsc(slot.id)
+            .sortedWith(compareBy({ if (it.status == "PENDING") 0 else 1 }, { it.createdAt }))
+        return bookingPayloads(rows)
     }
 
     @Transactional
     fun updateBookingStatus(teacher: UserEntity, bookingIdRaw: String, statusRaw: String): ConferenceBookingPayload {
         requireTeacher(teacher)
         val status = statusRaw.trim().uppercase()
-        if (status !in BOOKING_STATUSES) throw invalidArgument("Unknown booking status: " + statusRaw)
+        if (status !in DECIDABLE_BOOKING_STATUSES) throw invalidArgument("Unknown booking status: " + statusRaw)
         val booking = resolveBooking(bookingIdRaw) ?: throw notFound("Booking not found")
         val slot = slotRepository.findById(booking.slotId).orElse(null) ?: throw notFound("Slot not found")
         if (slot.teacherId != teacher.id) throw forbidden("Not your booking")
+        if (booking.status == status) return bookingPayload(booking)
         booking.status = status
+        if (status == "CONFIRMED") {
+            booking.confirmedAt = clock.instant()
+            booking.confirmedBy = teacher.id
+        }
         bookingRepository.saveAndFlush(booking)
         return bookingPayload(booking)
     }
@@ -159,7 +171,9 @@ class ConferenceService(
             .filter { parentAudienceVisible(it) }
             .map { slot ->
                 val booked = children.any { child ->
-                    bookingRepository.findBySlotIdAndChildIdAndStatus(slot.id, child.id, "CONFIRMED") != null
+                    ACTIVE_BOOKING_STATUSES.any {
+                        bookingRepository.findBySlotIdAndChildIdAndStatus(slot.id, child.id, it) != null
+                    }
                 }
                 slotPayload(slot, isBooked = booked, recomputeStatus = true)
             }
@@ -178,26 +192,48 @@ class ConferenceService(
         val existing = bookingRepository.findByClientId(clientId)
             ?: rawId.takeIf { isUuid(it) }?.let { bookingRepository.findById(UUID.fromString(it)).orElse(null) }
         if (existing != null && existing.parentId != parent.id) throw forbidden("Not your booking")
-        val clash = bookingRepository.findBySlotIdAndChildIdAndStatus(slot.id, child.id, "CONFIRMED")
-        if (clash != null && clash.id != existing?.id) throw conflict("This learner already has this slot booked")
-        if (clash == null && bookingRepository.countBySlotIdAndStatus(slot.id, "CONFIRMED") >= slot.maxBookings) {
-            throw conflict("Slot is full")
+        // A replay of an offline write never resets a decided request.
+        if (existing != null) return bookingPayload(existing)
+        val clash = ACTIVE_BOOKING_STATUSES.firstNotNullOfOrNull {
+            bookingRepository.findBySlotIdAndChildIdAndStatus(slot.id, child.id, it)
         }
-        val entity = existing ?: ConferenceBookingEntity().apply {
+        if (clash != null) throw conflict("This learner already has this slot booked")
+        if (slotIsFull(slot)) throw conflict("Slot is full")
+        val entity = ConferenceBookingEntity().apply {
             this.clientId = clientId
             this.slotId = slot.id
             parentId = parent.id
             childId = child.id
+            teacherName = slot.teacherName ?: userRepository.findById(slot.teacherId).orElse(null)?.name
+            bookingDate = slot.slotDate
+            bookingTime = slot.startTime
+            meetLink = slot.meetLink
+            notes = request.notes?.trim()?.takeIf { it.isNotEmpty() }
+            status = "PENDING"
+            requestedAt = clock.instant()
         }
-        entity.teacherName = slot.teacherName ?: userRepository.findById(slot.teacherId).orElse(null)?.name
-        entity.bookingDate = slot.slotDate
-        entity.bookingTime = slot.startTime
-        entity.meetLink = slot.meetLink
-        entity.notes = request.notes?.trim()?.takeIf { it.isNotEmpty() }
-        entity.status = "CONFIRMED"
         bookingRepository.saveAndFlush(entity)
         notifyTeacher(slot, child, parent)
         return bookingPayload(entity)
+    }
+
+    /**
+     * Expiry job: a PENDING request lapses 48 h after it was made, or 24 h before
+     * the slot starts, whichever is sooner; the soft hold is released.
+     */
+    @Transactional
+    fun expireStaleRequests() {
+        val now = clock.instant()
+        bookingRepository.findAllByStatusOrderByRequestedAtAsc("PENDING").forEach { booking ->
+            val slot = slotRepository.findById(booking.slotId).orElse(null) ?: return@forEach
+            val requestDeadline = booking.requestedAt.plus(Duration.ofHours(PENDING_MAX_HOURS))
+            val leadDeadline = slotStart(slot).minus(Duration.ofHours(PENDING_LEAD_HOURS))
+            val expiresAt = if (leadDeadline.isBefore(requestDeadline)) leadDeadline else requestDeadline
+            if (!now.isBefore(expiresAt)) {
+                booking.status = "EXPIRED"
+                bookingRepository.save(booking)
+            }
+        }
     }
 
     /** Repeat-safe cancel; the slot becomes bookable again. */
@@ -252,7 +288,7 @@ class ConferenceService(
         val effectiveStatus = when {
             !recomputeStatus -> slot.status
             slot.status == "CANCELLED" || slot.status == "COMPLETED" -> slot.status
-            bookingRepository.countBySlotIdAndStatus(slot.id, "CONFIRMED") >= slot.maxBookings -> "FULL"
+            slotIsFull(slot) -> "FULL"
             else -> "OPEN"
         }
         return ConferenceSlotPayload(
@@ -309,7 +345,19 @@ class ConferenceService(
             meetLink = booking.meetLink,
             notes = booking.notes,
             status = booking.status,
+            requestedAt = booking.requestedAt.toEpochMilli(),
+            confirmedAt = booking.confirmedAt?.toEpochMilli(),
         )
+    }
+
+    /**
+     * A PENDING request soft-holds one seat for a single-seat slot so the teacher
+     * can review without a double-booking; for larger slots only confirmed
+     * bookings consume capacity.
+     */
+    private fun slotIsFull(slot: ConferenceSlotEntity): Boolean {
+        if (bookingRepository.countBySlotIdAndStatus(slot.id, "CONFIRMED") >= slot.maxBookings) return true
+        return slot.maxBookings == 1 && bookingRepository.countBySlotIdAndStatus(slot.id, "PENDING") > 0
     }
 
     private fun notifyTeacher(slot: ConferenceSlotEntity, child: UserEntity, parent: UserEntity) {
@@ -359,6 +407,13 @@ class ConferenceService(
         return value
     }
 
+    private fun slotStart(slot: ConferenceSlotEntity): Instant {
+        val zone = runCatching { ZoneId.of(schoolZone) }.getOrDefault(ZoneId.of("Africa/Nairobi"))
+        val date = slot.slotDate.atZone(zone).toLocalDate()
+        val time = runCatching { LocalTime.parse(slot.startTime) }.getOrDefault(LocalTime.MIDNIGHT)
+        return date.atTime(time).atZone(zone).toInstant()
+    }
+
     private fun isUuid(raw: String): Boolean = runCatching { UUID.fromString(raw.trim()) }.isSuccess
 
     private fun parseUuid(raw: String, field: String): UUID =
@@ -373,8 +428,11 @@ class ConferenceService(
 
     private companion object {
         const val REMINDER_WINDOW_HOURS = 1L
+        const val PENDING_MAX_HOURS = 48L
+        const val PENDING_LEAD_HOURS = 24L
         val SLOT_STATUSES = setOf("OPEN", "FULL", "CANCELLED", "COMPLETED")
-        val BOOKING_STATUSES = setOf("CONFIRMED", "CANCELLED", "ATTENDED")
+        val DECIDABLE_BOOKING_STATUSES = setOf("CONFIRMED", "CANCELLED", "ATTENDED", "EXPIRED")
+        val ACTIVE_BOOKING_STATUSES = listOf("PENDING", "CONFIRMED")
         val AUDIENCES = setOf(
             "GRADE_PARENTS", "GRADE_STUDENTS", "GRADE_TEACHERS",
             "WHOLE_SCHOOL_STUDENTS", "WHOLE_SCHOOL_PARENTS", "WHOLE_SCHOOL",

@@ -40,7 +40,17 @@ class ConferenceBookingEntity : BaseEntity() {
     var notes: String? = null
 
     @Column(nullable = false, length = 16)
-    var status: String = "CONFIRMED"
+    var status: String = "PENDING"
+
+    /** When the parent requested the seat; drives the confirmation expiry window. */
+    @Column(name = "requested_at", nullable = false)
+    var requestedAt: Instant = Instant.now()
+
+    @Column(name = "confirmed_at")
+    var confirmedAt: Instant? = null
+
+    @Column(name = "confirmed_by")
+    var confirmedBy: UUID? = null
 
     @Column(name = "reminder_sent_at")
     var reminderSentAt: Instant? = null

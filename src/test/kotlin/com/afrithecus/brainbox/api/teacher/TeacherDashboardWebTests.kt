@@ -179,7 +179,7 @@ class TeacherDashboardWebTests(
             slotId = slot.id
             parentId = parent.id
             childId = student.id
-            status = "CONFIRMED"
+            status = "PENDING"
         })
 
         val t = token(teacher)

@@ -45,5 +45,8 @@ data class ConferenceBookingPayload(
     val time: String = "",
     val meetLink: String? = null,
     val notes: String? = null,
-    val status: String = "CONFIRMED",
+    val status: String = "PENDING",
+    /** When the request was made; drives the confirmation-expiry window. */
+    val requestedAt: Long? = null,
+    val confirmedAt: Long? = null,
 )

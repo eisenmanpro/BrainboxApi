@@ -19,4 +19,6 @@ interface ConferenceBookingRepository : JpaRepository<ConferenceBookingEntity, U
     fun findBySlotIdAndChildIdAndStatus(slotId: UUID, childId: UUID, status: String): ConferenceBookingEntity?
 
     fun countBySlotIdAndStatus(slotId: UUID, status: String): Long
+
+    fun findAllByStatusOrderByRequestedAtAsc(status: String): List<ConferenceBookingEntity>
 }
