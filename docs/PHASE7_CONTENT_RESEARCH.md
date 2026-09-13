@@ -22,6 +22,41 @@ Users expect a platform that already looks alive (the dev builds fake exactly th
 
 ---
 
+## 0.1 The BrainBox standard — the actual product, not curriculum mirroring
+
+The premise is that current materials **miss a lot and deliver the wrong way**. That is why
+BrainBox exists, so we do not reproduce curriculum text: we re-author every topic as **simple,
+well-broken-down material with illustrative images/drawings and engaging questions nested in
+the reading**. The target is the go-to standard for **Africa**, not a Kenyan mirror. The
+curriculum is only the index (what to cover); BrainBox supplies the delivery (how it is
+taught).
+
+This is a content *specification*, and the pipeline must enforce it:
+
+1. **Concept-first, curriculum-mapped.** A shared concept/topic layer sits *above* per-country
+   curricula (Kenya CBC first, other countries later), so one concept is re-localised and
+   re-mapped without re-authoring. This is also the pan-African scaling mechanism.
+2. **Broken down, simple language.** Short paragraphs, one idea per step, worked examples, and
+   a validated reading level — a learner reading alone at home can follow it.
+3. **Visual by default.** Every concept carries a labelled diagram/drawing (inline SVG or
+   image) and, where useful, a visual sequence. Visuals are a required block, not decoration.
+4. **Nested engaging questions.** Check-for-understanding items interleaved through the
+   material (predict, try-it, spot-the-mistake, explain-why), not only a trailing quiz.
+5. **Local, African context.** Examples, names, units and money localised by country/language
+   from the same concept.
+6. **Enforced, not hoped for.** A style spec plus a validator chain (reading level, step
+   length, visual presence, question cadence, answer correctness, localisation completeness)
+   gates every item before moderation.
+
+**Architecture consequence:** one canonical **learning unit** (steps + nested questions +
+figures + provenance) rendered to whichever surface asks for it — a hub book, a readable
+chunk, or an assessment — instead of authoring separately per surface. Two constraints fall
+out: the generation envelope needs a *steps-with-nested-questions* shape (not body + trailing
+quiz only), and a visual chunk cannot be served as `PLAINTEXT` (the client reader shows PDF,
+EPUB or plain text; diagrams need the markdown/SVG path or a rendered PDF).
+
+---
+
 ## 1. What the client actually expects of "learning materials"
 
 There are **three distinct material surfaces**, each with its own model. They are not
