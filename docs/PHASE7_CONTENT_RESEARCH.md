@@ -27,7 +27,30 @@ Users expect a platform that already looks alive (the dev builds fake exactly th
 There are **three distinct material surfaces**, each with its own model. They are not
 interchangeable and the pipeline must feed all three.
 
-### 1.1 Learning-hub posts — `LearningPost` + `LearningContent[]`
+### 1.0 The four content kinds (product model)
+
+The corpus is two axes, not one list:
+
+|  | Agent-generated | Teacher-uploaded |
+| --- | --- | --- |
+| **Chunk** (a quick topic read) | A short, self-contained topic chunk served as a readable material | The teacher's own PDF / ebook / text file |
+| **Book / full topic** | A hub post — a full topic or book with ordered content blocks | A teacher-published material (same hub shape) |
+
+Assessments — past papers, some homework, quizzes — are agent-generated regardless of size.
+
+Consequences for the pipeline and schema:
+
+- **Granularity is a first-class field, not just a smaller book.** A chunk is delivered
+  through the **readable-materials** surface and needs *inline body text* (the endpoint is
+  metadata + a file URL today — blocker 1 in §1.6). A book is a hub post with ordered
+  `LearningContent` blocks.
+- **Provenance is first-class on the same tables:** `generated` (agent) vs `uploaded`
+  (teacher), plus author/created-by, source URLs and licence. Both are cached and delivered
+  identically; the client renders teacher uploads and agent content with no new surface.
+- **Teacher uploads already exist** (`teacher/content/document` → `readable_files`), so the
+  agent pipeline writes into the same tables rather than inventing a parallel store.
+
+### 1.1 Learning-hub posts — full books / topics (`LearningPost` + `LearningContent[]`)
 
 `app/…/models/LearningHubModels.kt`
 
@@ -47,7 +70,7 @@ interchangeable and the pipeline must feed all three.
   `getPostsBySubject`, `searchPosts`, `getContinueLearning`, `getRevisionRecommendations`,
   `getTeacherAuthoredPosts`, `getDocuments`, `getReadableFiles`.
 
-### 1.2 Readable materials — `ReadableFile` (+ `DocumentItem`)
+### 1.2 Readable materials — quick topic chunks (`ReadableFile` + `DocumentItem`)
 
 `app/…/models/LearningHubModels.kt`, `models/DocumentModels.kt`
 
@@ -60,7 +83,7 @@ interchangeable and the pipeline must feed all three.
   raw JSON alone — the server has to render/cache a document (PDFBox is already on the
   classpath via the report renderer).
 
-### 1.3 Past papers — `ExamContent`
+### 1.3 Past papers / homework / quizzes — generated assessments (`ExamContent`, homework)
 
 `models/ExamTemplateModels.kt`; backend `api/exams/web/PastPaperContentDtos.kt`
 
