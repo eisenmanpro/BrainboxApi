@@ -120,6 +120,18 @@ roles beyond subjects — a **diagram/figure agent** (labelled SVG drawings), a 
 agent** (examples, names, money, language), and an **assessment agent** (nested questions,
 past papers). All are stateless workers the loop can call in parallel.
 
+### 2.3.1 The concept layer (locked: build now, Kenya as first mapping)
+
+The shared concept/topic taxonomy is built **now**, with Kenya CBC as its **first mapping**
+rather than the schema itself. `concept` is the stable key that content, the cache and
+promotion hang off; each country is a `curriculum_map` that links its strands, sub-strands and
+learning outcomes to concepts. The existing `cbc_strands` catalogue is **folded in as Kenya's
+strand-level mapping**, not kept as a second taxonomy — one canonical layer, many mappings.
+
+Why now: retrofitting later changes every generated item's key and invalidates the cache
+wholesale, and re-localisation (one concept taught in another country's context) is the whole
+"standard for Africa" story. The cost now is one extra table and a mapping step in the router.
+
 ### 2.4 Model providers
 
 A provider interface with cost/latency routing (DeepSeek first). The Spring AI DeepSeek starter
@@ -329,6 +341,9 @@ moderation/generation screens.
   triggers in §2.1.1 fire.
 - **MCP (locked):** one MCP client with in-process tool registrations; promote to self-hosted MCP
   servers only when a second consumer (the console or a non-JVM agent) needs them.
+- **Concept layer (locked):** the shared concept → per-country curriculum mapping is built now,
+  with Kenya CBC as the first mapping; `cbc_strands` is folded in as Kenya's mapping rather than
+  kept as a parallel taxonomy.
 - **Personalised papers:** both paths — learner practice (real-time, rule-filtered, visible to
   both the teacher and the linked parent) and teacher-assigned (through review, assigned as
   paper-review homework).
@@ -364,8 +379,6 @@ moderation/generation screens.
 **Still open:**
 
 1. **Languages** beyond English/Kiswahili for the localisation agent?
-2. **Every country after Kenya** — build the concept layer now rather than retrofit after the
-   Kenyan corpus? (Confirm.)
-3. **Accuracy measurement** — per-dimension targets and the golden-set size and growth; how
+2. **Accuracy measurement** — per-dimension targets and the golden-set size and growth; how
    "approximate" agreement is defined for tier advancement; how much a coordinator approval
    counts once expert mode is on.
