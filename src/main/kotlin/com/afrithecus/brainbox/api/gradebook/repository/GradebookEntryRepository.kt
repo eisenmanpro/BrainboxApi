@@ -19,6 +19,8 @@ interface GradebookEntryRepository : JpaRepository<GradebookEntryEntity, UUID> {
 
     fun findAllByStudentIdIn(studentIds: Collection<UUID>): List<GradebookEntryEntity>
 
+    fun findAllByClassIdIn(classIds: Collection<UUID>): List<GradebookEntryEntity>
+
     @Modifying
     @Query("DELETE FROM GradebookEntryEntity e WHERE e.assessmentId = :assessmentId")
     fun deleteAllByAssessmentId(@Param("assessmentId") assessmentId: String)

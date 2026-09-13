@@ -487,12 +487,19 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - [ ] Grading config; coordinator panels & subject config; teacher analytics
 
 ### Phase 5 — Admin & School Management  (goal 5; doc 08)
-- [ ] Admin auth + dashboards
-- [ ] User management incl. approvals and role mgmt
-- [ ] School config: SchoolConfig branding store + GET/PUT admin/schools/{id}/config shipped
-      with Reports (V48); GradeConfig, ClassGroup and attendance overview remain
-- [ ] Content moderation + announcements + news management
-- [ ] System settings (authoritative), audit logs, analytics & reports, leaderboard mgmt
+- [x] Admin identity + approvals: user list/detail/patch/deactivate, reset-password,
+      parent-link, school teacher create/list/remove, school update/deactivate and
+      POST admin/users/{id}/approve|reject (idempotent).
+- [x] Admin school management (V52, docs/ongoing/api_admin_changes.md): GET
+      admin/schools/{id}/analytics (real class/subject/teacher aggregates plus EE/ME/AE/BE
+      distribution), /grades (derived grade configs), /approvals (pending users),
+      /attendance/overview (per-class rate and chronic absentees), GET/PUT /system-settings
+      (maintenance + registration, audited), GET /audit-logs (server-owned trail) and
+      POST /backup (logical JSON snapshot). School config (V48) now also accepts an
+      ICT_ADMIN scoped to their own school.
+- [x] Announcements (V40) + news management and learning content moderation.
+- [ ] ClassGroup management (house groups already live in the timetable module) and
+      leaderboard management remain.
 
 ### Phase 6 — Integrations & Polish  (goal 6; doc 11)
 - [x] WebRTC signaling server (teacher/learner live classes): /ws/live/{classId} relay with

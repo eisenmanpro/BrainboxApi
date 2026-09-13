@@ -7,4 +7,6 @@ import java.util.UUID
 interface TeacherClassRepository : JpaRepository<TeacherClassEntity, UUID> {
 
     fun findAllByTeacherUserIdAndIsActiveTrueOrderByNameAsc(teacherUserId: UUID): List<TeacherClassEntity>
+
+    fun findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId: UUID): List<TeacherClassEntity>
 }

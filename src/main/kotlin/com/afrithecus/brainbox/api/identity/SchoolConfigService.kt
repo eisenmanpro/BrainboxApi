@@ -5,6 +5,7 @@ import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.exams.QuestionCodec
 import com.afrithecus.brainbox.api.identity.entity.SchoolConfigEntity
 import com.afrithecus.brainbox.api.identity.repository.SchoolConfigRepository
+import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.web.SchoolConfigPayload
 import org.springframework.stereotype.Service
@@ -22,18 +23,21 @@ class SchoolConfigService(
     private val repository: SchoolConfigRepository,
     private val schoolRepository: SchoolRepository,
     private val codec: QuestionCodec,
+    private val access: AdminSchoolAccess,
     private val clock: Clock,
 ) {
 
     @Transactional(readOnly = true)
-    fun get(schoolIdRaw: String): SchoolConfigPayload {
+    fun get(admin: CurrentUser, schoolIdRaw: String): SchoolConfigPayload {
         val schoolId = requireSchool(schoolIdRaw)
+        access.require(admin, schoolId)
         return payload(schoolId, repository.findById(schoolId).orElse(null))
     }
 
     @Transactional
-    fun update(schoolIdRaw: String, request: SchoolConfigPayload): SchoolConfigPayload {
+    fun update(admin: CurrentUser, schoolIdRaw: String, request: SchoolConfigPayload): SchoolConfigPayload {
         val schoolId = requireSchool(schoolIdRaw)
+        access.require(admin, schoolId)
         validate(request)
         val entity = repository.findById(schoolId).orElse(null)
             ?: SchoolConfigEntity().apply { this.schoolId = schoolId }
