@@ -5,6 +5,7 @@ import com.afrithecus.brainbox.api.cbcratings.web.CbcReportCardPayload
 import com.afrithecus.brainbox.api.traditional.web.TraditionalExamDto
 import com.afrithecus.brainbox.api.traditional.web.TraditionalGradeAnalysisDto
 import com.afrithecus.brainbox.api.traditional.web.TraditionalStudentReportDto
+import com.afrithecus.brainbox.api.report.web.ReportType
 import com.afrithecus.brainbox.api.traditional.web.StudentGradeRowDto
 
 /** A PDF the server must render, carrying the already-assembled report data. */
@@ -54,4 +55,11 @@ data class CbcClassSpec(
     val classReport: CbcClassReportPayload,
     /** When set (teacher-performance report) only this teacher's row is shown. */
     val focusTeacher: String? = null,
+) : ReportRenderSpec
+
+/** A blank, branded template (no report data) for the templates screen. */
+data class TemplateSpec(
+    override val title: String,
+    override val branding: ReportBranding,
+    val reportType: ReportType,
 ) : ReportRenderSpec

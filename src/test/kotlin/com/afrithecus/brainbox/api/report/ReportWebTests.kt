@@ -376,4 +376,26 @@ class ReportWebTests(
                 .contentType(MediaType.APPLICATION_JSON).content(payload)
         ).andExpect(status().isForbidden)
     }
+
+    @Test
+    fun `blank template endpoint is coordinator-only and branded`() {
+        val coordinator = user(Role.TEACHER, "Coordinator", "0755121013", grade = "Grade 4", subRole = SubRole.GRADE_COORDINATOR)
+        val plain = user(Role.TEACHER, "Plain Teacher", "0755121014", grade = "Grade 4")
+        val t = token(coordinator)
+
+        val response = mockMvc.perform(
+            get("/teacher/reports/template").param("reportType", "CBC_CLASS").header("Authorization", auth(t))
+        ).andExpect(status().isOk).andReturn().response
+        check(response.contentType == "application/pdf")
+        check(response.getHeader("Content-Disposition")!!.contains("Template_CBC_CLASS.pdf"))
+        val bytes = response.contentAsByteArray
+        check(bytes.size > 500 && String(bytes, 0, 5, Charsets.ISO_8859_1) == "%PDF-")
+
+        mockMvc.perform(
+            get("/teacher/reports/template").param("reportType", "CBC_CLASS").header("Authorization", auth(token(plain)))
+        ).andExpect(status().isForbidden)
+        mockMvc.perform(
+            get("/teacher/reports/template").param("reportType", "NOT_A_TYPE").header("Authorization", auth(t))
+        ).andExpect(status().isBadRequest)
+    }
 }

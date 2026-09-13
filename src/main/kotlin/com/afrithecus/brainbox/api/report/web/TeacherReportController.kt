@@ -73,6 +73,20 @@ class TeacherReportController(
     @GetMapping("/quota")
     fun quota(@AuthenticationPrincipal current: CurrentUser): ReportQuotaPayload = generation.quota(current)
 
+    /** Blank, branded template PDF (server is the renderer of record). */
+    @GetMapping("/template")
+    fun template(
+        @AuthenticationPrincipal current: CurrentUser,
+        @RequestParam reportType: String,
+        @RequestParam(required = false) schoolId: String?,
+    ): ResponseEntity<ByteArray> {
+        val rendered = generation.template(current, reportType, schoolId)
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_TYPE, "application/pdf")
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + rendered.fileName + "\"")
+            .body(rendered.bytes)
+    }
+
     @GetMapping("/schedules")
     fun schedules(@AuthenticationPrincipal current: CurrentUser): List<ReportSchedulePayload> =
         scheduleService.list(current)

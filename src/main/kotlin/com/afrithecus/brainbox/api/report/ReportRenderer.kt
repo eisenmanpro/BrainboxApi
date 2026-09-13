@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.report
 
+import com.afrithecus.brainbox.api.report.web.ReportType
 import com.afrithecus.brainbox.api.traditional.model.displayName
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
@@ -37,6 +38,7 @@ class ReportRenderer(private val properties: ReportProperties) {
                 is TraditionalStudentsSpec -> renderTraditionalStudents(document, spec)
                 is CbcStudentsSpec -> renderCbcStudents(document, spec)
                 is CbcClassSpec -> renderCbcClass(document, spec)
+                is TemplateSpec -> renderTemplate(document, spec)
             }
             val out = ByteArrayOutputStream()
             document.save(out)
@@ -336,6 +338,93 @@ class ReportRenderer(private val properties: ReportProperties) {
         canvas.finish()
     }
 
+    // ---------------------------------------------------------- blank templates
+
+    private fun renderTemplate(document: PDDocument, spec: TemplateSpec) {
+        val landscape = when (spec.reportType) {
+            ReportType.TRADITIONAL_COMBINED,
+            ReportType.TRADITIONAL_PER_CLASS_TABLES,
+            ReportType.TRADITIONAL_GRADE_ANALYSIS -> true
+            else -> false
+        }
+        val canvas = PdfCanvas(document, spec.branding, landscape = landscape, embedLogo = properties.embedLogo)
+        canvas.titleBlock(spec.title, "Blank template - complete the sections below with student and school data")
+        templateSections(spec.reportType).forEach { blankTable(canvas, it) }
+        canvas.finish()
+    }
+
+    private fun blankTable(canvas: PdfCanvas, section: TemplateSection) {
+        canvas.ensure(52f)
+        canvas.sectionHeading(section.title)
+        val widths = evenWidths(canvas, section.headers.size)
+        var headerPage = -1
+        fun headerIfNeeded() {
+            if (canvas.pageNumber != headerPage) {
+                canvas.tableHeader(section.headers, widths)
+                headerPage = canvas.pageNumber
+            }
+        }
+        headerIfNeeded()
+        val rowCount = if (section.rowLabels.isEmpty()) section.rowCount else section.rowLabels.size
+        repeat(rowCount) { index ->
+            canvas.ensure(TABLE_ROW_HEIGHT)
+            headerIfNeeded()
+            val cells = MutableList(section.headers.size) { "" }
+            if (section.rowLabels.isNotEmpty()) cells[0] = section.rowLabels[index]
+            canvas.tableRow(cells, widths, TABLE_ROW_FONT)
+        }
+        canvas.cursor -= 10f
+    }
+
+    private fun evenWidths(canvas: PdfCanvas, columns: Int): List<Float> {
+        val count = columns.coerceAtLeast(1)
+        return List(count) { (canvas.width - 2 * canvas.margin) / count }
+    }
+
+    private fun templateSections(type: ReportType): List<TemplateSection> = when (type) {
+        ReportType.CBC_STUDENT, ReportType.DETAILED_CBC_STUDENT -> listOf(
+            TemplateSection("Student Identity", listOf("Field", "Value"), listOf("Name", "Admission No", "Class", "Term", "Attendance")),
+            TemplateSection("CBC Learning Areas", listOf("Learning Area", "Competency Level"), CBC_STRAND_NAMES),
+            TemplateSection("Paper Exam Results", listOf("Subject", "Score", "Max", "Grade"), rowCount = 8),
+            TemplateSection("Overall Competency", listOf("Overall Status"), rowCount = 1),
+            TemplateSection("Teacher's Remarks", listOf("Remarks"), rowCount = 3),
+        )
+        ReportType.CBC_CLASS, ReportType.DETAILED_CBC_CLASS -> buildList {
+            add(TemplateSection("Class Overview", listOf("Class", "Term", "Overall Average"), listOf("Class Name", "Term", "Average %")))
+            add(TemplateSection("Strand Mastery", listOf("Strand", "Class Average"), CBC_STRAND_NAMES))
+            add(TemplateSection("Teacher Subject Impact", listOf("Subject", "Teacher", "Students", "Average"), rowCount = 8))
+            if (type == ReportType.DETAILED_CBC_CLASS) {
+                add(TemplateSection("Weak Strand Recommendations", listOf("Strand", "Recommendation"), rowCount = 4))
+            }
+        }
+        ReportType.TRADITIONAL_STUDENT -> listOf(
+            TemplateSection("Student Identity", listOf("Field", "Value"), listOf("Name", "Admission No", "Class", "Term", "Year")),
+            TemplateSection("Subject Results", listOf("Subject", "Score", "Max", "%", "Grade"), rowCount = 8),
+            TemplateSection("Teacher's Remarks", listOf("Remarks"), rowCount = 3),
+        )
+        ReportType.TRADITIONAL_COMBINED -> listOf(
+            TemplateSection("Combined", listOf("No", "NAME", "Subject", "Total", "Grade"), rowCount = 12),
+        )
+        ReportType.TRADITIONAL_PER_CLASS_TABLES -> listOf(
+            TemplateSection("Class Tables", listOf("No", "NAME", "Subject 1", "Subject 2", "Total", "Grade"), rowCount = 12),
+        )
+        ReportType.TRADITIONAL_GRADE_ANALYSIS -> listOf(
+            TemplateSection("Grade Analysis", listOf("Class Teacher", "Class", "Subject 1", "Subject 2", "Total", "Pos"), rowCount = 10),
+        )
+        ReportType.TEACHER_PERFORMANCE -> listOf(
+            TemplateSection("Teacher Identity", listOf("Field", "Value"), listOf("Teacher Name", "Class", "Term")),
+            TemplateSection("Subjects Taught", listOf("Subject", "Students", "Class Average"), rowCount = 8),
+            TemplateSection("Strand Impact", listOf("Strand", "Score"), CBC_STRAND_NAMES),
+        )
+    }
+
+    private data class TemplateSection(
+        val title: String,
+        val headers: List<String>,
+        val rowLabels: List<String> = emptyList(),
+        val rowCount: Int = 8,
+    )
+
     // ------------------------------------------------------------ helpers
 
     private fun subtitle(exam: com.afrithecus.brainbox.api.traditional.web.TraditionalExamDto): String =
@@ -350,6 +439,16 @@ class ReportRenderer(private val properties: ReportProperties) {
         const val TABLE_ROW_HEIGHT = 16f
         const val TABLE_ROW_FONT = 8f
         val MUTED = Color(0x60, 0x6B, 0x80)
+        /** CBC strand names used by blank templates; mirrors the client's CbcStrands.NAMES. */
+        val CBC_STRAND_NAMES: List<String> = listOf(
+            "Communication & Collaboration",
+            "Critical Thinking & Problem Solving",
+            "Imagination & Creativity",
+            "Citizenship",
+            "Digital Literacy",
+            "Learning to Learn",
+            "Self-Efficacy",
+        )
     }
 }
 

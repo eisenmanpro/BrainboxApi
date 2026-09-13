@@ -4,6 +4,7 @@ import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
+import com.afrithecus.brainbox.api.identity.SchoolConfigService
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.model.Role
@@ -35,6 +36,8 @@ class ReportGenerationService(
     private val jobs: ReportJobRepository,
     private val state: ReportJobStateService,
     private val runner: ReportJobRunner,
+    private val renderer: ReportRenderer,
+    private val schoolConfig: SchoolConfigService,
     private val data: ReportDataService,
     private val downloads: ReportDownloadService,
     private val userRepository: UserRepository,
@@ -95,6 +98,19 @@ class ReportGenerationService(
     }
 
     fun quota(actor: CurrentUser): ReportQuotaPayload = downloads.quota(actor.userId)
+
+    /**
+     * Blank, branded template for the templates screen. The server is the renderer
+     * of record (PDF-1 Option A), so the client no longer draws these on-device.
+     */
+    fun template(actor: CurrentUser, reportTypeRaw: String, schoolIdRaw: String?): RenderedTemplate {
+        val user = requireCoordinator(actor)
+        val reportType = runCatching { ReportType.valueOf(reportTypeRaw.trim().uppercase()) }.getOrNull()
+            ?: throw invalidArgument("Unknown reportType: " + reportTypeRaw)
+        val branding = ReportBranding.from(schoolConfig.branding(resolveSchool(user, schoolIdRaw)))
+        val spec = TemplateSpec("Template - " + titleOf(reportType), branding, reportType)
+        return RenderedTemplate(renderer.render(spec), "Template_" + reportType.name + ".pdf")
+    }
 
     /** Creates and dispatches a job for a due schedule, owned by the schedule owner. */
     fun generateForSchedule(schedule: ReportScheduleEntity) {
@@ -221,3 +237,6 @@ class ReportGenerationService(
         const val MAX_LIMIT = 200
     }
 }
+
+/** Rendered bytes and suggested filename for a blank report template. */
+data class RenderedTemplate(val bytes: ByteArray, val fileName: String)

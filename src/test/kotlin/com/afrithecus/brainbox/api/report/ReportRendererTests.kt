@@ -14,6 +14,7 @@ import com.afrithecus.brainbox.api.traditional.web.SubjectConfigDto
 import com.afrithecus.brainbox.api.traditional.web.TraditionalExamDto
 import com.afrithecus.brainbox.api.traditional.web.TraditionalGradeAnalysisDto
 import com.afrithecus.brainbox.api.traditional.web.TraditionalStudentReportDto
+import com.afrithecus.brainbox.api.report.web.ReportType
 import com.afrithecus.brainbox.api.traditional.web.TraditionalSubjectResultDto
 import org.apache.pdfbox.Loader
 import org.apache.pdfbox.text.PDFTextStripper
@@ -150,5 +151,21 @@ class ReportRendererTests {
             subjectTeacherPerformance = listOf(SubjectTeacherPerformancePayload("Mathematics", "t_1", "Mr Kimani", 70.0, 20)),
         )
         assertPdf(renderer.render(CbcClassSpec("Class CBC Report", branding, classReport)), listOf("Mr Kimani", "English"))
+    }
+
+    @Test
+    fun `blank templates render for every report type`() {
+        ReportType.entries.forEach { type ->
+            val bytes = renderer.render(TemplateSpec("Template - " + type.name, branding, type))
+            assertPdf(bytes)
+            val content = text(bytes)
+            assertTrue(content.contains("Template - " + type.name), "template title missing for " + type)
+            assertTrue(content.contains("Blank template"), "template subtitle missing for " + type)
+        }
+        val cbc = text(renderer.render(TemplateSpec("Template - CBC", branding, ReportType.CBC_STUDENT)))
+        assertTrue(cbc.contains("CBC Learning Areas"), "CBC student template sections missing")
+        assertTrue(cbc.contains("Communication & Collaboration"), "CBC strand names missing")
+        val detailed = text(renderer.render(TemplateSpec("Template - CBC", branding, ReportType.DETAILED_CBC_CLASS)))
+        assertTrue(detailed.contains("Weak Strand Recommendations"), "detailed class section missing")
     }
 }
