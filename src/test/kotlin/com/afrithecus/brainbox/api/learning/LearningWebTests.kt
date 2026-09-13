@@ -211,6 +211,36 @@ class LearningWebTests(
         ).andExpect(status().isNotFound)
     }
 
+    @Test
+    fun `payload matches the Android learning models`() {
+        val admin = adminToken()
+        val student = signup("0772000006", "Contract High")
+        val postId = createPost(admin, "Quadratics", subject = "Mathematics", withQuiz = true)
+
+        val detail = objectMapper.readValue(
+            mockMvc.perform(get("/learning/post/${postId}").header("Authorization", auth(student.sessionToken!!)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            LearningPostPayload::class.java,
+        )
+        // Canonical enum name, not the raw display string.
+        check(detail.subject == "MATHEMATICS")
+        // The client defaults a missing status to PUBLISHED, so archived posts would leak.
+        check(detail.status == "PUBLISHED")
+        check(detail.authorName.isNotBlank())
+        check(detail.content!!.all { it.postId == postId })
+        // metadata is a JSON string the client parses; the answer key is stripped for learners.
+        val quiz = detail.content!!.first { it.type == "QUIZ" }
+        check(quiz.metadata is String && !quiz.metadata!!.contains("correctAnswer"))
+
+        // A custom subject rides customSubjectName with a safe placeholder enum.
+        val customId = createPost(admin, "Agriculture Intro", subject = "Agriculture", withQuiz = false)
+        val custom = objectMapper.readValue(
+            mockMvc.perform(get("/learning/post/${customId}").header("Authorization", auth(student.sessionToken!!)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            LearningPostPayload::class.java,
+        )
+        check(custom.subject == "MATHEMATICS" && custom.customSubjectName == "Agriculture")
+    }
     private companion object {
         val nextAdmin = AtomicInteger(0)
     }
