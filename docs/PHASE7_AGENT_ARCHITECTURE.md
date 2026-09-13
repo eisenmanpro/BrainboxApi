@@ -344,6 +344,15 @@ moderation/generation screens.
 - **Concept layer (locked):** the shared concept → per-country curriculum mapping is built now,
   with Kenya CBC as the first mapping; `cbc_strands` is folded in as Kenya's mapping rather than
   kept as a parallel taxonomy.
+- **Languages (locked):** English + Kiswahili at launch; `language` is first-class on units and
+  chunks so more languages are rows, not schema changes; the localisation agent adds them later
+  (mother-tongue early-grade readers are Tier 2).
+- **Accuracy targets (locked):** auto-approval opens per `(subject, grade, task)` only when the
+  domain clears schema/curriculum 100%, answer-key ≥99.5% (100% on the auto-approve set), safety
+  recall ≥99% (fail-closed), source-attributed grounding, and teacher acceptance ≥90%. The golden
+  set starts at 200–500 items (teacher decisions plus a curated safety set) and grows from usage.
+  Reviewer agreement means decision match or rating within ±1; a coordinator counts 2 toward a
+  quorum of 3, but a quorum always needs at least two distinct humans.
 - **Personalised papers:** both paths — learner practice (real-time, rule-filtered, visible to
   both the teacher and the linked parent) and teacher-assigned (through review, assigned as
   paper-review homework).
@@ -376,9 +385,5 @@ moderation/generation screens.
   diagram"), joined to the prompt/model version; the review decision and the rating stay separate
   signals.
 
-**Still open:**
-
-1. **Languages** beyond English/Kiswahili for the localisation agent?
-2. **Accuracy measurement** — per-dimension targets and the golden-set size and growth; how
-   "approximate" agreement is defined for tier advancement; how much a coordinator approval
-   counts once expert mode is on.
+**Still open:** none at the architecture level. Everything outstanding is either measured (the
+accuracy numbers, once the eval harness runs) or a build task.
