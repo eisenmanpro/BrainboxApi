@@ -258,7 +258,8 @@ provenance, bypasses generation but not moderation.
 
 - **Backend schema:** the router capture tables (`agent_runs`, `model_calls`, `tool_calls`,
   cache keys), `concepts`, `curriculum_map` (per-country), `learning_units` + `steps` +
-  `unit_questions` + `unit_figures`, `generation_jobs`, `prompt_versions`, `content_reviews`
+  `unit_questions` + `unit_figures`, `question_bank` (reviewed, versioned, tagged),
+  `paper_blueprints` + `paper_instances`, `generation_jobs`, `prompt_versions`, `content_reviews`
   (reviewed/unreviewed), `content_feedback` (teacher ratings), `reviewer_trust`, `moderation_policies`,
   `eval_examples`/`eval_runs` (the golden set and measured accuracy), `provenance`/licence columns,
   and private/public state on all content.
@@ -271,21 +272,28 @@ provenance, bypasses generation but not moderation.
 
 ---
 
-## 5. The moderation & human-in-the-loop console (separate local web app)
+## 5. The Brainbox team console (internal web app — ops, administration and moderation)
 
-A new app — not the Android client, not `BrainboxWeb` — served locally/internal, with:
+A new app — not the Android client, not `BrainboxWeb` (the teacher workspace) — served
+locally/internal. It is the **Brainbox staff screen**, so moderation is only one part of it:
 
-- an authentication/role model (reviewer, subject expert, platform moderator, admin);
-- the content review queue with side-by-side diffs, the **Reviewed/Unreviewed** toggle,
-  approve/reject/request-changes, and publish / unpublish / rollback;
-- the teacher-feedback view (ratings aggregated per concept, prompt version and model), which is
-  how "what most teachers want" is read back out;
-- prompt and curriculum management (versions, eval scores);
-- platform-wide moderation of user-generated surfaces (CBC projects, doubt, class chat, news),
-  which is broader than Phase 7;
-- a generation-job monitor (traces, tokens, cost, failure/escalation reasons).
+- **Platform analytics:** total and active users, schools, signups/growth, engagement, content
+  volume and review throughput, and the all-platform view.
+- **Account and school administration:** suspend / unfreeze accounts, manage school admins, and
+  the platform-wide account actions that today sit behind the admin API.
+- **Content review (HITL):** the queue with side-by-side diffs, the Reviewed/Unreviewed toggle,
+  approve/reject/request-changes, publish / unpublish / rollback, and promotion overrides.
+- **Teacher feedback:** ratings aggregated per concept, prompt version and model — what teachers
+  want and do not want.
+- **Prompt, curriculum and policy management:** versions, eval scores, and the moderation policy
+  switch (quorum size, weighted experts, auto-approve).
+- **Platform-wide moderation** of user-generated surfaces (CBC projects, doubt, class chat, news).
+- **Generation monitoring:** traces, tokens, cost, failure/escalation reasons.
 
 It shares the backend API and the MCP tool surface, so it is a frontend, not a second backend.
+Much of the administration (school analytics, approvals, system settings, audit logs, backups)
+already exists from Phase 5 (`api_admin_changes.md`); the console surfaces it and adds the
+moderation/generation screens.
 
 ---
 
@@ -297,6 +305,17 @@ It shares the backend API and the MCP tool surface, so it is a frontend, not a s
   the router as the only egress, a durable DB-backed job queue, idempotent jobs and a worker
   interface with its own executor — run in-process first, extracted to a separate worker when the
   triggers in §2.1.1 fire.
+- **Personalised papers:** both paths — learner practice (real-time, rule-filtered, visible to
+  both the teacher and the linked parent) and teacher-assigned (through review, assigned as
+  paper-review homework).
+- **Assemble-first:** papers are assembled from a **reviewed question bank** by blueprint plus the
+  learner's weak topics; generation fills gaps only. This keeps review load tractable and makes
+  the bank the compounding asset.
+- **Auto-promotion:** a personalised paper that performs well is published back automatically;
+  promotion **generalises** it (learner-specific ordering and data stripped) before it enters the
+  shared bank, and a moderator can still demote it.
+- **Brainbox team console scope:** platform analytics, account/school administration
+  (suspend / unfreeze), moderation, prompts/policy and generation monitoring — one internal app.
 - **Approval authority:** default quorum = **two approvals from any teacher of the matching
   subject/grade**. A versioned policy the Brainbox moderator can switch to weighted-expertise or
   moderator-only at any time; the switch applies to new reviews.
