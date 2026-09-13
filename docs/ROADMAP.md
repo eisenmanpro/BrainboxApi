@@ -227,7 +227,12 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       progress upsert (-1 pending, clamp 0-100, newest-wins) + continue-learning;
       server-derived personalized recommendations + trending; admin authoring; tests + PG18 parity
       [likes & file upload/presign remain for later phases]
-- [ ] Recommendations (personalized + trending, server-derived) (doc 03 §5)
+- [x] Recommendations (V55, docs/ongoing/api_recommendations_changes.md, doc 03 §5): the
+      server-derived rail composes continue-learning (progress), weak-topic (topic mastery),
+      collaborative (uploaded interaction telemetry, same school) and trending fallback;
+      GET recommendations/user/{userId} returns the authoritative list plus a `trending` array,
+      GET recommendations/trending is school-scoped, and POST recommendations/interaction stores
+      best-effort telemetry de-duplicated per (user, post, timestamp) in recommendation_interactions.
 - [ ] Homework with submission + auto-grading (doc 02/blueprint homework)
 - [x] Messaging core (2F, doc 05 §2): V14 messages (per-delivery rows, folder inbox/sent);
       direct send auth (students only to own-school staff); teacher INDIVIDUAL/CLASS/
