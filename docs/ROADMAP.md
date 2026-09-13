@@ -431,7 +431,9 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
         GET recommendations/user/{userId} (RecommendationsResponse) and GET recommendations/trending;
         dashboard/insights.teacherShoutout.sentAt added (featured contest already derives from the
         same published-contest query as dashboard/contests)
-- [ ] CBC analytics: class report, student report card, strand mastery, ratings, curriculum map (doc 04 §13)
+- [x] CBC analytics (V45): seeded curriculum-map catalogue plus class report, student report
+      card, strand mastery and the idempotent per-(student, strand, term) rating upsert, scoped to
+      the teacher's classes (coordinators may read any).
 - [ ] Student analytics (doc 04 §14)
 - [ ] Conferences: slots + bookings with constraints (doc 04 §15)
 - [ ] Reports: async generation, branding, authorization, history (doc 04 §16)
