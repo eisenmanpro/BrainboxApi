@@ -500,9 +500,10 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 >
 > §13 status: REC-1 (V55), TT-1, LC-2, ANN-1 (`0880946`), the reports renderer decision
 > (PDF-1 Option A, server-only, plus the blank-template endpoint, `e1a1958`), the ADM-1 backup
-> export schema (`99072a7`) and the learner-facing reports + detailed CBC specs (`1596e84`) are
-> done. LC-1 (FCM push) is blocked on the client half (no Firebase/Messaging SDK or device-token
-> contract yet). What remains is client/product work, not backend.
+> export schema (`99072a7`), the learner-facing reports + detailed CBC specs (`1596e84`) and the
+> TT-3/CONF-1/GB-1 backend defaults (`62b465f`) are done. LC-1 (FCM push) is blocked on the client
+> half (no Firebase/Messaging SDK or device-token contract); PAY-1/MED-1 wait on the Phase 6
+> direction. What remains is client/product work, not backend.
 - [ ] Exam lifecycle: PENDING → IN_PROGRESS → CONFIRMED → PRE_FINAL → FINALIZED → PUBLISHED guards
 - [ ] Subject config/components; mark entry; confirmation; finalization; publication
 - [ ] Edit requests: batch per-student processing; coordinator self-approval rejection
