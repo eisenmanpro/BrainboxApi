@@ -498,10 +498,11 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 > paired backend patches listed in that doc's §13 are applied. (The exam engine itself shipped in
 > V29; the return is to the main plan, not to re-do Phase 4.)
 >
-> §13 status: REC-1 (V55), TT-1, LC-2, ANN-1 (`0880946`) and the reports renderer decision
-> (PDF-1 Option A, server-only, plus the blank-template endpoint, `e1a1958`) are done. LC-1 (FCM
-> push) is blocked on the client half (no Firebase/Messaging SDK or device-token contract yet).
-> What remains is client/product work, not backend.
+> §13 status: REC-1 (V55), TT-1, LC-2, ANN-1 (`0880946`), the reports renderer decision
+> (PDF-1 Option A, server-only, plus the blank-template endpoint, `e1a1958`) and the ADM-1 backup
+> export schema (`99072a7`) are done. LC-1 (FCM push) is blocked on the client half (no
+> Firebase/Messaging SDK or device-token contract yet). What remains is client/product work, not
+> backend.
 - [ ] Exam lifecycle: PENDING → IN_PROGRESS → CONFIRMED → PRE_FINAL → FINALIZED → PUBLISHED guards
 - [ ] Subject config/components; mark entry; confirmation; finalization; publication
 - [ ] Edit requests: batch per-student processing; coordinator self-approval rejection
