@@ -73,6 +73,15 @@ app:
     sync-threshold-students: 5
     poll-hint-millis: 2000
     retention-days: 90
+  push:
+    fcm:
+      # FCM HTTP v1 sender (docs/ongoing/api_push_changes.md, LC-1). Token
+      # registration always works; without credentials the in-app notification is
+      # written but no push is delivered.
+      enabled: ${PUSH_FCM_ENABLED:false}
+      service-account-file: ${PUSH_FCM_SERVICE_ACCOUNT_FILE:}
+      project-id: ${PUSH_FCM_PROJECT_ID:}
+      channel-id: system_notifications_channel
   security:
     jwt:
       # Base64-encoded HMAC secret. Override in each environment. Dev default only.

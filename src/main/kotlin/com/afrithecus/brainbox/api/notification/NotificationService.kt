@@ -18,6 +18,8 @@ import com.afrithecus.brainbox.api.notification.model.NotificationUrgency
 import com.afrithecus.brainbox.api.notification.repository.NotificationRepository
 import com.afrithecus.brainbox.api.notification.web.AppNotificationPayload
 import com.afrithecus.brainbox.api.notification.web.CreateNotificationRequest
+import com.afrithecus.brainbox.api.push.PushFanoutService
+import com.afrithecus.brainbox.api.push.PushMessage
 import com.afrithecus.brainbox.api.subscription.SubscriptionService
 import com.afrithecus.brainbox.api.subscription.SubscriptionView
 import org.springframework.stereotype.Service
@@ -47,6 +49,7 @@ class NotificationService(
     private val subscriptionService: SubscriptionService,
     private val teacherClassRepository: TeacherClassRepository,
     private val classMembershipRepository: ClassMembershipRepository,
+    private val pushFanout: PushFanoutService,
     private val mapper: ObjectMapper,
     private val clock: Clock,
 ) {
@@ -116,6 +119,18 @@ class NotificationService(
             this.actionLabel = actionLabel
             this.metadata = mapper.writeValueAsString(metadata)
         })
+        pushFanout.dispatch(
+            userId,
+            PushMessage(
+                title = saved.title,
+                message = saved.message,
+                type = saved.type.name,
+                actionRoute = saved.actionRoute,
+                actionLabel = saved.actionLabel,
+                urgency = saved.urgency.name,
+                metadata = metadata,
+            ),
+        )
         return payload(saved)
     }
 
