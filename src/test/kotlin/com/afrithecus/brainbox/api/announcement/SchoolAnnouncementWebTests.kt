@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.announcement
 
+import com.afrithecus.brainbox.api.announcement.web.SchoolAnnouncementAnalyticsPayload
 import com.afrithecus.brainbox.api.announcement.web.SchoolAnnouncementPayload
 import com.afrithecus.brainbox.api.auth.web.AuthResponse
 import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
@@ -127,5 +128,77 @@ class SchoolAnnouncementWebTests(
             Array<SchoolAnnouncementPayload>::class.java,
         )
         check(after.isEmpty())
+    }
+
+    private fun member(role: Role, phone: String, name: String, gradeLevel: String? = null): UserEntity =
+        userRepository.save(UserEntity().apply {
+            phoneNumber = phone
+            email = phone + "@schoolann.test"
+            passwordHash = passwordEncoder.encode("password123") ?: error("encode")
+            this.name = name
+            this.role = role
+            this.gradeLevel = gradeLevel
+            this@SchoolAnnouncementWebTests.schoolId.let { this.schoolId = it }
+            isActive = true
+            isVerified = true
+        })
+
+    @Test
+    fun `announcement analytics counts totals and audience reach`() {
+        val admin = user(Role.ADMIN, "0755030010")
+        val t = token(admin)
+        val studentA = member(Role.STUDENT, "0755030011", "Ann Learner", "Grade 4")
+        member(Role.STUDENT, "0755030012", "Ben Learner", "Grade 4")
+        member(Role.STUDENT, "0755030013", "Cara Learner", "Grade 5")
+        val parent = member(Role.PARENT, "0755030014", "Dora Parent")
+        member(Role.TEACHER, "0755030015", "Evan Teacher")
+        studentA.parentUserId = parent.id
+        userRepository.save(studentA)
+
+        fun publish(title: String, audience: String, meeting: Long? = null): SchoolAnnouncementPayload {
+            val request = SchoolAnnouncementPayload(
+                announcementId = "",
+                title = title,
+                body = "Body",
+                audience = audience,
+                scheduledMeetingDate = meeting,
+            )
+            return objectMapper.readValue(
+                mockMvc.perform(post("/admin/schools/" + schoolId + "/announcements").header("Authorization", auth(t))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk).andReturn().response.contentAsString,
+                SchoolAnnouncementPayload::class.java,
+            )
+        }
+
+        publish("Everyone", "All")
+        publish("Grade fours", "Grades: 4")
+        publish("Teachers only", "Teachers: Evan Teacher")
+        publish("Meeting", "All", meeting = System.currentTimeMillis() + 86_400_000L)
+
+        val analytics = objectMapper.readValue(
+            mockMvc.perform(
+                get("/admin/schools/" + schoolId + "/announcements/analytics").header("Authorization", auth(t))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            SchoolAnnouncementAnalyticsPayload::class.java,
+        )
+        check(analytics.totalAnnouncements == 4)
+        check(analytics.announcementsLast30Days == 4)
+        check(analytics.scheduledMeetings == 1)
+        check(analytics.latestPostedAt != null)
+        val byTitle = analytics.announcements.associateBy { it.title }
+        // Roster is five active accounts: three students, one parent, one teacher.
+        check(byTitle.getValue("Everyone").estimatedReach == 5)
+        // Grade 4 students (2) plus the parent linked to one of them.
+        check(byTitle.getValue("Grade fours").estimatedReach == 3)
+        check(byTitle.getValue("Teachers only").estimatedReach == 1)
+
+        // A non-admin cannot read analytics.
+        val teacher = user(Role.TEACHER, "0755030016")
+        mockMvc.perform(
+            get("/admin/schools/" + schoolId + "/announcements/analytics")
+                .header("Authorization", auth(token(teacher)))
+        ).andExpect(status().isForbidden)
     }
 }

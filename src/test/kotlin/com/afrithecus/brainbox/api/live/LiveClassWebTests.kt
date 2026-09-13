@@ -4,6 +4,7 @@ import com.afrithecus.brainbox.api.auth.web.AuthResponse
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
+import com.afrithecus.brainbox.api.live.repository.LiveAttendanceRepository
 import com.afrithecus.brainbox.api.live.web.AttendanceRequest
 import com.afrithecus.brainbox.api.live.web.CreateLiveClassRequest
 import com.afrithecus.brainbox.api.live.web.CreatePollRequest
@@ -40,6 +41,7 @@ class LiveClassWebTests(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val userRepository: UserRepository,
+    @Autowired private val attendanceRepository: LiveAttendanceRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
 ) {
 
@@ -285,5 +287,43 @@ class LiveClassWebTests(
                     CreateLiveClassRequest("Bad", "Maths", teacher.id.toString(), 5_000, 1_000)
                 ))
         ).andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `short live sessions never count as attendance`() {
+        newUser("0778800040", "live.admin5@test", Role.ADMIN)
+        val admin = login("live.admin5@test")
+        val teacher = newUser("0778800041", "live.teacher5@test", Role.TEACHER)
+        val student = signup("0778800042")
+        val clazz = createClass(admin, teacher.id.toString(), "Short Live")
+        val classId = UUID.fromString(clazz.id)
+        val join = System.currentTimeMillis() - 10 * 60_000
+
+        fun record(request: AttendanceRequest) =
+            mockMvc.perform(
+                post("/live/class/" + clazz.id + "/attendance").header("Authorization", auth(student.sessionToken!!))
+                    .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request))
+            ).andExpect(status().isOk)
+
+        // Offline replay sends only timestamps; a 2 minute session is absent despite no isPresent flag.
+        record(AttendanceRequest(userId = student.user.id, checkInTime = join, leaveTime = join + 2 * 60_000))
+        val short = requireNotNull(attendanceRepository.findByClassIdAndStudentId(classId, UUID.fromString(student.user.id)))
+        check(short.durationMinutes == 2)
+        check(short.status == "ABSENT")
+        check(short.isPresent.not())
+        check(short.leftAt != null)
+
+        // At the five minute threshold the session counts.
+        record(AttendanceRequest(userId = student.user.id, checkInTime = join, leaveTime = join + 5 * 60_000))
+        val threshold = requireNotNull(attendanceRepository.findByClassIdAndStudentId(classId, UUID.fromString(student.user.id)))
+        check(threshold.durationMinutes == 5)
+        check(threshold.status == "PRESENT")
+        check(threshold.isPresent)
+
+        // Still in the room (no leave time) reads present.
+        record(AttendanceRequest(userId = student.user.id, checkInTime = join))
+        val inProgress = requireNotNull(attendanceRepository.findByClassIdAndStudentId(classId, UUID.fromString(student.user.id)))
+        check(inProgress.status == "PRESENT")
+        check(inProgress.isPresent)
     }
 }

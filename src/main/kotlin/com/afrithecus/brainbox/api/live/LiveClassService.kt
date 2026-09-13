@@ -140,17 +140,32 @@ class LiveClassService(
         if (targetId != current.userId) {
             requireHost(current, clazz)
         }
-        val status = (request.status ?: if (request.isPresent == false) "ABSENT" else "PRESENT").trim().uppercase()
-        if (status !in setOf("PRESENT", "ABSENT", "LATE")) throw invalidArgument("Unknown attendance status: " + status)
+        val requestedStatus = (request.status ?: if (request.isPresent == false) "ABSENT" else "PRESENT").trim().uppercase()
+        if (requestedStatus !in setOf("PRESENT", "ABSENT", "LATE")) {
+            throw invalidArgument("Unknown attendance status: " + requestedStatus)
+        }
+        val joinedAt = request.checkInTime?.let(Instant::ofEpochMilli)
+        val leftAt = request.leaveTime?.let(Instant::ofEpochMilli)
+        val knownDuration = when {
+            joinedAt != null && leftAt != null ->
+                Duration.between(joinedAt, leftAt).toMinutes().coerceAtLeast(0L).toInt()
+            request.durationMinutes != null -> request.durationMinutes!!.coerceAtLeast(0)
+            else -> null
+        }
+        // A learner who joins and leaves inside MIN_ATTENDED_MINUTES never reads as
+        // present, even when an offline replay omits isPresent/durationMinutes
+        // (mirrors the client's MIN_ATTENDED_MINUTES gate).
+        val leftTooEarly = leftAt != null && knownDuration != null && knownDuration < MIN_ATTENDED_MINUTES
+        val status = if (leftTooEarly) "ABSENT" else requestedStatus
         val row = attendanceRepository.findByClassIdAndStudentId(clazz.id, targetId) ?: LiveAttendanceEntity().apply {
             this.classId = clazz.id
             this.studentId = targetId
         }
         row.status = status
-        row.joinedAt = request.checkInTime?.let(Instant::ofEpochMilli)
-        row.leftAt = request.leaveTime?.let(Instant::ofEpochMilli)
-        row.durationMinutes = request.durationMinutes ?: 0
-        row.isPresent = request.isPresent ?: (status != "ABSENT")
+        row.joinedAt = joinedAt
+        row.leftAt = leftAt
+        row.durationMinutes = knownDuration ?: 0
+        row.isPresent = if (leftTooEarly) false else (request.isPresent ?: (status != "ABSENT"))
         row.reason = request.reason
         row.recordedAt = clock.instant()
         attendanceRepository.save(row)
@@ -329,6 +344,7 @@ class LiveClassService(
         runCatching { UUID.fromString(raw) }.getOrNull() ?: throw invalidArgument(label + " is not a valid identifier")
 
     private companion object {
+        const val MIN_ATTENDED_MINUTES = 5
         val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
         val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, d MMM", Locale.US)
     }

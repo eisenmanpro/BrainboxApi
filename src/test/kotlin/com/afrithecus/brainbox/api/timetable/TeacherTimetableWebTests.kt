@@ -483,4 +483,66 @@ class TeacherTimetableWebTests(
         )
         check(rejected.status == "REJECTED")
     }
+
+    @Test
+    fun `timetable entries reject overlapping slots`() {
+        val teacher = user(Role.TEACHER, "Clash Teacher", "0755020090")
+        val t = token(teacher)
+        fun save(id: String, start: String, end: String, day: Int = 1) =
+            mockMvc.perform(post("/teacher/timetable/entries").header("Authorization", auth(t))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        entry().copy(id = id, startTime = start, endTime = end, dayOfWeek = day)
+                    )
+                ))
+
+        save("entry_1", "08:00", "09:00").andExpect(status().isOk)
+        // Replaying the same client id is an upsert, never a self-clash.
+        save("entry_1", "08:00", "09:00").andExpect(status().isOk)
+
+        // An overlapping slot on the same day is rejected with the clash payload.
+        val clashBody = save("entry_2", "08:30", "09:30")
+            .andExpect(status().isConflict).andReturn().response.contentAsString
+        check(clashBody.contains("TEACHER_OVERLAP"))
+        check(clashBody.contains("entry_1"))
+
+        // Back-to-back slots do not overlap.
+        save("entry_3", "09:00", "10:00").andExpect(status().isOk)
+
+        // Moving an existing entry onto another slot is rejected as well.
+        mockMvc.perform(put("/teacher/timetable/entries/entry_1").header("Authorization", auth(t))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(entry().copy(startTime = "09:30", endTime = "10:30"))))
+            .andExpect(status().isConflict)
+
+        // A different day at the same clock time is independent.
+        save("entry_4", "08:30", "09:30", day = 2).andExpect(status().isOk)
+    }
+
+    @Test
+    fun `room booking replay that overlaps another booking is rejected`() {
+        val teacher = user(Role.TEACHER, "Booker", "0755020091")
+        val t = token(teacher)
+        val base = System.currentTimeMillis() + 86_400_000L
+        fun booking(id: String, start: Long, end: Long) = RoomBookingPayload(
+            id = id, roomId = "room9", roomName = "Room 9", teacherName = "Booker",
+            startTime = start, endTime = end, purpose = "Revision",
+        )
+        mockMvc.perform(post("/teacher/rooms/book").header("Authorization", auth(t))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(booking("bk_1", base, base + 3_600_000))))
+            .andExpect(status().isOk)
+        mockMvc.perform(post("/teacher/rooms/book").header("Authorization", auth(t))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(booking("bk_2", base + 3_600_000, base + 7_200_000))))
+            .andExpect(status().isOk)
+        // Replaying bk_1 with a window that now overlaps bk_2 is rejected and names the clash.
+        val body = mockMvc.perform(post("/teacher/rooms/book").header("Authorization", auth(t))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(booking("bk_1", base + 1_800_000, base + 5_400_000))))
+            .andExpect(status().isConflict).andReturn().response.contentAsString
+        check(body.contains("ROOM_OVERLAP"))
+        check(body.contains("bk_2"))
+    }
 }

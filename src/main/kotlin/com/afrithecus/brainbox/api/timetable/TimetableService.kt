@@ -92,6 +92,7 @@ class TimetableService(
             teacherId = teacher.id
         }
         applyEntry(entity, request, teacher)
+        rejectEntryClash(entity)
         entryRepository.saveAndFlush(entity)
         return toEntryPayload(entity)
     }
@@ -101,6 +102,7 @@ class TimetableService(
         requireTeacher(teacher)
         val entity = resolveEntry(teacher, entryId) ?: throw notFound("Timetable entry not found")
         applyEntry(entity, request, teacher)
+        rejectEntryClash(entity)
         entryRepository.saveAndFlush(entity)
         return toEntryPayload(entity)
     }
@@ -140,10 +142,19 @@ class TimetableService(
         val start = Instant.ofEpochMilli(request.startTime)
         val end = Instant.ofEpochMilli(request.endTime)
         if (!end.isAfter(start)) throw invalidArgument("endTime must be after startTime")
-        if (existing == null) {
-            val overlaps = bookingRepository
-                .findAllByRoomIdAndStartTimeLessThanAndEndTimeGreaterThan(roomId, end, start)
-            if (overlaps.isNotEmpty()) throw conflict("Room is already booked for that time")
+        val overlaps = bookingRepository
+            .findAllByRoomIdAndStartTimeLessThanAndEndTimeGreaterThan(roomId, end, start)
+            .filter { it.id != existing?.id }
+        val clash = overlaps.firstOrNull()
+        if (clash != null) {
+            throw conflict(
+                "Room is already booked for that time",
+                mapOf(
+                    "conflictType" to "ROOM_OVERLAP",
+                    "conflictingBookingId" to clash.clientId,
+                    "conflictingBooking" to toBookingPayload(clash),
+                ),
+            )
         }
         val entity = existing ?: RoomBookingEntity().apply {
             this.clientId = clientId
@@ -226,6 +237,37 @@ class TimetableService(
         entity.peerCircleId = request.peerCircleId?.trim()?.takeIf { it.isNotEmpty() }
         entity.entryType = request.entryType.trim().ifEmpty { "LECTURE" }
         entity.practicalBlockType = validatePractical(request.practicalBlockType)
+    }
+
+    /**
+     * A teacher cannot hold two overlapping slots on the same day. Mirrors the
+     * client's in-memory [hasTeacherConflict] so a mutation rejected on one
+     * device is rejected identically when replayed from another.
+     */
+    private fun rejectEntryClash(entity: TimetableEntryEntity) {
+        val start = toMinutes(entity.startTime)
+        val end = toMinutes(entity.endTime)
+        val clash = entryRepository
+            .findAllByTeacherIdAndDayOfWeekOrderByStartTimeAsc(entity.teacherId, entity.dayOfWeek)
+            .firstOrNull { other ->
+                other.clientId != entity.clientId &&
+                    toMinutes(other.startTime) < end &&
+                    start < toMinutes(other.endTime)
+            } ?: return
+        throw conflict(
+            "You already have a class scheduled at that time",
+            mapOf(
+                "conflictType" to "TEACHER_OVERLAP",
+                "conflictingEntryId" to clash.clientId,
+                "conflictingEntry" to toEntryPayload(clash),
+            ),
+        )
+    }
+
+    private fun toMinutes(time: String): Int {
+        val hour = time.substring(0, 2).toInt()
+        val minute = time.substring(3, 5).toInt()
+        return hour * 60 + minute
     }
 
     private fun toEntryPayload(entity: TimetableEntryEntity) = TimetableEntryPayload(

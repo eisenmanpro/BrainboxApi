@@ -45,6 +45,15 @@ class SchoolAnnouncementController(
         return service.list(schoolId)
     }
 
+    @GetMapping("/{schoolId}/announcements/analytics")
+    fun analytics(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable schoolId: String,
+    ): SchoolAnnouncementAnalyticsPayload {
+        admin(currentUser, schoolId)
+        return service.analytics(schoolId)
+    }
+
     @PostMapping("/{schoolId}/announcements")
     fun create(
         @AuthenticationPrincipal currentUser: CurrentUser,
