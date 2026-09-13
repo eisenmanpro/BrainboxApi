@@ -8,6 +8,8 @@ import com.afrithecus.brainbox.api.cbcratings.repository.CbcStrandRepository
 import com.afrithecus.brainbox.api.cbcratings.web.CbcStrandRatingPayload
 import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
+import com.afrithecus.brainbox.api.conference.repository.ConferenceBookingRepository
+import com.afrithecus.brainbox.api.conference.web.ConferenceBookingPayload
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.invalidArgument
@@ -57,6 +59,7 @@ class StudentAnalyticsService(
     private val learningViewRepository: LearningViewRepository,
     private val feedbackRepository: TeacherFeedbackRepository,
     private val contractService: LearningContractService,
+    private val conferenceBookingRepository: ConferenceBookingRepository,
     private val cbcRatingRepository: CbcRatingRepository,
     private val cbcStrandRepository: CbcStrandRepository,
     private val achievementsService: AchievementsService,
@@ -96,6 +99,7 @@ class StudentAnalyticsService(
             homeworkHistory = homeworkHistory(teacher, studentIdRaw),
             feedbackHistory = feedbackHistory(teacher, studentIdRaw),
             learningContract = learningContract(teacher, studentIdRaw),
+            conferenceHistory = conferences(teacher, studentIdRaw),
             classComparisons = comparisons,
         )
     }
@@ -217,6 +221,26 @@ class StudentAnalyticsService(
         requireTeacher(teacher)
         val student = requireStudent(teacher, studentIdRaw)
         return contractService.latestForChild(student.id)
+    }
+
+    @Transactional(readOnly = true)
+    fun conferences(teacher: UserEntity, studentIdRaw: String): List<ConferenceBookingPayload> {
+        requireTeacher(teacher)
+        val student = requireStudent(teacher, studentIdRaw)
+        return conferenceBookingRepository.findAllByChildIdOrderByBookingDateDesc(student.id).map { booking ->
+            ConferenceBookingPayload(
+                id = booking.clientId,
+                slotId = booking.slotId.toString(),
+                parentId = booking.parentId.toString(),
+                childId = booking.childId.toString(),
+                teacherName = booking.teacherName.orEmpty(),
+                date = booking.bookingDate.toEpochMilli(),
+                time = booking.bookingTime.orEmpty(),
+                meetLink = booking.meetLink,
+                notes = booking.notes,
+                status = booking.status,
+            )
+        }
     }
 
     @Transactional(readOnly = true)

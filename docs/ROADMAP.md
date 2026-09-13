@@ -439,7 +439,11 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       performance, CBC competencies, attendance, engagement, homework, feedback, learning contract,
       conferences and achievements components, and class comparisons - composed from the existing
       exam, attendance, learning, feedback, contract and CBC data, scoped to shared classes.
-- [ ] Conferences: slots + bookings with constraints (doc 04 §15)
+- [x] Conferences (cf, V46): client-id idempotent teacher slot CRUD, slot bookings, idempotent
+      booking status PATCH, windowed idempotent reminders, stable meet links; parent browse
+      (audience-targeted), idempotent book, repeat-safe cancel and authoritative own-bookings list.
+      Slot status (OPEN/FULL) is recomputed from the confirmed booking count; the student-analytics
+      conferences component now returns real bookings.
 - [ ] Reports: async generation, branding, authorization, history (doc 04 §16)
 - [x] Teacher settings & profile (V44): GET/PUT /teacher/settings (preferences, notification
       switches, grade weighting, subjects/TSC/grade) and GET/PUT /teacher/profile (the account

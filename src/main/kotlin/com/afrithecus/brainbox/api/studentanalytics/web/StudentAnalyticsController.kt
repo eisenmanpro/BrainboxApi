@@ -3,6 +3,7 @@ package com.afrithecus.brainbox.api.studentanalytics.web
 import com.afrithecus.brainbox.api.achievements.web.UserAchievementsPayload
 import com.afrithecus.brainbox.api.cbcratings.web.CbcStrandRatingPayload
 import com.afrithecus.brainbox.api.common.error.notFound
+import com.afrithecus.brainbox.api.conference.web.ConferenceBookingPayload
 import com.afrithecus.brainbox.api.contract.web.LearningContractPayload
 import com.afrithecus.brainbox.api.feedback.web.TeacherFeedbackPayload
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
@@ -81,10 +82,7 @@ class StudentAnalyticsController(
     fun conferences(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @PathVariable studentId: String,
-    ): List<Any?> {
-        service.studentAnalytics(teacher(currentUser), studentId)
-        return emptyList()
-    }
+    ): List<ConferenceBookingPayload> = service.conferences(teacher(currentUser), studentId)
 
     @GetMapping("/class/{classId}/comparisons")
     fun comparisons(

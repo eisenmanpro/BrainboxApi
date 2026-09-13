@@ -1,6 +1,7 @@
 package com.afrithecus.brainbox.api.studentanalytics.web
 
 import com.afrithecus.brainbox.api.cbcratings.web.CbcStrandRatingPayload
+import com.afrithecus.brainbox.api.conference.web.ConferenceBookingPayload
 import com.afrithecus.brainbox.api.contract.web.LearningContractPayload
 import com.afrithecus.brainbox.api.feedback.web.TeacherFeedbackPayload
 
@@ -71,6 +72,6 @@ data class StudentAnalyticsPayload(
     val homeworkHistory: List<StudentHomeworkPayload> = emptyList(),
     val feedbackHistory: List<TeacherFeedbackPayload> = emptyList(),
     val learningContract: LearningContractPayload? = null,
-    val conferenceHistory: List<Any?> = emptyList(),
+    val conferenceHistory: List<ConferenceBookingPayload> = emptyList(),
     val classComparisons: ClassComparisonsPayload? = null,
 )
