@@ -72,6 +72,7 @@ class PostgresParityTests(
                     "teacher_timetable_entries", "teacher_room_bookings", "teacher_house_groups",
                     "teacher_peer_circles", "teacher_community_services", "teacher_schedule_changes",
                     "learning_posts", "school_announcements", "live_class_participants", "live_class_messages",
+                    "teacher_feedback_templates", "teacher_feedback",
                 )) {
                     require(expected in names) { "missing table " + expected + "; got " + names }
                 }

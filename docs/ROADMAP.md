@@ -364,7 +364,9 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       client-resolvable deep link announcements/{clientId}, and per-announcement analytics
       (views/acknowledgements/studentStatus). Student/parent read list and a student ack
       endpoint remain deferred per the handoff.
-- [ ] Feedback: templates, history, bulk (doc 04 §7)
+- [x] Feedback (fb, V42): client-id idempotent templates (save/delete, repeat-safe), feedback
+      history (own, optional studentId filter) and single/bulk submission, all self-scoped to the
+      signed-in teacher.
 - [x] Live class mgmt (lc, V21 + V41): teacher CRUD/lifecycle (client-id idempotent, offline
       outbox), recordings with real duration/date, analytics, the persisted host roster with
       idempotent MUTE/UNMUTE/REMOVE/KICK/PROMOTE actions, host polls and the chat transcript with
