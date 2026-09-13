@@ -435,7 +435,9 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - [ ] Student analytics (doc 04 §14)
 - [ ] Conferences: slots + bookings with constraints (doc 04 §15)
 - [ ] Reports: async generation, branding, authorization, history (doc 04 §16)
-- [ ] Teacher settings & profile (doc 04 §17)
+- [x] Teacher settings & profile (V44): GET/PUT /teacher/settings (preferences, notification
+      switches, grade weighting, subjects/TSC/grade) and GET/PUT /teacher/profile (the account
+      shape with teacher code, classes, subjects and verification state), self-scoped.
 
 ### Phase 4 — Traditional Exam Engine  (goal 4; docs 02 §6, 10)
 - [ ] Exam lifecycle: PENDING → IN_PROGRESS → CONFIRMED → PRE_FINAL → FINALIZED → PUBLISHED guards
