@@ -1,9 +1,11 @@
 package com.afrithecus.brainbox.api.common.error
 
+import io.micrometer.core.instrument.MeterRegistry
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.ConstraintViolationException
 import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.http.ResponseEntity
@@ -19,7 +21,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException
  * (doc 11 §8.1/§8.2). Unknown failures never leak internals to the client.
  */
 @RestControllerAdvice
-class GlobalExceptionHandler {
+class GlobalExceptionHandler(private val meterRegistry: MeterRegistry) {
 
     @ExceptionHandler(ApiException::class)
     fun handleApi(ex: ApiException, request: HttpServletRequest): ResponseEntity<ApiError> =
@@ -57,6 +59,22 @@ class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException::class)
     fun handleIntegrity(ex: DataIntegrityViolationException, request: HttpServletRequest): ResponseEntity<ApiError> =
         respond(ApiErrorCode.CONFLICT, HttpStatus.CONFLICT, "Operation conflicts with existing data", null, request)
+
+    /**
+     * JPA optimistic locking (`@Version`) rejected a write based on a stale row.
+     * The client should reload and retry, so this is a 409 rather than a 500.
+     */
+    @ExceptionHandler(OptimisticLockingFailureException::class)
+    fun handleOptimisticLock(ex: OptimisticLockingFailureException, request: HttpServletRequest): ResponseEntity<ApiError> {
+        meterRegistry.counter("brainbox.conflicts", "type", "optimistic").increment()
+        return respond(
+            ApiErrorCode.CONFLICT,
+            HttpStatus.CONFLICT,
+            "The record changed while you were editing it; reload and retry",
+            null,
+            request,
+        )
+    }
 
     @ExceptionHandler(Exception::class)
     fun handleGeneric(ex: Exception, request: HttpServletRequest): ResponseEntity<ApiError> {

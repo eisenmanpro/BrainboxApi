@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.push
 
+import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionSynchronization
 import org.springframework.transaction.support.TransactionSynchronizationManager
@@ -14,6 +15,7 @@ import java.util.UUID
 class PushFanoutService(
     private val deviceTokens: DeviceTokenStore,
     private val sender: PushSender,
+    private val meterRegistry: MeterRegistry,
 ) {
 
     fun dispatch(userId: UUID, message: PushMessage) {
@@ -29,7 +31,14 @@ class PushFanoutService(
     }
 
     private fun deliver(userId: UUID, tokens: List<String>, message: PushMessage) {
-        val invalid = runCatching { sender.send(tokens, message) }.getOrDefault(emptyList())
-        if (invalid.isNotEmpty()) runCatching { deviceTokens.deleteTokens(userId, invalid) }
+        val invalid = runCatching { sender.send(tokens, message) }
+            .onFailure { meterRegistry.counter("brainbox.push.failures", "stage", "send").increment() }
+            .getOrDefault(emptyList())
+        meterRegistry.counter("brainbox.push.tokens", "outcome", "sent")
+            .increment((tokens.size - invalid.size).toDouble())
+        if (invalid.isNotEmpty()) {
+            meterRegistry.counter("brainbox.push.tokens", "outcome", "invalid").increment(invalid.size.toDouble())
+            runCatching { deviceTokens.deleteTokens(userId, invalid) }
+        }
     }
 }

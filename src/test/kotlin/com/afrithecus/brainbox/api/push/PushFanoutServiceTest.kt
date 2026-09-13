@@ -1,10 +1,13 @@
 package com.afrithecus.brainbox.api.push
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.junit.jupiter.api.Test
 import java.util.UUID
 
 /** Push fan-out: token selection, send and invalid-token pruning. */
 class PushFanoutServiceTest {
+
+    private val registry = SimpleMeterRegistry()
 
     private class FakeStore : DeviceTokenStore {
         val pruned = mutableListOf<String>()
@@ -24,7 +27,7 @@ class PushFanoutServiceTest {
     fun `dispatch sends to every token and prunes the invalid ones`() {
         val store = FakeStore()
         val sender = CaptureSender(listOf("token-2"))
-        PushFanoutService(store, sender).dispatch(
+        PushFanoutService(store, sender, registry).dispatch(
             UUID.randomUUID(),
             PushMessage(title = "T", message = "M", type = "ATTENDANCE"),
         )
@@ -32,6 +35,8 @@ class PushFanoutServiceTest {
         check(sender.calls.single().first == listOf("token-1", "token-2"))
         check(sender.calls.single().second.type == "ATTENDANCE")
         check(store.pruned == listOf("token-2"))
+        check(registry.counter("brainbox.push.tokens", "outcome", "sent").count() == 1.0)
+        check(registry.counter("brainbox.push.tokens", "outcome", "invalid").count() == 1.0)
     }
 
     @Test
@@ -41,7 +46,7 @@ class PushFanoutServiceTest {
             override fun deleteTokens(userId: UUID, tokens: Collection<String>) = Unit
         }
         val sender = CaptureSender(emptyList())
-        PushFanoutService(store, sender).dispatch(UUID.randomUUID(), PushMessage(title = "T", message = "M"))
+        PushFanoutService(store, sender, registry).dispatch(UUID.randomUUID(), PushMessage(title = "T", message = "M"))
         check(sender.calls.isEmpty())
     }
 }

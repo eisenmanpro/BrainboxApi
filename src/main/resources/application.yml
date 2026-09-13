@@ -50,6 +50,9 @@ management:
     health:
       probes:
         enabled: true
+      # Probe endpoints stay open; component details are only shown to an
+      # authenticated caller (the admin role sees the full health tree).
+      show-details: when_authorized
 
 app:
   # Calendar zone used to bucket attendance registers (client sends local midnight).

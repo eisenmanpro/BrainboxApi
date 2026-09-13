@@ -542,12 +542,27 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       JWT handshake auth, presence, heartbeat and class-ended. TURN/STUN stays client/deployment
       configuration (the app already carries per-flavor SIGNALING_TURN_* values).
 - [ ] M-Pesa production integration (idempotent STK push + callbacks, state transitions)
-- [ ] FCM push notifications + deep links
+- [x] FCM push notifications + deep links (LC-1, `04f0bff`): device registration plus an HTTP
+      v1 sender wired into every server notification, disabled until `app.push.fcm` is set.
 - [ ] Media/file upload (presigned S3/MinIO) + file security (scan URLs, size/type policy)
-- [ ] Redis: JWT revocation, rate-limit counters, live-class counters
-- [ ] Background job processing (offline mutation replay, sync workers, notifications, analytics)
-- [ ] Monitoring & logging (actuator, structured logs, health, metrics)
-- [ ] Conflict resolution (ETag/If-Match), retry strategy, resilience hardening
+- [ ] Redis: JWT revocation, rate-limit counters, live-class counters.
+      **Partial without Redis:** access-token revocation is now enforced by checking the
+      session row in `AuthTokenFilter`, so logout / password change / deactivation take effect
+      immediately instead of waiting out the 24h token TTL; rate limiting is an in-memory token
+      bucket and live-class presence an in-memory map. Redis remains the multi-node upgrade and
+      needs the starter (not in the offline build) and a server.
+- [x] Background job processing: scheduled maintenance for audit retention, password-reset
+      cleanup, report schedules + file retention, conference expiry, content/announcement
+      release, idempotency purge, and (new) expired refresh-token / dead-session pruning
+      (`IdentityMaintenanceScheduler`).
+- [x] Monitoring & logging: actuator health/info/metrics with liveness/readiness probes and
+      `show-details: when_authorized`, a bounded `/actuator/info` contributor, custom Micrometer
+      counters (push delivery, optimistic conflicts) and ECS structured console logs in prod.
+- [x] Conflict resolution, retry and resilience: JPA optimistic-lock failures map to a counted
+      `409` instead of a `500`; a bounded exponential-backoff `Retry` (no extra dependency)
+      wraps the FCM token exchange and transient sends; the idempotency filter, rate limiter,
+      graceful shutdown and outbound timeouts are in place. Write-side `ETag`/`If-Match` is
+      deferred until a client surface sends the resource version.
 
 ### Phase 7 — Agentic Content Generation Pipeline  (goal 7; ARCHITECTURE §13)
 - [ ] Content cache table (JSONB) + cache-first Router; idempotent generation keyed by topic/grade/scope

@@ -1,6 +1,7 @@
 package com.afrithecus.brainbox.api.security
 
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
+import com.afrithecus.brainbox.api.identity.repository.UserSessionRepository
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -18,6 +19,7 @@ import org.springframework.web.filter.OncePerRequestFilter
 @Component
 class AuthTokenFilter(
     private val jwtTokenService: JwtTokenService,
+    private val userSessionRepository: UserSessionRepository,
 ) : OncePerRequestFilter() {
 
     override fun doFilterInternal(
@@ -30,6 +32,14 @@ class AuthTokenFilter(
             val token = header.substring(BEARER_PREFIX.length).trim()
             runCatching { jwtTokenService.parseAccessToken(token) }
                 .onSuccess { claims ->
+                    // A revoked session (logout, password change, admin deactivation)
+                    // invalidates its access tokens immediately; without this check the
+                    // JWT would stay valid until its TTL (24h) even after logout.
+                    if (claims.sessionId != null &&
+                        userSessionRepository.findByIdAndIsActiveTrue(claims.sessionId)?.userId != claims.userId
+                    ) {
+                        return@onSuccess
+                    }
                     val principal = CurrentUser(
                         userId = claims.userId,
                         role = claims.role,

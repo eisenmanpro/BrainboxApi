@@ -4,6 +4,7 @@ import com.afrithecus.brainbox.api.identity.entity.UserSessionEntity
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
+import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
@@ -24,4 +25,8 @@ interface UserSessionRepository : JpaRepository<UserSessionEntity, UUID> {
     fun findAllByUserIdAndIsActiveTrueOrderByLastActiveAtAscIdAsc(userId: UUID): List<UserSessionEntity>
 
     fun findAllByUserIdAndIsActiveTrue(userId: UUID): List<UserSessionEntity>
+
+    /** Removes long-dead sessions no longer counted by the activity pulse. */
+    @Transactional
+    fun deleteByIsActiveFalseAndLastActiveAtBefore(cutoff: Instant): Long
 }

@@ -15,3 +15,7 @@ logging:
   level:
     root: WARN
     com.afrithecus.brainbox.api: INFO
+  # Ship machine-readable logs from production so a collector can index them.
+  structured:
+    format:
+      console: ecs

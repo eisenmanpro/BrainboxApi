@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.push
 
+import com.afrithecus.brainbox.api.common.resilience.Retry
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
@@ -44,7 +45,7 @@ class FcmPushSender(
             log.warn("FCM service account is unavailable: {}", it.message)
             return emptyList()
         }
-        val accessToken = runCatching { accessToken(account) }.getOrElse {
+        val accessToken = runCatching { Retry.withBackoff { accessToken(account) } }.getOrElse {
             log.warn("FCM access token exchange failed: {}", it.message)
             return emptyList()
         }
@@ -64,24 +65,32 @@ class FcmPushSender(
             .header("Content-Type", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
             .build()
-        return runCatching { client.send(request, HttpResponse.BodyHandlers.ofString()) }.fold(
-            onSuccess = { response ->
-                when {
-                    response.statusCode() in 200..299 -> Outcome.SENT
-                    response.statusCode() == 404 || response.body().contains("UNREGISTERED") ||
-                        response.body().contains("INVALID_ARGUMENT") -> Outcome.INVALID
-                    else -> {
-                        log.warn("FCM send rejected with {}: {}", response.statusCode(), response.body())
-                        Outcome.FAILED
-                    }
+        // Retry transient failures (429/5xx, socket errors); other 4xx are terminal.
+        val response = runCatching {
+            Retry.withBackoff(attempts = SEND_ATTEMPTS) {
+                val candidate = client.send(request, HttpResponse.BodyHandlers.ofString())
+                if (candidate.statusCode() == 429 || candidate.statusCode() in 500..599) {
+                    throw TransientFcmException("FCM returned " + candidate.statusCode())
                 }
-            },
-            onFailure = { error ->
-                log.warn("FCM send failed: {}", error.message)
+                candidate
+            }
+        }.getOrElse { error ->
+            log.warn("FCM send failed: {}", error.message)
+            return Outcome.FAILED
+        }
+        return when {
+            response.statusCode() in 200..299 -> Outcome.SENT
+            response.statusCode() == 404 || response.body().contains("UNREGISTERED") ||
+                response.body().contains("INVALID_ARGUMENT") -> Outcome.INVALID
+            else -> {
+                log.warn("FCM send rejected with {}: {}", response.statusCode(), response.body())
                 Outcome.FAILED
-            },
-        )
+            }
+        }
     }
+
+    /** Thrown for a 429/5xx so [Retry] backs off and tries again. */
+    private class TransientFcmException(message: String) : java.io.IOException(message)
 
     private fun serviceAccount(): ServiceAccount {
         cachedAccount?.let { return it }
@@ -158,6 +167,7 @@ class FcmPushSender(
     private enum class Outcome { SENT, INVALID, FAILED }
 
     private companion object {
+        const val SEND_ATTEMPTS = 3
         const val FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
         const val JWT_BEARER = "urn:ietf:params:oauth:grant-type:jwt-bearer"
     }
