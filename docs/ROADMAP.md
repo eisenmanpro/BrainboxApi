@@ -502,9 +502,10 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 > (PDF-1 Option A, server-only, plus the blank-template endpoint, `e1a1958`), the ADM-1 backup
 > export schema (`99072a7`), the learner-facing reports + detailed CBC specs (`1596e84`) and the
 > TT-3/CONF-1/GB-1 backend defaults (`62b465f`) are done. Parent absence/present alerts are decided
-> (server push + local alert) and emitted server-side (`5227cde`); the out-of-app channel is LC-1,
-> blocked on the client half (Firebase/Messaging SDK + device-token contract). PAY-1/MED-1 wait on
-> the Phase 6 direction. What remains is client/product work, not backend.
+> (server push + local alert) and emitted server-side (`5227cde`); LC-1 is now implemented end to
+> end (`04f0bff`) — device registration plus the FCM sender, disabled until `app.push.fcm`
+> credentials are configured. PAY-1/MED-1 wait on the Phase 6 direction. What remains is
+> client/product work, not backend.
 - [ ] Exam lifecycle: PENDING → IN_PROGRESS → CONFIRMED → PRE_FINAL → FINALIZED → PUBLISHED guards
 - [ ] Subject config/components; mark entry; confirmation; finalization; publication
 - [ ] Edit requests: batch per-student processing; coordinator self-approval rejection
