@@ -192,7 +192,7 @@ class AttendanceWebTests(
         check(alerts.size == 1)
         check(alerts.single().actionRoute == "student_report/" + alice.id.toString())
 
-        // Alice becomes PRESENT: no further alert is emitted.
+        // Alice becomes PRESENT: the parent also gets the arrival alert (product decision).
         val corrected = objectMapper.writeValueAsString(listOf(record(clazz, alice, "PRESENT", day), record(clazz, bob, "PRESENT", day)))
         mockMvc.perform(
             post("/teacher/attendance").header("Authorization", auth(teacherToken))
@@ -203,7 +203,30 @@ class AttendanceWebTests(
                 .andExpect(status().isOk).andReturn().response.contentAsString,
             Array<AppNotificationPayload>::class.java,
         ).filter { it.type == "ATTENDANCE" }
-        check(afterCorrect.size == 1)
+        check(afterCorrect.size == 2)
+        check(afterCorrect.any { it.title.startsWith("Arrival Confirmed") && it.metadata["status"] == "PRESENT" })
+    }
+
+    @Test
+    fun `a fresh present mark notifies the parent`() {
+        val parent = user(Role.PARENT, "Parent Two", "0722000300")
+        val child = user(Role.STUDENT, "Cara Learner", "0722000301", parentId = parent.id)
+        val teacher = user(Role.TEACHER, "Present Teacher", "0722000302", subRole = SubRole.CTEACHER)
+        val clazz = teacherClass(teacher, "Grade 5 South")
+        enroll(clazz, child)
+        val t = token(teacher)
+        val day = midnightToday()
+        mockMvc.perform(
+            post("/teacher/attendance").header("Authorization", auth(t))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(record(clazz, child, "PRESENT", day))))
+        ).andExpect(status().isOk)
+        val alerts = objectMapper.readValue(
+            mockMvc.perform(get("/notifications").param("userId", parent.id.toString()).header("Authorization", auth(token(parent))))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<AppNotificationPayload>::class.java,
+        ).filter { it.type == "ATTENDANCE" && it.metadata["status"] == "PRESENT" }
+        check(alerts.size == 1) { "a fresh present mark should notify the parent" }
     }
 
     @Test

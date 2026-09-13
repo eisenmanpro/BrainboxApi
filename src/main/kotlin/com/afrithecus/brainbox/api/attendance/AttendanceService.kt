@@ -94,6 +94,7 @@ class AttendanceService(
             val payloadIds = classRecords.map { parseUuid(it.studentId, "studentId") }.toSet()
             for (record in classRecords) {
                 val studentId = parseUuid(record.studentId, "studentId")
+                val isNew = existing[studentId] == null
                 val row = existing[studentId] ?: AttendanceRecordEntity().apply {
                     classId = clazz.id
                     this.studentId = studentId
@@ -103,7 +104,7 @@ class AttendanceService(
                 apply(row, record.status, record.notes, clazz, user)
                 val saved = recordRepository.save(row)
                 persisted += saved
-                if (previous != saved.status && saved.status in NOTIFIABLE) {
+                if (saved.status in NOTIFIABLE && (isNew || previous != saved.status)) {
                     notifyParent(studentId, clazz, saved)
                 }
             }
@@ -566,19 +567,31 @@ class AttendanceService(
         val student = userRepository.findById(studentId).orElse(null) ?: return
         val parentId = student.parentUserId ?: return
         val dayLabel = DATE_FORMAT.format(row.attendanceDate)
-        val absent = row.status == AttendanceStatus.ABSENT
-        val title = if (absent) "Absence Alert: " + student.name else "Late Arrival: " + student.name
-        val message = if (absent) {
-            student.name + " was marked absent on " + dayLabel + ". Please follow up."
-        } else {
-            student.name + " was marked late on " + dayLabel + "."
+        // Product decision: a parent gets a real-time absence AND present alert
+        // (server push + the client's local alert), so time-in-class is visible.
+        val (title, message, urgency) = when (row.status) {
+            AttendanceStatus.ABSENT -> Triple(
+                "Absence Alert: " + student.name,
+                student.name + " was marked absent on " + dayLabel + ". Please follow up.",
+                NotificationUrgency.HIGH,
+            )
+            AttendanceStatus.LATE -> Triple(
+                "Late Arrival: " + student.name,
+                student.name + " was marked late on " + dayLabel + ".",
+                NotificationUrgency.NORMAL,
+            )
+            else -> Triple(
+                "Arrival Confirmed: " + student.name,
+                student.name + " was marked present on " + dayLabel + ".",
+                NotificationUrgency.NORMAL,
+            )
         }
         notificationService.notifyUser(
             userId = parentId,
             title = title,
             message = message,
             type = NotificationType.ATTENDANCE,
-            urgency = if (absent) NotificationUrgency.HIGH else NotificationUrgency.NORMAL,
+            urgency = urgency,
             priority = NotificationPriority.HIGH,
             actionRoute = "student_report/" + studentId,
             actionLabel = "View report",
@@ -637,7 +650,8 @@ class AttendanceService(
         const val DEFAULT_WINDOW_DAYS = 30L
         const val HIGH_ATTENDANCE = 90.0
         const val HIGH_PERFORMANCE = 65.0
-        val NOTIFIABLE = setOf(AttendanceStatus.ABSENT, AttendanceStatus.LATE)
+        // ABSENT/LATE plus PRESENT: the parent chose server push + local alert for arrivals too.
+        val NOTIFIABLE = setOf(AttendanceStatus.ABSENT, AttendanceStatus.LATE, AttendanceStatus.PRESENT)
         val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, dd MMM", Locale.US)
     }
 }
