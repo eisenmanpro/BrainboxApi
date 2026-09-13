@@ -403,7 +403,8 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       votes (LivePoll shape shared with live classes), multipart attachments through the shared media
       store (now accepts PDFs/audio/text), group teachers (TeacherClass shape) and gradebook
       contributions derived from graded homework; tests + PG18 parity
-      [WebSocket transport /ws/teacher/class-chat/{groupId} remains Phase 6]
+      [Realtime transport done: /ws/{teacher|student|parent}/class-chat/{groupId} with JWT
+      handshake authorization, heartbeat ack, and server push of each HTTP-sent message and deletion]
 - [x] Contract-hardening wave 2R (app results pipeline + chat transport, docs/ongoing):
       - 2R-p1 class-chat transport alignment (V28): clientMessageId idempotency on every send,
         parent (/parent) and student (/student) transport controllers, per-user read state via

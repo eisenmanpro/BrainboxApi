@@ -10,6 +10,7 @@ import com.afrithecus.brainbox.api.classchat.repository.ClassGroupMemberReposito
 import com.afrithecus.brainbox.api.classchat.repository.ClassGroupMessageRepository
 import com.afrithecus.brainbox.api.classchat.repository.ClassGroupPollRepository
 import com.afrithecus.brainbox.api.classchat.repository.ClassGroupPollVoteRepository
+import com.afrithecus.brainbox.api.classchat.ws.ClassChatSocketHandler
 import com.afrithecus.brainbox.api.classchat.repository.ClassGroupReadRepository
 import com.afrithecus.brainbox.api.classchat.repository.ClassGroupRepository
 import com.afrithecus.brainbox.api.classchat.web.ClassGroupMessagePayload
@@ -71,6 +72,7 @@ class ClassChatService(
     private val submissionRepository: HomeworkSubmissionRepository,
     private val notificationRepository: NotificationRepository,
     private val mediaService: MediaService,
+    private val socketHandler: ClassChatSocketHandler,
     private val mapper: ObjectMapper,
     private val clock: Clock,
 ) {
@@ -147,7 +149,9 @@ class ClassChatService(
             Role.STUDENT -> studentAccessibleGroup(current, groupIdRaw)
             else -> ownedGroup(current, groupIdRaw)
         }
-        return sendFor(current, group, request, replyTo, isAnnouncement, clientMessageId)
+        val saved = sendFor(current, group, request, replyTo, isAnnouncement, clientMessageId)
+        socketHandler.broadcastMessage(group.id, saved)
+        return saved
     }
 
     @Transactional
@@ -162,6 +166,7 @@ class ClassChatService(
     fun deleteMessage(current: CurrentUser, groupIdRaw: String, messageIdRaw: String) {
         val group = ownedGroup(current, groupIdRaw)
         messageRepository.delete(ownedMessage(group, messageIdRaw))
+        socketHandler.broadcastDeleted(group.id, messageIdRaw)
     }
 
     @Transactional
