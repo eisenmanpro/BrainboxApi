@@ -20,4 +20,6 @@ interface CbcRatingRepository : JpaRepository<CbcRatingEntity, UUID> {
         studentIds: Collection<UUID>,
         strandCode: String,
     ): List<CbcRatingEntity>
+
+    fun findAllByStudentIdOrderByRatedAtDesc(studentId: UUID): List<CbcRatingEntity>
 }

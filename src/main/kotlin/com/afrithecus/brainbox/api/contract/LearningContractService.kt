@@ -131,6 +131,11 @@ class LearningContractService(
         )
     }
 
+    /** Staff-facing read: the learner's most recently updated contract, if any. */
+    @Transactional(readOnly = true)
+    fun latestForChild(childId: UUID): LearningContractPayload? =
+        contractRepository.findAllByChildIdOrderByLastUpdatedDesc(childId).firstOrNull()?.let(::payload)
+
     @Transactional(readOnly = true)
     fun templates(): List<ContractTemplatePayload> =
         templateRepository.findAllByOrderByCategoryAscTitleAsc().map { template ->

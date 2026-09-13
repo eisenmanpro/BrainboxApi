@@ -434,7 +434,10 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - [x] CBC analytics (V45): seeded curriculum-map catalogue plus class report, student report
       card, strand mastery and the idempotent per-(student, strand, term) rating upsert, scoped to
       the teacher's classes (coordinators may read any).
-- [ ] Student analytics (doc 04 §14)
+- [x] Student analytics (V45): GET /teacher/analytics/student/{id} aggregate plus subject
+      performance, CBC competencies, attendance, engagement, homework, feedback, learning contract,
+      conferences and achievements components, and class comparisons - composed from the existing
+      exam, attendance, learning, feedback, contract and CBC data, scoped to shared classes.
 - [ ] Conferences: slots + bookings with constraints (doc 04 §15)
 - [ ] Reports: async generation, branding, authorization, history (doc 04 §16)
 - [x] Teacher settings & profile (V44): GET/PUT /teacher/settings (preferences, notification

@@ -9,4 +9,6 @@ interface LearningViewRepository : JpaRepository<LearningViewEntity, UUID> {
     fun findByUserIdAndPostIdAndDayKey(userId: UUID, postId: UUID, dayKey: String): LearningViewEntity?
 
     fun countByPostId(postId: UUID): Long
+
+    fun findAllByUserId(userId: UUID): List<LearningViewEntity>
 }

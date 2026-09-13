@@ -75,6 +75,10 @@ class AchievementsService(
     fun userAchievements(current: CurrentUser, userIdRaw: String): UserAchievementsPayload =
         build(requireSelf(current, userIdRaw))
 
+    /** Staff-facing read used by the teacher student-analytics surface. */
+    @Transactional(readOnly = true)
+    fun forUser(userId: UUID): UserAchievementsPayload = build(userId)
+
     @Transactional(readOnly = true)
     fun contestHistory(current: CurrentUser, userIdRaw: String): List<ContestHistoryEntryPayload> {
         val userId = requireSelf(current, userIdRaw)
