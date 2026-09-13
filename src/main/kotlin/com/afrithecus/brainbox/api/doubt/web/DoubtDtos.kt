@@ -4,7 +4,9 @@ import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 
 // ---------------------------------------------------------------------------
-// Doubt solving payloads (doc 05 §3).
+// Doubt solving payloads (doc 05 §3). Shapes mirror the Android client models
+// in DoubtModels.kt: votes are split into upvotes/downvotes plus the caller's
+// own direction, and bookmarks/accepted-answer state travel with the question.
 // ---------------------------------------------------------------------------
 
 data class AskQuestionRequest(
@@ -32,9 +34,15 @@ data class DoubtQuestionPayload(
     val authorId: String,
     val authorName: String,
     val status: String,
-    val voteCount: Int,
+    val upvotes: Int,
+    val downvotes: Int,
+    val answerCount: Int,
     val viewCount: Int,
     val createdAt: Long,
+    val isAcceptedAnswer: Boolean,
+    val acceptedAnswerId: String? = null,
+    val currentUserVote: Int = 0,
+    val isBookmarked: Boolean = false,
 )
 
 data class DoubtAnswerPayload(
@@ -45,6 +53,15 @@ data class DoubtAnswerPayload(
     val authorName: String,
     val authorRole: String,
     val isAccepted: Boolean,
-    val voteCount: Int,
+    val upvotes: Int,
+    val downvotes: Int,
+    val currentUserVote: Int = 0,
     val createdAt: Long,
+)
+
+data class VoteResultPayload(
+    val success: Boolean,
+    val newUpvotes: Int,
+    val newDownvotes: Int,
+    val message: String,
 )
