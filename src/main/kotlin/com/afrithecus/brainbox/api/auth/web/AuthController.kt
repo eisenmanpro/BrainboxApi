@@ -1,6 +1,7 @@
 package com.afrithecus.brainbox.api.auth.web
 
 import com.afrithecus.brainbox.api.auth.AuthService
+import com.afrithecus.brainbox.api.auth.PasswordResetService
 import com.afrithecus.brainbox.api.identity.SchoolRegistrationService
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import jakarta.servlet.http.HttpServletRequest
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController
 class AuthController(
     private val authService: AuthService,
     private val schoolRegistrationService: SchoolRegistrationService,
+    private val passwordResetService: PasswordResetService,
 ) {
 
     @PostMapping("/signup")
@@ -40,6 +42,18 @@ class AuthController(
             LoginRequest(identifier = request.phoneNumber, password = request.password),
             http.getHeader(DEVICE_ID_HEADER),
         )
+
+    @PostMapping("/forgot-password")
+    fun forgotPassword(@Valid @RequestBody request: ForgotPasswordRequest): AuthMessagePayload =
+        passwordResetService.request(request.identifier)
+
+    @PostMapping("/verify-otp")
+    fun verifyOtp(@Valid @RequestBody request: VerifyOtpRequest): VerifyOtpPayload =
+        passwordResetService.verify(request.identifier, request.otp)
+
+    @PostMapping("/reset-password")
+    fun resetPassword(@Valid @RequestBody request: ResetPasswordRequest): AuthMessagePayload =
+        passwordResetService.reset(request.resetToken, request.newPassword)
 
     @PostMapping("/refresh")
     fun refresh(@Valid @RequestBody request: RefreshRequest): RefreshResponse =

@@ -57,6 +57,11 @@ app:
   media:
     # Local disk storage for uploaded project media until S3/MinIO (Phase 6).
     local-dir: ${MEDIA_DIR:./data/media}
+  auth:
+    password-reset:
+      # Development only: log the reset code (no SMS/email provider is wired).
+      # Production must set AUTH_LOG_OTP=false and plug in a delivery channel.
+      log-otp: ${AUTH_LOG_OTP:false}
   reports:
     # Rendered report PDFs, signed-download lifetime, weekly quota and the
     # server-side sync/async thresholds (docs/ongoing/api_reports_changes.md).

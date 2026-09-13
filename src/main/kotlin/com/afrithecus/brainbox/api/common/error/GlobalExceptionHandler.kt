@@ -70,9 +70,13 @@ class GlobalExceptionHandler {
         message: String,
         details: Map<String, Any?>?,
         request: HttpServletRequest,
-    ): ResponseEntity<ApiError> = ResponseEntity
-        .status(status)
-        .body(
+    ): ResponseEntity<ApiError> {
+        val builder = ResponseEntity.status(status)
+        // Throttling advertises a Retry-After so the client can back off.
+        if (code == ApiErrorCode.TOO_MANY_REQUESTS) {
+            (details?.get("retryAfter") as? Number)?.toLong()?.let { builder.header("Retry-After", it.toString()) }
+        }
+        return builder.body(
             ApiError(
                 error = code.name,
                 message = message,
@@ -81,6 +85,7 @@ class GlobalExceptionHandler {
                 path = request.requestURI,
             )
         )
+    }
 
     private companion object {
         val log = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)

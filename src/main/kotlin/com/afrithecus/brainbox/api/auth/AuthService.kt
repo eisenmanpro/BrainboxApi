@@ -24,10 +24,12 @@ import com.afrithecus.brainbox.api.identity.model.SubscriptionStatus
 import com.afrithecus.brainbox.api.identity.model.SubscriptionTier
 import com.afrithecus.brainbox.api.identity.repository.RefreshTokenRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
+import com.afrithecus.brainbox.api.identity.repository.SchoolSystemSettingsRepository
 import com.afrithecus.brainbox.api.identity.repository.TeacherCodeRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.identity.repository.UserSessionRepository
 import com.afrithecus.brainbox.api.identity.web.UserPayloadFactory
+import com.afrithecus.brainbox.api.security.AuthThrottle
 import com.afrithecus.brainbox.api.security.JwtTokenService
 import com.afrithecus.brainbox.api.security.TokenHash
 import com.afrithecus.brainbox.api.subscription.Entitlements
@@ -52,9 +54,11 @@ class AuthService(
     private val refreshRepository: RefreshTokenRepository,
     private val teacherCodeRepository: TeacherCodeRepository,
     private val subscriptionService: SubscriptionService,
+    private val settingsRepository: SchoolSystemSettingsRepository,
     private val passwordEncoder: PasswordEncoder,
     private val jwtTokenService: JwtTokenService,
     private val userPayloadFactory: UserPayloadFactory,
+    private val authThrottle: AuthThrottle,
     private val clock: Clock,
 ) {
 
@@ -81,11 +85,15 @@ class AuthService(
             codeSchool = code.schoolId
         }
 
-        val resolvedSchoolId = resolveSchool(
+        val school = resolveSchool(
             requestedId = request.schoolId?.takeIf { it.isNotBlank() },
             requestedName = request.schoolName?.takeIf { it.isNotBlank() },
             teacherSchoolId = codeSchool,
-        )?.id
+        )
+        if (school != null && settingsRepository.findById(school.id).orElse(null)?.registrationOpen == false) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "Registration is currently closed for this school")
+        }
+        val resolvedSchoolId = school?.id
 
         val user = UserEntity().apply {
             this.phoneNumber = phone
@@ -109,19 +117,24 @@ class AuthService(
 
     @Transactional
     fun login(request: LoginRequest, deviceId: String?): AuthResponse {
-        val user = resolveByIdentifier(request.identifier.trim())
-            ?: throw unauthorized("Invalid identifier or password")
+        val identifier = request.identifier.trim()
+        authThrottle.check(LOGIN_THROTTLE_PREFIX + identifier)
+        val user = resolveByIdentifier(identifier)
+            ?: failLogin(identifier)
 
-        if (!user.isActive) {
-            throw unauthorized("Invalid identifier or password")
-        }
-        if (!passwordEncoder.matches(request.password, user.passwordHash)) {
-            throw unauthorized("Invalid identifier or password")
-        }
+        if (!user.isActive) failLogin(identifier)
+        if (!passwordEncoder.matches(request.password, user.passwordHash)) failLogin(identifier)
 
+        authThrottle.clear(LOGIN_THROTTLE_PREFIX + identifier)
         user.lastLogin = clock.instant()
         userRepository.save(user)
         return issueAuthResponse(user, deviceId, includeTokens = true, message = "Login successful")
+    }
+
+    /** Same message for a missing account and a wrong password (anti-enumeration). */
+    private fun failLogin(identifier: String): Nothing {
+        authThrottle.recordFailure(LOGIN_THROTTLE_PREFIX + identifier)
+        throw unauthorized("Invalid identifier or password")
     }
 
     @Transactional
@@ -452,6 +465,7 @@ class AuthService(
         const val STUDENT_SESSION_CAP = 3
         const val MAX_ADMISSION_ATTEMPTS = 20
         const val MIN_PASSWORD_LENGTH = 8
+        const val LOGIN_THROTTLE_PREFIX = "login:"
         val random = SecureRandom()
     }
 }

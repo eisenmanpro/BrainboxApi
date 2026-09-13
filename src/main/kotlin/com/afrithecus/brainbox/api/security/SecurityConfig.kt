@@ -55,6 +55,9 @@ class SecurityConfig(
                         "/auth/signup",
                         "/auth/signup/teacher",
                         "/auth/validate-ctc",
+                        "/auth/forgot-password",
+                        "/auth/verify-otp",
+                        "/auth/reset-password",
                         "/auth/refresh",
                         // Public CBC project browse flow (landing page + guest id).
                         "/cbc/public/**",

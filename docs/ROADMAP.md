@@ -167,8 +167,15 @@ starts; this document is the durable long-term plan. Progress = checked items.
       other session/refresh token, keeping the caller's) and POST auth/register-school
       (moderation queue: idempotent per requestId, rejects an already-active name; admin
       GET/POST /admin/school-registration-requests[/{id}/approve|reject] creates the school
-      only on approval). forgot-password stays open pending a delivery channel + client reset
-      screen.
+      only on approval).
+- [x] Password recovery & auth throttling (V54, docs/ongoing/api_auth_changes.md):
+      POST auth/forgot-password (neutral body for known/unknown identifiers, hashed one-time
+      code, out-of-band PasswordResetNotifier port), POST auth/verify-otp (single-use,
+      short-lived reset token bound to the identifier) and POST auth/reset-password
+      (6-character floor, consumes the token and invalidates every existing session).
+      Per-identifier AuthThrottle locks login/forgot/verify/validate-ctc after repeated
+      failures with a Retry-After hint, and registration is rejected server-side while a
+      school's school_system_settings.registrationOpen flag is off.
 - [x] Sessions: <=3 student / 1 teacher-parent, oldest evicted, device dedupe (doc 01 §5.1) +
       parent->child /auth/switch-session (§5.3)
 - [x] RBAC: role + sub-role authorities; @PreAuthorize ADMIN guards; method security

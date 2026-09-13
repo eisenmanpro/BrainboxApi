@@ -28,9 +28,11 @@ import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
+import com.afrithecus.brainbox.api.identity.repository.SchoolSystemSettingsRepository
 import com.afrithecus.brainbox.api.identity.repository.TeacherCodeRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.identity.web.UserPayloadFactory
+import com.afrithecus.brainbox.api.security.AuthThrottle
 import com.afrithecus.brainbox.api.subscription.SubscriptionService
 import com.afrithecus.brainbox.api.teacher.entity.TeacherSettingsEntity
 import com.afrithecus.brainbox.api.teacher.repository.TeacherSettingsRepository
@@ -50,6 +52,7 @@ import java.util.UUID
 class TeacherAuthService(
     private val userRepository: UserRepository,
     private val schoolRepository: SchoolRepository,
+    private val settingsRepository: SchoolSystemSettingsRepository,
     private val teacherCodeRepository: TeacherCodeRepository,
     private val teacherSettingsRepository: TeacherSettingsRepository,
     private val classRepository: TeacherClassRepository,
@@ -60,6 +63,7 @@ class TeacherAuthService(
     private val teacherCodeGenerator: TeacherCodeGenerator,
     private val authService: AuthService,
     private val auditLogService: AuditLogService,
+    private val authThrottle: AuthThrottle,
     private val codec: QuestionCodec,
 ) {
 
@@ -74,6 +78,9 @@ class TeacherAuthService(
             throw conflict("An account with this phone number already exists")
         }
         val school = resolveSchool(request.schoolId, request.schoolName)
+        if (school != null && settingsRepository.findById(school.id).orElse(null)?.registrationOpen == false) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "Registration is currently closed for this school")
+        }
         val teacher = UserEntity().apply {
             phoneNumber = phone
             name = request.name.trim()
@@ -125,9 +132,13 @@ class TeacherAuthService(
     @Transactional(readOnly = true)
     fun validateCtc(request: ValidateCtcRequest): CtcValidationPayload {
         val raw = request.ctc.trim().uppercase()
+        authThrottle.check(CTC_THROTTLE_PREFIX + raw)
         if (raw.isEmpty()) return CtcValidationPayload(isValid = false, message = "Enter a class code")
         val code = teacherCodeRepository.findByCodeAndActiveTrue(raw)
-            ?: return CtcValidationPayload(isValid = false, message = "Unknown or inactive class code")
+            ?: run {
+                authThrottle.recordFailure(CTC_THROTTLE_PREFIX + raw)
+                return CtcValidationPayload(isValid = false, message = "Unknown or inactive class code")
+            }
         val teacher = userRepository.findById(code.teacherUserId).orElse(null)
         val school = code.schoolId?.let { schoolRepository.findById(it).orElse(null) }
         val clazz = classRepository.findAllByTeacherUserIdAndIsActiveTrueOrderByNameAsc(code.teacherUserId).firstOrNull()
@@ -141,6 +152,7 @@ class TeacherAuthService(
             )
         }
         if (code.frozen) {
+            authThrottle.recordFailure(CTC_THROTTLE_PREFIX + raw)
             return CtcValidationPayload(
                 isValid = false,
                 teacherName = teacher?.name,
@@ -153,6 +165,7 @@ class TeacherAuthService(
                 className = clazz?.name,
             )
         }
+        authThrottle.clear(CTC_THROTTLE_PREFIX + raw)
         return CtcValidationPayload(
             isValid = true,
             teacherName = teacher?.name,
@@ -403,4 +416,8 @@ class TeacherAuthService(
 
     private fun shareText(code: String): String =
         "Join my class on BrainBox with class code " + code + ". Open BrainBox, sign up as a student and enter the code."
+
+    private companion object {
+        const val CTC_THROTTLE_PREFIX = "ctc:"
+    }
 }
