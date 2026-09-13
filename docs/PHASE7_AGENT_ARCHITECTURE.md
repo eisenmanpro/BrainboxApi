@@ -152,6 +152,27 @@ client** (a client feature to add), and any model content, reviewed or not, can 
 moderator console is the backstop for adjudication, appeals and platform-wide moderation rather
 than the only review door.
 
+**Moderation policy is configuration, not code.** The default published rule is **two approvals
+from any teacher of the matching subject/grade**. The policy is a versioned config the Brainbox
+moderator can switch at any time, with modes for weighted expertise (coordinator /
+subject-expert approvals count more), moderator-only, and **confidence auto-approval**. A
+switch applies to new reviews; existing decisions stand.
+
+**Confidence scoring drives auto-approval.** The critique/reviewer emits a calibrated
+confidence score per item; auto-approval is a threshold on that score, **off by default** and
+enabled only for a `(subject, grade, task)` domain whose measured accuracy clears the bar. The
+bar is 99%, and it must be measured **per dimension**, not blended: safety block recall,
+answer-key correctness, schema/curriculum validity, and teacher-acceptance rate. An eval
+harness over a golden set gates the switch — nothing auto-approves in a domain that has not
+been measured.
+
+**Trust tiers exist from day one, and only ever add weight.** A teacher's tier rises with
+review volume and **agreement** — their rating/decision matching the eventual consensus
+exactly or within a tolerance. Higher tiers can have their approval count for more. Two
+constraints: **Brainbox moderators are excluded** from this ladder (they are the backstop, not
+teachers on it), and **tiers never gate eligibility** — a teacher who has never reviewed can
+always start; trust only changes how much their review counts.
+
 ### 2.8 Data stores
 
 - **Subject Notes & Guides DB** — the canonical learning units (concept-first, versioned).
@@ -207,8 +228,9 @@ provenance, bypasses generation but not moderation.
 - **Backend schema:** the router capture tables (`agent_runs`, `model_calls`, `tool_calls`,
   cache keys), `concepts`, `curriculum_map` (per-country), `learning_units` + `steps` +
   `unit_questions` + `unit_figures`, `generation_jobs`, `prompt_versions`, `content_reviews`
-  (reviewed/unreviewed), `content_feedback` (teacher ratings), `provenance`/licence columns, and
-  private/public state on all content.
+  (reviewed/unreviewed), `content_feedback` (teacher ratings), `reviewer_trust`, `moderation_policies`,
+  `eval_examples`/`eval_runs` (the golden set and measured accuracy), `provenance`/licence columns,
+  and private/public state on all content.
 - **Backend delivery:** the §1.6 contract fixes (materials body, hub `postId`/`metadata`/`status`,
   enum subject, doubt, progress), a **reviewed-only filter** on every learner read over a
   model-written table, and a **rich chunk body** so visual chunks are not plain text.
@@ -236,25 +258,36 @@ It shares the backend API and the MCP tool surface, so it is a frontend, not a s
 
 ---
 
-## 6. Open questions to refine
+## 6. Decisions — settled and still open
+
+**Settled in discussion:**
+
+- **Approval authority:** default quorum = **two approvals from any teacher of the matching
+  subject/grade**. A versioned policy the Brainbox moderator can switch to weighted-expertise or
+  moderator-only at any time; the switch applies to new reviews.
+- **Teacher visibility:** teachers receive everything, reviewed and unreviewed — needed to assign
+  paper-review homework and to moderate; learners receive reviewed only.
+- **Auto-approval:** driven by the critique confidence score, **off by default**, enabled per
+  `(subject, grade, task)` domain once measured accuracy clears the 99% bar.
+- **Trust tiers:** from day one, agreement-based, **weight-only**; Brainbox moderators excluded;
+  a teacher who has never reviewed is never blocked.
+- **Per-version reviews:** a review binds to a content version; a regeneration resets to
+  unreviewed.
+- **Offline reviews:** approvals are online-only and version-checked (ratings may queue).
+- **Rating shape:** 1–5 plus actionable tags ("clear", "too hard", "wrong answer", "needs
+  diagram"), joined to the prompt/model version; the review decision and the rating stay separate
+  signals.
+
+**Still open:**
 
 1. Is the **Task Loop Engine** a queue + workers in the Spring app, or a separate agent service
    that calls the API? The diagram is transport-agnostic.
-2. **Personalised exam papers** — are they learner-private practice papers, teacher-assigned, or
-   both? That decides the private/public split and the client surface.
-3. **MCP** — self-hosted MCP servers per store, or in-process tools exposed through one MCP
-   client? This affects deployment and the console's reuse.
-4. **Languages** — which languages beyond English/Kiswahili for the localisation agent?
-5. **Moderation staffing** — who reviews, at what volume, and what is auto-approved?
-6. **Every country after Kenya** — the concept layer is the plan; confirm we build it now rather
-   than retrofitting after the Kenyan corpus.
-7. **Shared-moderation authority** — does one teacher's approval publish, or is it a quorum of
-   teachers of the matching subject/grade? My lean: quorum (2–3), with the console able to veto.
-8. **Teacher visibility scope** — all GLOBAL content platform-wide, or school + own subjects/
-   grades? Platform-wide risks a huge review queue; subjects/grades keeps it tractable.
-9. **Per-version reviews** — a review applies to a content version, so regenerating resets
-   `REVIEWED`. Confirm reviews do not survive a regeneration.
-10. **Offline reviews** — the client is offline-first, but approving stale content is dangerous;
-    my lean is reviews are online-only and version-checked.
-11. **Rating shape** — a bare star is weak signal; propose 1–5 plus actionable tags ("clear",
-    "too hard", "wrong answer", "needs diagram") joined to the prompt/model version.
+2. **Personalised exam papers** — learner-private practice, teacher-assigned, or both? That
+   decides the private/public split and the client surface.
+3. **MCP** — self-hosted servers per store, or in-process tools behind one MCP client?
+4. **Languages** beyond English/Kiswahili for the localisation agent?
+5. **Every country after Kenya** — build the concept layer now rather than retrofit after the
+   Kenyan corpus? (Confirm.)
+6. **Accuracy measurement** — per-dimension targets and the golden-set size and growth; how
+   "approximate" agreement is defined for tier advancement; how much a coordinator approval
+   counts once expert mode is on.
