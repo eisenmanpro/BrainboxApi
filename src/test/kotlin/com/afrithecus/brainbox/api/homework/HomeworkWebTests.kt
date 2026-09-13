@@ -146,11 +146,11 @@ class HomeworkWebTests(
         ).andExpect(status().isOk).andReturn().response.contentAsString
         check(objectMapper.readValue(mine2, Array<StudentHomeworkPayload>::class.java).none { it.id == "hw_12345" })
 
-        // submit -> pending
+        // submit -> pending; the Android client posts the full body to /homework/submit.
         mockMvc.perform(
-            post("/homework/hw_12345/submit").header("Authorization", auth(student1.sessionToken!!))
+            post("/homework/submit").header("Authorization", auth(student1.sessionToken!!))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"submissionText":"x=2, y=5"}""")
+                .content("""{"id":"hw_12345","submissionText":"x=2, y=5"}""")
         ).andExpect(status().isOk)
 
         // teacher sees the submission and grades it

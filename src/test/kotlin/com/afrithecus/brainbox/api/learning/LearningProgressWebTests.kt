@@ -200,6 +200,21 @@ class LearningProgressWebTests(
         ).andExpect(status().isForbidden)
     }
 
+    @Test
+    fun `readable payload matches the Android model`() {
+        val admin = adminToken()
+        val student = signup("0773000003", "Contract High")
+        createReadable(admin, "Contract Book")
+        val list = mockMvc.perform(
+            get("/materials/readable").header("Authorization", auth(student.sessionToken!!))
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val file = objectMapper.readValue(list, Array<ReadableFilePayload>::class.java)
+            .first { it.title == "Contract Book" }
+        // Client field names, not fileUrl/pageCount/sizeBytes.
+        check(file.filePath == "https://cdn/files/Contract Book")
+        check(file.totalPages == 120)
+        check(file.fileType == "PDF")
+    }
     private companion object {
         val nextAdmin = AtomicInteger(0)
     }

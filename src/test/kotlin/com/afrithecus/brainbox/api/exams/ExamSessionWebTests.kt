@@ -242,7 +242,12 @@ class ExamSessionWebTests(
         val all = mockMvc.perform(
             get("/past-papers/all").header("Authorization", auth(student.sessionToken!!))
         ).andExpect(status().isOk).andReturn().response.contentAsString
-        check(objectMapper.readValue(all, Array<DocumentItem>::class.java).any { it.examYear == 2024 })
+        val listed = objectMapper.readValue(all, Array<DocumentItem>::class.java)
+        val paper = listed.first { it.examYear == 2024 }
+        // The Android DocumentItem needs a source descriptor, scope and timestamps.
+        check(paper.source.type == "REMOTE")
+        check(paper.scope == "GLOBAL" && paper.isPastPaper)
+        check(paper.addedAt > 0)
 
         val search = mockMvc.perform(
             get("/past-papers/search?q=KCSE").header("Authorization", auth(student.sessionToken!!))
