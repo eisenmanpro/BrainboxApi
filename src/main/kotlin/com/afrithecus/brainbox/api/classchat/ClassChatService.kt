@@ -165,7 +165,9 @@ class ClassChatService(
     @Transactional
     fun deleteMessage(current: CurrentUser, groupIdRaw: String, messageIdRaw: String) {
         val group = ownedGroup(current, groupIdRaw)
-        messageRepository.delete(ownedMessage(group, messageIdRaw))
+        // Repeat-safe: an offline delete replay of an already-deleted message is a no-op.
+        val message = runCatching { ownedMessage(group, messageIdRaw) }.getOrNull() ?: return
+        messageRepository.delete(message)
         socketHandler.broadcastDeleted(group.id, messageIdRaw)
     }
 
