@@ -491,27 +491,28 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       switches, grade weighting, subjects/TSC/grade) and GET/PUT /teacher/profile (the account
       shape with teacher code, classes, subjects and verification state), self-scoped.
 
-### Phase 4 — Traditional Exam Engine  (goal 4; docs 02 §6, 10) — COMPLETE; RETURN POINT CLEARED
+### Phase 4 — Traditional Exam Engine  (goal 4; docs 02 §6, 10)
 
-> **Resumed and closed.** The client backlog wave landed and every paired backend patch was
-> applied (REC-1 V55; TT-1/LC-2/ANN-1 `0880946`; reports renderer `e1a1958`; ADM-1 `99072a7`;
-> learner reports `1596e84`; TT-3/CONF-1/GB-1 `62b465f`; attendance alerts `5227cde`; LC-1 push
-> `04f0bff`). The traditional-exam client pass (TE-2..TE-14, `BrainBox` `a2f08a4`/`a663cb3`/
-> `269d022`) then exposed a final backend gap: the client keys exams on self-generated,
-> non-UUID ids (`TRAD_Grade4_OPENER_2026_T1`) while the server parsed every `{examId}` as a
-> UUID, so no mark, confirmation or analytics call could reach it. Fixed in **V58**
-> (`client_exam_id` bridge, generate/create mirroring of the three deterministic sessions,
-> deterministic mark ids, teachers-of-record confirmation counts, analytics/report metric
-> parity, confirmed-editable and published-immutable guards). Contract:
-> `BrainBox/docs/ongoing/api_traditional_exams_changes.md`. The only backend items left are
-> PAY-1 / MED-1, which wait on the Phase 6 direction. The roadmap continues at Phase 5.
-- [x] Exam lifecycle: PENDING → IN_PROGRESS → CONFIRMED → PRE_FINAL → FINALIZED → PUBLISHED guards
-- [x] Subject config/components; mark entry; confirmation; finalization; publication
-- [x] Edit requests: batch per-student processing; coordinator self-approval rejection
-- [x] Analytics & rankings (server-computed), trends, grade distributions
-- [x] Grading config; coordinator panels & subject config; teacher analytics
+> **Paused for the client backlog.** The main plan is held here while the client works through
+> `BrainBox/docs/ongoing/client_backlog.md`. Resume at this phase once those items land and the
+> paired backend patches listed in that doc's §13 are applied. (The exam engine itself shipped in
+> V29; the return is to the main plan, not to re-do Phase 4.)
+>
+> §13 status: REC-1 (V55), TT-1, LC-2, ANN-1 (`0880946`), the reports renderer decision
+> (PDF-1 Option A, server-only, plus the blank-template endpoint, `e1a1958`), the ADM-1 backup
+> export schema (`99072a7`), the learner-facing reports + detailed CBC specs (`1596e84`) and the
+> TT-3/CONF-1/GB-1 backend defaults (`62b465f`) are done. Parent absence/present alerts are decided
+> (server push + local alert) and emitted server-side (`5227cde`); LC-1 is now implemented end to
+> end (`04f0bff`) — device registration plus the FCM sender, disabled until `app.push.fcm`
+> credentials are configured. PAY-1/MED-1 wait on the Phase 6 direction. What remains is
+> client/product work, not backend.
+- [ ] Exam lifecycle: PENDING → IN_PROGRESS → CONFIRMED → PRE_FINAL → FINALIZED → PUBLISHED guards
+- [ ] Subject config/components; mark entry; confirmation; finalization; publication
+- [ ] Edit requests: batch per-student processing; coordinator self-approval rejection
+- [ ] Analytics & rankings (server-computed), trends, grade distributions
+- [ ] Grading config; coordinator panels & subject config; teacher analytics
 
-### Phase 5 — Admin & School Management  (goal 5; doc 08)
+### Phase 5 — Admin & School Management  (goal 5; doc 08) — COMPLETE
 - [x] Admin identity + approvals: user list/detail/patch/deactivate, reset-password,
       parent-link, school teacher create/list/remove, school update/deactivate and
       POST admin/users/{id}/approve|reject (idempotent).
@@ -527,8 +528,14 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       config, announcements, admin approvals, teacher lifecycle decisions and school
       registration.
 - [x] Announcements (V40) + news management and learning content moderation.
-- [ ] ClassGroup management (house groups already live in the timetable module) and
-      leaderboard management remain.
+- [x] ClassGroup management: chat groups are created/edited/deleted with membership and
+      announcement mode at `/teacher/class-groups` (matches the Android `ClassGroup` payload);
+      house groups / peer circles / community services already live in the timetable module.
+- [x] Leaderboard management (V59, `BrainBox/docs/ongoing/api_admin_changes.md` -> Leaderboard
+      management): `GET admin/leaderboard` (XP or subject mastery, school/grade/timeframe scoped)
+      plus `POST admin/leaderboard/reset` (non-destructive season boundary) and
+      `POST admin/leaderboard/recalculate` (rebuild `user_achievements.total_xp` from
+      `xp_events`). Season writes are platform-admin; an ICT_ADMIN read is school-scoped.
 
 ### Phase 6 — Integrations & Polish  (goal 6; doc 11)
 - [x] WebRTC signaling server (teacher/learner live classes): /ws/live/{classId} relay with

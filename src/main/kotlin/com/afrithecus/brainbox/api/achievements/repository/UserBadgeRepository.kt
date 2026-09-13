@@ -8,5 +8,7 @@ interface UserBadgeRepository : JpaRepository<UserBadgeEntity, UUID> {
 
     fun findAllByUserId(userId: UUID): List<UserBadgeEntity>
 
+    fun findAllByUserIdIn(userIds: Collection<UUID>): List<UserBadgeEntity>
+
     fun findByUserIdAndBadgeId(userId: UUID, badgeId: UUID): UserBadgeEntity?
 }
