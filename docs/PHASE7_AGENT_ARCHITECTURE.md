@@ -92,7 +92,7 @@ decides when to escalate to a human.
 | Testability | one process, easy | **contract tests required** | end-to-end hard |
 | Cost control | fine at low volume | fine, explicit | opaque, lock-in risk |
 
-**Recommendation: B, reached through A.** Build the task loop as a module with a real seam from
+**Decision (locked): B, reached through A.** Build the task loop as a module with a real seam from
 day one — the router interface, a **durable DB-backed job queue** (`generation_jobs`, idempotent
 per key) and a worker interface — and run it **in-process first** on a dedicated executor so bulk
 generation never shares threads with request serving. Because the seam exists, extracting it to a
@@ -293,6 +293,10 @@ It shares the backend API and the MCP tool surface, so it is a frontend, not a s
 
 **Settled in discussion:**
 
+- **Task-loop placement (locked): option B reached through A.** An internal, decoupled runtime —
+  the router as the only egress, a durable DB-backed job queue, idempotent jobs and a worker
+  interface with its own executor — run in-process first, extracted to a separate worker when the
+  triggers in §2.1.1 fire.
 - **Approval authority:** default quorum = **two approvals from any teacher of the matching
   subject/grade**. A versioned policy the Brainbox moderator can switch to weighted-expertise or
   moderator-only at any time; the switch applies to new reviews.
@@ -311,14 +315,13 @@ It shares the backend API and the MCP tool surface, so it is a frontend, not a s
 
 **Still open:**
 
-1. Is the **Task Loop Engine** a queue + workers in the Spring app, or a separate agent service
-   that calls the API? The diagram is transport-agnostic.
-2. **Personalised exam papers** — learner-private practice, teacher-assigned, or both? That
-   decides the private/public split and the client surface.
-3. **MCP** — self-hosted servers per store, or in-process tools behind one MCP client?
-4. **Languages** beyond English/Kiswahili for the localisation agent?
-5. **Every country after Kenya** — build the concept layer now rather than retrofit after the
+1. **Personalised exam papers** — learner-private practice, teacher-assigned, or both? That
+   decides the private/public split, the client surface, and whether a generated paper can be
+   assigned as homework.
+2. **MCP** — self-hosted servers per store, or in-process tools behind one MCP client?
+3. **Languages** beyond English/Kiswahili for the localisation agent?
+4. **Every country after Kenya** — build the concept layer now rather than retrofit after the
    Kenyan corpus? (Confirm.)
-6. **Accuracy measurement** — per-dimension targets and the golden-set size and growth; how
+5. **Accuracy measurement** — per-dimension targets and the golden-set size and growth; how
    "approximate" agreement is defined for tier advancement; how much a coordinator approval
    counts once expert mode is on.
