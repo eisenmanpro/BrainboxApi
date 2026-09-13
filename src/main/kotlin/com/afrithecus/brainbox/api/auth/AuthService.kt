@@ -74,6 +74,7 @@ class AuthService(
         if (!request.teacherCode.isNullOrBlank()) {
             val code = teacherCodeRepository.findByCodeAndActiveTrue(request.teacherCode.trim().uppercase())
                 ?: throw invalidArgument("Unknown or inactive teacher code")
+            if (code.frozen) throw invalidArgument("This class code has been frozen by the teacher")
             joinedTeacher = code.teacherUserId
             referredCode = code.code
             codeSchool = code.schoolId

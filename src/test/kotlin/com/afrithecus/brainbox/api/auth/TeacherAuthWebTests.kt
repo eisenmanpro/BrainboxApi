@@ -154,6 +154,23 @@ class TeacherAuthWebTests(
         )
         check(!blocked.isValid && blocked.message!!.contains("frozen"))
 
+        // A frozen code must also block a new student join server-side.
+        mockMvc.perform(
+            post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        mapOf(
+                            "name" to "Blocked Learner",
+                            "phoneNumber" to "0755200999",
+                            "password" to "password123",
+                            "role" to "STUDENT",
+                            "teacherCode" to rotated.teacherCode,
+                            "schoolName" to school.name,
+                        )
+                    )
+                )
+        ).andExpect(status().isBadRequest)
+
         mockMvc.perform(post("/auth/ctc/unfreeze").header("Authorization", auth(t))).andExpect(status().isOk)
         val restored = objectMapper.readValue(
             mockMvc.perform(

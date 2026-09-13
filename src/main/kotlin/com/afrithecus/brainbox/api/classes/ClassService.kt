@@ -8,6 +8,8 @@ import com.afrithecus.brainbox.api.classes.web.AddStudentsRequest
 import com.afrithecus.brainbox.api.classes.web.CreateClassRequest
 import com.afrithecus.brainbox.api.classes.web.StudentInClassPayload
 import com.afrithecus.brainbox.api.classes.web.TeacherClassPayload
+import com.afrithecus.brainbox.api.cbcratings.CbcAnalyticsService
+import com.afrithecus.brainbox.api.cbcratings.web.CbcStrandMasteryPayload
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.conflict
@@ -15,10 +17,14 @@ import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
+import com.afrithecus.brainbox.api.achievements.AchievementsService
+import com.afrithecus.brainbox.api.gradebook.entity.GradebookEntryEntity
+import com.afrithecus.brainbox.api.gradebook.repository.GradebookEntryRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
+import kotlin.math.roundToInt
 
 /**
  * Teacher classes & roster (doc 04 §2.2). Ownership rule: a teacher may only
@@ -30,6 +36,9 @@ class ClassService(
     private val classRepository: TeacherClassRepository,
     private val membershipRepository: ClassMembershipRepository,
     private val userRepository: UserRepository,
+    private val gradebookEntryRepository: GradebookEntryRepository,
+    private val achievementsService: AchievementsService,
+    private val cbcAnalytics: CbcAnalyticsService,
 ) {
 
     // ------------------------------------------------------------- teacher
@@ -64,8 +73,14 @@ class ClassService(
         val members = membershipRepository.findAllByClassId(clazz.id)
         val students = userRepository.findAllById(members.map { it.studentId })
             .associateBy { it.id }
+        if (students.isEmpty()) return emptyList()
+        val entriesByStudent = gradebookEntryRepository.findAllByStudentIdIn(students.keys).groupBy { it.studentId }
+        val strandMastery = runCatching { cbcAnalytics.classReport(teacher, classIdRaw, "") }
+            .getOrNull()?.strandMastery.orEmpty()
         return members.mapNotNull { membership ->
-            students[membership.studentId]?.let(::toStudent)
+            students[membership.studentId]?.let { student ->
+                toStudent(student, entriesByStudent[student.id].orEmpty(), strandMastery)
+            }
         }.sortedBy { it.name.lowercase() }
     }
 
@@ -140,11 +155,26 @@ class ClassService(
         studentCount = membershipRepository.countByClassId(clazz.id).toInt(),
     )
 
-    private fun toStudent(student: UserEntity) = StudentInClassPayload(
-        studentId = student.id.toString(),
+    private fun toStudent(
+        student: UserEntity,
+        entries: List<GradebookEntryEntity>,
+        strandMastery: List<CbcStrandMasteryPayload>,
+    ) = StudentInClassPayload(
+        id = student.id.toString(),
         name = student.name,
-        studentAdmissionNumber = student.studentAdmissionNumber,
+        admissionNumber = student.studentAdmissionNumber,
+        grade = gradeNumber(student.gradeLevel),
+        averageScore = if (entries.isEmpty()) 0 else entries.map { it.percentage }.average().roundToInt(),
+        currentStreak = runCatching { achievementsService.forUser(student.id).currentStreak }.getOrDefault(0),
+        lastActive = student.lastLogin?.toEpochMilli() ?: 0L,
+        parentId = student.parentUserId?.toString(),
+        cbcCompetencySummary = strandMastery.mapNotNull { strand ->
+            strand.studentBreakdown[student.id.toString()]?.let { strand.strandName to it }
+        }.toMap(),
     )
+
+    private fun gradeNumber(raw: String?): Int =
+        Regex("\\d+").find(raw ?: "")?.value?.toIntOrNull() ?: 0
 
     private fun parseUuid(raw: String, field: String): UUID =
         runCatching { UUID.fromString(raw) }.getOrNull()

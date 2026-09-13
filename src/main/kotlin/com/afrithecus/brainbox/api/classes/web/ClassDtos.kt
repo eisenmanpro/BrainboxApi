@@ -29,8 +29,20 @@ data class AddStudentsRequest(
     val studentIds: List<String>,
 )
 
+/**
+ * Roster row (docs/ongoing/api_teacher_roster_changes.md). Field names match the
+ * client StudentInClass model; this single read backs the roster, gradebook,
+ * attendance, feedback, CBC analytics and homework surfaces.
+ */
 data class StudentInClassPayload(
-    val studentId: String,
+    val id: String,
     val name: String,
-    val studentAdmissionNumber: String? = null,
+    val admissionNumber: String? = null,
+    val grade: Int = 0,
+    val avatarUrl: String? = null,
+    val averageScore: Int = 0,
+    val currentStreak: Int = 0,
+    val lastActive: Long = 0L,
+    val parentId: String? = null,
+    val cbcCompetencySummary: Map<String, String> = emptyMap(),
 )

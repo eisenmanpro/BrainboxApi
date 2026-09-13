@@ -324,7 +324,17 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - [ ] Subscription & payments: M-Pesa STK push, idempotent callbacks, entitlements (doc 07, 11 §5)
 
 ### Phase 3 — Teacher Features  (goal 3)
-- [ ] Teacher auth/dashboard; class mgmt; roster (doc 04 §1-2)
+- [x] Teacher auth, dashboard & roster (V49, docs/ongoing/api_teacher_roster_changes.md):
+      server-issued CTC lifecycle (POST auth/signup/teacher, auth/validate-ctc, auth/rotate-ctc,
+      auth/ctc/freeze|unfreeze, auth/login/phone) and the account status machine
+      (PENDING_VERIFICATION|VERIFIED|REJECTED|FROZEN) that gates login. Approval decisions:
+      class-teacher/coordinator student approve|reject, ICT-admin teacher approve|reject and
+      freeze|unfreeze|transfer, plus self-or-admin PUT auth/teachers/{id}. GET teacher/dashboard
+      returns real work-queue counts (pendingApprovals, pendingFinalizations, pendingEditRequests,
+      conferenceRequests) and the class/homework/announcement lists; GET
+      teacher/classes/{id}/students now returns the enriched roster shape (id/admissionNumber/
+      grade/averageScore/currentStreak/lastActive/parentId/cbcCompetencySummary). Classes remain
+      server-assigned read-only by product decision.
 - [x] Content mgmt core (content, V34): teacher posts/content (materials) list + create +
       edit-in-place (preserving id/analytics) + publish + delete, client-id idempotent content
       drafts, and content analytics (views/completions/engagement + per-student list). Reuses
