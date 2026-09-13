@@ -126,12 +126,18 @@ A provider interface with cost/latency routing (DeepSeek first). The Spring AI D
 is already on the classpath but auto-config is excluded; token/cost accounting per generation is
 required (§13.5).
 
-### 2.5 MCP tool layer
+### 2.5 MCP tool layer (locked: one client, in-process tools)
 
-The MCP client is the right abstraction for tools. Expose, as MCP tools: the curriculum/concept
-lookup, subject Notes & Guides read/write, exam templates, the learner's mastery/metrics,
-web fetch/scrape, diagram rendering, and the validator suite. This is also how the future
-moderation console can reuse the same tool surface.
+The MCP client is the right abstraction, and for now the tools live **in-process, registered
+behind a single MCP client** rather than as self-hosted MCP servers per store. The router already
+provides the interception and capture point, so a per-store server fleet would add deployment
+surface before there is a second consumer. Expose: curriculum/concept lookup, Notes & Guides
+read/write, exam templates, learner mastery/metrics, web fetch/scrape, diagram rendering, and the
+validator suite.
+
+**Extraction trigger:** when a second consumer appears — the Brainbox console, or a non-JVM agent —
+promote the same registrations to real MCP servers behind the same client, so the tool contract
+does not change.
 
 ### 2.6 Quality and safety — validators, critic and two moderation tiers
 
@@ -321,6 +327,8 @@ moderation/generation screens.
   the router as the only egress, a durable DB-backed job queue, idempotent jobs and a worker
   interface with its own executor — run in-process first, extracted to a separate worker when the
   triggers in §2.1.1 fire.
+- **MCP (locked):** one MCP client with in-process tool registrations; promote to self-hosted MCP
+  servers only when a second consumer (the console or a non-JVM agent) needs them.
 - **Personalised papers:** both paths — learner practice (real-time, rule-filtered, visible to
   both the teacher and the linked parent) and teacher-assigned (through review, assigned as
   paper-review homework).
@@ -355,10 +363,9 @@ moderation/generation screens.
 
 **Still open:**
 
-1. **MCP** — self-hosted servers per store, or in-process tools behind one MCP client?
-2. **Languages** beyond English/Kiswahili for the localisation agent?
-3. **Every country after Kenya** — build the concept layer now rather than retrofit after the
+1. **Languages** beyond English/Kiswahili for the localisation agent?
+2. **Every country after Kenya** — build the concept layer now rather than retrofit after the
    Kenyan corpus? (Confirm.)
-4. **Accuracy measurement** — per-dimension targets and the golden-set size and growth; how
+3. **Accuracy measurement** — per-dimension targets and the golden-set size and growth; how
    "approximate" agreement is defined for tier advancement; how much a coordinator approval
    counts once expert mode is on.
