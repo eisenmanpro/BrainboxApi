@@ -127,6 +127,16 @@ comments, side-by-side diff and rollback, served by the local console (§5). Thr
 - **Write-through.** Whatever the model generates is written into the *specific* table the client
   already calls (notes/guides, exam hub, readable materials) with its moderation state and
   provenance — no side store, no separate sync job.
+- **Reviewed-only reads.** Those same tables are read by the client, so **the learner-facing read
+  endpoints must be modified to return only `REVIEWED` rows**. `UNREVIEWED` model content is
+  visible to teachers (so they can rate it) and moderators, never to learners. Existing and
+  teacher-uploaded rows are backfilled `REVIEWED` so nothing disappears; the model writer inserts
+  `UNREVIEWED`. The filter applies to every learner read whose table the model writes to —
+  learning posts/content, readable materials, past papers/exams — and is part of the 7.0 contract
+  work, not an afterthought.
+- **One exception.** The real-time personalised path (§3.A2) is generated per request and returned
+  after the synchronous rule filter instead of being read from the shared corpus, so it is the
+  only `UNREVIEWED` content a learner sees.
 - **Provenance attribute.** Anything fully model-authored carries `generated = true` (plus
   author/created-by and source URLs), and the client shows it, so a teacher always knows what
   the model wrote versus what a human did.
@@ -193,7 +203,8 @@ provenance, bypasses generation but not moderation.
   (reviewed/unreviewed), `content_feedback` (teacher ratings), `provenance`/licence columns, and
   private/public state on all content.
 - **Backend delivery:** the §1.6 contract fixes (materials body, hub `postId`/`metadata`/`status`,
-  enum subject, doubt, progress) plus a **rich chunk body** so visual chunks are not plain text.
+  enum subject, doubt, progress), a **reviewed-only filter** on every learner read over a
+  model-written table, and a **rich chunk body** so visual chunks are not plain text.
 - **Client:** the existing `LearningContent` block order already supports nested questions if the
   unit projects each step as a block; long-term the client wants a first-class *step* + *figure*
   rendering path rather than markdown-only notes. No client change blocks 7.0.
