@@ -570,6 +570,10 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 > learning materials (the three material surfaces and their exact shapes), the content taxonomy
 > the agent must cover, a ~850-topic seed-corpus target, and the open-licensing constraints —
 > written before implementation because an empty platform is the actual launch risk.
+>
+> **Agent architecture (draft):** `docs/PHASE7_AGENT_ARCHITECTURE.md` transcribes the proposed
+> task-loop / prompt-router / subject-agent / critique / human-review workflow into components,
+> stores and provenance, and records the separate locally-served moderation console.
 - [ ] Content cache table (JSONB) + cache-first Router; idempotent generation keyed by topic/grade/scope
 - [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences)
 - [ ] Agent tools: DB metric queries, internet search, content validators
