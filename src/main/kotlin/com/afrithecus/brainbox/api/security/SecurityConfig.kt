@@ -51,7 +51,10 @@ class SecurityConfig(
                 auth
                     .requestMatchers(
                         "/auth/login",
+                        "/auth/login/phone",
                         "/auth/signup",
+                        "/auth/signup/teacher",
+                        "/auth/validate-ctc",
                         "/auth/refresh",
                         // Public CBC project browse flow (landing page + guest id).
                         "/cbc/public/**",

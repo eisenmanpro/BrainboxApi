@@ -164,7 +164,8 @@ class TeacherSettingsService(
             gradeLevelAssignments = grades.ifEmpty { null },
             onboardingCompleted = code != null && teacher.schoolId != null,
             managedSchoolId = if (teacher.subRole == SubRole.ICT_ADMIN) teacher.schoolId?.toString() else null,
-            verificationStatus = if (teacher.isVerified) "VERIFIED" else "PENDING_VERIFICATION",
+            verificationStatus = teacher.verificationStatus.name,
+            ctcFrozen = teacherCodeRepository.findByTeacherUserIdAndActiveTrue(teacher.id)?.frozen ?: false,
         )
     }
 

@@ -69,6 +69,21 @@ data class UserPayload(
     val isVerified: Boolean,
     val createdAt: Long,
     val lastLogin: Long?,
+    // Teacher account view (docs/ongoing/api_teacher_roster_changes.md). Omitted
+    // (null) for non-teachers; the client User model reads all of these.
+    val teacherCode: String? = null,
+    val teacherSubRole: String? = null,
+    val gradesTaught: List<String>? = null,
+    val className: String? = null,
+    val studentCount: Int? = null,
+    val subjects: List<String>? = null,
+    val tscNumber: String? = null,
+    val gradeAssignments: List<String>? = null,
+    val gradeLevelAssignments: List<String>? = null,
+    val onboardingCompleted: Boolean = false,
+    val managedSchoolId: String? = null,
+    val verificationStatus: String = "VERIFIED",
+    val ctcFrozen: Boolean = false,
 )
 
 data class SubscriptionPayload(

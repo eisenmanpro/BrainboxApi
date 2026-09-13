@@ -5,10 +5,12 @@ import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.conflict
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
+import com.afrithecus.brainbox.api.identity.TeacherCodeGenerator
 import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
 import com.afrithecus.brainbox.api.identity.entity.TeacherCodeEntity
 import com.afrithecus.brainbox.api.identity.entity.TeacherProfileEntity
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
+import com.afrithecus.brainbox.api.identity.model.AccountStatus
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubscriptionStatus
 import com.afrithecus.brainbox.api.identity.model.SubscriptionTier
@@ -48,6 +50,7 @@ class IdentityAdminService(
     private val userRepository: UserRepository,
     private val schoolRepository: SchoolRepository,
     private val teacherCodeRepository: TeacherCodeRepository,
+    private val teacherCodeGenerator: TeacherCodeGenerator,
     private val teacherProfileRepository: TeacherProfileRepository,
     private val subscriptionService: SubscriptionService,
     private val passwordEncoder: PasswordEncoder,
@@ -168,6 +171,7 @@ class IdentityAdminService(
     fun setVerified(userIdRaw: String, verified: Boolean) {
         val user = findUser(userIdRaw)
         user.isVerified = verified
+        user.verificationStatus = if (verified) AccountStatus.VERIFIED else AccountStatus.REJECTED
         userRepository.save(user)
     }
 
@@ -206,7 +210,7 @@ class IdentityAdminService(
             }
         )
 
-        val code = generateTeacherCode()
+        val code = teacherCodeGenerator.generate()
         teacherCodeRepository.save(
             TeacherCodeEntity().apply {
                 this.code = code
@@ -318,16 +322,6 @@ class IdentityAdminService(
         )
     }
 
-    private fun generateTeacherCode(): String {
-        repeat(MAX_CODE_ATTEMPTS) {
-            val candidate = buildString(CODE_LENGTH) {
-                repeat(CODE_LENGTH) { append(CODE_ALPHABET[random.nextInt(CODE_ALPHABET.length)]) }
-            }
-            if (!teacherCodeRepository.existsByCode(candidate)) return candidate
-        }
-        throw ApiException(ApiErrorCode.CONFLICT, "Could not allocate a teacher code, retry")
-    }
-
     private fun randomPassword(): String {
         val bytes = ByteArray(12)
         random.nextBytes(bytes)
@@ -356,9 +350,6 @@ class IdentityAdminService(
     }
 
     private companion object {
-        const val CODE_LENGTH = 6
-        const val MAX_CODE_ATTEMPTS = 100
-        const val CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         val random = SecureRandom()
     }
 }

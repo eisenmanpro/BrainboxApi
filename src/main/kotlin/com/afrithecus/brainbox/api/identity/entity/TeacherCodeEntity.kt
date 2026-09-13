@@ -31,6 +31,10 @@ class TeacherCodeEntity {
     @Column(nullable = false)
     var active: Boolean = true
 
+    /** Frozen by the teacher: no new students may join with this code. */
+    @Column(nullable = false)
+    var frozen: Boolean = false
+
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant = Instant.now()
 }

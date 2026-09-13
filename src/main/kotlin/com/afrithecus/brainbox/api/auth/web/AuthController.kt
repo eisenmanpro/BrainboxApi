@@ -29,6 +29,14 @@ class AuthController(private val authService: AuthService) {
     fun login(@Valid @RequestBody request: LoginRequest, http: HttpServletRequest): AuthResponse =
         authService.login(request, http.getHeader(DEVICE_ID_HEADER))
 
+    /** Phone-first login used by the teacher/parent flows (AuthApi.loginWithPhone). */
+    @PostMapping("/login/phone")
+    fun loginWithPhone(@Valid @RequestBody request: PhoneLoginRequest, http: HttpServletRequest): AuthResponse =
+        authService.login(
+            LoginRequest(identifier = request.phoneNumber, password = request.password),
+            http.getHeader(DEVICE_ID_HEADER),
+        )
+
     @PostMapping("/refresh")
     fun refresh(@Valid @RequestBody request: RefreshRequest): RefreshResponse =
         authService.refresh(request)

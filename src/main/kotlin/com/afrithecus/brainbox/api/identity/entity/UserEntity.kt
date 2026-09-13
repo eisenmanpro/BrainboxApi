@@ -1,6 +1,7 @@
 package com.afrithecus.brainbox.api.identity.entity
 
 import com.afrithecus.brainbox.api.common.jpa.BaseEntity
+import com.afrithecus.brainbox.api.identity.model.AccountStatus
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubRole
 import jakarta.persistence.Column
@@ -63,6 +64,10 @@ class UserEntity : BaseEntity() {
 
     @Column(name = "is_verified", nullable = false)
     var isVerified: Boolean = false
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "verification_status", nullable = false, length = 24)
+    var verificationStatus: AccountStatus = AccountStatus.VERIFIED
 
     @Column(name = "last_login")
     var lastLogin: Instant? = null

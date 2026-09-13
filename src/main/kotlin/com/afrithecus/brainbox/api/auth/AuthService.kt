@@ -15,6 +15,7 @@ import com.afrithecus.brainbox.api.identity.entity.RefreshTokenEntity
 import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.entity.UserSessionEntity
+import com.afrithecus.brainbox.api.identity.model.AccountStatus
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SessionRole
@@ -96,6 +97,7 @@ class AuthService(
             referredByTeacherCode = referredCode
             isActive = true
             isVerified = role == Role.PARENT
+            verificationStatus = if (role == Role.PARENT) AccountStatus.VERIFIED else AccountStatus.PENDING_VERIFICATION
         }
         userRepository.save(user)
 
@@ -238,10 +240,15 @@ class AuthService(
         return issueAuthResponse(user, currentUser.deviceId, includeTokens = false, message = "OK")
     }
 
+    /** Token-free account view used by the approval/lifecycle responses. */
+    @Transactional(readOnly = true)
+    fun accountResponse(user: UserEntity, message: String): AuthResponse =
+        issueAuthResponse(user, null, includeTokens = false, message = message)
+
     // ------------------------------------------------------------- internals
 
     /** Builds the login-shaped response and (optionally) registers a session. */
-    private fun issueAuthResponse(
+    fun issueAuthResponse(
         user: UserEntity,
         deviceId: String?,
         includeTokens: Boolean,
