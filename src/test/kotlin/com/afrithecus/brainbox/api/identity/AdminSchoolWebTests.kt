@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.identity
 
+import com.afrithecus.brainbox.api.announcement.web.SchoolAnnouncementPayload
 import com.afrithecus.brainbox.api.attendance.entity.AttendanceRecordEntity
 import com.afrithecus.brainbox.api.attendance.model.AttendanceStatus
 import com.afrithecus.brainbox.api.attendance.repository.AttendanceRecordRepository
@@ -210,8 +211,21 @@ class AdminSchoolWebTests(
     }
 
     @Test
-    fun `backup produces a logical snapshot`() {
+    fun `backup produces a documented logical export schema`() {
         val t = token(admin)
+        // Seed an announcement so the admin-domain export is exercised.
+        val announcement = SchoolAnnouncementPayload(
+            announcementId = "",
+            title = "Sports day",
+            body = "Sports day is on Friday.",
+            audience = "All",
+        )
+        mockMvc.perform(
+            post("/admin/schools/" + school.id + "/announcements").header("Authorization", "Bearer " + t)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(announcement))
+        ).andExpect(status().isOk)
+
         val backup = objectMapper.readValue(
             mockMvc.perform(post("/admin/schools/" + school.id + "/backup").header("Authorization", "Bearer " + t))
                 .andExpect(status().isOk).andReturn().response.contentAsString,
@@ -233,8 +247,31 @@ class AdminSchoolWebTests(
                 .header("Authorization", "Bearer " + t)
         ).andExpect(status().isOk).andReturn().response
         val bytes = download.contentAsByteArray
-        check(String(bytes, Charsets.UTF_8).contains("schoolId"))
         check(java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) } == backup.sha256)
+
+        // The export schema is pinned: the ADM-1 restore mapper relies on these keys and types.
+        val node = objectMapper.readTree(bytes)
+        check(node.get("schemaVersion").asInt() == 2)
+        check(node.get("schoolId").asString() == school.id.toString())
+        check(node.get("schoolName").asString() == "Alliance High School")
+        check(node.get("generatedAt").asLong() > 0)
+        val config = node.get("config")
+        check(config.get("schoolId").asString() == school.id.toString())
+        check(config.get("schoolName").asString() == "Alliance High School")
+        check(config.get("academicCalendar").isArray)
+        check(config.get("cbcStrands").isArray)
+        val settings = node.get("settings")
+        check(settings.get("maintenanceMode").isBoolean)
+        check(settings.get("registrationOpen").isBoolean)
+        check(node.get("gradeConfigs").isArray)
+        check(node.get("announcements").isArray && node.get("announcements").size() == 1)
+        check(node.get("announcements").get(0).get("title").asString() == "Sports day")
+        check(node.get("userApprovals").isArray && node.get("userApprovals").size() == 1)
+        check(node.get("userApprovals").get(0).get("name").asString() == "Alice Learner")
+        check(node.get("classes").get(0).get("name").asString() == "Grade 4 East")
+        val exportedStudent = node.get("users").first { it.get("name").asString() == "Alice Learner" }
+        check(exportedStudent.get("role").asString() == "STUDENT")
+        check(exportedStudent.get("gradeLevel").asString() == "Grade 4")
     }
 
     @Test

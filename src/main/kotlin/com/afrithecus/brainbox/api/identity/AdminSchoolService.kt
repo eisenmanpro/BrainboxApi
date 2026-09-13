@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.identity
 
+import com.afrithecus.brainbox.api.announcement.SchoolAnnouncementService
 import com.afrithecus.brainbox.api.attendance.model.AttendanceStatus
 import com.afrithecus.brainbox.api.attendance.repository.AttendanceRecordRepository
 import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
@@ -15,7 +16,6 @@ import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.SchoolBackupRepository
-import com.afrithecus.brainbox.api.identity.repository.SchoolConfigRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolPerformanceSnapshotRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolSystemSettingsRepository
@@ -60,7 +60,8 @@ class AdminSchoolService(
     private val gradebookEntryRepository: GradebookEntryRepository,
     private val attendanceRepository: AttendanceRecordRepository,
     private val settingsRepository: SchoolSystemSettingsRepository,
-    private val configRepository: SchoolConfigRepository,
+    private val configService: SchoolConfigService,
+    private val announcementService: SchoolAnnouncementService,
     private val backupRepository: SchoolBackupRepository,
     private val snapshotRepository: SchoolPerformanceSnapshotRepository,
     private val auditLogService: AuditLogService,
@@ -175,39 +176,14 @@ class AdminSchoolService(
     fun grades(current: CurrentUser, schoolIdRaw: String): List<GradeConfigSummaryPayload> {
         val schoolId = requireSchoolId(schoolIdRaw)
         access.require(current, schoolId)
-        val classes = classRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
-        val coordinators = userRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
-            .filter { it.role == Role.TEACHER && it.subRole == SubRole.GRADE_COORDINATOR }
-        return classes.groupBy { it.gradeLevel }.map { (grade, rows) ->
-            val classTeacher = rows.firstOrNull()?.teacherUserId?.let { userRepository.findById(it).orElse(null)?.name }
-            GradeConfigSummaryPayload(
-                configId = "grade_" + grade.lowercase().replace(Regex("[^a-z0-9]+"), "_"),
-                gradeLevel = grade,
-                displayName = grade,
-                classTeacherName = classTeacher,
-                coordinatorName = coordinators.firstOrNull { it.gradeLevel == grade }?.name,
-                active = rows.any { it.isActive },
-            )
-        }.sortedBy { it.gradeLevel }
+        return gradeConfigsFor(schoolId)
     }
 
     @Transactional(readOnly = true)
     fun approvals(current: CurrentUser, schoolIdRaw: String): List<UserApprovalRequestPayload> {
         val schoolId = requireSchoolId(schoolIdRaw)
         access.require(current, schoolId)
-        val school = schoolRepository.findById(schoolId).orElseThrow { notFound("School not found") }
-        return userRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
-            .filter { it.verificationStatus == AccountStatus.PENDING_VERIFICATION }
-            .map {
-                UserApprovalRequestPayload(
-                    userId = it.id.toString(),
-                    name = it.name,
-                    phoneNumber = it.phoneNumber.orEmpty(),
-                    schoolName = school.name,
-                    requestedRole = it.role.name,
-                    status = it.verificationStatus.name,
-                )
-            }
+        return approvalsFor(schoolId)
     }
 
     @Transactional(readOnly = true)
@@ -290,21 +266,21 @@ class AdminSchoolService(
         val classes = classRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
         val users = userRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
         val snapshot = linkedMapOf<String, Any?>(
+            "schemaVersion" to BACKUP_SCHEMA_VERSION,
             "schoolId" to school.id.toString(),
             "schoolName" to school.name,
             "generatedAt" to clock.millis(),
+            "config" to configService.branding(schoolId),
+            "settings" to settingsPayload(schoolId, settingsRepository.findById(schoolId).orElse(null)),
+            "gradeConfigs" to gradeConfigsFor(schoolId),
+            "announcements" to announcementService.list(schoolId.toString()),
+            "userApprovals" to approvalsFor(schoolId),
             "classes" to classes.map {
                 mapOf("id" to it.id.toString(), "name" to it.name, "gradeLevel" to it.gradeLevel, "subject" to it.subject)
             },
             // Names and role only; credentials are never exported.
             "users" to users.map {
                 mapOf("id" to it.id.toString(), "name" to it.name, "role" to it.role.name, "gradeLevel" to it.gradeLevel)
-            },
-            "config" to configRepository.findById(schoolId).orElse(null)?.let {
-                mapOf("schoolName" to it.schoolName, "motto" to it.motto, "primaryColor" to it.primaryColor)
-            },
-            "settings" to settingsRepository.findById(schoolId).orElse(null)?.let {
-                mapOf("maintenanceMode" to it.maintenanceMode, "registrationOpen" to it.registrationOpen)
             },
         )
         val json = mapper.writeValueAsString(snapshot)
@@ -334,6 +310,41 @@ class AdminSchoolService(
     }
 
     // ------------------------------------------------------------ internals
+
+    /** Grade config rows shared by the grades endpoint and the backup export. */
+    private fun gradeConfigsFor(schoolId: UUID): List<GradeConfigSummaryPayload> {
+        val classes = classRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
+        val coordinators = userRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
+            .filter { it.role == Role.TEACHER && it.subRole == SubRole.GRADE_COORDINATOR }
+        return classes.groupBy { it.gradeLevel }.map { (grade, rows) ->
+            val classTeacher = rows.firstOrNull()?.teacherUserId?.let { userRepository.findById(it).orElse(null)?.name }
+            GradeConfigSummaryPayload(
+                configId = "grade_" + grade.lowercase().replace(Regex("[^a-z0-9]+"), "_"),
+                gradeLevel = grade,
+                displayName = grade,
+                classTeacherName = classTeacher,
+                coordinatorName = coordinators.firstOrNull { it.gradeLevel == grade }?.name,
+                active = rows.any { it.isActive },
+            )
+        }.sortedBy { it.gradeLevel }
+    }
+
+    /** Pending user approvals shared by the approvals endpoint and the backup export. */
+    private fun approvalsFor(schoolId: UUID): List<UserApprovalRequestPayload> {
+        val school = schoolRepository.findById(schoolId).orElseThrow { notFound("School not found") }
+        return userRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
+            .filter { it.verificationStatus == AccountStatus.PENDING_VERIFICATION }
+            .map {
+                UserApprovalRequestPayload(
+                    userId = it.id.toString(),
+                    name = it.name,
+                    phoneNumber = it.phoneNumber.orEmpty(),
+                    schoolName = school.name,
+                    requestedRole = it.role.name,
+                    status = it.verificationStatus.name,
+                )
+            }
+    }
 
     private fun previousSnapshot(schoolId: UUID, term: String, year: Int): SchoolPerformanceSnapshotEntity? =
         snapshotRepository.findAllBySchoolIdOrderBySnapshotYearDescTermDesc(schoolId)
@@ -411,5 +422,6 @@ class AdminSchoolService(
         const val PASS_MARK = 50
         const val CHRONIC_ABSENCE_RATIO = 0.2
         const val DEFAULT_AUDIT_LIMIT = 100
+        const val BACKUP_SCHEMA_VERSION = 2
     }
 }
