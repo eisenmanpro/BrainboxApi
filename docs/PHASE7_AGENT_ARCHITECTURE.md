@@ -35,6 +35,37 @@ platform-wide moderation. That is a new app, distinct from the Android client an
 
 ## 2. Refined component model
 
+### 2.0 The Router — the interception and capture plane (the piece that matters most)
+
+The router is not a lookup helper. It is the **single choke point that every piece of agentic
+work passes through**, in both directions:
+
+- **North-south (app → backend):** a content request arrives; the router answers it from the
+  cache or admits it as a generation job.
+- **East-west (agent → model / tools):** every LLM call and every MCP tool call a subject agent
+  makes is *intercepted* by the router rather than called directly.
+
+Because nothing bypasses it, this is where four things happen that cannot be bolted on later:
+
+1. **Capture.** Every call is recorded as an `agent_run` + `model_call` + `tool_call` with
+   prompt version, model, messages, parameters, raw response, tokens, cost, latency, cache
+   verdict and outcome (approved / revised / escalated / failed). This is the agentic audit
+   trail and the substrate for evaluation, replay and dataset building.
+2. **Route.** Cache hit vs generate; which subject agent and prompt version; which model
+   provider (cost / latency / availability); which tool. The diagram's "agents via router".
+3. **Enforce.** Policy before spend: licence allow-list, safety pre-checks, budget and rate
+   caps, and "never reproduce restricted sources".
+4. **Serve.** On a hit it returns the stored unit; on a miss it opens the job and either holds
+   the client or streams progress.
+
+Two consequences: the moderation console's job monitor and the token/cost dashboard are
+**views over the router's capture tables**, not separate plumbing; and a request must be able
+to carry a **"bypass cache / re-generate"** flag (editor/admin only) with the reason logged.
+
+`ARCHITECTURE.md` §13.2 already calls the Router the app-facing entry point. It is both the
+app-facing entry point and the agent-facing interception layer — for one deployment, the same
+component rather than two.
+
 ### 2.1 Task Loop Engine — the supervisor
 
 One durable job per content request: `reason → generate → critique → revise → (escalate) →
@@ -44,11 +75,11 @@ the task type (hub book, readable chunk, quiz, past paper, homework), loads the 
 curriculum mapping + learner context, selects the subject agent, routes a versioned prompt, and
 decides when to escalate to a human.
 
-### 2.2 Prompt library + router (Library 1)
+### 2.2 Prompt library (Library 1)
 
 Prompts are **versioned data**, keyed by `(taskType, subject, gradeBand, standardVersion)`, not
-strings in code. The router picks the prompt set and the agent; prompt version and eval score
-are recorded on every generation so quality is attributable.
+strings in code. The router (§2.0) selects the prompt set and records its version and eval score
+on every generation so quality is attributable.
 
 ### 2.3 Subject agents — concept × subject × pedagogy
 
@@ -128,9 +159,10 @@ provenance, bypasses generation but not moderation.
 
 ## 4. Client and backend adjustments this implies
 
-- **Backend schema:** `concepts`, `curriculum_map` (per-country), `learning_units` + `steps` +
-  `unit_questions` + `unit_figures`, `generation_jobs`, `generation_attempts`, `prompt_versions`,
-  `moderation_reviews`, `provenance`/licence columns, and private/public state on all content.
+- **Backend schema:** the router capture tables (`agent_runs`, `model_calls`, `tool_calls`,
+  cache keys), `concepts`, `curriculum_map` (per-country), `learning_units` + `steps` +
+  `unit_questions` + `unit_figures`, `generation_jobs`, `prompt_versions`, `moderation_reviews`,
+  `provenance`/licence columns, and private/public state on all content.
 - **Backend delivery:** the §1.6 contract fixes (materials body, hub `postId`/`metadata`/`status`,
   enum subject, doubt, progress) plus a **rich chunk body** so visual chunks are not plain text.
 - **Client:** the existing `LearningContent` block order already supports nested questions if the
