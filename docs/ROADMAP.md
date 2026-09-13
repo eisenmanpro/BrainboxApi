@@ -162,6 +162,13 @@ starts; this document is the durable long-term plan. Progress = checked items.
 - [x] Error envelope (doc 11 §8.1) + status mapping, security 401/403/429 writers, tested end to end
 - [x] JWT: 24h HMAC access + claims, bearer filter, stateless chain, BCrypt, injectable clock
 - [x] Auth endpoints: signup/login/me/logout/refresh rotation w/ family reuse detection (doc 01 §1)
+- [x] Account security & school registration (V50): POST auth/login/phone,
+      POST auth/change-password (self; verifies the current credential and revokes every
+      other session/refresh token, keeping the caller's) and POST auth/register-school
+      (moderation queue: idempotent per requestId, rejects an already-active name; admin
+      GET/POST /admin/school-registration-requests[/{id}/approve|reject] creates the school
+      only on approval). forgot-password stays open pending a delivery channel + client reset
+      screen.
 - [x] Sessions: <=3 student / 1 teacher-parent, oldest evicted, device dedupe (doc 01 §5.1) +
       parent->child /auth/switch-session (§5.3)
 - [x] RBAC: role + sub-role authorities; @PreAuthorize ADMIN guards; method security

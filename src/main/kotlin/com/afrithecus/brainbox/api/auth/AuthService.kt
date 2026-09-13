@@ -1,6 +1,7 @@
 package com.afrithecus.brainbox.api.auth
 
 import com.afrithecus.brainbox.api.auth.web.AuthResponse
+import com.afrithecus.brainbox.api.auth.web.ChangePasswordRequest
 import com.afrithecus.brainbox.api.auth.web.LoginRequest
 import com.afrithecus.brainbox.api.auth.web.RefreshRequest
 import com.afrithecus.brainbox.api.auth.web.RefreshResponse
@@ -246,6 +247,52 @@ class AuthService(
     fun accountResponse(user: UserEntity, message: String): AuthResponse =
         issueAuthResponse(user, null, includeTokens = false, message = message)
 
+    /**
+     * Self-service password change. Validation failures return an AuthResponse
+     * with success=false (HTTP 200) to match the client's response handling;
+     * success revokes every other session/refresh token for the account.
+     */
+    @Transactional
+    fun changePassword(currentUser: CurrentUser, request: ChangePasswordRequest): AuthResponse {
+        val user = userRepository.findById(currentUser.userId).orElse(null)
+            ?: throw ApiException(ApiErrorCode.UNAUTHORIZED, "Account no longer exists")
+        if (request.currentPassword.isBlank()) return failure(user, "Current password is required.")
+        if (request.newPassword.length < MIN_PASSWORD_LENGTH) {
+            return failure(user, "New password must be at least " + MIN_PASSWORD_LENGTH + " characters long.")
+        }
+        if (!passwordEncoder.matches(request.currentPassword, user.passwordHash)) {
+            return failure(user, "Current password is incorrect.")
+        }
+        if (passwordEncoder.matches(request.newPassword, user.passwordHash)) {
+            return failure(user, "New password must differ from the current one.")
+        }
+        user.passwordHash = passwordEncoder.encode(request.newPassword)
+            ?: throw IllegalStateException("Password encoding failed")
+        userRepository.save(user)
+        revokeOtherSessions(currentUser, user.id)
+        return accountResponse(user, "Password changed successfully.")
+    }
+
+    private fun failure(user: UserEntity, message: String): AuthResponse =
+        accountResponse(user, message).copy(success = false)
+
+    /** A password change signs every other device out, keeping the caller's session. */
+    private fun revokeOtherSessions(currentUser: CurrentUser, userId: UUID) {
+        val keep = currentUser.sessionId
+        val tokens = refreshRepository.findAllByUserIdAndRevokedFalse(userId)
+            .filter { keep == null || it.sessionId != keep }
+        if (tokens.isNotEmpty()) {
+            tokens.forEach { it.revoked = true }
+            refreshRepository.saveAll(tokens)
+        }
+        val sessions = sessionRepository.findAllByUserIdAndIsActiveTrue(userId)
+            .filter { keep == null || it.id != keep }
+        if (sessions.isNotEmpty()) {
+            sessions.forEach { it.isActive = false }
+            sessionRepository.saveAll(sessions)
+        }
+    }
+
     // ------------------------------------------------------------- internals
 
     /** Builds the login-shaped response and (optionally) registers a session. */
@@ -404,6 +451,7 @@ class AuthService(
     private companion object {
         const val STUDENT_SESSION_CAP = 3
         const val MAX_ADMISSION_ATTEMPTS = 20
+        const val MIN_PASSWORD_LENGTH = 8
         val random = SecureRandom()
     }
 }

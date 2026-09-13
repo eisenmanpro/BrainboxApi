@@ -1,6 +1,7 @@
 package com.afrithecus.brainbox.api.auth.web
 
 import com.afrithecus.brainbox.api.auth.AuthService
+import com.afrithecus.brainbox.api.identity.SchoolRegistrationService
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
@@ -19,7 +20,10 @@ import org.springframework.web.bind.annotation.RestController
  */
 @RestController
 @RequestMapping("/auth")
-class AuthController(private val authService: AuthService) {
+class AuthController(
+    private val authService: AuthService,
+    private val schoolRegistrationService: SchoolRegistrationService,
+) {
 
     @PostMapping("/signup")
     fun signup(@Valid @RequestBody request: SignupRequest, http: HttpServletRequest): AuthResponse =
@@ -50,6 +54,18 @@ class AuthController(private val authService: AuthService) {
     @GetMapping("/me")
     fun me(@AuthenticationPrincipal currentUser: CurrentUser): AuthResponse =
         authService.me(currentUser)
+
+    @PostMapping("/change-password")
+    fun changePassword(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @Valid @RequestBody request: ChangePasswordRequest,
+    ): AuthResponse = authService.changePassword(currentUser, request)
+
+    @PostMapping("/register-school")
+    fun registerSchool(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @Valid @RequestBody request: SchoolRegistrationRequest,
+    ): AuthResponse = schoolRegistrationService.register(currentUser, request)
 
     @PostMapping("/switch-session")
     fun switchSession(
