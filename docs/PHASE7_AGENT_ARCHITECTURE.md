@@ -145,6 +145,13 @@ comments, side-by-side diff and rollback, served by the local console (§5). Thr
   (§2.0) — so the aggregate ("what most teachers do / do not want") becomes the preference
   signal that steers prompt selection and future model choice.
 
+**Moderation is distributed, not only central.** Teachers receive *all* content — reviewed and
+unreviewed — because they must browse the paper catalogue to assign paper-review homework, and
+because a teacher is a moderator: unreviewed model content can be opened and reviewed **from the
+client** (a client feature to add), and any model content, reviewed or not, can be rated. The
+moderator console is the backstop for adjudication, appeals and platform-wide moderation rather
+than the only review door.
+
 ### 2.8 Data stores
 
 - **Subject Notes & Guides DB** — the canonical learning units (concept-first, versioned).
@@ -241,3 +248,13 @@ It shares the backend API and the MCP tool surface, so it is a frontend, not a s
 5. **Moderation staffing** — who reviews, at what volume, and what is auto-approved?
 6. **Every country after Kenya** — the concept layer is the plan; confirm we build it now rather
    than retrofitting after the Kenyan corpus.
+7. **Shared-moderation authority** — does one teacher's approval publish, or is it a quorum of
+   teachers of the matching subject/grade? My lean: quorum (2–3), with the console able to veto.
+8. **Teacher visibility scope** — all GLOBAL content platform-wide, or school + own subjects/
+   grades? Platform-wide risks a huge review queue; subjects/grades keeps it tractable.
+9. **Per-version reviews** — a review applies to a content version, so regenerating resets
+   `REVIEWED`. Confirm reviews do not survive a regeneration.
+10. **Offline reviews** — the client is offline-first, but approving stale content is dangerous;
+    my lean is reviews are online-only and version-checked.
+11. **Rating shape** — a bare star is weak signal; propose 1–5 plus actionable tags ("clear",
+    "too hard", "wrong answer", "needs diagram") joined to the prompt/model version.
