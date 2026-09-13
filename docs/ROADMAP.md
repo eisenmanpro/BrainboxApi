@@ -393,7 +393,9 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       essay is folded back into the student result (`reviewed` grading detail). A class-scoped
       exam (classId set) is now visible/takeable only by students enrolled in that class in the
       catalog and session engine; classId-less SCHOOL_GRADE_CLASS exams stay school-wide.
-- [ ] Learning contracts: contracts, commitments, reminders, templates (doc 04 §11)
+- [x] Learning contracts (lc, V43): client-id idempotent contract CRUD, per-commitment
+      completion (PATCH, repeat-safe), student/parent reminder fan-out via notifications, and the
+      seeded canonical template catalogue.
 - [x] Class chat REST (2Q, doc 04 §12): V27 class_groups + members + messages + polls/votes;
       teacher group CRUD (owner/class scoped, member sync is an immediate bulk replace), thread reads
       with before/limit pagination + unread tracking via teacherLastReadAt, send with attachments and
