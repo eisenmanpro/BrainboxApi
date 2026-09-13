@@ -31,6 +31,7 @@ class SchoolRegistrationService(
     private val schoolRepository: SchoolRepository,
     private val userRepository: UserRepository,
     private val authService: AuthService,
+    private val auditLogService: AuditLogService,
     private val clock: Clock,
 ) {
 
@@ -89,14 +90,25 @@ class SchoolRegistrationService(
             isActive = true
         }
         schoolRepository.save(school)
-        return review(entity, "APPROVED", adminId, note)
+        val reviewed = review(entity, "APPROVED", adminId, note)
+        auditLogService.record(
+            school.id,
+            userRepository.findById(adminId).orElse(null),
+            "Approved school registration '" + entity.schoolName + "'",
+        )
+        return reviewed
     }
 
     @Transactional
     fun reject(adminId: UUID, idRaw: String, note: String?): SchoolRegistrationRequestView {
         val entity = requireRequest(idRaw)
         if (entity.status != "PENDING") return view(entity)
-        return review(entity, "REJECTED", adminId, note)
+        val reviewed = review(entity, "REJECTED", adminId, note)
+        val actor = userRepository.findById(adminId).orElse(null)
+        actor?.schoolId?.let {
+            auditLogService.record(it, actor, "Rejected school registration '" + entity.schoolName + "'")
+        }
+        return reviewed
     }
 
     // ------------------------------------------------------------ internals

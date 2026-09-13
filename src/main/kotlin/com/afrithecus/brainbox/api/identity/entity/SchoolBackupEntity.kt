@@ -26,4 +26,11 @@ class SchoolBackupEntity : BaseEntity() {
     /** Logical JSON export of the school's core records (no credentials). */
     @Column(columnDefinition = "text")
     var payload: String? = null
+
+    @Column(name = "file_name", length = 255)
+    var fileName: String? = null
+
+    /** SHA-256 of the payload, so a download can be verified. */
+    @Column(length = 64)
+    var sha256: String? = null
 }

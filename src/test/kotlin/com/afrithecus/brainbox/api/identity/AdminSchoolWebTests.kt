@@ -11,14 +11,17 @@ import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.gradebook.entity.GradebookEntryEntity
 import com.afrithecus.brainbox.api.gradebook.repository.GradebookEntryRepository
 import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
+import com.afrithecus.brainbox.api.identity.entity.SchoolPerformanceSnapshotEntity
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.AccountStatus
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubRole
+import com.afrithecus.brainbox.api.identity.repository.SchoolPerformanceSnapshotRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.identity.web.AuditLogEntryPayload
 import com.afrithecus.brainbox.api.identity.web.BackupResultPayload
+import com.afrithecus.brainbox.api.identity.web.BackupSummaryPayload
 import com.afrithecus.brainbox.api.identity.web.GradeConfigSummaryPayload
 import com.afrithecus.brainbox.api.identity.web.SchoolAnalyticsPayload
 import com.afrithecus.brainbox.api.identity.web.SchoolAttendanceOverviewPayload
@@ -56,6 +59,7 @@ class AdminSchoolWebTests(
     @Autowired private val membershipRepository: ClassMembershipRepository,
     @Autowired private val gradebookRepository: GradebookEntryRepository,
     @Autowired private val attendanceRepository: AttendanceRecordRepository,
+    @Autowired private val snapshotRepository: SchoolPerformanceSnapshotRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
 ) {
 
@@ -129,6 +133,14 @@ class AdminSchoolWebTests(
 
     @Test
     fun `admin reads are real and school-scoped`() {
+        // A frozen prior-term snapshot gives the analytics a real baseline.
+        snapshotRepository.saveAndFlush(SchoolPerformanceSnapshotEntity().apply {
+            schoolId = school.id
+            term = "Term 1"
+            snapshotYear = 2020
+            overallPerformance = 60.0
+            classAverages = "{\"" + clazz.id + "\":50.0}"
+        })
         val t = token(admin)
         val analytics = objectMapper.readValue(
             mockMvc.perform(get("/admin/schools/" + school.id + "/analytics").header("Authorization", "Bearer " + t))
@@ -137,7 +149,9 @@ class AdminSchoolWebTests(
         )
         check(analytics.totalStudents == 1 && analytics.totalTeachers == 1 && analytics.totalClasses == 1)
         check(analytics.overallPerformance == 82.0)
+        check(analytics.previousOverallPerformance == 60.0)
         check(analytics.classRankings.single().className == "Grade 4 East")
+        check(analytics.classRankings.single().trend == 32.0)
         check(analytics.subjectPerformance.single().subject == "Mathematics")
         check(analytics.gradeDistribution["EE"] == 1)
 
@@ -204,11 +218,51 @@ class AdminSchoolWebTests(
             BackupResultPayload::class.java,
         )
         check(backup.success && backup.sizeBytes > 0 && backup.backupId.isNotBlank())
-        val logs = objectMapper.readValue(
-            mockMvc.perform(get("/admin/schools/" + school.id + "/audit-logs").header("Authorization", "Bearer " + t))
+        check(backup.fileName.endsWith(".json") && backup.sha256.isNotBlank())
+
+        val listed = objectMapper.readValue(
+            mockMvc.perform(get("/admin/schools/" + school.id + "/backups").header("Authorization", "Bearer " + t))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<BackupSummaryPayload>::class.java,
+        )
+        check(listed.size == 1 && listed.single().backupId == backup.backupId && listed.single().sha256 == backup.sha256)
+
+        // The stored artifact downloads with a verifiable checksum.
+        val download = mockMvc.perform(
+            get("/admin/schools/" + school.id + "/backups/" + backup.backupId + "/download")
+                .header("Authorization", "Bearer " + t)
+        ).andExpect(status().isOk).andReturn().response
+        val bytes = download.contentAsByteArray
+        check(String(bytes, Charsets.UTF_8).contains("schoolId"))
+        check(java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) } == backup.sha256)
+    }
+
+    @Test
+    fun `audit log records admin mutations and pages by cursor`() {
+        val t = token(admin)
+        repeat(3) {
+            mockMvc.perform(put("/admin/schools/" + school.id + "/system-settings").header("Authorization", "Bearer " + t)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(SystemSettingsPayload(school.id.toString(), maintenanceMode = it % 2 == 0, registrationOpen = true))))
+                .andExpect(status().isOk)
+            Thread.sleep(10)
+        }
+        val firstPage = objectMapper.readValue(
+            mockMvc.perform(get("/admin/schools/" + school.id + "/audit-logs").param("limit", "2").header("Authorization", "Bearer " + t))
                 .andExpect(status().isOk).andReturn().response.contentAsString,
             Array<AuditLogEntryPayload>::class.java,
         )
-        check(logs.any { it.action.contains("backup") })
+        check(firstPage.size == 2)
+        val cursor = firstPage.minOf { it.timestamp }
+        val secondPage = objectMapper.readValue(
+            mockMvc.perform(
+                get("/admin/schools/" + school.id + "/audit-logs").param("limit", "10").param("before", cursor.toString())
+                    .header("Authorization", "Bearer " + t)
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<AuditLogEntryPayload>::class.java,
+        )
+        check(secondPage.size == 1) { "expected the remaining entry, got " + secondPage.size }
+        check(firstPage.map { it.logId }.intersect(secondPage.map { it.logId }.toSet()).isEmpty())
+        check((firstPage + secondPage).all { it.actorName == "ICT Admin" })
     }
 }

@@ -18,6 +18,7 @@ import com.afrithecus.brainbox.api.common.error.conflict
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.exams.QuestionCodec
+import com.afrithecus.brainbox.api.identity.AuditLogService
 import com.afrithecus.brainbox.api.identity.TeacherCodeGenerator
 import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
 import com.afrithecus.brainbox.api.identity.entity.TeacherCodeEntity
@@ -58,6 +59,7 @@ class TeacherAuthService(
     private val userPayloadFactory: UserPayloadFactory,
     private val teacherCodeGenerator: TeacherCodeGenerator,
     private val authService: AuthService,
+    private val auditLogService: AuditLogService,
     private val codec: QuestionCodec,
 ) {
 
@@ -201,6 +203,9 @@ class TeacherAuthService(
             else -> throw invalidArgument("Only students and teachers can be approved or rejected")
         }
         applyStatus(target, status)
+        if (target.role == Role.TEACHER) {
+            (target.schoolId ?: actor.schoolId)?.let { auditLogService.record(it, actor, message + ": " + target.name) }
+        }
         return authService.accountResponse(target, message)
     }
 
@@ -211,6 +216,9 @@ class TeacherAuthService(
         if (target.role != Role.TEACHER) throw invalidArgument("Target is not a teacher")
         requireSameSchool(actor, target)
         applyStatus(target, if (frozen) AccountStatus.FROZEN else AccountStatus.VERIFIED)
+        target.schoolId?.let {
+            auditLogService.record(it, actor, (if (frozen) "Froze teacher " else "Unfroze teacher ") + target.name)
+        }
         return authService.accountResponse(target, if (frozen) "Teacher frozen" else "Teacher unfrozen")
     }
 
@@ -225,6 +233,9 @@ class TeacherAuthService(
         userRepository.save(target)
         val code = issueCode(target)
         applyStatus(target, AccountStatus.VERIFIED)
+        school?.id?.let {
+            auditLogService.record(it, actor, "Transferred teacher " + target.name + " to " + school.name)
+        }
         return authService.accountResponse(target, "Teacher transferred to " + (school?.name ?: "the new school"))
     }
 
@@ -268,6 +279,9 @@ class TeacherAuthService(
             className?.let { clazz.name = it }
             grades?.firstOrNull()?.let { clazz.gradeLevel = it }
             classRepository.save(clazz)
+        }
+        if (actor.id != target.id) {
+            target.schoolId?.let { auditLogService.record(it, actor, "Updated teacher " + target.name) }
         }
         return authService.accountResponse(target, "Teacher profile updated")
     }

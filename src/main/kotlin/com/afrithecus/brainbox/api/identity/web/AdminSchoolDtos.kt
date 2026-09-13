@@ -98,4 +98,18 @@ data class BackupResultPayload(
     val backupId: String,
     val createdAt: Long,
     val sizeBytes: Long,
+    val fileName: String,
+    val sha256: String,
 )
+
+data class BackupSummaryPayload(
+    val backupId: String,
+    val fileName: String,
+    val sizeBytes: Long,
+    val sha256: String? = null,
+    val status: String = "READY",
+    val createdAt: Long,
+)
+
+/** A backup artifact streamed back to the admin (service -> controller). */
+data class BackupDownload(val fileName: String, val bytes: ByteArray)

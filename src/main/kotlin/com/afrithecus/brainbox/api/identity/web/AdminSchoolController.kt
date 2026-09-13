@@ -2,6 +2,8 @@ package com.afrithecus.brainbox.api.identity.web
 
 import com.afrithecus.brainbox.api.identity.AdminSchoolService
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
+import org.springframework.http.HttpHeaders
+import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
@@ -65,11 +67,32 @@ class AdminSchoolController(private val service: AdminSchoolService) {
         @AuthenticationPrincipal current: CurrentUser,
         @PathVariable schoolId: String,
         @RequestParam(required = false) limit: Int?,
-    ): List<AuditLogEntryPayload> = service.auditLogs(current, schoolId, limit)
+        @RequestParam(required = false) before: Long?,
+    ): List<AuditLogEntryPayload> = service.auditLogs(current, schoolId, limit, before)
 
     @PostMapping("/{schoolId}/backup")
     fun backup(
         @AuthenticationPrincipal current: CurrentUser,
         @PathVariable schoolId: String,
     ): BackupResultPayload = service.backup(current, schoolId)
+
+    @GetMapping("/{schoolId}/backups")
+    fun backups(
+        @AuthenticationPrincipal current: CurrentUser,
+        @PathVariable schoolId: String,
+    ): List<BackupSummaryPayload> = service.backups(current, schoolId)
+
+    /** Streams a stored backup as a JSON attachment (admin-authenticated). */
+    @GetMapping("/{schoolId}/backups/{backupId}/download")
+    fun downloadBackup(
+        @AuthenticationPrincipal current: CurrentUser,
+        @PathVariable schoolId: String,
+        @PathVariable backupId: String,
+    ): ResponseEntity<ByteArray> {
+        val file = service.downloadBackup(current, schoolId, backupId)
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_TYPE, "application/json")
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + file.fileName)
+            .body(file.bytes)
+    }
 }

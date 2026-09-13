@@ -5,6 +5,7 @@ import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.conflict
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
+import com.afrithecus.brainbox.api.identity.AuditLogService
 import com.afrithecus.brainbox.api.identity.TeacherCodeGenerator
 import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
 import com.afrithecus.brainbox.api.identity.entity.TeacherCodeEntity
@@ -52,6 +53,7 @@ class IdentityAdminService(
     private val teacherCodeRepository: TeacherCodeRepository,
     private val teacherCodeGenerator: TeacherCodeGenerator,
     private val teacherProfileRepository: TeacherProfileRepository,
+    private val auditLogService: AuditLogService,
     private val subscriptionService: SubscriptionService,
     private val passwordEncoder: PasswordEncoder,
     private val userPayloadFactory: UserPayloadFactory,
@@ -168,11 +170,19 @@ class IdentityAdminService(
     // --------------------------------------------------- verification (doc 01 §8)
 
     @Transactional
-    fun setVerified(userIdRaw: String, verified: Boolean) {
+    fun setVerified(userIdRaw: String, verified: Boolean, actorId: UUID) {
         val user = findUser(userIdRaw)
         user.isVerified = verified
         user.verificationStatus = if (verified) AccountStatus.VERIFIED else AccountStatus.REJECTED
         userRepository.save(user)
+        user.schoolId?.let { schoolId ->
+            val actor = userRepository.findById(actorId).orElse(null)
+            auditLogService.record(
+                schoolId,
+                actor,
+                (if (verified) "Approved " else "Rejected ") + user.role.name.lowercase() + " " + user.name,
+            )
+        }
     }
 
     // ----------------------------------------------------- teacher management

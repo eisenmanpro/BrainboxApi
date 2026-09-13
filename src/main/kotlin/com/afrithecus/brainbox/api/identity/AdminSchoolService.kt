@@ -8,6 +8,7 @@ import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.gradebook.repository.GradebookEntryRepository
 import com.afrithecus.brainbox.api.identity.entity.SchoolBackupEntity
+import com.afrithecus.brainbox.api.identity.entity.SchoolPerformanceSnapshotEntity
 import com.afrithecus.brainbox.api.identity.entity.SchoolSystemSettingsEntity
 import com.afrithecus.brainbox.api.identity.model.AccountStatus
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
@@ -15,11 +16,14 @@ import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.SchoolBackupRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolConfigRepository
+import com.afrithecus.brainbox.api.identity.repository.SchoolPerformanceSnapshotRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolSystemSettingsRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.identity.web.AuditLogEntryPayload
+import com.afrithecus.brainbox.api.identity.web.BackupDownload
 import com.afrithecus.brainbox.api.identity.web.BackupResultPayload
+import com.afrithecus.brainbox.api.identity.web.BackupSummaryPayload
 import com.afrithecus.brainbox.api.identity.web.ClassAttendanceSummaryPayload
 import com.afrithecus.brainbox.api.identity.web.ClassRankingPayload
 import com.afrithecus.brainbox.api.identity.web.GradeConfigSummaryPayload
@@ -33,7 +37,9 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
+import java.security.MessageDigest
 import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
@@ -56,6 +62,7 @@ class AdminSchoolService(
     private val settingsRepository: SchoolSystemSettingsRepository,
     private val configRepository: SchoolConfigRepository,
     private val backupRepository: SchoolBackupRepository,
+    private val snapshotRepository: SchoolPerformanceSnapshotRepository,
     private val auditLogService: AuditLogService,
     private val access: AdminSchoolAccess,
     private val mapper: ObjectMapper,
@@ -63,7 +70,7 @@ class AdminSchoolService(
     @Value("\${app.school-zone:Africa/Nairobi}") private val schoolZone: String,
 ) {
 
-    @Transactional(readOnly = true)
+    @Transactional
     fun analytics(current: CurrentUser, schoolIdRaw: String): SchoolAnalyticsPayload {
         val schoolId = requireSchoolId(schoolIdRaw)
         access.require(current, schoolId)
@@ -108,13 +115,24 @@ class AdminSchoolService(
                 studentsCount = owned.sumOf { members[it.id]?.size ?: 0 },
             )
         }.sortedByDescending { it.average }
+        val term = termLabel()
+        val year = LocalDate.now(zone()).year
+        val overall = if (percentages.isEmpty()) 0.0 else round1(percentages.average())
+        // A real trend needs a prior-term baseline; we keep one snapshot per term.
+        val previous = previousSnapshot(schoolId, term, year)
+        val previousAverages = parseClassAverages(previous?.classAverages)
+        val ranked = classRankings.map { row ->
+            row.copy(trend = previousAverages[row.classId]?.let { round1(row.average - it) })
+        }
+        persistSnapshot(schoolId, term, year, overall, ranked)
         return SchoolAnalyticsPayload(
             schoolId = schoolId.toString(),
             schoolName = school.name,
-            term = termLabel(),
-            year = LocalDate.now(zone()).year,
-            overallPerformance = if (percentages.isEmpty()) 0.0 else round1(percentages.average()),
-            classRankings = classRankings,
+            term = term,
+            year = year,
+            overallPerformance = overall,
+            previousOverallPerformance = previous?.overallPerformance,
+            classRankings = ranked,
             subjectPerformance = subjectPerformance,
             teacherPerformance = teacherPerformance,
             totalStudents = users.count { it.role == Role.STUDENT },
@@ -123,6 +141,34 @@ class AdminSchoolService(
             gradeDistribution = percentages.groupingBy { bandOf(it) }.eachCount(),
             generatedAt = clock.millis(),
         )
+    }
+
+    @Transactional(readOnly = true)
+    fun backups(current: CurrentUser, schoolIdRaw: String): List<BackupSummaryPayload> {
+        val schoolId = requireSchoolId(schoolIdRaw)
+        access.require(current, schoolId)
+        return backupRepository.findAllBySchoolIdOrderByCreatedAtDesc(schoolId).map {
+            BackupSummaryPayload(
+                backupId = it.id.toString(),
+                fileName = it.fileName ?: ("backup-" + it.id + ".json"),
+                sizeBytes = it.sizeBytes,
+                sha256 = it.sha256,
+                status = it.status,
+                createdAt = it.createdAt.toEpochMilli(),
+            )
+        }
+    }
+
+    @Transactional(readOnly = true)
+    fun downloadBackup(current: CurrentUser, schoolIdRaw: String, backupIdRaw: String): BackupDownload {
+        val schoolId = requireSchoolId(schoolIdRaw)
+        access.require(current, schoolId)
+        val id = runCatching { UUID.fromString(backupIdRaw.trim()) }.getOrNull()
+            ?: throw invalidArgument("backupId is not a valid identifier")
+        val entity = backupRepository.findById(id).orElse(null) ?: throw notFound("Backup not found")
+        if (entity.schoolId != schoolId) throw notFound("Backup not found")
+        val payload = entity.payload ?: throw notFound("Backup payload is not available")
+        return BackupDownload(entity.fileName ?: ("backup-" + entity.id + ".json"), payload.toByteArray(Charsets.UTF_8))
     }
 
     @Transactional(readOnly = true)
@@ -226,10 +272,14 @@ class AdminSchoolService(
     }
 
     @Transactional(readOnly = true)
-    fun auditLogs(current: CurrentUser, schoolIdRaw: String, limit: Int?): List<AuditLogEntryPayload> {
+    fun auditLogs(current: CurrentUser, schoolIdRaw: String, limit: Int?, before: Long?): List<AuditLogEntryPayload> {
         val schoolId = requireSchoolId(schoolIdRaw)
         access.require(current, schoolId)
-        return auditLogService.list(schoolId, limit ?: DEFAULT_AUDIT_LIMIT)
+        return auditLogService.list(
+            schoolId,
+            limit ?: DEFAULT_AUDIT_LIMIT,
+            before?.takeIf { it > 0 }?.let(Instant::ofEpochMilli),
+        )
     }
 
     @Transactional
@@ -258,12 +308,17 @@ class AdminSchoolService(
             },
         )
         val json = mapper.writeValueAsString(snapshot)
+        val bytes = json.toByteArray(Charsets.UTF_8)
+        val sha256 = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        val fileName = "brainbox-backup-" + schoolId + "-" + clock.millis() + ".json"
         val entity = SchoolBackupEntity().apply {
             this.schoolId = schoolId
             requestedBy = actor.id
             status = "READY"
-            sizeBytes = json.toByteArray(Charsets.UTF_8).size.toLong()
+            sizeBytes = bytes.size.toLong()
             payload = json
+            this.fileName = fileName
+            this.sha256 = sha256
         }
         backupRepository.saveAndFlush(entity)
         auditLogService.record(schoolId, actor, "Requested backup (" + entity.sizeBytes + " bytes)")
@@ -273,10 +328,43 @@ class AdminSchoolService(
             backupId = entity.id.toString(),
             createdAt = entity.createdAt.toEpochMilli(),
             sizeBytes = entity.sizeBytes,
+            fileName = fileName,
+            sha256 = sha256,
         )
     }
 
     // ------------------------------------------------------------ internals
+
+    private fun previousSnapshot(schoolId: UUID, term: String, year: Int): SchoolPerformanceSnapshotEntity? =
+        snapshotRepository.findAllBySchoolIdOrderBySnapshotYearDescTermDesc(schoolId)
+            .firstOrNull { it.term != term || it.snapshotYear != year }
+
+    private fun persistSnapshot(
+        schoolId: UUID,
+        term: String,
+        year: Int,
+        overall: Double,
+        classRankings: List<ClassRankingPayload>,
+    ) {
+        val entity = snapshotRepository.findBySchoolIdAndTermAndSnapshotYear(schoolId, term, year)
+            ?: SchoolPerformanceSnapshotEntity().apply {
+                this.schoolId = schoolId
+                this.term = term
+                snapshotYear = year
+            }
+        entity.overallPerformance = overall
+        entity.classAverages = mapper.writeValueAsString(classRankings.associate { it.classId to it.average })
+        entity.generatedAt = clock.instant()
+        snapshotRepository.saveAndFlush(entity)
+    }
+
+    private fun parseClassAverages(json: String?): Map<String, Double> {
+        if (json.isNullOrBlank()) return emptyMap()
+        val node = runCatching { mapper.readTree(json) }.getOrNull() ?: return emptyMap()
+        val out = LinkedHashMap<String, Double>()
+        for (entry in node.properties()) out[entry.key] = entry.value.asDouble()
+        return out
+    }
 
     private fun requireSchoolId(raw: String): UUID {
         val id = runCatching { UUID.fromString(raw.trim()) }.getOrNull()

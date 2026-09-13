@@ -5,6 +5,7 @@ import com.afrithecus.brainbox.api.announcement.repository.SchoolAnnouncementRep
 import com.afrithecus.brainbox.api.announcement.web.SchoolAnnouncementPayload
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
+import com.afrithecus.brainbox.api.identity.AuditLogService
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import org.springframework.stereotype.Service
@@ -21,6 +22,7 @@ import java.util.UUID
 class SchoolAnnouncementService(
     private val repository: SchoolAnnouncementRepository,
     private val schoolRepository: SchoolRepository,
+    private val auditLogService: AuditLogService,
     private val clock: Clock,
 ) {
 
@@ -46,6 +48,7 @@ class SchoolAnnouncementService(
             meetingTitle = request.meetingTitle?.trim()?.takeIf { it.isNotEmpty() }
         }
         repository.saveAndFlush(entity)
+        auditLogService.record(schoolId, admin, "Created announcement '" + entity.title + "'")
         return payload(entity)
     }
 
@@ -66,17 +69,19 @@ class SchoolAnnouncementService(
         entity.meetingTitle = request.meetingTitle?.trim()?.takeIf { it.isNotEmpty() }
         entity.updatedAt = clock.instant()
         repository.saveAndFlush(entity)
+        auditLogService.record(schoolId, admin, "Updated announcement '" + entity.title + "'")
         return payload(entity)
     }
 
     /** Repeat-safe: an unknown announcement is treated as already deleted. */
     @Transactional
-    fun delete(schoolIdRaw: String, announcementIdRaw: String) {
+    fun delete(admin: UserEntity, schoolIdRaw: String, announcementIdRaw: String) {
         val schoolId = schoolId(schoolIdRaw)
         val id = parseUuid(announcementIdRaw, "announcementId") ?: return
         val entity = repository.findById(id).orElse(null) ?: return
         if (entity.schoolId != schoolId) return
         repository.delete(entity)
+        auditLogService.record(schoolId, admin, "Deleted announcement '" + entity.title + "'")
     }
 
     // ------------------------------------------------------------ internals

@@ -2,11 +2,13 @@ package com.afrithecus.brainbox.api.identity.web
 
 import com.afrithecus.brainbox.api.auth.web.UserPayload
 import com.afrithecus.brainbox.api.identity.admin.IdentityAdminService
+import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.web.ResetPasswordResponse
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
+import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
@@ -68,14 +70,20 @@ class AdminIdentityController(private val service: IdentityAdminService) {
     }
 
     @PostMapping("/users/{id}/approve")
-    fun approveUser(@PathVariable id: String): ResponseEntity<Void> {
-        service.setVerified(id, true)
+    fun approveUser(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable id: String,
+    ): ResponseEntity<Void> {
+        service.setVerified(id, true, currentUser.userId)
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build()
     }
 
     @PostMapping("/users/{id}/reject")
-    fun rejectUser(@PathVariable id: String): ResponseEntity<Void> {
-        service.setVerified(id, false)
+    fun rejectUser(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable id: String,
+    ): ResponseEntity<Void> {
+        service.setVerified(id, false, currentUser.userId)
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build()
     }
 

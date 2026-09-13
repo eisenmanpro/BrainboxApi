@@ -66,8 +66,7 @@ class SchoolAnnouncementController(
         @PathVariable schoolId: String,
         @PathVariable announcementId: String,
     ): ResponseEntity<Void> {
-        admin(currentUser, schoolId)
-        service.delete(schoolId, announcementId)
+        service.delete(admin(currentUser, schoolId), schoolId, announcementId)
         return ResponseEntity.noContent().build()
     }
 }

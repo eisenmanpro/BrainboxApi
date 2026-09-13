@@ -24,6 +24,7 @@ class SchoolConfigService(
     private val schoolRepository: SchoolRepository,
     private val codec: QuestionCodec,
     private val access: AdminSchoolAccess,
+    private val auditLogService: AuditLogService,
     private val clock: Clock,
 ) {
 
@@ -37,7 +38,7 @@ class SchoolConfigService(
     @Transactional
     fun update(admin: CurrentUser, schoolIdRaw: String, request: SchoolConfigPayload): SchoolConfigPayload {
         val schoolId = requireSchool(schoolIdRaw)
-        access.require(admin, schoolId)
+        val actor = access.require(admin, schoolId)
         validate(request)
         val entity = repository.findById(schoolId).orElse(null)
             ?: SchoolConfigEntity().apply { this.schoolId = schoolId }
@@ -53,6 +54,7 @@ class SchoolConfigService(
         entity.cbcStrands = codec.toJson(request.cbcStrands.filter { it.isNotBlank() })
         entity.updatedAt = clock.instant()
         repository.saveAndFlush(entity)
+        auditLogService.record(schoolId, actor, "Updated school config")
         return payload(schoolId, entity)
     }
 

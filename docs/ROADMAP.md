@@ -490,13 +490,17 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - [x] Admin identity + approvals: user list/detail/patch/deactivate, reset-password,
       parent-link, school teacher create/list/remove, school update/deactivate and
       POST admin/users/{id}/approve|reject (idempotent).
-- [x] Admin school management (V52, docs/ongoing/api_admin_changes.md): GET
+- [x] Admin school management (V52/V53, docs/ongoing/api_admin_changes.md): GET
       admin/schools/{id}/analytics (real class/subject/teacher aggregates plus EE/ME/AE/BE
-      distribution), /grades (derived grade configs), /approvals (pending users),
-      /attendance/overview (per-class rate and chronic absentees), GET/PUT /system-settings
-      (maintenance + registration, audited), GET /audit-logs (server-owned trail) and
-      POST /backup (logical JSON snapshot). School config (V48) now also accepts an
-      ICT_ADMIN scoped to their own school.
+      distribution, with previous-term overall and per-class trends from
+      school_performance_snapshots), /grades (derived grade configs), /approvals (pending
+      users), /attendance/overview (per-class rate and chronic absentees), GET/PUT
+      /system-settings (maintenance + registration, audited), GET /audit-logs (server-owned,
+      paged with a before cursor, 180-day retention), POST /backup plus GET /backups and
+      GET /backups/{id}/download (logical JSON snapshot with a SHA-256 checksum). School config
+      (V48) now also accepts an ICT_ADMIN scoped to their own school. Audit coverage spans
+      config, announcements, admin approvals, teacher lifecycle decisions and school
+      registration.
 - [x] Announcements (V40) + news management and learning content moderation.
 - [ ] ClassGroup management (house groups already live in the timetable module) and
       leaderboard management remain.
