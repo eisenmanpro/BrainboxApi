@@ -565,6 +565,11 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       deferred until a client surface sends the resource version.
 
 ### Phase 7 — Agentic Content Generation Pipeline  (goal 7; ARCHITECTURE §13)
+
+> **Cold-start research:** `docs/PHASE7_CONTENT_RESEARCH.md` maps what the client expects of
+> learning materials (the three material surfaces and their exact shapes), the content taxonomy
+> the agent must cover, a ~850-topic seed-corpus target, and the open-licensing constraints —
+> written before implementation because an empty platform is the actual launch risk.
 - [ ] Content cache table (JSONB) + cache-first Router; idempotent generation keyed by topic/grade/scope
 - [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences)
 - [ ] Agent tools: DB metric queries, internet search, content validators
