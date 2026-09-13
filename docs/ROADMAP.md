@@ -583,7 +583,9 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - [x] Content cache + taxonomy schema (V61): `concepts`, `curriculum_map`, `content_units` with a
       unique generation key, `content_unit_steps`/`content_unit_questions` and `generation_jobs`, with
       entities, repositories and a round-trip test. The cache-first Router lands in 7.2.
-- [ ] Cache-first Router; idempotent generation keyed by topic/grade/scope
+- [x] Cache-first Router (V62): ContentRouter resolves by generation key, drives the provider seam
+      and writes the capture rows (agent_runs, model_calls, tool_calls); the in-process MCP tool
+      seam and concept_lookup are in place. The default provider is disabled until app.ai is set.
 - [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences)
 - [ ] Agent tools: DB metric queries, internet search, content validators
 - [ ] LLM provider routing by cost/latency; per-generation token tracking (DeepSeek + others)
