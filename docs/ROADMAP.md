@@ -487,6 +487,11 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       shape with teacher code, classes, subjects and verification state), self-scoped.
 
 ### Phase 4 — Traditional Exam Engine  (goal 4; docs 02 §6, 10)
+
+> **Paused for the client backlog.** The main plan is held here while the client works through
+> `BrainBox/docs/ongoing/client_backlog.md`. Resume at this phase once those items land and the
+> paired backend patches listed in that doc's §13 are applied. (The exam engine itself shipped in
+> V29; the return is to the main plan, not to re-do Phase 4.)
 - [ ] Exam lifecycle: PENDING → IN_PROGRESS → CONFIRMED → PRE_FINAL → FINALIZED → PUBLISHED guards
 - [ ] Subject config/components; mark entry; confirmation; finalization; publication
 - [ ] Edit requests: batch per-student processing; coordinator self-approval rejection
