@@ -14,6 +14,7 @@ import com.afrithecus.brainbox.api.traditional.model.TraditionalExamStatus
 import com.afrithecus.brainbox.api.traditional.model.TraditionalSubjectType
 import com.afrithecus.brainbox.api.traditional.web.CreateTraditionalExamRequest
 import com.afrithecus.brainbox.api.traditional.web.EditRequestDto
+import com.afrithecus.brainbox.api.traditional.web.ExamConfirmationStatusDto
 import com.afrithecus.brainbox.api.traditional.web.GradingBandDto
 import com.afrithecus.brainbox.api.traditional.web.GradingConfigDto
 import com.afrithecus.brainbox.api.traditional.web.MarkEntryDto
@@ -227,8 +228,9 @@ class TraditionalExamWebTests(
         check(report.subjectResults.size == 2)
         check(report.totalScore == 140)
         check(report.overallPercentage == 70.0)
-        // Percentage-band (70% -> ME) to match the client's offline report fallback.
-        check(report.overallGrade == "ME")
+        // Raw-total G.TOTAL band (140 -> BE under the default 120/200/280/350 bands),
+        // matching the client's offline report fallback (overallBand(totalScore)).
+        check(report.overallGrade == "BE")
         check(report.classPosition == 2)
         check(report.totalStudentsInClass == 2)
 
@@ -364,7 +366,16 @@ class TraditionalExamWebTests(
             ).andExpect(status().isOk).andReturn().response.contentAsString,
             Array<TraditionalExamDto>::class.java,
         )
-        check(generated.size == 1)
+        // The client generates three deterministic sessions locally; the server mirrors
+        // exactly those ids so marks and confirmations can follow.
+        check(generated.size == 3)
+        check(
+            generated.map { it.examId }.toSet() == setOf(
+                "TRAD_Grade6_OPENER_2026_T1",
+                "TRAD_Grade6_MID_2026_T1",
+                "TRAD_Grade6_END_2026_T1",
+            )
+        )
         val regenerated = objectMapper.readValue(
             mockMvc.perform(
                 post("/traditional/exams/generate").param("grade", "Grade 6").param("term", "TERM_1").param("year", "2026")
@@ -372,7 +383,7 @@ class TraditionalExamWebTests(
             ).andExpect(status().isOk).andReturn().response.contentAsString,
             Array<TraditionalExamDto>::class.java,
         )
-        check(regenerated.size == 1 && regenerated[0].examId == generated[0].examId)
+        check(regenerated.size == 3 && regenerated.map { it.examId }.toSet() == generated.map { it.examId }.toSet())
 
         val examId = generated[0].examId
         val request = EditRequestDto(
@@ -390,5 +401,149 @@ class TraditionalExamWebTests(
         mockMvc.perform(
             post("/traditional/edit-requests/${created.id}/approve").header("Authorization", auth(token))
         ).andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `client assigned exam ids round-trip through marks confirmation and analytics`() {
+        val coordinator = user(Role.TEACHER, "Coordinator Client", "0700000400", grade = "Grade 7", subRole = SubRole.GRADE_COORDINATOR)
+        val teacherA = user(Role.TEACHER, "Teacher A", "0700000401", grade = "Grade 7")
+        val teacherB = user(Role.TEACHER, "Teacher B", "0700000402", grade = "Grade 7")
+        val alice = user(Role.STUDENT, "Alice Client", "0700000403", grade = "Grade 7", admission = "ADM-201")
+        val bob = user(Role.STUDENT, "Bob Client", "0700000404", grade = "Grade 7", admission = "ADM-202")
+        val coordinatorToken = token(coordinator)
+        val tokenA = token(teacherA)
+        val tokenB = token(teacherB)
+
+        val clientExamId = "TRAD_Grade7_OPENER_2026_T2"
+        val request = CreateTraditionalExamRequest(
+            examId = clientExamId,
+            title = "Opener Term 2 2026 - Grade 7",
+            term = ExamTerm.TERM_2,
+            gradeLevel = "Grade 7",
+            year = 2026,
+            subjects = listOf(SubjectConfigDto("MATH", "Mathematics", 100, TraditionalSubjectType.SINGLE)),
+        )
+        val created = objectMapper.readValue(
+            mockMvc.perform(
+                post("/traditional/exams").header("Authorization", auth(coordinatorToken))
+                    .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            TraditionalExamDto::class.java,
+        )
+        check(created.examId == clientExamId)
+        check(created.schoolId == schoolId.toString())
+        // Replaying the same create is idempotent in the client id (client outbox).
+        val replayed = objectMapper.readValue(
+            mockMvc.perform(
+                post("/traditional/exams").header("Authorization", auth(coordinatorToken))
+                    .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            TraditionalExamDto::class.java,
+        )
+        check(replayed.examId == clientExamId)
+
+        val saved = objectMapper.readValue(
+            mockMvc.perform(
+                post("/traditional/exams/${clientExamId}/marks").header("Authorization", auth(tokenA))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(listOf(MarkEntryDto(alice.id.toString(), "MATH", 80))))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<TraditionalMarkDto>::class.java,
+        )
+        check(saved.single().examId == clientExamId)
+        // The mark id mirrors the client's deterministic key so a save response
+        // replaces, rather than duplicates, the local row.
+        check(saved.single().id == clientExamId + "_" + alice.id + "_MATH")
+        mockMvc.perform(
+            post("/traditional/exams/${clientExamId}/marks").header("Authorization", auth(tokenB))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(MarkEntryDto(bob.id.toString(), "MATH", 40))))
+        ).andExpect(status().isOk)
+
+        mockMvc.perform(
+            post("/traditional/exams/${clientExamId}/confirm").param("grade", "Grade 7").header("Authorization", auth(tokenA))
+        ).andExpect(status().isNoContent)
+        val status = objectMapper.readValue(
+            mockMvc.perform(get("/traditional/exams/${clientExamId}/confirmation-status").header("Authorization", auth(coordinatorToken)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            ExamConfirmationStatusDto::class.java,
+        )
+        check(status.examId == clientExamId)
+        check(status.totalTeachers == 2 && status.confirmedCount == 1)
+        check(status.pendingTeachers == listOf(teacherB.id.toString()))
+
+        mockMvc.perform(
+            post("/traditional/exams/${clientExamId}/confirm").param("grade", "Grade 7").header("Authorization", auth(tokenB))
+        ).andExpect(status().isNoContent)
+        val analytics = objectMapper.readValue(
+            mockMvc.perform(get("/traditional/exams/${clientExamId}/analytics").header("Authorization", auth(coordinatorToken)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            TraditionalExamAnalyticsDto::class.java,
+        )
+        check(analytics.examId == clientExamId)
+        check(analytics.totalTeachers == 2 && analytics.confirmedTeachers == 2)
+        check(analytics.totalStudents == 2)
+        // Summed subject percentages (Alice 80, Bob 40) -> mean 60, matching the client.
+        check(analytics.classMean == 60.0)
+    }
+
+    @Test
+    fun `client supplied edit request id is adopted for later approval`() {
+        val coordinator = user(Role.TEACHER, "Coordinator Edit", "0700000500", grade = "Grade 8", subRole = SubRole.GRADE_COORDINATOR)
+        val teacher = user(Role.TEACHER, "Teacher Edit", "0700000501", grade = "Grade 8")
+        val student = user(Role.STUDENT, "Student Edit", "0700000502", grade = "Grade 8")
+        val coordinatorToken = token(coordinator)
+        val teacherToken = token(teacher)
+
+        val exam = createExam(coordinatorToken, "Grade 8", listOf(SubjectConfigDto("MAT", "Mathematics", 100, TraditionalSubjectType.SINGLE)))
+        mockMvc.perform(
+            post("/traditional/exams/${exam.examId}/marks").header("Authorization", auth(teacherToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(MarkEntryDto(student.id.toString(), "MAT", 50))))
+        ).andExpect(status().isOk)
+
+        val requestId = UUID.randomUUID().toString()
+        val request = EditRequestDto(
+            id = requestId, examId = exam.examId, teacherId = teacher.id.toString(), studentId = student.id.toString(),
+            subjectId = "MAT", oldScore = 50, newScore = 60, reason = "capture typo", createdAt = 0,
+        )
+        val created = objectMapper.readValue(
+            mockMvc.perform(
+                post("/traditional/exams/${exam.examId}/edit-requests").header("Authorization", auth(teacherToken))
+                    .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            EditRequestDto::class.java,
+        )
+        check(created.id == requestId)
+        val approved = objectMapper.readValue(
+            mockMvc.perform(
+                post("/traditional/edit-requests/${requestId}/approve").header("Authorization", auth(coordinatorToken))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            EditRequestDto::class.java,
+        )
+        check(approved.status == TraditionalEditStatus.APPROVED)
+    }
+
+    @Test
+    fun `published exam rejects further mark writes but replays confirm as a no-op`() {
+        val coordinator = user(Role.TEACHER, "Coordinator Pub", "0700000600", grade = "Grade 4", subRole = SubRole.GRADE_COORDINATOR)
+        val student = user(Role.STUDENT, "Student Pub", "0700000601", grade = "Grade 4", admission = "ADM-301")
+        val token = token(coordinator)
+        val exam = createExam(token, "Grade 4", listOf(SubjectConfigDto("MATH", "Mathematics", 100, TraditionalSubjectType.SINGLE)))
+        mockMvc.perform(
+            post("/traditional/exams/${exam.examId}/marks").header("Authorization", auth(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(MarkEntryDto(student.id.toString(), "MATH", 70))))
+        ).andExpect(status().isOk)
+        publishExam(exam.examId, token, coordinator.id)
+
+        mockMvc.perform(
+            post("/traditional/exams/${exam.examId}/marks").header("Authorization", auth(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(MarkEntryDto(student.id.toString(), "MATH", 90))))
+        ).andExpect(status().isConflict)
+        mockMvc.perform(
+            post("/traditional/exams/${exam.examId}/confirm").param("grade", "Grade 4").header("Authorization", auth(token))
+        ).andExpect(status().isNoContent)
     }
 }

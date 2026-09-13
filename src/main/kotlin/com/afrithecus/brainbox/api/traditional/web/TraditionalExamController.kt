@@ -169,7 +169,12 @@ class TraditionalExamController(
     fun teacherClass(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @PathVariable teacherId: String,
-    ): String? = service.teacherClass(currentUser, teacherId)
+    ): ResponseEntity<String> {
+        val classTag = service.teacherClass(currentUser, teacherId)
+        // A teacher with no active class is a legitimate null; return 204 instead of
+        // an empty 200 body that the client's String adapter cannot represent.
+        return if (classTag.isNullOrBlank()) ResponseEntity.noContent().build() else ResponseEntity.ok(classTag)
+    }
 
     @GetMapping("/exams/{examId}/subjects")
     fun examSubjects(

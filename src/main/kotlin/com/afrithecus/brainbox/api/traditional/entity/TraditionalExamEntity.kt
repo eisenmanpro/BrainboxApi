@@ -42,6 +42,14 @@ class TraditionalExamEntity : BaseEntity() {
     @Column(name = "school_id")
     var schoolId: UUID? = null
 
+    /**
+     * The Android client's deterministic exam id (e.g. TRAD_Grade4_OPENER_2026_T1).
+     * The server UUID stays the internal primary key; this column lets every
+     * endpoint and payload speak the id the client stores locally.
+     */
+    @Column(name = "client_exam_id", length = 128)
+    var clientExamId: String? = null
+
     @Column(name = "created_by", nullable = false)
     var createdBy: UUID = UUID.randomUUID()
 

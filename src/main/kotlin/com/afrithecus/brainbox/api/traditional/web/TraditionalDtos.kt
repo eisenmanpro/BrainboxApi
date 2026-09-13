@@ -47,6 +47,8 @@ data class TraditionalExamDto(
     val coordinatorRemarks: String? = null,
     val publishedAt: Long? = null,
     val publishedBy: String? = null,
+    /** Tenant scope so the client can preserve it across pulls (TE-3). */
+    val schoolId: String? = null,
 )
 
 data class TraditionalMarkDto(
@@ -263,6 +265,8 @@ data class TraditionalGradeAnalysisDto(
 
 /** Body for POST /traditional/exams (client sends the full TraditionalExam model). */
 data class CreateTraditionalExamRequest(
+    /** The client's deterministic exam id; stored and echoed so CREATE_EXAM replay is idempotent. */
+    val examId: String? = null,
     @field:NotBlank val title: String,
     @field:NotNull val term: ExamTerm,
     @field:NotBlank val gradeLevel: String,
