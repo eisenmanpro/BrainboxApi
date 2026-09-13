@@ -23,7 +23,8 @@ class PastPapersController(private val service: PastPaperService) {
     fun all(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @RequestParam(required = false) subject: String?,
-    ): List<DocumentItem> = service.list(currentUser.userId, subject)
+        @RequestParam(required = false) grade: String?,
+    ): List<DocumentItem> = service.list(currentUser.userId, subject, grade)
 
     @GetMapping("/search")
     fun search(

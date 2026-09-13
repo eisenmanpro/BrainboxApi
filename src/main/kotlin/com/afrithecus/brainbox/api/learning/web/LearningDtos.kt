@@ -57,13 +57,16 @@ data class CreatePostRequest(
 
 data class LearningContentPayload(
     val id: String,
+    /** Required by the Android model; blocks were previously unaddressable. */
+    val postId: String,
     val type: String,
     val title: String? = null,
     val content: String? = null,
     val durationMinutes: Int,
     val orderIndex: Int,
     val thumbnailUrl: String? = null,
-    val metadata: Any? = null,
+    /** Quiz/flashcard JSON as a **string** (the client model is `String?`, not a JSON tree). */
+    val metadata: String? = null,
 )
 
 data class LearningPostPayload(
@@ -86,5 +89,14 @@ data class LearningPostPayload(
     val viewCount: Int,
     val likeCount: Int,
     val createdAt: Long,
+    /** True on the `/trending` rail; the client renders a trending badge. */
+    val isTrending: Boolean = false,
+    val cbcStrand: String? = null,
+    val cbcSubStrand: String? = null,
+    val authorName: String = "",
+    /** Set when the post subject is outside the client's fixed Subject enum. */
+    val customSubjectName: String? = null,
+    /** PUBLISHED | SCHEDULED | ARCHIVED; a missing status used to leak archived posts. */
+    val status: String = "PUBLISHED",
     val content: List<LearningContentPayload>? = null,
 )

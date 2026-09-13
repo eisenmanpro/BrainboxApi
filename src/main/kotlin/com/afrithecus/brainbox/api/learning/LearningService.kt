@@ -4,6 +4,7 @@ import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.common.domain.GradeNormalizer
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
+import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.learning.entity.LearningContentEntity
 import com.afrithecus.brainbox.api.learning.entity.LearningPostEntity
 import com.afrithecus.brainbox.api.learning.entity.LearningViewEntity
@@ -38,6 +39,7 @@ class LearningService(
     private val viewRepository: LearningViewRepository,
     private val codec: QuestionCodec,
     private val mapper: ObjectMapper,
+    private val userRepository: UserRepository,
     private val clock: Clock,
 ) {
 
@@ -47,7 +49,7 @@ class LearningService(
 
     @Transactional(readOnly = true)
     fun trending(user: UserEntity): List<LearningPostPayload> =
-        visiblePosts(user).sortedByDescending { it.viewCount }.take(TRENDING_LIMIT).map { toPost(it) }
+        visiblePosts(user).sortedByDescending { it.viewCount }.take(TRENDING_LIMIT).map { toPost(it, trending = true) }
 
     @Transactional(readOnly = true)
     fun bySubject(user: UserEntity, subject: String): List<LearningPostPayload> =
@@ -121,50 +123,83 @@ class LearningService(
     private fun isVisible(post: LearningPostEntity, user: UserEntity): Boolean =
         ContentScope.isVisible(post.scope, post.schoolId, post.gradeLevel, post.teacherId, user)
 
-    private fun toPost(post: LearningPostEntity): LearningPostPayload = LearningPostPayload(
-        id = post.id.toString(),
-        title = post.title,
-        subject = post.subject,
-        topic = post.topic,
-        subtopic = post.subtopic,
-        imageUrl = post.imageUrl,
-        description = post.description,
-        estimatedMinutes = post.estimatedMinutes,
-        difficulty = post.difficulty,
-        tags = codec.parseList(post.tags),
-        scope = post.scope.name,
-        schoolId = post.schoolId?.toString(),
-        gradeLevel = post.gradeLevel,
-        teacherId = post.teacherId?.toString(),
-        isFeatured = post.isFeatured,
-        isPublished = post.isPublished,
-        viewCount = post.viewCount,
-        likeCount = post.likeCount,
-        createdAt = post.createdAt.toEpochMilli(),
-    )
+    private fun toPost(post: LearningPostEntity, trending: Boolean = false): LearningPostPayload {
+        val canonical = canonicalSubject(post.subject)
+        val custom = post.customSubjectName?.takeIf { it.isNotBlank() }
+            ?: post.subject.takeIf { canonical == null }?.trim()?.takeIf { it.isNotEmpty() }
+        return LearningPostPayload(
+            id = post.id.toString(),
+            title = post.title,
+            subject = canonical ?: DEFAULT_SUBJECT,
+            topic = post.topic,
+            subtopic = post.subtopic,
+            imageUrl = post.imageUrl,
+            description = post.description,
+            estimatedMinutes = post.estimatedMinutes,
+            difficulty = post.difficulty,
+            tags = codec.parseList(post.tags),
+            scope = post.scope.name,
+            schoolId = post.schoolId?.toString(),
+            gradeLevel = post.gradeLevel,
+            teacherId = post.teacherId?.toString(),
+            isFeatured = post.isFeatured,
+            isPublished = post.isPublished,
+            viewCount = post.viewCount,
+            likeCount = post.likeCount,
+            createdAt = post.createdAt.toEpochMilli(),
+            isTrending = trending,
+            cbcStrand = post.cbcStrand,
+            cbcSubStrand = post.cbcSubStrand,
+            authorName = userRepository.findById(post.createdBy).orElse(null)?.name.orEmpty(),
+            customSubjectName = custom,
+            status = post.status,
+        )
+    }
 
     /** QUIZ metadata is deep-cleaned of key material for students (doc 03 §2.2). */
     private fun toContent(block: LearningContentEntity, includeKeys: Boolean): LearningContentPayload {
-        val metadataNode: Any? = block.metadata?.let {
-            val node = runCatching { mapper.readTree(it) }.getOrNull()
-            if (node == null) {
-                it
-            } else if (block.contentType == ContentType.QUIZ && !includeKeys) {
-                stripKeys(node)
+        // The client model is `metadata: String?`, so the JSON tree is re-serialised to text.
+        val metadata: String? = block.metadata?.let { raw ->
+            if (block.contentType == ContentType.QUIZ && !includeKeys) {
+                runCatching { mapper.writeValueAsString(stripKeys(mapper.readTree(raw))) }.getOrDefault(raw)
             } else {
-                node
+                raw
             }
         }
         return LearningContentPayload(
             id = block.id.toString(),
-            type = block.contentType.name,
+            postId = block.postId.toString(),
+            type = contentTypeForClient(block),
             title = block.title,
             content = block.content,
             durationMinutes = block.durationMinutes,
             orderIndex = block.orderIndex,
             thumbnailUrl = block.thumbnailUrl,
-            metadata = metadataNode,
+            metadata = metadata,
         )
+    }
+
+    /**
+     * Maps the stored content type onto the client enum (NOTES, VIDEO, QUIZ, FLASHCARDS, PDF,
+     * EPUB, PLAINTEXT). DIAGRAM/DOCUMENT are not client values and must never be sent raw.
+     */
+    private fun contentTypeForClient(block: LearningContentEntity): String {
+        block.contentTypeLabel?.takeIf { it.isNotBlank() }?.let { return it }
+        return when (block.contentType) {
+            ContentType.DIAGRAM -> "NOTES"
+            ContentType.DOCUMENT -> "PDF"
+            else -> block.contentType.name
+        }
+    }
+
+    /**
+     * The client Subject enum is fixed to eight values, so the wire value must be an enum name;
+     * anything else rides customSubjectName with a safe placeholder enum.
+     */
+    private fun canonicalSubject(raw: String): String? {
+        val cleaned = raw.trim().uppercase().replace(Regex("\\s+"), "_")
+        if (cleaned in SUBJECTS) return cleaned
+        return SUBJECT_ALIASES[cleaned] ?: SUBJECT_ALIASES[cleaned.replace("_", "")]
     }
 
     private fun stripKeys(node: JsonNode): JsonNode {
@@ -288,5 +323,24 @@ class LearningService(
 
     private companion object {
         const val TRENDING_LIMIT = 20
+        const val DEFAULT_SUBJECT = "MATHEMATICS"
+
+        val SUBJECTS = setOf(
+            "MATHEMATICS", "ENGLISH", "KISWAHILI", "PHYSICS",
+            "CHEMISTRY", "BIOLOGY", "HISTORY", "GEOGRAPHY",
+        )
+
+        val SUBJECT_ALIASES = mapOf(
+            "MATH" to "MATHEMATICS",
+            "MATHS" to "MATHEMATICS",
+            "MATHEMATIC" to "MATHEMATICS",
+            "SWAHILI" to "KISWAHILI",
+            "BIO" to "BIOLOGY",
+            "CHEM" to "CHEMISTRY",
+            "PHYS" to "PHYSICS",
+            "HIST" to "HISTORY",
+            "GEO" to "GEOGRAPHY",
+            "ENG" to "ENGLISH",
+        )
     }
 }

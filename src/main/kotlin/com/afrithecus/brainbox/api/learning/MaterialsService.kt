@@ -194,15 +194,31 @@ class MaterialsService(
     private fun toPayload(file: ReadableFileEntity) = ReadableFilePayload(
         id = file.id.toString(),
         title = file.title,
+        author = file.authorName,
+        description = file.description,
         subject = file.subject,
         category = file.category,
-        fileUrl = file.fileUrl,
-        fileType = file.fileType.name,
-        pageCount = file.pageCount,
-        sizeBytes = file.sizeBytes,
+        filePath = file.fileUrl,
+        fileType = clientFileType(file),
+        totalPages = file.pageCount,
+        thumbnailUrl = null,
+        isFromAssets = false,
+        fileSize = file.sizeBytes,
         version = file.fileVersion,
         createdAt = file.createdAt.toEpochMilli(),
     )
+
+    /**
+     * The Android ReadableFileType enum is PDF|EPUB|PLAINTEXT. The stored doc_type already uses
+     * those values; fall back to the broader FileType only for legacy/admin rows.
+     */
+    private fun clientFileType(file: ReadableFileEntity): String {
+        file.docType?.trim()?.uppercase()?.takeIf { it in CLIENT_FILE_TYPES }?.let { return it }
+        return when (file.fileType) {
+            FileType.TXT -> "PLAINTEXT"
+            FileType.PDF, FileType.DOCX, FileType.IMAGE -> "PDF"
+        }
+    }
 
     private fun toProgress(row: ReadingProgressEntity) = ReadingProgressPayload(
         fileId = row.fileId.toString(),
@@ -213,5 +229,6 @@ class MaterialsService(
 
     private companion object {
         const val MAX_SESSION_HOURS = 8L
+        val CLIENT_FILE_TYPES = setOf("PDF", "EPUB", "PLAINTEXT")
     }
 }

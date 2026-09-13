@@ -100,15 +100,41 @@ data class PastPaperAttemptRequest(
     val submittedAt: Long? = null,
 )
 
-/** Past-paper listing item (doc 02 §5.1). */
+/** Source descriptor the Android DocumentSource sealed type maps onto. */
+data class DocumentSourcePayload(
+    /** REMOTE | ASSET | LOCAL_FILE */
+    val type: String = "REMOTE",
+    val path: String? = null,
+    val url: String? = null,
+)
+
+/**
+ * Past-paper listing item (doc 02 §5.1). Field names mirror the Android `DocumentItem`
+ * (models/DocumentModels.kt) so the client maps the payload directly.
+ */
 data class DocumentItem(
     val id: String,
     val title: String,
-    val subject: String,
-    val durationMinutes: Int,
-    val questionCount: Int,
+    val author: String = "",
+    val description: String = "",
+    /** Android DocumentType: PDF | EPUB | PLAINTEXT. */
+    val type: String = "PDF",
+    val source: DocumentSourcePayload,
+    val coverUrl: String? = null,
+    val pageCount: Int? = null,
+    val fileSizeBytes: Long? = null,
+    val isBundled: Boolean = false,
+    val addedAt: Long,
+    val code: String? = null,
+    val isPastPaper: Boolean = true,
+    val grade: String? = null,
+    val subject: String? = null,
+    val isLocked: Boolean = false,
+    val assignmentNotice: String? = null,
+    val scope: String = "GLOBAL",
+    val schoolId: String? = null,
+    val durationMinutes: Int? = null,
+    val questionCount: Int? = null,
     val examYear: Int? = null,
     val isMcp: Boolean = false,
-    val isPastPaper: Boolean = true,
-    val iconUrl: String? = null,
 )

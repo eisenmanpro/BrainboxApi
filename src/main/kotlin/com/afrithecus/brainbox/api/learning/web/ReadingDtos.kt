@@ -29,12 +29,20 @@ data class CreateReadableRequest(
 data class ReadableFilePayload(
     val id: String,
     val title: String,
+    val author: String? = null,
+    val description: String? = null,
     val subject: String,
     val category: String? = null,
-    val fileUrl: String,
+    /** Android `ReadableFile.filePath` (was `fileUrl`, which the client cannot map). */
+    val filePath: String,
+    /** PDF | EPUB | PLAINTEXT, matching the Android `ReadableFileType`. */
     val fileType: String,
-    val pageCount: Int,
-    val sizeBytes: Long,
+    /** Android `ReadableFile.totalPages` (was `pageCount`). */
+    val totalPages: Int,
+    val thumbnailUrl: String? = null,
+    val isFromAssets: Boolean = false,
+    /** Android `ReadableFile.fileSize` (was `sizeBytes`). */
+    val fileSize: Long,
     val version: Int,
     val createdAt: Long,
 )

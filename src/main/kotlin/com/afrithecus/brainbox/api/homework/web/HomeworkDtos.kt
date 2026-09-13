@@ -143,6 +143,9 @@ data class HomeworkProgressItem(
 )
 
 data class StudentSubmitRequest(
+    /** The Android client posts the full Homework model; the id travels in the body. */
+    val id: String? = null,
+    val homeworkId: String? = null,
     val submissionText: String? = null,
     val checklistAnswers: List<Int>? = null,
     /** The client sends checklist indices as a comma-separated string. */

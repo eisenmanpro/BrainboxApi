@@ -11,6 +11,7 @@ import com.afrithecus.brainbox.api.exams.model.ExamType
 import com.afrithecus.brainbox.api.exams.repository.ExamRepository
 import com.afrithecus.brainbox.api.exams.repository.ExamSubmissionRepository
 import com.afrithecus.brainbox.api.exams.web.DocumentItem
+import com.afrithecus.brainbox.api.exams.web.DocumentSourcePayload
 import com.afrithecus.brainbox.api.exams.web.ExamContentPayload
 import com.afrithecus.brainbox.api.exams.web.ExamContentQuestionPayload
 import com.afrithecus.brainbox.api.exams.web.ExamCoverPayload
@@ -43,9 +44,10 @@ class PastPaperService(
 ) {
 
     @Transactional(readOnly = true)
-    fun list(userId: UUID, subject: String?): List<DocumentItem> =
+    fun list(userId: UUID, subject: String?, grade: String? = null): List<DocumentItem> =
         visiblePastPapers(userId)
             .filter { subject == null || it.subject.equals(subject, ignoreCase = true) }
+            .filter { matchesGrade(it.gradeLevel, grade) }
             .sortedBy { it.title.lowercase() }
             .map(::toDocumentItem)
 
@@ -172,11 +174,25 @@ class PastPaperService(
     private fun toDocumentItem(exam: ExamEntity) = DocumentItem(
         id = exam.id.toString(),
         title = exam.title,
+        source = DocumentSourcePayload(type = "REMOTE", url = "/past-papers/" + exam.id + "/content"),
+        coverUrl = exam.coverImageUrl,
+        addedAt = exam.createdAt.toEpochMilli(),
+        code = exam.clientId,
+        isPastPaper = exam.examType == ExamType.PAST_PAPER,
+        grade = exam.gradeLevel?.let { "Grade " + it },
         subject = exam.subject,
+        scope = exam.scope.name,
+        schoolId = exam.schoolId?.toString(),
         durationMinutes = exam.durationMinutes,
         questionCount = exam.questionCount,
         examYear = exam.examYear,
         isMcp = exam.isMcp,
-        iconUrl = exam.coverImageUrl,
     )
+
+    /** The client sends a display grade ("Grade 4" or "4"); match on the numeric part. */
+    private fun matchesGrade(examGrade: Int?, requested: String?): Boolean {
+        if (requested.isNullOrBlank() || examGrade == null) return true
+        val requestedDigits = requested.filter { it.isDigit() }
+        return requestedDigits.isEmpty() || requestedDigits == examGrade.toString()
+    }
 }

@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.homework.web
 
+import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.homework.StudentHomeworkService
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
@@ -55,4 +56,18 @@ class StudentHomeworkController(
         @PathVariable homeworkId: String,
         @Valid @RequestBody request: StudentSubmitRequest,
     ): StudentHomeworkPayload = service.submit(student(currentUser), homeworkId, request)
+
+    /**
+     * The Android client posts the full Homework model to `homework/submit`, so the id arrives in
+     * the body. This keeps the client path working without a frontend change.
+     */
+    @PostMapping("/submit")
+    fun submitByBody(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @Valid @RequestBody request: StudentSubmitRequest,
+    ): StudentHomeworkPayload {
+        val homeworkId = (request.homeworkId ?: request.id)?.trim()?.takeIf { it.isNotEmpty() }
+            ?: throw invalidArgument("homework id is required")
+        return service.submit(student(currentUser), homeworkId, request)
+    }
 }
