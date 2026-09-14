@@ -98,6 +98,11 @@ per key) and a worker interface — and run it **in-process first** on a dedicat
 generation never shares threads with request serving. Because the seam exists, extracting it to a
 separate worker process later is a deployment change, not a rewrite.
 
+**Scheduled extraction:** the worker split happens at **7.5**, at the start of the seed batch —
+the batch is the real bulk workload to extract against, and it lands the job/poll semantics before
+the endpoints are widely used. Until then the agent runs in the API JVM (currently synchronously on
+the request thread, which the split also fixes).
+
 **Extraction triggers:** concurrent generations saturating the API executor; API latency SLO
 breaches correlated with generation load; a decision to write agents in a non-JVM language; or
 pre-generation batch windows large enough to need dedicated nodes.
