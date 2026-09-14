@@ -95,6 +95,17 @@ app:
       api-key: ${DEEPSEEK_API_KEY:}
       base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
       model: ${DEEPSEEK_MODEL:deepseek-chat}
+  content:
+    # Phase 7.5a durable generation queue. api = this JVM enqueues only and a
+    # separate worker drains; worker = drain only; both = enqueue and drain in
+    # this JVM. The worker owns the run mode; the router never reads it.
+    run-mode: ${CONTENT_RUN_MODE:both}
+    worker:
+      batch-size: ${CONTENT_WORKER_BATCH_SIZE:5}
+      max-attempts: ${CONTENT_WORKER_MAX_ATTEMPTS:5}
+      stale-run-seconds: ${CONTENT_WORKER_STALE_RUN_SECONDS:900}
+      poll-interval-ms: ${CONTENT_WORKER_POLL_INTERVAL_MS:15000}
+      retry-backoff-seconds: ${CONTENT_WORKER_RETRY_BACKOFF_SECONDS:60}
   security:
     jwt:
       # Base64-encoded HMAC secret. Override in each environment. Dev default only.

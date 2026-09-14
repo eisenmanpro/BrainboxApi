@@ -21,6 +21,10 @@ spring:
     clean-disabled: true
 
 app:
+  content:
+    # No background generation poller during tests; the worker tests set
+    # app.content.run-mode=both explicitly so they can drive poll() themselves.
+    run-mode: api
   security:
     rate-limit:
       enabled: false

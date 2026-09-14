@@ -103,6 +103,19 @@ the batch is the real bulk workload to extract against, and it lands the job/pol
 the endpoints are widely used. Until then the agent runs in the API JVM (currently synchronously on
 the request thread, which the split also fixes).
 
+**Scheduled extraction — 7.5a delivered.** The split is in. A durable DB-backed queue
+(`generation_jobs`, idempotent per generation key) carries the full `GenerationRequest` payload and
+a per-job retry budget (`max_attempts`, `next_attempt_at`). `app.content.run-mode=api|worker|both`
+decides whether a JVM enqueues, drains, or both: the worker claims the oldest eligible `QUEUED` job
+(optimistic-lock protected so two workers cannot take the same row), runs it, and on failure
+reschedules it with a linear backoff until the budget is spent; a reclaim pass returns `RUNNING`
+jobs untouched past `stale_run_seconds` to `QUEUED` so a crashed worker cannot strand work. The
+HTTP surface is submit then poll (`POST teacher/content/generate`,
+`GET teacher/content/jobs/{jobId}`; `QUEUED`/`RUNNING`/`SUCCEEDED`/`FAILED`). The router remains the
+sole provider caller and capture writer: the synchronous `resolve` and the worker `runQueued` both
+run one shared core, so capture and content persistence cannot diverge. 7.5b is the seed batch that
+exercises the queue at bulk.
+
 **Extraction triggers:** concurrent generations saturating the API executor; API latency SLO
 breaches correlated with generation load; a decision to write agents in a non-JVM language; or
 pre-generation batch windows large enough to need dedicated nodes.

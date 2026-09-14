@@ -4,7 +4,6 @@ import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.content.ai.ContentGenerationProvider
 import com.afrithecus.brainbox.api.content.ai.GenerationRequest
-import com.afrithecus.brainbox.api.content.ai.GenerationResult
 import com.afrithecus.brainbox.api.content.entity.AgentRunEntity
 import com.afrithecus.brainbox.api.content.entity.ContentUnitEntity
 import com.afrithecus.brainbox.api.content.entity.ContentUnitQuestionEntity
@@ -12,7 +11,6 @@ import com.afrithecus.brainbox.api.content.entity.ContentUnitStepEntity
 import com.afrithecus.brainbox.api.content.entity.GenerationJobEntity
 import com.afrithecus.brainbox.api.content.entity.ModelCallEntity
 import com.afrithecus.brainbox.api.content.repository.AgentRunRepository
-import com.afrithecus.brainbox.api.content.repository.ConceptRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitQuestionRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitStepRepository
@@ -23,11 +21,16 @@ import tools.jackson.databind.ObjectMapper
 import java.util.UUID
 
 /**
- * Cache-first content router (Phase 7.2). It is the only caller of
- * [ContentGenerationProvider] and the only writer of the capture rows
+ * Cache-first content router (Phase 7.2, extended in 7.5a). It is the only caller
+ * of [ContentGenerationProvider] and the only writer of the capture rows
  * (generation_jobs, agent_runs, model_calls): a cache hit returns the stored
- * content_units row without touching the provider, a miss runs the provider and
- * persists the unit with its steps and questions.
+ * content_units row without touching the provider, a miss enqueues a durable job
+ * and runs the provider through the shared core.
+ *
+ * The run mode is not this class's concern. The synchronous [resolve] path runs
+ * the core inline; the worker path claims a job and calls [runQueued]. Both paths
+ * share one private core so provider capture and the unit/steps/questions
+ * persistence can never diverge.
  */
 @Service
 class ContentRouter(
@@ -37,25 +40,62 @@ class ContentRouter(
     private val generationJobs: GenerationJobRepository,
     private val agentRuns: AgentRunRepository,
     private val modelCalls: ModelCallRepository,
-    private val concepts: ConceptRepository,
+    private val jobService: GenerationJobService,
     private val provider: ContentGenerationProvider,
     private val mapper: ObjectMapper,
 ) {
 
+    /**
+     * Synchronous cache-first resolve: hit returns the stored unit, miss enqueues
+     * the job and runs the shared core inline on the caller's thread.
+     */
     fun resolve(request: GenerationRequest): ContentUnitEntity {
         contentUnits.findByGenerationKey(request.generationKey)?.let { return it }
 
-        var job = generationJobs.findAllByGenerationKeyOrderByCreatedAtAsc(request.generationKey).firstOrNull()
-            ?: GenerationJobEntity()
-        job.generationKey = request.generationKey
-        job.taskType = request.taskType
-        job.conceptId = conceptId(request.conceptCode)
-        job.gradeLevel = request.gradeLevel
-        job.status = "RUNNING"
-        job.attempts = job.attempts + 1
-        job.lastError = null
-        job = generationJobs.save(job)
+        val job = generationJobs.save(
+            jobService.enqueue(request).apply {
+                status = "RUNNING"
+                attempts = attempts + 1
+            }
+        )
+        val outcome = runCore(job, request)
+        jobService.complete(job.id, outcome.runId)
+        return outcome.unit
+    }
 
+    /**
+     * Worker entry point for one claimed job. A cache hit completes the job
+     * idempotently; an undecodable payload fails it; otherwise the shared core
+     * runs and the job is completed on success. Exceptions propagate so the worker
+     * can route them to [GenerationJobService.fail].
+     */
+    fun runQueued(jobId: UUID): ContentUnitEntity? {
+        val job = generationJobs.findById(jobId).orElse(null) ?: return null
+
+        contentUnits.findByGenerationKey(job.generationKey)?.let { existing ->
+            jobService.complete(job.id, job.runId)
+            return existing
+        }
+
+        val request = jobService.decode(job)
+        if (request == null) {
+            job.status = "FAILED"
+            job.lastError = "generation request payload is missing or invalid"
+            generationJobs.save(job)
+            return null
+        }
+
+        val outcome = runCore(job, request)
+        jobService.complete(job.id, outcome.runId)
+        return outcome.unit
+    }
+
+    /**
+     * The single shared execution core: provider call, model_calls capture,
+     * agent_run lifecycle and content_units/steps/questions persistence. The
+     * caller owns the terminal job status (complete/fail).
+     */
+    private fun runCore(job: GenerationJobEntity, request: GenerationRequest): RunOutcome {
         var run = agentRuns.save(
             AgentRunEntity().apply {
                 jobId = job.id
@@ -164,16 +204,8 @@ class ContentRouter(
         run.confidence = result.confidence
         agentRuns.save(run)
 
-        job.status = "SUCCEEDED"
-        job.runId = run.id
-        job.lastError = null
-        generationJobs.save(job)
-
-        return unit
+        return RunOutcome(unit, run.id)
     }
-
-    private fun conceptId(code: String?): UUID? =
-        code?.takeIf { it.isNotBlank() }?.let { concepts.findByCode(it)?.id }
 
     private fun elapsedMillis(startedAt: Long): Long = (System.nanoTime() - startedAt) / 1_000_000L
 
@@ -184,6 +216,8 @@ class ContentRouter(
     private fun costMicros(promptTokens: Int, completionTokens: Int): Long =
         (promptTokens.toLong() * PROMPT_MICROS_PER_MILLION + completionTokens.toLong() * COMPLETION_MICROS_PER_MILLION) /
             1_000_000L
+
+    private data class RunOutcome(val unit: ContentUnitEntity, val runId: UUID)
 
     private companion object {
         const val MAX_ERROR_CHARS = 2000

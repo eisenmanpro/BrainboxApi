@@ -599,8 +599,13 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       `auto_approved = true` with a null reviewer; `/teacher/review/...` serves the queue, item
       detail, decision and history, and `POST /teacher/content/feedback` upserts one rating per
       teacher and item.
-- [ ] 7.5 worker split: run the generation task loop in a dedicated agent JVM (`@Scheduled`
-      poller over `generation_jobs`, `app.content.run-mode=api|worker|both`).
+- [x] 7.5a durable generation job queue + run-mode worker split: `generation_jobs` carries the
+      serialised `GenerationRequest`, a `max_attempts` budget and `next_attempt_at` (V66); the
+      `@Scheduled` worker claims the oldest eligible QUEUED job, retries with backoff, and reclaims
+      stale RUNNING jobs, while `app.content.run-mode=api|worker|both` selects enqueue/drain/both.
+      `POST teacher/content/generate` + `GET teacher/content/jobs/{jobId}` expose submit/poll. The
+      router stays the only provider caller and capture writer (one shared core for both paths).
+- [ ] 7.5b seed batch: drive the Tier 1 seed corpus through the durable queue (after 7.6 taxonomy).
 - [ ] 7.6 breadth: Tier 0 taxonomy and Tier 1 seed library, then past papers, study guides and the
       remaining subjects.
 - [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences)

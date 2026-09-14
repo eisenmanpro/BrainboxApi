@@ -4,6 +4,7 @@ import com.afrithecus.brainbox.api.common.jpa.BaseEntity
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Table
+import java.time.Instant
 import java.util.UUID
 
 /** A queued/running generation job for one concept + task type. */
@@ -28,6 +29,17 @@ class GenerationJobEntity : BaseEntity() {
 
     @Column(nullable = false)
     var attempts: Int = 0
+
+    @Column(name = "max_attempts", nullable = false)
+    var maxAttempts: Int = 5
+
+    /** The full serialised GenerationRequest, replayed when a worker claims the job. */
+    @Column(name = "request_payload", columnDefinition = "text")
+    var requestPayload: String? = null
+
+    /** Earliest instant the job may be claimed again; null is immediately claimable. */
+    @Column(name = "next_attempt_at")
+    var nextAttemptAt: Instant? = null
 
     @Column(name = "last_error", columnDefinition = "text")
     var lastError: String? = null
