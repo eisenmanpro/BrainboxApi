@@ -31,6 +31,9 @@ class ModerationPolicyService(
     /** Confidence auto-approval, off by default; the console flips it per domain. */
     fun autoApproveEnabled(): Boolean = readBoolean(KEY_AUTO_APPROVE_ENABLED, DEFAULT_AUTO_APPROVE_ENABLED)
 
+    /** Minimum confidence score for an auto-approval; per-domain floors apply on top. */
+    fun autoApproveThreshold(): Double = readDouble(KEY_AUTO_APPROVE_THRESHOLD, DEFAULT_AUTO_APPROVE_THRESHOLD)
+
     /** Console write: sets one policy override to a JSON value. */
     @Transactional
     fun set(key: String, json: String) {
@@ -54,6 +57,9 @@ class ModerationPolicyService(
     private fun readBoolean(key: String, fallback: Boolean): Boolean =
         raw(key)?.let { runCatching { mapper.readValue(it, Boolean::class.javaObjectType) }.getOrNull() } ?: fallback
 
+    private fun readDouble(key: String, fallback: Double): Double =
+        raw(key)?.let { runCatching { mapper.readValue(it, Double::class.javaObjectType) }.getOrNull() } ?: fallback
+
     private fun raw(key: String): String? =
         policies.findByPolicyKey(key)?.valueJson?.trim()?.takeIf { it.isNotEmpty() }
 
@@ -61,8 +67,10 @@ class ModerationPolicyService(
         const val KEY_QUORUM_REQUIRED = "quorum_required"
         const val KEY_WEIGHTED_MODE = "weighted_mode"
         const val KEY_AUTO_APPROVE_ENABLED = "auto_approve_enabled"
+        const val KEY_AUTO_APPROVE_THRESHOLD = "auto_approve_threshold"
         const val DEFAULT_QUORUM_REQUIRED = 2
         const val DEFAULT_WEIGHTED_MODE = false
         const val DEFAULT_AUTO_APPROVE_ENABLED = false
+        const val DEFAULT_AUTO_APPROVE_THRESHOLD = 0.99
     }
 }

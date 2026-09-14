@@ -141,6 +141,10 @@ class ReviewService(
         outcome.quorumRequired = quorumRequired
         outcome.state = state
         outcome.decidedAt = if (isResolved(state)) Instant.now() else null
+        // A human decision always supersedes an auto-approval: clear the machine marker.
+        outcome.autoApproved = false
+        outcome.confidenceScore = null
+        outcome.reviewerId = if (isResolved(state)) actorId else null
         outcomes.save(outcome)
 
         if (contentType == CONTENT_TYPE_UNIT) {

@@ -41,4 +41,8 @@ class ContentFeedbackEntity : BaseEntity() {
 
     @Column(name = "agent_run_id")
     var agentRunId: UUID? = null
+
+    /** The model provider that generated the rated content (e.g. deepseek). */
+    @Column(length = 32)
+    var provider: String? = null
 }

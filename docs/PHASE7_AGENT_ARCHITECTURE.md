@@ -173,6 +173,34 @@ LLM critic for pedagogy. Both return structured findings the loop acts on; a har
   chunks, papers, homework) is tagged **`REVIEWED` / `UNREVIEWED`**; the moderator console
   toggles the tag to confirm. Only `REVIEWED` content is learner-visible.
 
+### 2.6.1 Validators and confidence auto-approval (delivered, 7.4b)
+
+The deterministic half of quality is implemented as a chain of `ContentValidator` beans
+(`structure`, `questions`, `answer_key`, `curriculum`, `language`).
+`ContentValidationService.validate(contentType, contentId)` runs all of them over one content
+version and aggregates their findings into a `ValidationReport`:
+
+- `BLOCKER` forces the score to 0.0 and sets `blockers = true`; otherwise the score is
+  `1.0 - sum(penalty)` (BLOCKER 1.0, WARNING 0.1, INFO 0.02), clamped to 0..1. A blocked item can
+  therefore never clear an auto-approval threshold.
+- Structure requires a title and at least three explained steps; questions require a prompt and,
+  for multiple choice, at least two distinct options; the answer-key check requires a key that
+  matches exactly one option; curriculum requires a resolved concept and a mapping; language
+  requires a language tag and teachable text.
+
+**Auto-approval** is off by default. `AutoApprovalService.maybeAutoApprove` runs only when the
+`auto_approve_enabled` policy is on, refuses any report with blockers, and requires the score to
+clear both the policy threshold (`auto_approve_threshold`, default 0.99) and the per-domain floor
+(curriculum/structure 1.0, answer-key 0.995). On approval it sets the unit to `REVIEWED` and
+writes a `moderation_outcomes` row with `auto_approved = true`, `confidence_score` and a null
+`reviewer_id`, so a machine decision is never mistakable for a human one. Any later human decision
+clears the marker.
+
+The teacher surface is `GET /teacher/review/queue`,
+`GET /teacher/review/{contentType}/{contentId}`, `POST .../decision`, `GET .../decisions` and
+`POST /teacher/content/feedback`. Quorum remains two distinct teacher approvals and one reject
+resolves immediately, as locked in §2.7.
+
 ### 2.7 Write-through, the human reviewer and the teacher feedback loop
 
 The HITL gate is `GENERATED → AUTO_REVIEW → REVIEWED | REJECTED`, with reviewer identity,

@@ -9,6 +9,7 @@ import com.afrithecus.brainbox.api.content.repository.ContentUnitQuestionReposit
 import com.afrithecus.brainbox.api.content.repository.ContentUnitRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitStepRepository
 import com.afrithecus.brainbox.api.content.repository.CurriculumMapRepository
+import com.afrithecus.brainbox.api.content.validation.ContentValidationService
 import com.afrithecus.brainbox.api.exams.QuestionCodec
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
@@ -60,12 +61,17 @@ class ContentProjectionService(
     private val users: UserRepository,
     private val codec: QuestionCodec,
     private val mapper: ObjectMapper,
+    private val autoApproval: AutoApprovalService,
 ) {
 
     @Transactional
     fun project(unitId: UUID): ProjectionResult {
         val unit = contentUnits.findById(unitId).orElse(null)
             ?: throw notFound("Content unit not found")
+        // Projection is the "make this ready for learners" point, so the confidence gate runs
+        // here first: when the policy enables it and the unit validates cleanly, this flips the
+        // unit to REVIEWED (recording auto_approved on the outcome) before the read filters see it.
+        autoApproval.maybeAutoApprove(ContentValidationService.CONTENT_TYPE_UNIT, unitId)
         val concept = unit.conceptId?.let { concepts.findById(it).orElse(null) }
         val reviewed = unit.reviewState == REVIEWED
         return when (unit.taskType.trim().uppercase()) {

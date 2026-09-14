@@ -586,6 +586,23 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - [x] Cache-first Router (V62): ContentRouter resolves by generation key, drives the provider seam
       and writes the capture rows (agent_runs, model_calls, tool_calls); the in-process MCP tool
       seam and concept_lookup are in place. The default provider is disabled until app.ai is set.
+- [x] Content projection (V63): `ContentProjectionService` writes a REVIEWED unit idempotently
+      into the client-facing tables (book → learning_posts + NOTES/QUIZ blocks, chunk →
+      readable_files with an inline body); only REVIEWED content is learner-visible.
+- [x] Moderation workflow (V64): `moderation_policies`, `content_reviews`, `moderation_outcomes`,
+      `reviewer_trust` and `content_feedback`; one decision per reviewer/version, two distinct
+      approvals or any reject resolves a version and propagates to `content_units.review_state`;
+      staff are excluded from the trust ladder.
+- [x] Validators + confidence auto-approval + teacher review surfaces (V65): the deterministic
+      validator chain (structure, questions, answer key, curriculum, language) produces a
+      confidence score; auto-approval is off by default and, when enabled, records
+      `auto_approved = true` with a null reviewer; `/teacher/review/...` serves the queue, item
+      detail, decision and history, and `POST /teacher/content/feedback` upserts one rating per
+      teacher and item.
+- [ ] 7.5 worker split: run the generation task loop in a dedicated agent JVM (`@Scheduled`
+      poller over `generation_jobs`, `app.content.run-mode=api|worker|both`).
+- [ ] 7.6 breadth: Tier 0 taxonomy and Tier 1 seed library, then past papers, study guides and the
+      remaining subjects.
 - [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences)
 - [ ] Agent tools: DB metric queries, internet search, content validators
 - [ ] LLM provider routing by cost/latency; per-generation token tracking (DeepSeek + others)

@@ -42,4 +42,16 @@ class ModerationOutcomeEntity : BaseEntity() {
 
     @Column(name = "decided_at")
     var decidedAt: Instant? = null
+
+    /** The human who resolved the version last; null for an unresolved or auto-approved outcome. */
+    @Column(name = "reviewer_id")
+    var reviewerId: UUID? = null
+
+    /** True when the confidence gate approved this version with no human decision. */
+    @Column(name = "auto_approved", nullable = false)
+    var autoApproved: Boolean = false
+
+    /** The validator confidence score that drove an auto-approval (0..1). */
+    @Column(name = "confidence_score")
+    var confidenceScore: Double? = null
 }
