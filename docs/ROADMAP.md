@@ -622,6 +622,16 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       `weighted_mode`/`auto_approve_threshold` keys; the generation worker projects each finished
       unit (publish when clean, hidden for review when gated) and a human `REVIEWED` decision
       re-projects it learner-visible.
+- [x] 7.5d deterministic, fail-closed safety filter: `SafetyValidator` (name `safety`) runs first
+      in the validator chain and scans the unit title/body, every step title/body and every question
+      text, option, correct answer and explanation (not `figure_svg` markup) against the versioned
+      resource `src/main/resources/safety/blocklist-v1.json` (7 categories: sexual content
+      involving minors, explicit sexual content, self-harm, graphic violence, hate, dangerous
+      instructions and personal data, including Kenyan 07xx/01xx/+254 phone forms, emails and
+      national-ID patterns). Every match is a BLOCKER, so the report scores 0.0, the 7.5c
+      auto-approval bar refuses the unit and it lands in the human exception queue. The gate is
+      always on with no policy toggle, and a missing, blank or unparseable blocklist emits
+      `SAFETY_CONFIG_MISSING` so nothing auto-approves (fail-closed).
 - [ ] 7.6 breadth: Tier 1 seed library, then past papers, study guides and the remaining subjects.
 - [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences)
 - [ ] Agent tools: DB metric queries, internet search, content validators

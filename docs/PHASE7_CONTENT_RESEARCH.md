@@ -331,6 +331,13 @@ versioned table that content is tagged against.
 - Validators before the moderator: JSON-schema validity, answer-key correctness (solve the
   question independently), curriculum alignment (topic is in the skeleton), duplication against
   the cache, and markdown/SVG sanitisation.
+- Safety filter (implemented, 7.5d): a deterministic, fail-closed `SafetyValidator` runs first in
+  the validator chain and scans the teachable prose (unit, step and question text, options, answer
+  keys and explanations) against the versioned `safety/blocklist-v1.json` categories - sexual
+  content involving minors, explicit sexual content, self-harm, graphic violence, hate,
+  dangerous instructions and personal data. A match is a BLOCKER, so the unit scores 0.0, cannot
+  auto-approve, and is routed to the human exception queue; a missing or unparseable blocklist
+  also blocks. It is not a policy toggle: safety is always on.
 
 ---
 

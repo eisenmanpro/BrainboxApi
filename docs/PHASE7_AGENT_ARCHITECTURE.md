@@ -201,6 +201,22 @@ version and aggregates their findings into a `ValidationReport`:
   matches exactly one option; curriculum requires a resolved concept and a mapping; language
   requires a language tag and teachable text.
 
+**Safety is the first hard gate (delivered, 7.5d).** Before any quality signal is trusted, every
+unit passes `SafetyValidator` (name `safety`), a **deterministic, non-LLM** filter that scans the
+unit title and body, every step title and body, and every question text, option, correct answer
+and explanation. It deliberately does not scan `figure_svg`, which is renderer markup rather than
+teachable prose. The patterns are **versioned resource data, not code**
+(`src/main/resources/safety/blocklist-v1.json`), loaded and compiled once at startup; the stable
+categories are `SAFETY_SEXUAL_MINORS`, `SAFETY_EXPLICIT_SEXUAL`, `SAFETY_SELF_HARM`,
+`SAFETY_VIOLENCE_GRAPHIC`, `SAFETY_HATE`, `SAFETY_DANGEROUS_INSTRUCTIONS` and
+`SAFETY_PERSONAL_DATA` (Kenyan phone numbers, email addresses and national-ID patterns). A match
+is always a `BLOCKER`, so `ContentValidationService` forces score 0.0 and `blockers = true` and
+the 7.5c bar refuses the unit: it is withheld and appears in the human **exception queue** rather
+than reaching a learner. The gate is **fail-closed and always on** (there is no policy toggle): if
+the blocklist resource is missing, blank or unparseable the validator emits the
+`SAFETY_CONFIG_MISSING` blocker for every unit, so nothing auto-approves. A false positive costs a
+human review; a false negative cannot silently pass.
+
 **Auto-approval is the default bulk path (delivered, 7.5c).** The rule is machine-first,
 human-for-exceptions: `AutoApprovalService.maybeAutoApprove` approves a UNIT without a human
 whenever every gate holds, so teachers and Brainbox moderators only ever handle the exceptions

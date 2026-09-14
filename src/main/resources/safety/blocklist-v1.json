@@ -1,0 +1,93 @@
+{
+  "version": "safety-blocklist-v1",
+  "description": "Phase 7.5d deterministic, fail-closed safety blocklist. Java (java.util.regex) patterns, compiled CASE_INSENSITIVE. Patterns are deliberately targeted and multi-word so ordinary curriculum prose (biology, history, chemistry) does not trip them; a false positive routes content to the human exception queue rather than to a learner.",
+  "categories": [
+    {
+      "code": "SAFETY_SEXUAL_MINORS",
+      "description": "Sexual content involving minors or child sexual exploitation.",
+      "patterns": [
+        "\\b(?:child|children|minor|minors|underage|under-age)\\s+(?:porn|pornography|pornographic|nude|nudes|sexual\\s+content|sex\\s+acts?)\\b",
+        "\\b(?:sexual(?:ly)?|sexually)\\s+(?:abus(?:e|ed|ing)|exploit(?:ed|ing)?|assault(?:ed|ing)?)\\s+(?:a\\s+|the\\s+)?(?:child|children|minor|minors|underage)\\b",
+        "\\b(?:groom(?:s|ed|ing)?)\\s+(?:a\\s+|the\\s+)?(?:child|children|minor|minors|underage)\\b",
+        "\\b(?:incest|paedophil\\w*|pedophil\\w*|child\\s+molest\\w*)\\b",
+        "\\b(?:rape|raping|raped)\\s+(?:a\\s+|the\\s+)?(?:child|children|minor|minors|underage)\\b",
+        "\\b(?:child|children|minor|minors)\\s+(?:trafficking|prostitution|sex\\s+slavery)\\b"
+      ]
+    },
+    {
+      "code": "SAFETY_EXPLICIT_SEXUAL",
+      "description": "Explicit or pornographic sexual content.",
+      "patterns": [
+        "\\bporn(?:ography|ographic|o)?\\b",
+        "\\bexplicit\\s+sexual\\s+(?:content|material|act|acts|scene|scenes|description|descriptions)\\b",
+        "\\bgraphic\\s+sex(?:ual)?\\s+(?:scene|scenes|act|acts|description|descriptions)\\b",
+        "\\bsex\\s+(?:scene|scenes|video|videos|tape|tapes|chat|fantas(?:y|ies))\\b",
+        "\\b(?:blowjob|blow\\s+job|handjob|hand\\s+job|orgy|orgies|cunnilingus|fellatio|masturbat(?:e|es|ed|ing|ion)|ejaculat(?:e|es|ed|ing|ion))\\b",
+        "\\b(?:anal|oral)\\s+sex\\b",
+        "\\bnude\\s+(?:photo|photos|picture|pictures|image|images)\\b",
+        "\\bsex\\s+for\\s+(?:money|pay|payment)\\b"
+      ]
+    },
+    {
+      "code": "SAFETY_SELF_HARM",
+      "description": "Self-harm, suicide or instructions to self-injure.",
+      "patterns": [
+        "\\b(?:kill|hurt|harm|cut|injure)\\s+(?:my|your|him|her|them)self\\b",
+        "\\bself[-\\s]?harm(?:ing|ed)?\\b",
+        "\\bsuicidal\\b",
+        "\\bcommit\\s+suicide\\b",
+        "\\bhow\\s+to\\s+(?:kill|hang|poison|starve)\\s+(?:my|your)self\\b",
+        "\\bend\\s+(?:my|your|his|her|their)\\s+life\\b",
+        "\\b(?:want|wish|plan(?:ning)?)\\s+to\\s+die\\b",
+        "\\boverdose\\s+on\\s+(?:pills|drugs|medication)\\b"
+      ]
+    },
+    {
+      "code": "SAFETY_VIOLENCE_GRAPHIC",
+      "description": "Graphic, gory or instructional violence.",
+      "patterns": [
+        "\\bgraphic\\s+(?:violence|gore|injur(?:y|ies)|death|deaths)\\b",
+        "\\b(?:dismember(?:ed|ing|ment)?|decapitat(?:e|ed|ing|ion)|behead(?:ed|ing)?|mutilat(?:e|ed|ing|ion))\\b",
+        "\\bhow\\s+to\\s+torture\\b",
+        "\\btortur(?:e|ing|ed)\\s+(?:a\\s+person|someone|people|him|her|them)\\b",
+        "\\b(?:stab|shoot|slit)\\s+(?:someone|a\\s+person|people|him|her|them)\\b",
+        "\\bburn(?:ing|ed)?\\s+(?:someone|a\\s+person|people|him|her|them)\\s+alive\\b",
+        "\\bsaw\\s+(?:off|through)\\s+(?:his|her|their)\\s+(?:arm|arms|leg|legs|head|limb|limbs)\\b"
+      ]
+    },
+    {
+      "code": "SAFETY_HATE",
+      "description": "Hate speech, incitement or dehumanisation of a protected group.",
+      "patterns": [
+        "\\b(?:kill|exterminate|eliminate|destroy)\\s+(?:all\\s+|every\\s+)?(?:jews?|muslims?|christians?|hindus?|blacks?|whites?|asians?|africans?|tutsis?|hutus?|immigrants?|refugees?|foreigners?|gays?|lesbians?|women|girls)\\b",
+        "\\b(?:death\\s+to|no\\s+place\\s+for|get\\s+rid\\s+of)\\s+(?:all\\s+)?(?:jews?|muslims?|christians?|hindus?|blacks?|whites?|asians?|africans?|immigrants?|refugees?|foreigners?|gays?|lesbians?)\\b",
+        "\\bsub[-\\s]?human\\s+(?:race|races|people|group|groups|human)\\b",
+        "\\b(?:racial|ethnic)\\s+(?:slur|slurs|supremac(?:y|ist|ists)|hatred)\\b",
+        "\\bgo\\s+back\\s+to\\s+(?:your|their)\\s+(?:own\\s+)?(?:country|homeland)\\b",
+        "\\b(?:hate|despise)\\s+(?:all\\s+)?(?:jews?|muslims?|christians?|hindus?|blacks?|whites?|asians?|women|girls|gays?|lesbians?)\\b"
+      ]
+    },
+    {
+      "code": "SAFETY_DANGEROUS_INSTRUCTIONS",
+      "description": "Instructions for weapons, explosives, poisons or illegal drugs.",
+      "patterns": [
+        "\\bhow\\s+to\\s+(?:make|build|construct|assemble|synthesi[sz]e|manufacture|produce|mix)\\s+(?:a\\s+|an\\s+)?(?:bomb|explosive|explosives|ied|improvised\\s+explosive|molotov|grenade|napalm|pipe\\s+bomb|nerve\\s+agent|ricin|sarin|meth|methamphetamine|heroin|cocaine|fentanyl)\\b",
+        "\\b(?:bomb|explosive|weapon|meth|ricin|sarin)s?\\s+(?:instructions?|recipe|recipes|blueprint|blueprints|formula)\\b",
+        "\\b(?:step[-\\s]?by[-\\s]?step|detailed)\\s+(?:guide|instructions?)\\s+(?:to|for|on)\\s+(?:make|build|kill|poison|harm)\\b",
+        "\\bhow\\s+to\\s+(?:poison|kill)\\s+(?:a\\s+person|someone|people|him|her|them)\\b",
+        "\\b(?:homemade|home-made|diy|do[-\\s]?it[-\\s]?yourself)\\s+(?:bomb|explosive|gun|firearm|weapon)\\b",
+        "\\b(?:make|build|obtain)\\s+(?:a\\s+)?(?:gun|firearm|explosive|bomb)\\s+(?:at\\s+home|without\\s+(?:a\\s+)?licen[cs]e|illegally)\\b",
+        "\\b(?:synthesi[sz]e|manufacture|produce)\\s+(?:meth|methamphetamine|heroin|cocaine|fentanyl|ricin|sarin|nerve\\s+agent)\\b"
+      ]
+    },
+    {
+      "code": "SAFETY_PERSONAL_DATA",
+      "description": "Personal data: Kenyan phone numbers, email addresses and national ID numbers.",
+      "patterns": [
+        "(?<!\\d)(?:\\+?254|0)[\\s.\\-]?[71]\\d{2}[\\s.\\-]?\\d{3}[\\s.\\-]?\\d{3}(?!\\d)",
+        "\\b[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}\\b",
+        "\\b(?:national\\s+id|id\\s+(?:number|no\\.?|#)|identification\\s+(?:number|no\\.?)|identity\\s+(?:number|no\\.?))\\s*[:=]?\\s*\\d{6,9}\\b"
+      ]
+    }
+  ]
+}
