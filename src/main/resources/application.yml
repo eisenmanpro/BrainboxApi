@@ -112,6 +112,20 @@ app:
       # ApplicationReadyEvent. Default false so tests and production never seed
       # implicitly; enable deliberately on a fresh environment.
       seed-on-startup: ${CONTENT_CURRICULUM_SEED_ON_STARTUP:false}
+    batch:
+      # Phase 7.5e Tier 1 batch producer. When run-on-startup is true the
+      # ApplicationReadyEvent bootstrap enqueues one job per Tier 0 topic x task
+      # type through the durable queue; the worker generates, projects and
+      # auto-approves. Default false so tests and production never enqueue
+      # implicitly. All settings are also the admin POST /admin/content/batch
+      # defaults, except that call takes them explicitly in the body.
+      run-on-startup: ${CONTENT_BATCH_RUN_ON_STARTUP:false}
+      grade-level: ${CONTENT_BATCH_GRADE_LEVEL:Grade 4}
+      subject: ${CONTENT_BATCH_SUBJECT:}
+      task-types: ${CONTENT_BATCH_TASK_TYPES:NOTES,QUIZ}
+      language: ${CONTENT_BATCH_LANGUAGE:en}
+      standard-version: ${CONTENT_BATCH_STANDARD_VERSION:v1}
+      limit: ${CONTENT_BATCH_LIMIT:50}
   security:
     jwt:
       # Base64-encoded HMAC secret. Override in each environment. Dev default only.

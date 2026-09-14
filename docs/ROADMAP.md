@@ -611,8 +611,9 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       (`src/main/resources/curriculum/ke-cbc-v1.json`) into the strand/sub-strand and
       concepts/curriculum_map layers, and `CurriculumSeedBootstrap` seeds on startup only when
       `app.content.curriculum.seed-on-startup=true` (default false).
-- [ ] 7.5b-2 Tier 0 breadth: English, Integrated Science, Kiswahili, Social Studies and G7-G9, then
-      the Tier 1 seed batch through the durable queue.
+- [ ] 7.5b-2 Tier 0 breadth: English, Integrated Science, Kiswahili, Social Studies and G7-G9. The
+      producer that runs the Tier 1 seed batch is delivered in 7.5e; running it at breadth still waits
+      on this data-only expansion.
 - [x] 7.5c machine-first auto-approval with a human exception queue: `AutoApprovalService` now
       approves a clean UNIT by default (no blockers, validator score 1.0, at least 8 questions when
       present, non-null critic confidence >= 0.90, still UNREVIEWED) and records
@@ -632,7 +633,14 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       auto-approval bar refuses the unit and it lands in the human exception queue. The gate is
       always on with no policy toggle, and a missing, blank or unparseable blocklist emits
       `SAFETY_CONFIG_MISSING` so nothing auto-approves (fail-closed).
-- [ ] 7.6 breadth: Tier 1 seed library, then past papers, study guides and the remaining subjects.
+- [x] 7.5e Tier 1 topic batch producer: `ContentBatchService` resolves the leaf Tier 0 topics for a
+      Kenya CBC grade (with an optional subject) and enqueues one deterministic job per topic x task
+      type (`NOTES`, `QUIZ`) through the durable queue, idempotent per generation key;
+      `ContentBatchBootstrap` (`app.content.batch.run-on-startup`, default false) and
+      `POST /admin/content/batch` plus `GET /admin/content/batch/candidates` are the one-command and
+      one-call paths. Flashcards are deferred (the client has no flashcards content type) and past
+      papers / study guides stay in 7.6.
+- [ ] 7.6 breadth: run the 7.5e producer at full Tier 1 breadth, then past papers, study guides and the remaining subjects.
 - [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences)
 - [ ] Agent tools: DB metric queries, internet search, content validators
 - [ ] LLM provider routing by cost/latency; per-generation token tracking (DeepSeek + others)

@@ -18,6 +18,7 @@ data class AppContentProperties(
     val runMode: RunMode = RunMode.BOTH,
     val worker: Worker = Worker(),
     val curriculum: Curriculum = Curriculum(),
+    val batch: Batch = Batch(),
 ) {
 
     /** True when this JVM should execute queued generation work. */
@@ -41,5 +42,22 @@ data class AppContentProperties(
      */
     data class Curriculum(
         val seedOnStartup: Boolean = false,
+    )
+
+    /**
+     * Phase 7.5e Tier 1 batch producer. When [runOnStartup] is true the
+     * ApplicationReadyEvent bootstrap enqueues one generation job per Tier 0 topic
+     * x task type through the durable queue; the worker drains it. Default off so
+     * tests and production never enqueue implicitly. The same settings describe the
+     * admin batch call's defaults.
+     */
+    data class Batch(
+        val runOnStartup: Boolean = false,
+        val gradeLevel: String = "Grade 4",
+        val subject: String? = null,
+        val taskTypes: List<String> = listOf("NOTES", "QUIZ"),
+        val language: String = "en",
+        val standardVersion: String = "v1",
+        val limit: Int = 50,
     )
 }

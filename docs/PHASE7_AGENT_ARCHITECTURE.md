@@ -75,6 +75,14 @@ the task type (hub book, readable chunk, quiz, past paper, homework), loads the 
 curriculum mapping + learner context, selects the subject agent, routes a versioned prompt, and
 decides when to escalate to a human.
 
+**Tier 1 batch producer (7.5e).** The one-command / one-call producer (`ContentBatchService`,
+`ContentBatchBootstrap`, `POST /admin/content/batch`) is a queue client, not a second execution
+path: it never calls the provider and never writes a capture or client-facing table. It resolves the
+seeded Tier 0 topics and enqueues deterministic `GenerationRequest`s through the durable
+`generation_jobs` queue using the same idempotent per-key contract, so everything it submits runs the
+router → worker → projection/auto-approval path and is captured and gated exactly like on-demand
+content. A batch run at breadth therefore adds no new bypass; it only fills the queue.
+
 ### 2.1.1 Task-loop placement — the three options
 
 | | **A. Tightly coupled** (in-process module) | **B. Internal, decoupled runtime** (same project, own process) | **C. External** (third-party / separate codebase) |

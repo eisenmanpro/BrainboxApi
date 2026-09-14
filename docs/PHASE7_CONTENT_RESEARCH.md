@@ -236,6 +236,17 @@ one `QUIZ` and one `FLASHCARDS` set; for every subject×grade, one or two past p
 study-guide document. Run as a background batch (the Phase 6 scheduler exists for this),
 moderated once, then cached forever. This is what removes the empty rails.
 
+**Tier 1 status — topic `NOTES` + `QUIZ` producer delivered (7.5e).** `ContentBatchService`
+resolves the leaf `topic` concepts of the Tier 0 skeleton for one Kenya CBC grade (with an optional
+subject) and enqueues one deterministic job per topic × task type through the durable queue;
+`POST /admin/content/batch` is the one-call path and `ContentBatchBootstrap` is the one-command
+(`run-on-startup`) path. The producer defaults to `NOTES` and `QUIZ` because both project to
+`learning_posts`. Flashcards are deferred: the client `ContentType` enum has no flashcards type, so
+there is nothing to render them into; BOOK-like extras and the per-subject×grade past papers and
+study guides stay in 7.6. Nothing the producer enqueues bypasses the router, the worker, the
+safety/validator gates or the 7.5c auto-approval bar, so a clean unit publishes and anything flagged
+waits in the human exception queue.
+
 **Tier 2 — on-demand generation + cache.** The `ARCHITECTURE.md` §13 flow: router checks the
 cache, generates on miss, moderates, stores, serves. Idempotent per `(type, subject, grade,
 topic, scope, schemaVersion)`.
