@@ -1,0 +1,1594 @@
+{
+  "countryCode": "KE",
+  "curriculum": "CBC",
+  "version": "v1",
+  "name": "Kenya CBC Tier 0 curriculum skeleton (Mathematics G4-G6)",
+  "notes": "Authored BrainBox mapping aligned to the public Kenya CBC Mathematics strand and sub-strand labels. This is our own catalogue data, not KICD text, and no KICD or KNEC document is ingested, quoted or attributed.",
+  "subject": "Mathematics",
+  "grades": [
+    {
+      "gradeLevel": "Grade 4",
+      "strands": [
+        {
+          "code": "MAT4-NUM-01",
+          "name": "Numbers",
+          "descriptor": "Count, order and compute with whole numbers and simple fractions.",
+          "subStrands": [
+            {
+              "code": "MAT4-NUM-01-S1",
+              "name": "Whole Numbers",
+              "descriptor": "Read, write, order and round off whole numbers up to ten thousand.",
+              "learningOutcome": "Read, write, order and round off whole numbers up to ten thousand.",
+              "topics": [
+                {
+                  "code": "MAT4-NUM-01-S1-T1",
+                  "name": "Place Value of Whole Numbers",
+                  "descriptor": "Understand and apply place value of whole numbers to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-NUM-01-S1-T2",
+                  "name": "Reading and Writing Whole Numbers",
+                  "descriptor": "Understand and apply reading and writing whole numbers to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-NUM-01-S1-T3",
+                  "name": "Comparing and Ordering Whole Numbers",
+                  "descriptor": "Understand and apply comparing and ordering whole numbers to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-NUM-01-S1-T4",
+                  "name": "Rounding Off Whole Numbers",
+                  "descriptor": "Understand and apply rounding off whole numbers to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-NUM-01-S1-T5",
+                  "name": "Number Patterns and Sequences",
+                  "descriptor": "Understand and apply number patterns and sequences to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT4-NUM-01-S2",
+              "name": "Addition",
+              "descriptor": "Add whole numbers up to four digits with and without renaming.",
+              "learningOutcome": "Add whole numbers up to four digits with and without renaming.",
+              "topics": [
+                {
+                  "code": "MAT4-NUM-01-S2-T1",
+                  "name": "Adding Numbers Without Renaming",
+                  "descriptor": "Understand and apply adding numbers without renaming to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-NUM-01-S2-T2",
+                  "name": "Adding Numbers With Renaming",
+                  "descriptor": "Understand and apply adding numbers with renaming to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-NUM-01-S2-T3",
+                  "name": "Word Problems on Addition",
+                  "descriptor": "Understand and apply word problems on addition to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT4-NUM-01-S3",
+              "name": "Subtraction",
+              "descriptor": "Subtract whole numbers up to four digits with and without borrowing.",
+              "learningOutcome": "Subtract whole numbers up to four digits with and without borrowing.",
+              "topics": [
+                {
+                  "code": "MAT4-NUM-01-S3-T1",
+                  "name": "Subtracting Numbers Without Renaming",
+                  "descriptor": "Understand and apply subtracting numbers without renaming to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-NUM-01-S3-T2",
+                  "name": "Subtracting Numbers With Renaming",
+                  "descriptor": "Understand and apply subtracting numbers with renaming to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-NUM-01-S3-T3",
+                  "name": "Word Problems on Subtraction",
+                  "descriptor": "Understand and apply word problems on subtraction to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT4-NUM-01-S4",
+              "name": "Multiplication and Division",
+              "descriptor": "Multiply and divide whole numbers and apply the operations to real situations.",
+              "learningOutcome": "Multiply and divide whole numbers and apply the operations to real situations.",
+              "topics": [
+                {
+                  "code": "MAT4-NUM-01-S4-T1",
+                  "name": "Multiplication as Repeated Addition",
+                  "descriptor": "Understand and apply multiplication as repeated addition to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-NUM-01-S4-T2",
+                  "name": "Multiplication Tables",
+                  "descriptor": "Understand and apply multiplication tables to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-NUM-01-S4-T3",
+                  "name": "Dividing Numbers by Sharing and Grouping",
+                  "descriptor": "Understand and apply dividing numbers by sharing and grouping to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-NUM-01-S4-T4",
+                  "name": "Word Problems on Multiplication and Division",
+                  "descriptor": "Understand and apply word problems on multiplication and division to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT4-NUM-01-S5",
+              "name": "Fractions",
+              "descriptor": "Identify, compare and add simple fractions.",
+              "learningOutcome": "Identify, compare and add simple fractions.",
+              "topics": [
+                {
+                  "code": "MAT4-NUM-01-S5-T1",
+                  "name": "Fractions as Parts of a Whole",
+                  "descriptor": "Understand and apply fractions as parts of a whole to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-NUM-01-S5-T2",
+                  "name": "Equivalent Fractions",
+                  "descriptor": "Understand and apply equivalent fractions to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-NUM-01-S5-T3",
+                  "name": "Comparing and Ordering Fractions",
+                  "descriptor": "Understand and apply comparing and ordering fractions to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-NUM-01-S5-T4",
+                  "name": "Adding Fractions With Like Denominators",
+                  "descriptor": "Understand and apply adding fractions with like denominators to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "MAT4-MEAS-02",
+          "name": "Measurement",
+          "descriptor": "Measure and estimate length, mass, capacity, time and money.",
+          "subStrands": [
+            {
+              "code": "MAT4-MEAS-02-S1",
+              "name": "Length",
+              "descriptor": "Measure, estimate and convert units of length.",
+              "learningOutcome": "Measure, estimate and convert units of length.",
+              "topics": [
+                {
+                  "code": "MAT4-MEAS-02-S1-T1",
+                  "name": "Measuring Length Using Metres and Centimetres",
+                  "descriptor": "Understand and apply measuring length using metres and centimetres to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-MEAS-02-S1-T2",
+                  "name": "Estimating Length",
+                  "descriptor": "Understand and apply estimating length to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-MEAS-02-S1-T3",
+                  "name": "Converting Units of Length",
+                  "descriptor": "Understand and apply converting units of length to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-MEAS-02-S1-T4",
+                  "name": "Perimeter of Plane Figures",
+                  "descriptor": "Understand and apply perimeter of plane figures to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-MEAS-02-S1-T5",
+                  "name": "Word Problems on Length",
+                  "descriptor": "Understand and apply word problems on length to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT4-MEAS-02-S2",
+              "name": "Mass",
+              "descriptor": "Measure and convert units of mass.",
+              "learningOutcome": "Measure and convert units of mass.",
+              "topics": [
+                {
+                  "code": "MAT4-MEAS-02-S2-T1",
+                  "name": "Measuring Mass Using Kilograms and Grams",
+                  "descriptor": "Understand and apply measuring mass using kilograms and grams to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-MEAS-02-S2-T2",
+                  "name": "Converting Units of Mass",
+                  "descriptor": "Understand and apply converting units of mass to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-MEAS-02-S2-T3",
+                  "name": "Comparing Masses of Objects",
+                  "descriptor": "Understand and apply comparing masses of objects to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-MEAS-02-S2-T4",
+                  "name": "Word Problems on Mass",
+                  "descriptor": "Understand and apply word problems on mass to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT4-MEAS-02-S3",
+              "name": "Capacity",
+              "descriptor": "Measure and convert units of capacity.",
+              "learningOutcome": "Measure and convert units of capacity.",
+              "topics": [
+                {
+                  "code": "MAT4-MEAS-02-S3-T1",
+                  "name": "Measuring Capacity Using Litres and Millilitres",
+                  "descriptor": "Understand and apply measuring capacity using litres and millilitres to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-MEAS-02-S3-T2",
+                  "name": "Converting Units of Capacity",
+                  "descriptor": "Understand and apply converting units of capacity to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-MEAS-02-S3-T3",
+                  "name": "Comparing Capacities of Containers",
+                  "descriptor": "Understand and apply comparing capacities of containers to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-MEAS-02-S3-T4",
+                  "name": "Word Problems on Capacity",
+                  "descriptor": "Understand and apply word problems on capacity to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT4-MEAS-02-S4",
+              "name": "Time",
+              "descriptor": "Read time, convert units of time and work out durations.",
+              "learningOutcome": "Read time, convert units of time and work out durations.",
+              "topics": [
+                {
+                  "code": "MAT4-MEAS-02-S4-T1",
+                  "name": "Reading and Telling Time",
+                  "descriptor": "Understand and apply reading and telling time to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-MEAS-02-S4-T2",
+                  "name": "Units of Time",
+                  "descriptor": "Understand and apply units of time to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-MEAS-02-S4-T3",
+                  "name": "Converting Units of Time",
+                  "descriptor": "Understand and apply converting units of time to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-MEAS-02-S4-T4",
+                  "name": "Duration and Timetables",
+                  "descriptor": "Understand and apply duration and timetables to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT4-MEAS-02-S5",
+              "name": "Money",
+              "descriptor": "Use Kenyan money to add, subtract and solve everyday problems.",
+              "learningOutcome": "Use Kenyan money to add, subtract and solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT4-MEAS-02-S5-T1",
+                  "name": "Kenyan Coins and Notes",
+                  "descriptor": "Understand and apply kenyan coins and notes to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-MEAS-02-S5-T2",
+                  "name": "Adding and Subtracting Money",
+                  "descriptor": "Understand and apply adding and subtracting money to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-MEAS-02-S5-T3",
+                  "name": "Money Word Problems",
+                  "descriptor": "Understand and apply money word problems to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-MEAS-02-S5-T4",
+                  "name": "Budgeting and Saving",
+                  "descriptor": "Understand and apply budgeting and saving to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "MAT4-GEO-03",
+          "name": "Geometry",
+          "descriptor": "Identify, describe and construct shapes and angles.",
+          "subStrands": [
+            {
+              "code": "MAT4-GEO-03-S1",
+              "name": "Lines and Angles",
+              "descriptor": "Identify lines and angles in the environment.",
+              "learningOutcome": "Identify lines and angles in the environment.",
+              "topics": [
+                {
+                  "code": "MAT4-GEO-03-S1-T1",
+                  "name": "Points, Lines and Line Segments",
+                  "descriptor": "Understand and apply points, lines and line segments to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-GEO-03-S1-T2",
+                  "name": "Types of Angles",
+                  "descriptor": "Understand and apply types of angles to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-GEO-03-S1-T3",
+                  "name": "Measuring Angles",
+                  "descriptor": "Understand and apply measuring angles to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT4-GEO-03-S2",
+              "name": "Plane Figures",
+              "descriptor": "Identify and describe the properties of plane figures.",
+              "learningOutcome": "Identify and describe the properties of plane figures.",
+              "topics": [
+                {
+                  "code": "MAT4-GEO-03-S2-T1",
+                  "name": "Triangles",
+                  "descriptor": "Understand and apply triangles to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-GEO-03-S2-T2",
+                  "name": "Quadrilaterals",
+                  "descriptor": "Understand and apply quadrilaterals to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-GEO-03-S2-T3",
+                  "name": "Circles",
+                  "descriptor": "Understand and apply circles to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-GEO-03-S2-T4",
+                  "name": "Properties of Plane Figures",
+                  "descriptor": "Understand and apply properties of plane figures to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-GEO-03-S2-T5",
+                  "name": "Area of Rectangles",
+                  "descriptor": "Understand and apply area of rectangles to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT4-GEO-03-S3",
+              "name": "Solid Figures",
+              "descriptor": "Identify and describe common solid figures.",
+              "learningOutcome": "Identify and describe common solid figures.",
+              "topics": [
+                {
+                  "code": "MAT4-GEO-03-S3-T1",
+                  "name": "Cubes and Cuboids",
+                  "descriptor": "Understand and apply cubes and cuboids to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-GEO-03-S3-T2",
+                  "name": "Cylinders and Cones",
+                  "descriptor": "Understand and apply cylinders and cones to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-GEO-03-S3-T3",
+                  "name": "Faces, Edges and Vertices",
+                  "descriptor": "Understand and apply faces, edges and vertices to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT4-GEO-03-S4",
+              "name": "Position and Direction",
+              "descriptor": "Describe position and direction using turns and compass points.",
+              "learningOutcome": "Describe position and direction using turns and compass points.",
+              "topics": [
+                {
+                  "code": "MAT4-GEO-03-S4-T1",
+                  "name": "Compass Directions",
+                  "descriptor": "Understand and apply compass directions to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-GEO-03-S4-T2",
+                  "name": "Turns and Rotations",
+                  "descriptor": "Understand and apply turns and rotations to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-GEO-03-S4-T3",
+                  "name": "Describing Position on a Grid",
+                  "descriptor": "Understand and apply describing position on a grid to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "MAT4-DATA-04",
+          "name": "Data Handling",
+          "descriptor": "Collect, represent and interpret data.",
+          "subStrands": [
+            {
+              "code": "MAT4-DATA-04-S1",
+              "name": "Collecting Data",
+              "descriptor": "Collect and record data from everyday sources.",
+              "learningOutcome": "Collect and record data from everyday sources.",
+              "topics": [
+                {
+                  "code": "MAT4-DATA-04-S1-T1",
+                  "name": "Sources of Data",
+                  "descriptor": "Understand and apply sources of data to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-DATA-04-S1-T2",
+                  "name": "Tallying Data",
+                  "descriptor": "Understand and apply tallying data to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-DATA-04-S1-T3",
+                  "name": "Recording Data in Tables",
+                  "descriptor": "Understand and apply recording data in tables to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT4-DATA-04-S2",
+              "name": "Representing Data",
+              "descriptor": "Represent data using pictographs, tables and bar graphs.",
+              "learningOutcome": "Represent data using pictographs, tables and bar graphs.",
+              "topics": [
+                {
+                  "code": "MAT4-DATA-04-S2-T1",
+                  "name": "Pictographs",
+                  "descriptor": "Understand and apply pictographs to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-DATA-04-S2-T2",
+                  "name": "Tables and Charts",
+                  "descriptor": "Understand and apply tables and charts to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-DATA-04-S2-T3",
+                  "name": "Bar Graphs",
+                  "descriptor": "Understand and apply bar graphs to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-DATA-04-S2-T4",
+                  "name": "Choosing a Suitable Representation",
+                  "descriptor": "Understand and apply choosing a suitable representation to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT4-DATA-04-S3",
+              "name": "Interpreting Data",
+              "descriptor": "Read and answer questions from data displays.",
+              "learningOutcome": "Read and answer questions from data displays.",
+              "topics": [
+                {
+                  "code": "MAT4-DATA-04-S3-T1",
+                  "name": "Reading Pictographs",
+                  "descriptor": "Understand and apply reading pictographs to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-DATA-04-S3-T2",
+                  "name": "Reading Bar Graphs",
+                  "descriptor": "Understand and apply reading bar graphs to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-DATA-04-S3-T3",
+                  "name": "Answering Questions From Data",
+                  "descriptor": "Understand and apply answering questions from data to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT4-DATA-04-S4",
+              "name": "Probability",
+              "descriptor": "Describe the chance of everyday events.",
+              "learningOutcome": "Describe the chance of everyday events.",
+              "topics": [
+                {
+                  "code": "MAT4-DATA-04-S4-T1",
+                  "name": "Likely and Unlikely Events",
+                  "descriptor": "Understand and apply likely and unlikely events to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-DATA-04-S4-T2",
+                  "name": "Fair and Unfair Games",
+                  "descriptor": "Understand and apply fair and unfair games to solve everyday problems."
+                },
+                {
+                  "code": "MAT4-DATA-04-S4-T3",
+                  "name": "Predicting Outcomes",
+                  "descriptor": "Understand and apply predicting outcomes to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "gradeLevel": "Grade 5",
+      "strands": [
+        {
+          "code": "MAT5-NUM-01",
+          "name": "Numbers",
+          "descriptor": "Work with whole numbers, factors, fractions and decimals.",
+          "subStrands": [
+            {
+              "code": "MAT5-NUM-01-S1",
+              "name": "Whole Numbers",
+              "descriptor": "Read, write, order and round off whole numbers up to one hundred thousand.",
+              "learningOutcome": "Read, write, order and round off whole numbers up to one hundred thousand.",
+              "topics": [
+                {
+                  "code": "MAT5-NUM-01-S1-T1",
+                  "name": "Place Value up to Hundred Thousands",
+                  "descriptor": "Understand and apply place value up to hundred thousands to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-NUM-01-S1-T2",
+                  "name": "Reading and Writing Whole Numbers",
+                  "descriptor": "Understand and apply reading and writing whole numbers to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-NUM-01-S1-T3",
+                  "name": "Comparing and Ordering Whole Numbers",
+                  "descriptor": "Understand and apply comparing and ordering whole numbers to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-NUM-01-S1-T4",
+                  "name": "Rounding Off Whole Numbers",
+                  "descriptor": "Understand and apply rounding off whole numbers to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-NUM-01-S1-T5",
+                  "name": "Number Patterns and Sequences",
+                  "descriptor": "Understand and apply number patterns and sequences to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT5-NUM-01-S2",
+              "name": "Factors and Multiples",
+              "descriptor": "Find factors, multiples and divisibility of whole numbers.",
+              "learningOutcome": "Find factors, multiples and divisibility of whole numbers.",
+              "topics": [
+                {
+                  "code": "MAT5-NUM-01-S2-T1",
+                  "name": "Factors of Numbers",
+                  "descriptor": "Understand and apply factors of numbers to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-NUM-01-S2-T2",
+                  "name": "Multiples of Numbers",
+                  "descriptor": "Understand and apply multiples of numbers to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-NUM-01-S2-T3",
+                  "name": "Divisibility Tests",
+                  "descriptor": "Understand and apply divisibility tests to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-NUM-01-S2-T4",
+                  "name": "Highest Common Factor",
+                  "descriptor": "Understand and apply highest common factor to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-NUM-01-S2-T5",
+                  "name": "Lowest Common Multiple",
+                  "descriptor": "Understand and apply lowest common multiple to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT5-NUM-01-S3",
+              "name": "Fractions",
+              "descriptor": "Compare, add, subtract and apply fractions.",
+              "learningOutcome": "Compare, add, subtract and apply fractions.",
+              "topics": [
+                {
+                  "code": "MAT5-NUM-01-S3-T1",
+                  "name": "Equivalent Fractions",
+                  "descriptor": "Understand and apply equivalent fractions to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-NUM-01-S3-T2",
+                  "name": "Comparing and Ordering Fractions",
+                  "descriptor": "Understand and apply comparing and ordering fractions to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-NUM-01-S3-T3",
+                  "name": "Adding Fractions",
+                  "descriptor": "Understand and apply adding fractions to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-NUM-01-S3-T4",
+                  "name": "Subtracting Fractions",
+                  "descriptor": "Understand and apply subtracting fractions to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-NUM-01-S3-T5",
+                  "name": "Fractions in Real Life",
+                  "descriptor": "Understand and apply fractions in real life to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT5-NUM-01-S4",
+              "name": "Decimals",
+              "descriptor": "Read, compare and compute with decimals.",
+              "learningOutcome": "Read, compare and compute with decimals.",
+              "topics": [
+                {
+                  "code": "MAT5-NUM-01-S4-T1",
+                  "name": "Decimals as Fractions",
+                  "descriptor": "Understand and apply decimals as fractions to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-NUM-01-S4-T2",
+                  "name": "Place Value of Decimals",
+                  "descriptor": "Understand and apply place value of decimals to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-NUM-01-S4-T3",
+                  "name": "Comparing and Ordering Decimals",
+                  "descriptor": "Understand and apply comparing and ordering decimals to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-NUM-01-S4-T4",
+                  "name": "Adding Decimals",
+                  "descriptor": "Understand and apply adding decimals to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-NUM-01-S4-T5",
+                  "name": "Subtracting Decimals",
+                  "descriptor": "Understand and apply subtracting decimals to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT5-NUM-01-S5",
+              "name": "Number Patterns",
+              "descriptor": "Investigate patterns and properties of numbers.",
+              "learningOutcome": "Investigate patterns and properties of numbers.",
+              "topics": [
+                {
+                  "code": "MAT5-NUM-01-S5-T1",
+                  "name": "Odd and Even Numbers",
+                  "descriptor": "Understand and apply odd and even numbers to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-NUM-01-S5-T2",
+                  "name": "Prime and Composite Numbers",
+                  "descriptor": "Understand and apply prime and composite numbers to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-NUM-01-S5-T3",
+                  "name": "Patterns in Sequences",
+                  "descriptor": "Understand and apply patterns in sequences to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "MAT5-MEAS-02",
+          "name": "Measurement",
+          "descriptor": "Measure length, area, mass, capacity, volume and money.",
+          "subStrands": [
+            {
+              "code": "MAT5-MEAS-02-S1",
+              "name": "Length",
+              "descriptor": "Measure, convert and apply units of length.",
+              "learningOutcome": "Measure, convert and apply units of length.",
+              "topics": [
+                {
+                  "code": "MAT5-MEAS-02-S1-T1",
+                  "name": "Measuring Length",
+                  "descriptor": "Understand and apply measuring length to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-MEAS-02-S1-T2",
+                  "name": "Converting Units of Length",
+                  "descriptor": "Understand and apply converting units of length to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-MEAS-02-S1-T3",
+                  "name": "Perimeter of Plane Figures",
+                  "descriptor": "Understand and apply perimeter of plane figures to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-MEAS-02-S1-T4",
+                  "name": "Word Problems on Length",
+                  "descriptor": "Understand and apply word problems on length to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT5-MEAS-02-S2",
+              "name": "Area",
+              "descriptor": "Find the area of rectangles, squares and triangles.",
+              "learningOutcome": "Find the area of rectangles, squares and triangles.",
+              "topics": [
+                {
+                  "code": "MAT5-MEAS-02-S2-T1",
+                  "name": "Area of Rectangles",
+                  "descriptor": "Understand and apply area of rectangles to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-MEAS-02-S2-T2",
+                  "name": "Area of Squares",
+                  "descriptor": "Understand and apply area of squares to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-MEAS-02-S2-T3",
+                  "name": "Area of Triangles",
+                  "descriptor": "Understand and apply area of triangles to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-MEAS-02-S2-T4",
+                  "name": "Area of Compound Figures",
+                  "descriptor": "Understand and apply area of compound figures to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-MEAS-02-S2-T5",
+                  "name": "Word Problems on Area",
+                  "descriptor": "Understand and apply word problems on area to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT5-MEAS-02-S3",
+              "name": "Mass",
+              "descriptor": "Measure, convert and apply units of mass.",
+              "learningOutcome": "Measure, convert and apply units of mass.",
+              "topics": [
+                {
+                  "code": "MAT5-MEAS-02-S3-T1",
+                  "name": "Measuring Mass",
+                  "descriptor": "Understand and apply measuring mass to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-MEAS-02-S3-T2",
+                  "name": "Converting Units of Mass",
+                  "descriptor": "Understand and apply converting units of mass to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-MEAS-02-S3-T3",
+                  "name": "Word Problems on Mass",
+                  "descriptor": "Understand and apply word problems on mass to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT5-MEAS-02-S4",
+              "name": "Capacity and Volume",
+              "descriptor": "Measure capacity and volume and convert units.",
+              "learningOutcome": "Measure capacity and volume and convert units.",
+              "topics": [
+                {
+                  "code": "MAT5-MEAS-02-S4-T1",
+                  "name": "Measuring Capacity",
+                  "descriptor": "Understand and apply measuring capacity to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-MEAS-02-S4-T2",
+                  "name": "Volume of Cubes and Cuboids",
+                  "descriptor": "Understand and apply volume of cubes and cuboids to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-MEAS-02-S4-T3",
+                  "name": "Converting Units of Capacity",
+                  "descriptor": "Understand and apply converting units of capacity to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-MEAS-02-S4-T4",
+                  "name": "Word Problems on Capacity and Volume",
+                  "descriptor": "Understand and apply word problems on capacity and volume to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT5-MEAS-02-S5",
+              "name": "Time and Money",
+              "descriptor": "Read time and use money in real situations.",
+              "learningOutcome": "Read time and use money in real situations.",
+              "topics": [
+                {
+                  "code": "MAT5-MEAS-02-S5-T1",
+                  "name": "Units of Time",
+                  "descriptor": "Understand and apply units of time to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-MEAS-02-S5-T2",
+                  "name": "Converting Units of Time",
+                  "descriptor": "Understand and apply converting units of time to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-MEAS-02-S5-T3",
+                  "name": "Duration and Timetables",
+                  "descriptor": "Understand and apply duration and timetables to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-MEAS-02-S5-T4",
+                  "name": "Money, Profit and Loss",
+                  "descriptor": "Understand and apply money, profit and loss to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "MAT5-GEO-03",
+          "name": "Geometry",
+          "descriptor": "Investigate angles, shapes, solids and symmetry.",
+          "subStrands": [
+            {
+              "code": "MAT5-GEO-03-S1",
+              "name": "Angles",
+              "descriptor": "Identify, measure and calculate angles.",
+              "learningOutcome": "Identify, measure and calculate angles.",
+              "topics": [
+                {
+                  "code": "MAT5-GEO-03-S1-T1",
+                  "name": "Types of Angles",
+                  "descriptor": "Understand and apply types of angles to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-GEO-03-S1-T2",
+                  "name": "Measuring Angles",
+                  "descriptor": "Understand and apply measuring angles to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-GEO-03-S1-T3",
+                  "name": "Angles on a Straight Line",
+                  "descriptor": "Understand and apply angles on a straight line to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-GEO-03-S1-T4",
+                  "name": "Angles in a Triangle",
+                  "descriptor": "Understand and apply angles in a triangle to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-GEO-03-S1-T5",
+                  "name": "Angles Around a Point",
+                  "descriptor": "Understand and apply angles around a point to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT5-GEO-03-S2",
+              "name": "Plane Figures",
+              "descriptor": "Identify and describe properties of plane figures.",
+              "learningOutcome": "Identify and describe properties of plane figures.",
+              "topics": [
+                {
+                  "code": "MAT5-GEO-03-S2-T1",
+                  "name": "Triangles",
+                  "descriptor": "Understand and apply triangles to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-GEO-03-S2-T2",
+                  "name": "Quadrilaterals",
+                  "descriptor": "Understand and apply quadrilaterals to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-GEO-03-S2-T3",
+                  "name": "Circles",
+                  "descriptor": "Understand and apply circles to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-GEO-03-S2-T4",
+                  "name": "Properties of Plane Figures",
+                  "descriptor": "Understand and apply properties of plane figures to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT5-GEO-03-S3",
+              "name": "Solid Figures",
+              "descriptor": "Describe solids and their nets.",
+              "learningOutcome": "Describe solids and their nets.",
+              "topics": [
+                {
+                  "code": "MAT5-GEO-03-S3-T1",
+                  "name": "Cubes and Cuboids",
+                  "descriptor": "Understand and apply cubes and cuboids to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-GEO-03-S3-T2",
+                  "name": "Nets of Solids",
+                  "descriptor": "Understand and apply nets of solids to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-GEO-03-S3-T3",
+                  "name": "Faces, Edges and Vertices",
+                  "descriptor": "Understand and apply faces, edges and vertices to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT5-GEO-03-S4",
+              "name": "Symmetry",
+              "descriptor": "Identify and create symmetrical patterns.",
+              "learningOutcome": "Identify and create symmetrical patterns.",
+              "topics": [
+                {
+                  "code": "MAT5-GEO-03-S4-T1",
+                  "name": "Line Symmetry",
+                  "descriptor": "Understand and apply line symmetry to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-GEO-03-S4-T2",
+                  "name": "Rotational Symmetry",
+                  "descriptor": "Understand and apply rotational symmetry to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-GEO-03-S4-T3",
+                  "name": "Symmetrical Patterns",
+                  "descriptor": "Understand and apply symmetrical patterns to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "MAT5-DATA-04",
+          "name": "Data Handling",
+          "descriptor": "Collect, represent and interpret data and chance.",
+          "subStrands": [
+            {
+              "code": "MAT5-DATA-04-S1",
+              "name": "Collecting Data",
+              "descriptor": "Collect and organise data using tables.",
+              "learningOutcome": "Collect and organise data using tables.",
+              "topics": [
+                {
+                  "code": "MAT5-DATA-04-S1-T1",
+                  "name": "Primary and Secondary Data",
+                  "descriptor": "Understand and apply primary and secondary data to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-DATA-04-S1-T2",
+                  "name": "Tallying Data",
+                  "descriptor": "Understand and apply tallying data to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-DATA-04-S1-T3",
+                  "name": "Frequency Tables",
+                  "descriptor": "Understand and apply frequency tables to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT5-DATA-04-S2",
+              "name": "Representing Data",
+              "descriptor": "Represent data using graphs and pictographs.",
+              "learningOutcome": "Represent data using graphs and pictographs.",
+              "topics": [
+                {
+                  "code": "MAT5-DATA-04-S2-T1",
+                  "name": "Pictographs",
+                  "descriptor": "Understand and apply pictographs to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-DATA-04-S2-T2",
+                  "name": "Bar Graphs",
+                  "descriptor": "Understand and apply bar graphs to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-DATA-04-S2-T3",
+                  "name": "Line Graphs",
+                  "descriptor": "Understand and apply line graphs to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT5-DATA-04-S3",
+              "name": "Interpreting Data",
+              "descriptor": "Interpret data and work out averages.",
+              "learningOutcome": "Interpret data and work out averages.",
+              "topics": [
+                {
+                  "code": "MAT5-DATA-04-S3-T1",
+                  "name": "Reading Bar Graphs",
+                  "descriptor": "Understand and apply reading bar graphs to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-DATA-04-S3-T2",
+                  "name": "Reading Line Graphs",
+                  "descriptor": "Understand and apply reading line graphs to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-DATA-04-S3-T3",
+                  "name": "Mean as an Average",
+                  "descriptor": "Understand and apply mean as an average to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-DATA-04-S3-T4",
+                  "name": "Drawing Conclusions From Data",
+                  "descriptor": "Understand and apply drawing conclusions from data to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT5-DATA-04-S4",
+              "name": "Probability",
+              "descriptor": "Describe and compare chances.",
+              "learningOutcome": "Describe and compare chances.",
+              "topics": [
+                {
+                  "code": "MAT5-DATA-04-S4-T1",
+                  "name": "Chance Events",
+                  "descriptor": "Understand and apply chance events to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-DATA-04-S4-T2",
+                  "name": "Likely and Unlikely",
+                  "descriptor": "Understand and apply likely and unlikely to solve everyday problems."
+                },
+                {
+                  "code": "MAT5-DATA-04-S4-T3",
+                  "name": "Predicting Outcomes",
+                  "descriptor": "Understand and apply predicting outcomes to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "gradeLevel": "Grade 6",
+      "strands": [
+        {
+          "code": "MAT6-NUM-01",
+          "name": "Numbers",
+          "descriptor": "Work with whole numbers, fractions, decimals, percentages, ratio and proportion.",
+          "subStrands": [
+            {
+              "code": "MAT6-NUM-01-S1",
+              "name": "Whole Numbers",
+              "descriptor": "Read, write, order and round off whole numbers up to millions.",
+              "learningOutcome": "Read, write, order and round off whole numbers up to millions.",
+              "topics": [
+                {
+                  "code": "MAT6-NUM-01-S1-T1",
+                  "name": "Place Value up to Millions",
+                  "descriptor": "Understand and apply place value up to millions to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-NUM-01-S1-T2",
+                  "name": "Reading and Writing Whole Numbers",
+                  "descriptor": "Understand and apply reading and writing whole numbers to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-NUM-01-S1-T3",
+                  "name": "Comparing and Ordering Whole Numbers",
+                  "descriptor": "Understand and apply comparing and ordering whole numbers to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-NUM-01-S1-T4",
+                  "name": "Rounding Off Whole Numbers",
+                  "descriptor": "Understand and apply rounding off whole numbers to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-NUM-01-S1-T5",
+                  "name": "Number Patterns and Sequences",
+                  "descriptor": "Understand and apply number patterns and sequences to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT6-NUM-01-S2",
+              "name": "Factors, Multiples and Divisibility",
+              "descriptor": "Apply factors, multiples and divisibility to solve problems.",
+              "learningOutcome": "Apply factors, multiples and divisibility to solve problems.",
+              "topics": [
+                {
+                  "code": "MAT6-NUM-01-S2-T1",
+                  "name": "Factors of Numbers",
+                  "descriptor": "Understand and apply factors of numbers to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-NUM-01-S2-T2",
+                  "name": "Multiples of Numbers",
+                  "descriptor": "Understand and apply multiples of numbers to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-NUM-01-S2-T3",
+                  "name": "Divisibility Tests",
+                  "descriptor": "Understand and apply divisibility tests to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-NUM-01-S2-T4",
+                  "name": "Highest Common Factor and Lowest Common Multiple",
+                  "descriptor": "Understand and apply highest common factor and lowest common multiple to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT6-NUM-01-S3",
+              "name": "Fractions",
+              "descriptor": "Compare and compute with fractions.",
+              "learningOutcome": "Compare and compute with fractions.",
+              "topics": [
+                {
+                  "code": "MAT6-NUM-01-S3-T1",
+                  "name": "Equivalent Fractions",
+                  "descriptor": "Understand and apply equivalent fractions to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-NUM-01-S3-T2",
+                  "name": "Adding and Subtracting Fractions",
+                  "descriptor": "Understand and apply adding and subtracting fractions to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-NUM-01-S3-T3",
+                  "name": "Multiplying Fractions",
+                  "descriptor": "Understand and apply multiplying fractions to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-NUM-01-S3-T4",
+                  "name": "Fractions in Real Life",
+                  "descriptor": "Understand and apply fractions in real life to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT6-NUM-01-S4",
+              "name": "Decimals",
+              "descriptor": "Compute with decimals and relate them to money.",
+              "learningOutcome": "Compute with decimals and relate them to money.",
+              "topics": [
+                {
+                  "code": "MAT6-NUM-01-S4-T1",
+                  "name": "Place Value of Decimals",
+                  "descriptor": "Understand and apply place value of decimals to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-NUM-01-S4-T2",
+                  "name": "Operations on Decimals",
+                  "descriptor": "Understand and apply operations on decimals to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-NUM-01-S4-T3",
+                  "name": "Decimals and Money",
+                  "descriptor": "Understand and apply decimals and money to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT6-NUM-01-S5",
+              "name": "Percentages, Ratio and Proportion",
+              "descriptor": "Use percentages, ratio and proportion to solve problems.",
+              "learningOutcome": "Use percentages, ratio and proportion to solve problems.",
+              "topics": [
+                {
+                  "code": "MAT6-NUM-01-S5-T1",
+                  "name": "Percentage as a Fraction",
+                  "descriptor": "Understand and apply percentage as a fraction to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-NUM-01-S5-T2",
+                  "name": "Finding Percentages of Numbers",
+                  "descriptor": "Understand and apply finding percentages of numbers to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-NUM-01-S5-T3",
+                  "name": "Ratio and Direct Proportion",
+                  "descriptor": "Understand and apply ratio and direct proportion to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-NUM-01-S5-T4",
+                  "name": "Sharing Using Ratios",
+                  "descriptor": "Understand and apply sharing using ratios to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "MAT6-MEAS-02",
+          "name": "Measurement",
+          "descriptor": "Measure length, area, volume, mass, time, speed and money.",
+          "subStrands": [
+            {
+              "code": "MAT6-MEAS-02-S1",
+              "name": "Length and Perimeter",
+              "descriptor": "Measure length and find the perimeter of figures.",
+              "learningOutcome": "Measure length and find the perimeter of figures.",
+              "topics": [
+                {
+                  "code": "MAT6-MEAS-02-S1-T1",
+                  "name": "Units of Length",
+                  "descriptor": "Understand and apply units of length to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-MEAS-02-S1-T2",
+                  "name": "Perimeter of Plane Figures",
+                  "descriptor": "Understand and apply perimeter of plane figures to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-MEAS-02-S1-T3",
+                  "name": "Word Problems on Length and Perimeter",
+                  "descriptor": "Understand and apply word problems on length and perimeter to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT6-MEAS-02-S2",
+              "name": "Area",
+              "descriptor": "Find the area of common plane figures.",
+              "learningOutcome": "Find the area of common plane figures.",
+              "topics": [
+                {
+                  "code": "MAT6-MEAS-02-S2-T1",
+                  "name": "Area of Rectangles",
+                  "descriptor": "Understand and apply area of rectangles to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-MEAS-02-S2-T2",
+                  "name": "Area of Squares",
+                  "descriptor": "Understand and apply area of squares to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-MEAS-02-S2-T3",
+                  "name": "Area of Triangles",
+                  "descriptor": "Understand and apply area of triangles to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-MEAS-02-S2-T4",
+                  "name": "Area of Parallelograms",
+                  "descriptor": "Understand and apply area of parallelograms to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-MEAS-02-S2-T5",
+                  "name": "Word Problems on Area",
+                  "descriptor": "Understand and apply word problems on area to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT6-MEAS-02-S3",
+              "name": "Volume and Capacity",
+              "descriptor": "Find volume and capacity and convert units.",
+              "learningOutcome": "Find volume and capacity and convert units.",
+              "topics": [
+                {
+                  "code": "MAT6-MEAS-02-S3-T1",
+                  "name": "Volume of Cubes and Cuboids",
+                  "descriptor": "Understand and apply volume of cubes and cuboids to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-MEAS-02-S3-T2",
+                  "name": "Measuring Capacity",
+                  "descriptor": "Understand and apply measuring capacity to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-MEAS-02-S3-T3",
+                  "name": "Converting Units of Volume and Capacity",
+                  "descriptor": "Understand and apply converting units of volume and capacity to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-MEAS-02-S3-T4",
+                  "name": "Word Problems on Volume and Capacity",
+                  "descriptor": "Understand and apply word problems on volume and capacity to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT6-MEAS-02-S4",
+              "name": "Mass",
+              "descriptor": "Measure and convert units of mass.",
+              "learningOutcome": "Measure and convert units of mass.",
+              "topics": [
+                {
+                  "code": "MAT6-MEAS-02-S4-T1",
+                  "name": "Units of Mass",
+                  "descriptor": "Understand and apply units of mass to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-MEAS-02-S4-T2",
+                  "name": "Converting Units of Mass",
+                  "descriptor": "Understand and apply converting units of mass to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-MEAS-02-S4-T3",
+                  "name": "Word Problems on Mass",
+                  "descriptor": "Understand and apply word problems on mass to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT6-MEAS-02-S5",
+              "name": "Time, Speed and Money",
+              "descriptor": "Work with time, speed and money in real situations.",
+              "learningOutcome": "Work with time, speed and money in real situations.",
+              "topics": [
+                {
+                  "code": "MAT6-MEAS-02-S5-T1",
+                  "name": "Units of Time",
+                  "descriptor": "Understand and apply units of time to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-MEAS-02-S5-T2",
+                  "name": "Speed and Distance",
+                  "descriptor": "Understand and apply speed and distance to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-MEAS-02-S5-T3",
+                  "name": "Time and Speed Problems",
+                  "descriptor": "Understand and apply time and speed problems to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-MEAS-02-S5-T4",
+                  "name": "Money, Profit and Loss",
+                  "descriptor": "Understand and apply money, profit and loss to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-MEAS-02-S5-T5",
+                  "name": "Budgets and Hire Purchase",
+                  "descriptor": "Understand and apply budgets and hire purchase to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "MAT6-GEO-03",
+          "name": "Geometry",
+          "descriptor": "Investigate angles, plane figures, solids, position and symmetry.",
+          "subStrands": [
+            {
+              "code": "MAT6-GEO-03-S1",
+              "name": "Angles",
+              "descriptor": "Measure and calculate angles in figures.",
+              "learningOutcome": "Measure and calculate angles in figures.",
+              "topics": [
+                {
+                  "code": "MAT6-GEO-03-S1-T1",
+                  "name": "Types of Angles",
+                  "descriptor": "Understand and apply types of angles to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-GEO-03-S1-T2",
+                  "name": "Angles on a Straight Line",
+                  "descriptor": "Understand and apply angles on a straight line to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-GEO-03-S1-T3",
+                  "name": "Angles in Triangles",
+                  "descriptor": "Understand and apply angles in triangles to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-GEO-03-S1-T4",
+                  "name": "Angles in Quadrilaterals",
+                  "descriptor": "Understand and apply angles in quadrilaterals to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT6-GEO-03-S2",
+              "name": "Plane Figures",
+              "descriptor": "Identify and describe plane figures and polygons.",
+              "learningOutcome": "Identify and describe plane figures and polygons.",
+              "topics": [
+                {
+                  "code": "MAT6-GEO-03-S2-T1",
+                  "name": "Triangles",
+                  "descriptor": "Understand and apply triangles to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-GEO-03-S2-T2",
+                  "name": "Quadrilaterals",
+                  "descriptor": "Understand and apply quadrilaterals to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-GEO-03-S2-T3",
+                  "name": "Circles",
+                  "descriptor": "Understand and apply circles to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-GEO-03-S2-T4",
+                  "name": "Polygons",
+                  "descriptor": "Understand and apply polygons to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT6-GEO-03-S3",
+              "name": "Solid Figures and Nets",
+              "descriptor": "Describe solids and their nets.",
+              "learningOutcome": "Describe solids and their nets.",
+              "topics": [
+                {
+                  "code": "MAT6-GEO-03-S3-T1",
+                  "name": "Cubes and Cuboids",
+                  "descriptor": "Understand and apply cubes and cuboids to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-GEO-03-S3-T2",
+                  "name": "Nets of Solids",
+                  "descriptor": "Understand and apply nets of solids to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-GEO-03-S3-T3",
+                  "name": "Cylinders and Prisms",
+                  "descriptor": "Understand and apply cylinders and prisms to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT6-GEO-03-S4",
+              "name": "Position and Direction",
+              "descriptor": "Use compass directions, coordinates and scale.",
+              "learningOutcome": "Use compass directions, coordinates and scale.",
+              "topics": [
+                {
+                  "code": "MAT6-GEO-03-S4-T1",
+                  "name": "Compass Directions",
+                  "descriptor": "Understand and apply compass directions to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-GEO-03-S4-T2",
+                  "name": "Coordinates on a Grid",
+                  "descriptor": "Understand and apply coordinates on a grid to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-GEO-03-S4-T3",
+                  "name": "Scale Drawing",
+                  "descriptor": "Understand and apply scale drawing to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT6-GEO-03-S5",
+              "name": "Symmetry",
+              "descriptor": "Identify and create symmetrical patterns.",
+              "learningOutcome": "Identify and create symmetrical patterns.",
+              "topics": [
+                {
+                  "code": "MAT6-GEO-03-S5-T1",
+                  "name": "Line Symmetry",
+                  "descriptor": "Understand and apply line symmetry to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-GEO-03-S5-T2",
+                  "name": "Rotational Symmetry",
+                  "descriptor": "Understand and apply rotational symmetry to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-GEO-03-S5-T3",
+                  "name": "Symmetry in Patterns",
+                  "descriptor": "Understand and apply symmetry in patterns to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-GEO-03-S5-T4",
+                  "name": "Symmetry in the Environment",
+                  "descriptor": "Understand and apply symmetry in the environment to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "MAT6-DATA-04",
+          "name": "Data Handling",
+          "descriptor": "Collect, represent, interpret data and describe chance.",
+          "subStrands": [
+            {
+              "code": "MAT6-DATA-04-S1",
+              "name": "Collecting Data",
+              "descriptor": "Collect and organise data for a purpose.",
+              "learningOutcome": "Collect and organise data for a purpose.",
+              "topics": [
+                {
+                  "code": "MAT6-DATA-04-S1-T1",
+                  "name": "Sources of Data",
+                  "descriptor": "Understand and apply sources of data to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-DATA-04-S1-T2",
+                  "name": "Questionnaires and Interviews",
+                  "descriptor": "Understand and apply questionnaires and interviews to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-DATA-04-S1-T3",
+                  "name": "Frequency Tables",
+                  "descriptor": "Understand and apply frequency tables to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT6-DATA-04-S2",
+              "name": "Representing Data",
+              "descriptor": "Represent data using graphs and charts.",
+              "learningOutcome": "Represent data using graphs and charts.",
+              "topics": [
+                {
+                  "code": "MAT6-DATA-04-S2-T1",
+                  "name": "Bar Graphs",
+                  "descriptor": "Understand and apply bar graphs to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-DATA-04-S2-T2",
+                  "name": "Line Graphs",
+                  "descriptor": "Understand and apply line graphs to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-DATA-04-S2-T3",
+                  "name": "Pie Charts",
+                  "descriptor": "Understand and apply pie charts to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT6-DATA-04-S3",
+              "name": "Interpreting Data",
+              "descriptor": "Interpret data using measures of central tendency.",
+              "learningOutcome": "Interpret data using measures of central tendency.",
+              "topics": [
+                {
+                  "code": "MAT6-DATA-04-S3-T1",
+                  "name": "Reading Graphs and Charts",
+                  "descriptor": "Understand and apply reading graphs and charts to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-DATA-04-S3-T2",
+                  "name": "Mean, Median and Mode",
+                  "descriptor": "Understand and apply mean, median and mode to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-DATA-04-S3-T3",
+                  "name": "Drawing Conclusions From Data",
+                  "descriptor": "Understand and apply drawing conclusions from data to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT6-DATA-04-S4",
+              "name": "Probability",
+              "descriptor": "Describe probability using simple fractions.",
+              "learningOutcome": "Describe probability using simple fractions.",
+              "topics": [
+                {
+                  "code": "MAT6-DATA-04-S4-T1",
+                  "name": "Chance Events",
+                  "descriptor": "Understand and apply chance events to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-DATA-04-S4-T2",
+                  "name": "Probability Scales",
+                  "descriptor": "Understand and apply probability scales to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-DATA-04-S4-T3",
+                  "name": "Predicting Outcomes",
+                  "descriptor": "Understand and apply predicting outcomes to solve everyday problems."
+                },
+                {
+                  "code": "MAT6-DATA-04-S4-T4",
+                  "name": "Simple Probability Experiments",
+                  "descriptor": "Understand and apply simple probability experiments to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

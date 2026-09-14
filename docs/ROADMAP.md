@@ -605,9 +605,15 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       stale RUNNING jobs, while `app.content.run-mode=api|worker|both` selects enqueue/drain/both.
       `POST teacher/content/generate` + `GET teacher/content/jobs/{jobId}` expose submit/poll. The
       router stays the only provider caller and capture writer (one shared core for both paths).
-- [ ] 7.5b seed batch: drive the Tier 1 seed corpus through the durable queue (after 7.6 taxonomy).
-- [ ] 7.6 breadth: Tier 0 taxonomy and Tier 1 seed library, then past papers, study guides and the
-      remaining subjects.
+- [x] 7.5b-1 Tier 0 curriculum skeleton for Kenya CBC Mathematics G4-G6 (V67): `curriculum_versions`
+      plus `cbc_strands` level/parent_id/curriculum_version and `curriculum_map.curriculum_version`;
+      the deterministic, idempotent `CurriculumSeeder` reads authored versioned resource data
+      (`src/main/resources/curriculum/ke-cbc-v1.json`) into the strand/sub-strand and
+      concepts/curriculum_map layers, and `CurriculumSeedBootstrap` seeds on startup only when
+      `app.content.curriculum.seed-on-startup=true` (default false).
+- [ ] 7.5b-2 Tier 0 breadth: English, Integrated Science, Kiswahili, Social Studies and G7-G9, then
+      the Tier 1 seed batch through the durable queue.
+- [ ] 7.6 breadth: Tier 1 seed library, then past papers, study guides and the remaining subjects.
 - [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences)
 - [ ] Agent tools: DB metric queries, internet search, content validators
 - [ ] LLM provider routing by cost/latency; per-generation token tracking (DeepSeek + others)

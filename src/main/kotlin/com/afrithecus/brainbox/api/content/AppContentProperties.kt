@@ -17,6 +17,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 data class AppContentProperties(
     val runMode: RunMode = RunMode.BOTH,
     val worker: Worker = Worker(),
+    val curriculum: Curriculum = Curriculum(),
 ) {
 
     /** True when this JVM should execute queued generation work. */
@@ -30,5 +31,15 @@ data class AppContentProperties(
         val staleRunSeconds: Long = 900,
         val pollIntervalMs: Long = 15000,
         val retryBackoffSeconds: Long = 60,
+    )
+
+    /**
+     * Phase 7.5b-1 Tier 0 curriculum seeding. When [seedOnStartup] is true the
+     * CurriculumSeedBootstrap runs the deterministic catalogue seeder once the
+     * application is ready. Off by default so tests and production never seed
+     * implicitly.
+     */
+    data class Curriculum(
+        val seedOnStartup: Boolean = false,
     )
 }

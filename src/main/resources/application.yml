@@ -106,6 +106,12 @@ app:
       stale-run-seconds: ${CONTENT_WORKER_STALE_RUN_SECONDS:900}
       poll-interval-ms: ${CONTENT_WORKER_POLL_INTERVAL_MS:15000}
       retry-backoff-seconds: ${CONTENT_WORKER_RETRY_BACKOFF_SECONDS:60}
+    curriculum:
+      # Phase 7.5b-1 Tier 0 skeleton. When true, the app seeds the authored
+      # Kenya CBC Mathematics G4-G6 catalogue from classpath resource data on
+      # ApplicationReadyEvent. Default false so tests and production never seed
+      # implicitly; enable deliberately on a fresh environment.
+      seed-on-startup: ${CONTENT_CURRICULUM_SEED_ON_STARTUP:false}
   security:
     jwt:
       # Base64-encoded HMAC secret. Override in each environment. Dev default only.

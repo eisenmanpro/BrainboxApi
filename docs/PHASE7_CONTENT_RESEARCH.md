@@ -222,6 +222,15 @@ document rather than a model. This is the index everything else hangs off, and i
 makes search/strand filters look real. Rough shape: grade → subject → strand → sub-strand →
 8–20 topics.
 
+**Tier 0 status — delivered for Mathematics G4–G6 (7.5b-1).** The skeleton now lives in
+`cbc_strands` (level `STRAND`/`SUBSTRAND`, `parent_id`, `curriculum_version`) plus the shared
+`concepts`/`curriculum_map` layer, and is seeded from **versioned resource data**: a
+`curriculum_versions` row plus `src/main/resources/curriculum/ke-cbc-v1.json`. The catalogue is
+our own authored mapping aligned to the public Kenya CBC Mathematics strand and sub-strand labels;
+it is not KICD text, and no KICD or KNEC document is ingested, quoted or attributed. English,
+Integrated Science, Kiswahili and Social Studies, and the G7–G9 band, follow in **7.5b-2** as
+further data files, so adding a subject or band is a data-only change.
+
 **Tier 1 — a batch-generated starter library.** For every topic, produce one `NOTES` post,
 one `QUIZ` and one `FLASHCARDS` set; for every subject×grade, one or two past papers and one
 study-guide document. Run as a background batch (the Phase 6 scheduler exists for this),

@@ -38,6 +38,10 @@ class CurriculumMapEntity : BaseEntity() {
     @Column(name = "learning_outcome", columnDefinition = "text")
     var learningOutcome: String? = null
 
+    /** The curriculum_versions.version this mapping was authored against. */
+    @Column(name = "curriculum_version", length = 32)
+    var curriculumVersion: String? = null
+
     @Column(name = "sort_order", nullable = false)
     var sortOrder: Int = 0
 }
