@@ -100,9 +100,6 @@ class ContentBatchService(
         return summary
     }
 
-    /** Alias for [enqueueBatch] kept for the Phase 7.5e producer contract wording. */
-    fun enqueueJob(request: ContentBatchRequest): ContentBatchSummary = enqueueBatch(request)
-
     /** Builds the deterministic provider request for one topic and task type. */
     fun buildRequest(
         topic: ConceptEntity,
