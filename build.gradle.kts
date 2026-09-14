@@ -71,4 +71,10 @@ kotlin {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    // Every distinct @SpringBootTest context keeps its EntityManagerFactory, Hikari pool and
+    // scheduler thread alive for the life of the JVM. With dozens of cached contexts one worker
+    // eventually starves and the run stalls before the next class starts (seen at ~53 classes),
+    // so recycle the worker to release those resources and cap the heap so growth is bounded.
+    forkEvery = 30
+    maxHeapSize = "1536m"
 }
