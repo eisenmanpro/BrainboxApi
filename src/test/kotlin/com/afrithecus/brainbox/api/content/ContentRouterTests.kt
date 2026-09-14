@@ -70,12 +70,16 @@ class ContentRouterTests(
         val requests = mutableListOf<GenerationRequest>()
         var failNext: String? = null
 
+        /** When true, return a gate-clean result so the 7.5c bar can be exercised. */
+        var clean = false
+
         override fun generate(request: GenerationRequest): GenerationResult {
             requests += request
             failNext?.let { message ->
                 failNext = null
                 throw IllegalStateException(message)
             }
+            if (clean) return cleanResult(request)
             return GenerationResult(
                 body = "Body for " + request.generationKey,
                 steps = listOf(
@@ -112,6 +116,39 @@ class ContentRouterTests(
                 license = "CC-BY-4.0",
             )
         }
+
+        /**
+         * A gate-clean result for the 7.5c end-to-end tests: three explained steps,
+         * eight valid multiple-choice questions (the last attached to the final step)
+         * and a confidence above the 0.90 floor, so the unit auto-approves.
+         */
+        private fun cleanResult(request: GenerationRequest) = GenerationResult(
+            body = "Clean body for " + request.generationKey,
+            steps = listOf(
+                GeneratedStep(0, "Step one", "First step body"),
+                GeneratedStep(1, "Step two", "Second step body"),
+                GeneratedStep(2, "Step three", "Third step body"),
+            ),
+            questions = (0 until 8).map { index ->
+                GeneratedQuestion(
+                    orderIndex = index,
+                    stepIndex = if (index == 7) 2 else null,
+                    type = "MULTIPLE_CHOICE",
+                    text = "Clean question " + index + "?",
+                    options = listOf("A", "B", "C", "D"),
+                    correctAnswer = "A",
+                    explanation = "Because A.",
+                    points = 2,
+                    difficulty = 3,
+                )
+            },
+            confidence = 0.95,
+            model = "fake-model",
+            promptTokens = 1000,
+            completionTokens = 500,
+            sourceUrls = listOf("https://example.org/fractions"),
+            license = "CC-BY-4.0",
+        )
     }
 
     private val fake: FakeContentGenerationProvider
@@ -123,6 +160,7 @@ class ContentRouterTests(
     fun setUp() {
         fake.requests.clear()
         fake.failNext = null
+        fake.clean = false
         concept = concepts.save(
             ConceptEntity().apply {
                 code = "MAT-FRAC-01"

@@ -5,6 +5,7 @@ import com.afrithecus.brainbox.api.content.entity.ContentUnitEntity
 import com.afrithecus.brainbox.api.content.entity.ContentUnitQuestionEntity
 import com.afrithecus.brainbox.api.content.entity.ContentUnitStepEntity
 import com.afrithecus.brainbox.api.content.entity.CurriculumMapEntity
+import com.afrithecus.brainbox.api.content.entity.ModerationOutcomeEntity
 import com.afrithecus.brainbox.api.content.repository.ConceptRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitQuestionRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitRepository
@@ -24,13 +25,16 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
+import java.time.Instant
 import java.util.UUID
 
 /**
- * Phase 7.4b: the validator chain and the confidence auto-approval gate. Proves a
- * clean unit scores 1.0, each validator catches its own defect, any blocker forces
- * 0.0, auto-approval is off by default, and a machine approval is recorded with
- * auto_approved = true and a null reviewer.
+ * Phase 7.4b / 7.5c: the validator chain and the machine-first auto-approval bar.
+ * Proves a clean unit scores 1.0, each validator catches its own defect, any blocker
+ * forces 0.0, and a unit auto-approves only when every 7.5c gate holds: policy on
+ * (default), no blockers, score >= 1.0, >= 8 questions, non-null confidence >= 0.90,
+ * and an untouched UNREVIEWED state. A machine approval is recorded with
+ * auto_approved = true and a null reviewer, and a human decision is never overwritten.
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -147,19 +151,9 @@ class ContentValidationTests(
     }
 
     @Test
-    fun `auto-approval is off by default and leaves the unit unreviewed`() {
-        val unit = seedValidUnit()
-        check(autoApproval.maybeAutoApprove("UNIT", unit.id).not())
-        entityManager.flush()
-        entityManager.clear()
-        check(contentUnits.findById(unit.id).orElseThrow().reviewState == "UNREVIEWED")
-        check(outcomes.findByContentTypeAndContentIdAndContentVersion("UNIT", unit.id, 1) == null)
-    }
-
-    @Test
-    fun `auto-approval approves a clean unit and records a machine outcome`() {
-        policy.set("auto_approve_enabled", "true")
-        val unit = seedValidUnit()
+    fun `auto-approval is enabled by default and approves a clean unit`() {
+        check(policy.autoApproveEnabled()) { "auto-approval must be on by default (7.5c)" }
+        val unit = seedAutoApprovableUnit()
 
         check(autoApproval.maybeAutoApprove("UNIT", unit.id))
 
@@ -172,6 +166,42 @@ class ContentValidationTests(
         check(outcome.autoApproved)
         check(outcome.reviewerId == null)
         check(outcome.confidenceScore == 1.0)
+        check(outcome.quorumRequired == 2)
+    }
+
+    @Test
+    fun `auto-approval stays off when the policy disables it`() {
+        policy.set("auto_approve_enabled", "false")
+        val unit = seedAutoApprovableUnit()
+
+        check(autoApproval.maybeAutoApprove("UNIT", unit.id).not())
+
+        entityManager.flush()
+        entityManager.clear()
+        check(contentUnits.findById(unit.id).orElseThrow().reviewState == "UNREVIEWED")
+        check(outcomes.findByContentTypeAndContentIdAndContentVersion("UNIT", unit.id, 1) == null)
+    }
+
+    @Test
+    fun `auto-approval refuses a unit with fewer than the minimum questions`() {
+        val unit = seedAutoApprovableUnit(questionCount = 7)
+
+        check(autoApproval.maybeAutoApprove("UNIT", unit.id).not())
+
+        entityManager.flush()
+        entityManager.clear()
+        check(contentUnits.findById(unit.id).orElseThrow().reviewState == "UNREVIEWED")
+    }
+
+    @Test
+    fun `auto-approval fails closed when a unit with questions has no confidence`() {
+        val unit = seedAutoApprovableUnit(confidence = null)
+
+        check(autoApproval.maybeAutoApprove("UNIT", unit.id).not())
+
+        entityManager.flush()
+        entityManager.clear()
+        check(contentUnits.findById(unit.id).orElseThrow().reviewState == "UNREVIEWED")
     }
 
     @Test
@@ -187,9 +217,38 @@ class ContentValidationTests(
     }
 
     @Test
+    fun `auto-approval never touches a REVIEWED unit or its human attribution`() {
+        val human = seedUser()
+        val unit = seedAutoApprovableUnit(reviewState = "REVIEWED")
+        outcomes.save(
+            ModerationOutcomeEntity().apply {
+                contentType = "UNIT"
+                contentId = unit.id
+                contentVersion = 1
+                state = "REVIEWED"
+                autoApproved = false
+                confidenceScore = null
+                reviewerId = human.id
+                quorumRequired = 2
+                decidedAt = Instant.now()
+            }
+        )
+
+        check(autoApproval.maybeAutoApprove("UNIT", unit.id).not())
+
+        entityManager.flush()
+        entityManager.clear()
+        check(contentUnits.findById(unit.id).orElseThrow().reviewState == "REVIEWED")
+        val outcome = outcomes.findByContentTypeAndContentIdAndContentVersion("UNIT", unit.id, 1)!!
+        check(outcome.autoApproved.not())
+        check(outcome.reviewerId == human.id)
+        check(outcome.state == "REVIEWED")
+    }
+
+    @Test
     fun `a human decision clears the auto-approved marker`() {
         policy.set("auto_approve_enabled", "true")
-        val unit = seedValidUnit()
+        val unit = seedAutoApprovableUnit()
         check(autoApproval.maybeAutoApprove("UNIT", unit.id))
 
         val reviewer = seedUser()
@@ -224,6 +283,46 @@ class ContentValidationTests(
         val unit = contentUnits.save(unit(title = "Fractions made simple", conceptId = concept.id))
         val savedSteps = seedThreeSteps(unit.id)
         seedQuestion(unit.id, savedSteps.last().id, 0, "MCQ", "What is 1/2 + 1/4?", listOf("1/4", "3/4", "1", "2"), "3/4")
+        return unit
+    }
+
+    /**
+     * A fixture that clears every 7.5c gate by default: titled, three explained steps,
+     * [questionCount] valid multiple-choice questions (the last attached to the final
+     * step), a curriculum mapping and the given critic confidence.
+     */
+    private fun seedAutoApprovableUnit(
+        questionCount: Int = 8,
+        confidence: Double? = 0.95,
+        reviewState: String = "UNREVIEWED",
+    ): ContentUnitEntity {
+        val concept = concepts.save(concept())
+        curriculumMaps.save(
+            CurriculumMapEntity().apply {
+                conceptId = concept.id
+                countryCode = "KE"
+                curriculum = "CBC"
+                gradeLevel = "Grade 4"
+            }
+        )
+        val unit = contentUnits.save(
+            unit(title = "Fractions made simple", conceptId = concept.id).apply {
+                this.confidence = confidence
+                this.reviewState = reviewState
+            }
+        )
+        val savedSteps = seedThreeSteps(unit.id)
+        repeat(questionCount) { index ->
+            seedQuestion(
+                unitId = unit.id,
+                stepId = if (index == questionCount - 1) savedSteps.last().id else null,
+                orderIndex = index,
+                qType = "MCQ",
+                text = "Question " + index + "?",
+                options = listOf("A", "B", "C", "D"),
+                answer = "A",
+            )
+        }
         return unit
     }
 

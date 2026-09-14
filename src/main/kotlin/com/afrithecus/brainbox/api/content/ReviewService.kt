@@ -28,6 +28,11 @@ import java.util.UUID
  * single high-weight expert can never approve content alone. Any REJECT resolves
  * the version to REJECTED immediately. Weighted approvals are captured for the
  * policy/analytics layer; the distinct-human cap applies regardless.
+ *
+ * Phase 7.5c: when a UNIT resolves to REVIEWED, the resolved unit is re-projected so
+ * the human approval flips it learner-visible even if an earlier gate projected it
+ * hidden. Machine-first approval skips non-UNREVIEWED units, so the human decision and
+ * its reviewer attribution are never overwritten.
  */
 @Service
 class ReviewService(
@@ -38,6 +43,7 @@ class ReviewService(
     private val users: UserRepository,
     private val moderationPolicy: ModerationPolicyService,
     private val mapper: ObjectMapper,
+    private val contentProjection: ContentProjectionService,
 ) {
 
     /**
@@ -152,6 +158,11 @@ class ReviewService(
                 unit.reviewState = state
                 contentUnits.save(unit)
             }
+            // A human approval must actually flip the unit learner-visible: a unit that
+            // failed a gate was projected hidden, so re-project the resolved REVIEWED
+            // unit. Machine approval skips non-UNREVIEWED units, so this re-projection
+            // cannot overwrite the human attribution above.
+            if (state == STATE_REVIEWED) contentProjection.project(contentId)
         }
 
         updateTrust(all, state, previousState, created, actorId, actorIsStaff)

@@ -40,10 +40,10 @@ data class ProjectionResult(
 
 /**
  * Phase 7.3: projects the internal content_units cache into the client-facing
- * tables. A book-like unit (NOTES/BOOK/QUIZ/FLASHCARDS) becomes a learning_posts
- * row plus learning_content blocks; a CHUNK becomes a readable_files row with an
- * inline body. Projection is idempotent by unit id: re-projecting updates the same
- * rows and replaces the content blocks rather than duplicating them.
+ * tables. A book-like unit (NOTES/BOOK/QUIZ/FLASHCARDS/LESSON) becomes a
+ * learning_posts row plus learning_content blocks; a CHUNK becomes a readable_files
+ * row with an inline body. Projection is idempotent by unit id: re-projecting updates
+ * the same rows and replaces the content blocks rather than duplicating them.
  *
  * Only REVIEWED units project as learner-visible; anything else projects hidden
  * (isPublished/isActive false) so the reviewed-only read filters keep it out.
@@ -75,7 +75,7 @@ class ContentProjectionService(
         val concept = unit.conceptId?.let { concepts.findById(it).orElse(null) }
         val reviewed = unit.reviewState == REVIEWED
         return when (unit.taskType.trim().uppercase()) {
-            "NOTES", "BOOK", "QUIZ", "FLASHCARDS" -> projectBook(unit, concept?.name, reviewed)
+            "NOTES", "BOOK", "QUIZ", "FLASHCARDS", "LESSON" -> projectBook(unit, concept?.name, reviewed)
             "CHUNK" -> projectChunk(unit, concept?.name, reviewed)
             else -> throw invalidArgument("task type is not projectable: " + unit.taskType)
         }

@@ -613,6 +613,15 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       `app.content.curriculum.seed-on-startup=true` (default false).
 - [ ] 7.5b-2 Tier 0 breadth: English, Integrated Science, Kiswahili, Social Studies and G7-G9, then
       the Tier 1 seed batch through the durable queue.
+- [x] 7.5c machine-first auto-approval with a human exception queue: `AutoApprovalService` now
+      approves a clean UNIT by default (no blockers, validator score 1.0, at least 8 questions when
+      present, non-null critic confidence >= 0.90, still UNREVIEWED) and records
+      `auto_approved = true` with a null reviewer; `ModerationPolicyService` exposes
+      `auto_approve_enabled` (default true), `auto_approve_min_validator_score`,
+      `auto_approve_min_questions` and `auto_approve_min_critic_confidence`, and drops the old
+      `weighted_mode`/`auto_approve_threshold` keys; the generation worker projects each finished
+      unit (publish when clean, hidden for review when gated) and a human `REVIEWED` decision
+      re-projects it learner-visible.
 - [ ] 7.6 breadth: Tier 1 seed library, then past papers, study guides and the remaining subjects.
 - [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences)
 - [ ] Agent tools: DB metric queries, internet search, content validators

@@ -13,8 +13,14 @@ import tools.jackson.databind.ObjectMapper
  * falls back to the code default, so a bad console write can never break review.
  *
  * The value_json column holds one JSON value per policy key (e.g. `2` or
- * `true`); keys currently defined are quorum_required, weighted_mode and
- * auto_approve_enabled.
+ * `true`). Keys currently defined:
+ *
+ * - `quorum_required` (int, default 2): distinct-human approvals for the human path.
+ * - `auto_approve_enabled` (boolean, default true): machine-first bulk approval.
+ * - `auto_approve_min_validator_score` (double, default 1.0): zero validator findings.
+ * - `auto_approve_min_questions` (int, default 8): minimum questions when a unit has any.
+ * - `auto_approve_min_critic_confidence` (double, default 0.90): model-confidence floor,
+ *   fail-closed when the unit carries no confidence.
  */
 @Service
 class ModerationPolicyService(
@@ -25,14 +31,20 @@ class ModerationPolicyService(
     /** Distinct-human approvals required to resolve a content version. */
     fun quorumRequired(): Int = readInt(KEY_QUORUM_REQUIRED, DEFAULT_QUORUM_REQUIRED)
 
-    /** Whether expert weight may count toward the quorum (distinct humans still required). */
-    fun weightedMode(): Boolean = readBoolean(KEY_WEIGHTED_MODE, DEFAULT_WEIGHTED_MODE)
-
-    /** Confidence auto-approval, off by default; the console flips it per domain. */
+    /** Machine-first bulk approval; on by default so clean units publish without a human. */
     fun autoApproveEnabled(): Boolean = readBoolean(KEY_AUTO_APPROVE_ENABLED, DEFAULT_AUTO_APPROVE_ENABLED)
 
-    /** Minimum confidence score for an auto-approval; per-domain floors apply on top. */
-    fun autoApproveThreshold(): Double = readDouble(KEY_AUTO_APPROVE_THRESHOLD, DEFAULT_AUTO_APPROVE_THRESHOLD)
+    /** Minimum validator score for an auto-approval; 1.0 means zero findings. */
+    fun autoApproveMinValidatorScore(): Double =
+        readDouble(KEY_AUTO_APPROVE_MIN_VALIDATOR_SCORE, DEFAULT_AUTO_APPROVE_MIN_VALIDATOR_SCORE)
+
+    /** Minimum question count when a unit has questions. */
+    fun autoApproveMinQuestions(): Int =
+        readInt(KEY_AUTO_APPROVE_MIN_QUESTIONS, DEFAULT_AUTO_APPROVE_MIN_QUESTIONS)
+
+    /** Minimum critic confidence when a unit has questions; a null confidence fails closed. */
+    fun autoApproveMinCriticConfidence(): Double =
+        readDouble(KEY_AUTO_APPROVE_MIN_CRITIC_CONFIDENCE, DEFAULT_AUTO_APPROVE_MIN_CRITIC_CONFIDENCE)
 
     /** Console write: sets one policy override to a JSON value. */
     @Transactional
@@ -65,12 +77,14 @@ class ModerationPolicyService(
 
     private companion object {
         const val KEY_QUORUM_REQUIRED = "quorum_required"
-        const val KEY_WEIGHTED_MODE = "weighted_mode"
         const val KEY_AUTO_APPROVE_ENABLED = "auto_approve_enabled"
-        const val KEY_AUTO_APPROVE_THRESHOLD = "auto_approve_threshold"
+        const val KEY_AUTO_APPROVE_MIN_VALIDATOR_SCORE = "auto_approve_min_validator_score"
+        const val KEY_AUTO_APPROVE_MIN_QUESTIONS = "auto_approve_min_questions"
+        const val KEY_AUTO_APPROVE_MIN_CRITIC_CONFIDENCE = "auto_approve_min_critic_confidence"
         const val DEFAULT_QUORUM_REQUIRED = 2
-        const val DEFAULT_WEIGHTED_MODE = false
-        const val DEFAULT_AUTO_APPROVE_ENABLED = false
-        const val DEFAULT_AUTO_APPROVE_THRESHOLD = 0.99
+        const val DEFAULT_AUTO_APPROVE_ENABLED = true
+        const val DEFAULT_AUTO_APPROVE_MIN_VALIDATOR_SCORE = 1.0
+        const val DEFAULT_AUTO_APPROVE_MIN_QUESTIONS = 8
+        const val DEFAULT_AUTO_APPROVE_MIN_CRITIC_CONFIDENCE = 0.90
     }
 }

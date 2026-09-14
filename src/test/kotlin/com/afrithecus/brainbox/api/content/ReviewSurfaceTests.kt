@@ -1,9 +1,15 @@
 package com.afrithecus.brainbox.api.content
 
 import com.afrithecus.brainbox.api.auth.web.AuthResponse
+import com.afrithecus.brainbox.api.content.entity.ConceptEntity
 import com.afrithecus.brainbox.api.content.entity.ContentUnitEntity
+import com.afrithecus.brainbox.api.content.entity.ContentUnitStepEntity
+import com.afrithecus.brainbox.api.content.entity.CurriculumMapEntity
+import com.afrithecus.brainbox.api.content.repository.ConceptRepository
 import com.afrithecus.brainbox.api.content.repository.ContentReviewRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitRepository
+import com.afrithecus.brainbox.api.content.repository.ContentUnitStepRepository
+import com.afrithecus.brainbox.api.content.repository.CurriculumMapRepository
 import com.afrithecus.brainbox.api.content.web.ContentFeedbackPayload
 import com.afrithecus.brainbox.api.content.web.ContentReviewPayload
 import com.afrithecus.brainbox.api.content.web.ReviewItemPayload
@@ -12,6 +18,9 @@ import com.afrithecus.brainbox.api.content.web.SubmitFeedbackRequest
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
+import com.afrithecus.brainbox.api.learning.LearningService
+import com.afrithecus.brainbox.api.learning.repository.LearningPostRepository
+import jakarta.persistence.EntityManager
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -41,8 +50,15 @@ class ReviewSurfaceTests(
     @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val users: UserRepository,
     @Autowired private val contentUnits: ContentUnitRepository,
+    @Autowired private val unitSteps: ContentUnitStepRepository,
+    @Autowired private val concepts: ConceptRepository,
+    @Autowired private val curriculumMaps: CurriculumMapRepository,
     @Autowired private val reviews: ContentReviewRepository,
+    @Autowired private val projection: ContentProjectionService,
+    @Autowired private val posts: LearningPostRepository,
+    @Autowired private val learningService: LearningService,
     @Autowired private val passwordEncoder: PasswordEncoder,
+    @Autowired private val entityManager: EntityManager,
 ) {
 
     @Test
@@ -140,6 +156,52 @@ class ReviewSurfaceTests(
         ).andExpect(status().isForbidden)
     }
 
+    @Test
+    fun `a unit that fails a gate stays UNREVIEWED, projects hidden and stays in the queue`() {
+        val teacher = teacher("0744600206")
+        val token = token(teacher)
+        val unit = seedGatedUnit("Warning item")
+
+        projection.project(unit.id)
+
+        entityManager.flush()
+        entityManager.clear()
+
+        check(contentUnits.findById(unit.id).orElseThrow().reviewState == "UNREVIEWED")
+        check(!posts.findById(unit.id).orElseThrow().isPublished)
+
+        val body = mockMvc.perform(
+            get("/teacher/review/queue")
+                .param("state", "UNREVIEWED")
+                .param("limit", "20")
+                .header("Authorization", auth(token))
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val page = objectMapper.readValue(body, ReviewQueuePayload::class.java)
+        check(page.items.any { it.contentId == unit.id.toString() }) { "a gated unit must remain in the exception queue" }
+    }
+
+    @Test
+    fun `a human approval re-projects a hidden unit and makes it learner-visible`() {
+        val first = teacher("0744600207")
+        val second = teacher("0744600208")
+        val unit = seedGatedUnit("Hidden geometry")
+        projection.project(unit.id)
+        entityManager.flush()
+        entityManager.clear()
+        check(!posts.findById(unit.id).orElseThrow().isPublished)
+
+        decide(first, "APPROVE", unit)
+        decide(second, "APPROVE", unit)
+
+        entityManager.flush()
+        entityManager.clear()
+        check(contentUnits.findById(unit.id).orElseThrow().reviewState == "REVIEWED")
+        check(posts.findById(unit.id).orElseThrow().isPublished)
+
+        val detail = learningService.detail(learner("0744600209"), unit.id.toString())
+        check(detail.isPublished)
+    }
+
     // ---------------------------------------------------------------- fixtures
 
     private fun decide(actor: UserEntity, decision: String, unit: ContentUnitEntity) {
@@ -183,6 +245,43 @@ class ReviewSurfaceTests(
             reviewState = state
             status = "DRAFT"
         }
+
+    /**
+     * A generated-looking unit whose only validation finding is a warning: it has a
+     * title, three explained steps and a curriculum mapping but no questions. Under
+     * 7.5c that is below the 1.0 validator bar, so the machine leaves it hidden and
+     * UNREVIEWED for the exception queue.
+     */
+    private fun seedGatedUnit(title: String): ContentUnitEntity {
+        val concept = concepts.save(
+            ConceptEntity().apply {
+                code = "REVIEW-" + UUID.randomUUID().toString().replace("-", "").substring(0, 6)
+                name = "Fractions"
+                subject = "Mathematics"
+                sortOrder = 0
+            }
+        )
+        curriculumMaps.save(
+            CurriculumMapEntity().apply {
+                conceptId = concept.id
+                countryCode = "KE"
+                curriculum = "CBC"
+                gradeLevel = "Grade 4"
+            }
+        )
+        val unit = contentUnits.save(unit(title, "Mathematics", "UNREVIEWED").apply { conceptId = concept.id })
+        repeat(3) { index ->
+            unitSteps.save(
+                ContentUnitStepEntity().apply {
+                    unitId = unit.id
+                    orderIndex = index
+                    this.title = "Step " + index
+                    body = "Explanation for step " + index
+                }
+            )
+        }
+        return unit
+    }
 
     private fun teacher(phone: String) = seed(phone, Role.TEACHER, "Review Teacher")
 

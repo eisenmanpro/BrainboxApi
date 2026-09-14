@@ -12,11 +12,14 @@ import com.afrithecus.brainbox.api.content.repository.ContentUnitRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitStepRepository
 import com.afrithecus.brainbox.api.content.repository.CurriculumMapRepository
 import com.afrithecus.brainbox.api.content.repository.GenerationJobRepository
+import com.afrithecus.brainbox.api.content.repository.ModerationOutcomeRepository
 import com.afrithecus.brainbox.api.content.web.GenerateContentRequest
 import com.afrithecus.brainbox.api.content.web.GenerationJobPayload
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
+import com.afrithecus.brainbox.api.learning.LearningService
+import com.afrithecus.brainbox.api.learning.repository.LearningPostRepository
 import jakarta.persistence.EntityManager
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -54,6 +57,10 @@ class GenerationJobWorkerTests(
     @Autowired private val unitQuestions: ContentUnitQuestionRepository,
     @Autowired private val concepts: ConceptRepository,
     @Autowired private val curriculumMaps: CurriculumMapRepository,
+    @Autowired private val outcomes: ModerationOutcomeRepository,
+    @Autowired private val posts: LearningPostRepository,
+    @Autowired private val learningService: LearningService,
+    @Autowired private val users: UserRepository,
     @Autowired private val entityManager: EntityManager,
 ) {
 
@@ -64,6 +71,7 @@ class GenerationJobWorkerTests(
     fun setUp() {
         fake.requests.clear()
         fake.failNext = null
+        fake.clean = false
         val concept = concepts.save(
             ConceptEntity().apply {
                 code = "MAT-FRAC-01"
@@ -195,6 +203,54 @@ class GenerationJobWorkerTests(
         worker.poll()
 
         check(generationJobs.findAllByGenerationKeyOrderByCreatedAtAsc(key).single().status == "QUEUED")
+    }
+
+    @Test
+    fun `clean generated unit auto-approves and becomes learner-visible through the worker`() {
+        fake.clean = true
+        val key = "ke:cbc:grade4:mat-num-frac:lesson:clean-auto-approve"
+        jobService.enqueue(request(key))
+
+        worker.poll()
+
+        entityManager.flush()
+        entityManager.clear()
+
+        val unit = requireNotNull(contentUnits.findByGenerationKey(key))
+        check(unit.reviewState == "REVIEWED") { "expected REVIEWED, got " + unit.reviewState }
+
+        val outcome = outcomes.findByContentTypeAndContentIdAndContentVersion("UNIT", unit.id, 1)
+        check(outcome != null)
+        check(outcome!!.autoApproved)
+        check(outcome.reviewerId == null)
+        check(outcome.confidenceScore == 1.0)
+        check(outcome.state == "REVIEWED")
+
+        val post = posts.findById(unit.id).orElseThrow()
+        check(post.isPublished)
+        check(post.status == "PUBLISHED")
+        check(post.title == "Fractions")
+
+        val detail = learningService.detail(seedLearner(), unit.id.toString())
+        check(detail.title == "Fractions")
+        check(detail.isPublished)
+
+        check(generationJobs.findAllByGenerationKeyOrderByCreatedAtAsc(key).single().status == "SUCCEEDED")
+    }
+
+    private fun seedLearner(): UserEntity {
+        val suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 10)
+        return users.save(
+            UserEntity().apply {
+                phoneNumber = "07" + suffix.substring(0, 8)
+                email = "worker-" + suffix + "@generation.test"
+                passwordHash = "not-a-real-hash"
+                name = "Worker Learner"
+                role = Role.STUDENT
+                isActive = true
+                isVerified = true
+            }
+        )
     }
 }
 

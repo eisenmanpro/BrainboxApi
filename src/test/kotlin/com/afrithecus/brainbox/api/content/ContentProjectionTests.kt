@@ -35,13 +35,15 @@ import kotlin.test.assertFailsWith
  * Phase 7.3: generated content_units project into the client-facing tables.
  * Book-like units become learning_posts + learning_content that LearningService
  * can serve, chunks become readable_files with an inline body, re-projection is
- * idempotent and unreviewed units stay hidden from learners.
+ * idempotent and unreviewed units stay hidden from learners. The hidden-projection
+ * test disables the 7.5c machine-first gate explicitly so it tests state, not policy.
  */
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
 class ContentProjectionTests(
     @Autowired private val projection: ContentProjectionService,
+    @Autowired private val policy: ModerationPolicyService,
     @Autowired private val learningService: LearningService,
     @Autowired private val contentUnits: ContentUnitRepository,
     @Autowired private val unitSteps: ContentUnitStepRepository,
@@ -154,6 +156,9 @@ class ContentProjectionTests(
 
     @Test
     fun unreviewedUnitsProjectHidden() {
+        // Phase 7.5c auto-approval is on by default; disable it so this test still
+        // proves an unreviewed unit stays hidden for the reason under test.
+        policy.set("auto_approve_enabled", "false")
         val concept = seedConcept()
         seedCurriculum(concept)
 

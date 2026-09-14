@@ -150,6 +150,12 @@ class ContentRouter(
             ContentUnitEntity().apply {
                 generationKey = request.generationKey
                 taskType = request.taskType
+                // The provider returns teaching content, not a display title; derive the
+                // title from the request so the structure validator can pass and the
+                // projected post has a human-readable heading.
+                title = request.conceptName?.takeIf { it.isNotBlank() }
+                    ?: request.taskTypeLabel?.takeIf { it.isNotBlank() }
+                    ?: request.taskType
                 conceptId = job.conceptId
                 subject = request.subject
                 gradeLevel = request.gradeLevel

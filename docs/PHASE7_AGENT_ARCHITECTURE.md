@@ -186,7 +186,7 @@ LLM critic for pedagogy. Both return structured findings the loop acts on; a har
   chunks, papers, homework) is tagged **`REVIEWED` / `UNREVIEWED`**; the moderator console
   toggles the tag to confirm. Only `REVIEWED` content is learner-visible.
 
-### 2.6.1 Validators and confidence auto-approval (delivered, 7.4b)
+### 2.6.1 Validators and confidence auto-approval (delivered, 7.4b; machine-first in 7.5c)
 
 The deterministic half of quality is implemented as a chain of `ContentValidator` beans
 (`structure`, `questions`, `answer_key`, `curriculum`, `language`).
@@ -201,18 +201,41 @@ version and aggregates their findings into a `ValidationReport`:
   matches exactly one option; curriculum requires a resolved concept and a mapping; language
   requires a language tag and teachable text.
 
-**Auto-approval** is off by default. `AutoApprovalService.maybeAutoApprove` runs only when the
-`auto_approve_enabled` policy is on, refuses any report with blockers, and requires the score to
-clear both the policy threshold (`auto_approve_threshold`, default 0.99) and the per-domain floor
-(curriculum/structure 1.0, answer-key 0.995). On approval it sets the unit to `REVIEWED` and
-writes a `moderation_outcomes` row with `auto_approved = true`, `confidence_score` and a null
-`reviewer_id`, so a machine decision is never mistakable for a human one. Any later human decision
-clears the marker.
+**Auto-approval is the default bulk path (delivered, 7.5c).** The rule is machine-first,
+human-for-exceptions: `AutoApprovalService.maybeAutoApprove` approves a UNIT without a human
+whenever every gate holds, so teachers and Brainbox moderators only ever handle the exceptions
+(anything that fails a gate), and every human can still override or unpublish. The machine bar is:
+
+- `auto_approve_enabled` (boolean, default **true**): the feature switch; the console can still
+  turn the machine off for a deployment.
+- `auto_approve_min_validator_score` (double, default **1.0**): the report must have no blockers
+  and score at least this; 1.0 means zero findings (no warnings or infos).
+- `auto_approve_min_questions` (int, default **8**): when a unit carries any questions it needs at
+  least this many.
+- `auto_approve_min_critic_confidence` (double, default **0.90**): when a unit carries any
+  questions the model confidence must be non-null and at least this; a null confidence fails
+  closed.
+
+The unit must also still be `UNREVIEWED`: the machine never touches a `REVIEWED` or `REJECTED`
+unit, so a human decision and its reviewer attribution are never clobbered. On approval the unit
+becomes `REVIEWED` and a `moderation_outcomes` row is upserted with `auto_approved = true`,
+`confidence_score` = the validator score and a null `reviewer_id`, so a machine decision is never
+mistakable for a human one. Any later human decision clears the marker. The old
+`auto_approve_threshold` key and the per-domain floors are gone; the single validator-score bar
+replaces them, and `weighted_approvals` is still captured on the outcome for analytics but never
+drives a decision.
+
+**From gate to learner visibility.** The generation worker projects every freshly generated unit
+(`ContentProjectionService.project`) right after the job produces it: a clean unit is
+auto-approved and published, anything that fails a gate is written hidden (`DRAFT`,
+`isPublished = false`) and stays in the exception queue. Projection always runs the gate before it
+reads `reviewState`. A human approval via the review surface re-projects the resolved `REVIEWED`
+unit, so approving a previously hidden exception makes it learner-visible.
 
 The teacher surface is `GET /teacher/review/queue`,
 `GET /teacher/review/{contentType}/{contentId}`, `POST .../decision`, `GET .../decisions` and
 `POST /teacher/content/feedback`. Quorum remains two distinct teacher approvals and one reject
-resolves immediately, as locked in §2.7.
+resolves immediately, as locked in §2.7; the human path always wins over the machine.
 
 ### 2.7 Write-through, the human reviewer and the teacher feedback loop
 
@@ -254,12 +277,13 @@ subject-expert approvals count more), moderator-only, and **confidence auto-appr
 switch applies to new reviews; existing decisions stand.
 
 **Confidence scoring drives auto-approval.** The critique/reviewer emits a calibrated
-confidence score per item; auto-approval is a threshold on that score, **off by default** and
-enabled only for a `(subject, grade, task)` domain whose measured accuracy clears the bar. The
-bar is 99%, and it must be measured **per dimension**, not blended: safety block recall,
-answer-key correctness, schema/curriculum validity, and teacher-acceptance rate. An eval
-harness over a golden set gates the switch — nothing auto-approves in a domain that has not
-been measured.
+confidence score per item; 7.5c makes that score a **default-on** part of the machine bar
+(`auto_approve_min_critic_confidence`, default 0.90, fail-closed when absent) alongside the
+validator-score and question-count gates in §2.6.1. The longer-term tightening is per
+`(subject, grade, task)`: a domain's measured accuracy bar of 99%, measured **per dimension**
+rather than blended (safety block recall, answer-key correctness, schema/curriculum validity,
+teacher-acceptance rate), can raise the shared policy. An eval harness over a golden set gates
+that per-domain tightening.
 
 **Trust tiers exist from day one, and only ever add weight.** A teacher's tier rises with
 review volume and **agreement** — their rating/decision matching the eventual consensus
@@ -420,8 +444,9 @@ moderation/generation screens.
   moderator-only at any time; the switch applies to new reviews.
 - **Teacher visibility:** teachers receive everything, reviewed and unreviewed — needed to assign
   paper-review homework and to moderate; learners receive reviewed only.
-- **Auto-approval:** driven by the critique confidence score, **off by default**, enabled per
-  `(subject, grade, task)` domain once measured accuracy clears the 99% bar.
+- **Auto-approval:** machine-first and **on by default** (7.5c): a unit auto-approves when it
+  clears the validator-score (1.0), question-count (8) and critic-confidence (0.90) gates and is
+  still UNREVIEWED; the four keys are documented in §2.6.1 and the human path always overrides.
 - **Trust tiers:** from day one, agreement-based, **weight-only**; Brainbox moderators excluded;
   a teacher who has never reviewed is never blocked.
 - **Per-version reviews:** a review binds to a content version; a regeneration resets to
