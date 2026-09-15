@@ -1589,6 +1589,1449 @@
           ]
         }
       ]
+    },
+    {
+      "gradeLevel": "Grade 7",
+      "strands": [
+        {
+          "code": "MAT7-NUM-01",
+          "name": "Numbers",
+          "descriptor": "Develop number sense and fluency with whole numbers, fractions, decimals, squares and roots.",
+          "subStrands": [
+            {
+              "code": "MAT7-NUM-01-S1",
+              "name": "Whole Numbers",
+              "descriptor": "Understand and apply whole numbers to solve everyday problems.",
+              "learningOutcome": "Understand and apply whole numbers to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT7-NUM-01-S1-T1",
+                  "name": "Place Value up to Hundreds of Millions",
+                  "descriptor": "Understand and apply place value up to hundreds of millions to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-NUM-01-S1-T2",
+                  "name": "Reading and Writing Numbers in Symbols and Words",
+                  "descriptor": "Understand and apply reading and writing numbers in symbols and words to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-NUM-01-S1-T3",
+                  "name": "Rounding Off Numbers",
+                  "descriptor": "Understand and apply rounding off numbers to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-NUM-01-S1-T4",
+                  "name": "Operations on Whole Numbers",
+                  "descriptor": "Understand and apply operations on whole numbers to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT7-NUM-01-S2",
+              "name": "Factors, Multiples and Divisibility",
+              "descriptor": "Understand and apply factors, multiples and divisibility to solve everyday problems.",
+              "learningOutcome": "Understand and apply factors, multiples and divisibility to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT7-NUM-01-S2-T1",
+                  "name": "Divisibility Tests",
+                  "descriptor": "Understand and apply divisibility tests to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-NUM-01-S2-T2",
+                  "name": "Prime and Composite Numbers",
+                  "descriptor": "Understand and apply prime and composite numbers to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-NUM-01-S2-T3",
+                  "name": "Greatest Common Divisor",
+                  "descriptor": "Understand and apply greatest common divisor to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-NUM-01-S2-T4",
+                  "name": "Least Common Multiple",
+                  "descriptor": "Understand and apply least common multiple to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT7-NUM-01-S3",
+              "name": "Fractions",
+              "descriptor": "Understand and apply fractions to solve everyday problems.",
+              "learningOutcome": "Understand and apply fractions to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT7-NUM-01-S3-T1",
+                  "name": "Comparing and Ordering Fractions",
+                  "descriptor": "Understand and apply comparing and ordering fractions to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-NUM-01-S3-T2",
+                  "name": "Addition and Subtraction of Fractions",
+                  "descriptor": "Understand and apply addition and subtraction of fractions to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-NUM-01-S3-T3",
+                  "name": "Multiplication and Division of Fractions",
+                  "descriptor": "Understand and apply multiplication and division of fractions to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-NUM-01-S3-T4",
+                  "name": "Reciprocals and Number Sequences",
+                  "descriptor": "Understand and apply reciprocals and number sequences to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT7-NUM-01-S4",
+              "name": "Decimals and Square Roots",
+              "descriptor": "Understand and apply decimals and square roots to solve everyday problems.",
+              "learningOutcome": "Understand and apply decimals and square roots to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT7-NUM-01-S4-T1",
+                  "name": "Place Value of Decimals",
+                  "descriptor": "Understand and apply place value of decimals to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-NUM-01-S4-T2",
+                  "name": "Operations on Decimals",
+                  "descriptor": "Understand and apply operations on decimals to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-NUM-01-S4-T3",
+                  "name": "Squares and Square Roots",
+                  "descriptor": "Understand and apply squares and square roots to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-NUM-01-S4-T4",
+                  "name": "Square Roots of Fractions and Decimals",
+                  "descriptor": "Understand and apply square roots of fractions and decimals to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "MAT7-ALG-02",
+          "name": "Algebra",
+          "descriptor": "Use algebraic expressions, equations, inequalities and graphs to model situations.",
+          "subStrands": [
+            {
+              "code": "MAT7-ALG-02-S1",
+              "name": "Algebraic Expressions",
+              "descriptor": "Understand and apply algebraic expressions to solve everyday problems.",
+              "learningOutcome": "Understand and apply algebraic expressions to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT7-ALG-02-S1-T1",
+                  "name": "Forming Algebraic Expressions",
+                  "descriptor": "Understand and apply forming algebraic expressions to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-ALG-02-S1-T2",
+                  "name": "Simplifying Algebraic Expressions",
+                  "descriptor": "Understand and apply simplifying algebraic expressions to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-ALG-02-S1-T3",
+                  "name": "Substitution in Expressions",
+                  "descriptor": "Understand and apply substitution in expressions to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-ALG-02-S1-T4",
+                  "name": "Factorising Simple Expressions",
+                  "descriptor": "Understand and apply factorising simple expressions to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT7-ALG-02-S2",
+              "name": "Linear Equations",
+              "descriptor": "Understand and apply linear equations to solve everyday problems.",
+              "learningOutcome": "Understand and apply linear equations to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT7-ALG-02-S2-T1",
+                  "name": "Forming Linear Equations",
+                  "descriptor": "Understand and apply forming linear equations to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-ALG-02-S2-T2",
+                  "name": "Solving Linear Equations",
+                  "descriptor": "Understand and apply solving linear equations to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-ALG-02-S2-T3",
+                  "name": "Equations with Brackets",
+                  "descriptor": "Understand and apply equations with brackets to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-ALG-02-S2-T4",
+                  "name": "Applications of Linear Equations",
+                  "descriptor": "Understand and apply applications of linear equations to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT7-ALG-02-S3",
+              "name": "Linear Inequalities",
+              "descriptor": "Understand and apply linear inequalities to solve everyday problems.",
+              "learningOutcome": "Understand and apply linear inequalities to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT7-ALG-02-S3-T1",
+                  "name": "Forming Linear Inequalities",
+                  "descriptor": "Understand and apply forming linear inequalities to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-ALG-02-S3-T2",
+                  "name": "Solving Linear Inequalities",
+                  "descriptor": "Understand and apply solving linear inequalities to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-ALG-02-S3-T3",
+                  "name": "Number Line Representation",
+                  "descriptor": "Understand and apply number line representation to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-ALG-02-S3-T4",
+                  "name": "Applications of Inequalities",
+                  "descriptor": "Understand and apply applications of inequalities to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT7-ALG-02-S4",
+              "name": "Coordinates and Graphs",
+              "descriptor": "Understand and apply coordinates and graphs to solve everyday problems.",
+              "learningOutcome": "Understand and apply coordinates and graphs to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT7-ALG-02-S4-T1",
+                  "name": "Plotting Points on a Cartesian Plane",
+                  "descriptor": "Understand and apply plotting points on a Cartesian plane to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-ALG-02-S4-T2",
+                  "name": "Tables of Values",
+                  "descriptor": "Understand and apply tables of values to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-ALG-02-S4-T3",
+                  "name": "Drawing Straight Line Graphs",
+                  "descriptor": "Understand and apply drawing straight line graphs to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-ALG-02-S4-T4",
+                  "name": "Reading Information from Graphs",
+                  "descriptor": "Understand and apply reading information from graphs to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "MAT7-MEAS-03",
+          "name": "Measurements",
+          "descriptor": "Measure and calculate length, area, volume, capacity and the Pythagorean relationship.",
+          "subStrands": [
+            {
+              "code": "MAT7-MEAS-03-S1",
+              "name": "Length and Perimeter",
+              "descriptor": "Understand and apply length and perimeter to solve everyday problems.",
+              "learningOutcome": "Understand and apply length and perimeter to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT7-MEAS-03-S1-T1",
+                  "name": "Units of Length",
+                  "descriptor": "Understand and apply units of length to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-MEAS-03-S1-T2",
+                  "name": "Perimeter of Plane Figures",
+                  "descriptor": "Understand and apply perimeter of plane figures to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-MEAS-03-S1-T3",
+                  "name": "Circumference of a Circle",
+                  "descriptor": "Understand and apply circumference of a circle to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-MEAS-03-S1-T4",
+                  "name": "Word Problems on Length and Perimeter",
+                  "descriptor": "Understand and apply word problems on length and perimeter to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT7-MEAS-03-S2",
+              "name": "Area",
+              "descriptor": "Understand and apply area to solve everyday problems.",
+              "learningOutcome": "Understand and apply area to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT7-MEAS-03-S2-T1",
+                  "name": "Area of Rectangles and Squares",
+                  "descriptor": "Understand and apply area of rectangles and squares to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-MEAS-03-S2-T2",
+                  "name": "Area of Triangles and Parallelograms",
+                  "descriptor": "Understand and apply area of triangles and parallelograms to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-MEAS-03-S2-T3",
+                  "name": "Area of Circles",
+                  "descriptor": "Understand and apply area of circles to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-MEAS-03-S2-T4",
+                  "name": "Surface Area of Solids",
+                  "descriptor": "Understand and apply surface area of solids to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT7-MEAS-03-S3",
+              "name": "Volume and Capacity",
+              "descriptor": "Understand and apply volume and capacity to solve everyday problems.",
+              "learningOutcome": "Understand and apply volume and capacity to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT7-MEAS-03-S3-T1",
+                  "name": "Volume of Cubes and Cuboids",
+                  "descriptor": "Understand and apply volume of cubes and cuboids to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-MEAS-03-S3-T2",
+                  "name": "Volume of Cylinders",
+                  "descriptor": "Understand and apply volume of cylinders to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-MEAS-03-S3-T3",
+                  "name": "Capacity and Its Units",
+                  "descriptor": "Understand and apply capacity and its units to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-MEAS-03-S3-T4",
+                  "name": "Word Problems on Volume and Capacity",
+                  "descriptor": "Understand and apply word problems on volume and capacity to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT7-MEAS-03-S4",
+              "name": "Pythagorean Relationship",
+              "descriptor": "Understand and apply Pythagorean relationship to solve everyday problems.",
+              "learningOutcome": "Understand and apply Pythagorean relationship to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT7-MEAS-03-S4-T1",
+                  "name": "Identifying the Pythagorean Relationship",
+                  "descriptor": "Understand and apply identifying the Pythagorean relationship to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-MEAS-03-S4-T2",
+                  "name": "Finding the Hypotenuse",
+                  "descriptor": "Understand and apply finding the hypotenuse to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-MEAS-03-S4-T3",
+                  "name": "Finding a Missing Side",
+                  "descriptor": "Understand and apply finding a missing side to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-MEAS-03-S4-T4",
+                  "name": "Applications of the Pythagorean Relationship",
+                  "descriptor": "Understand and apply applications of the Pythagorean relationship to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "MAT7-GEO-04",
+          "name": "Geometry",
+          "descriptor": "Investigate angles, plane figures, solids, position and construction.",
+          "subStrands": [
+            {
+              "code": "MAT7-GEO-04-S1",
+              "name": "Angles",
+              "descriptor": "Understand and apply angles to solve everyday problems.",
+              "learningOutcome": "Understand and apply angles to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT7-GEO-04-S1-T1",
+                  "name": "Types of Angles",
+                  "descriptor": "Understand and apply types of angles to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-GEO-04-S1-T2",
+                  "name": "Angles on a Straight Line and at a Point",
+                  "descriptor": "Understand and apply angles on a straight line and at a point to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-GEO-04-S1-T3",
+                  "name": "Angles in Triangles and Quadrilaterals",
+                  "descriptor": "Understand and apply angles in triangles and quadrilaterals to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-GEO-04-S1-T4",
+                  "name": "Angle Properties of Parallel Lines",
+                  "descriptor": "Understand and apply angle properties of parallel lines to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT7-GEO-04-S2",
+              "name": "Plane Figures",
+              "descriptor": "Understand and apply plane figures to solve everyday problems.",
+              "learningOutcome": "Understand and apply plane figures to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT7-GEO-04-S2-T1",
+                  "name": "Properties of Triangles",
+                  "descriptor": "Understand and apply properties of triangles to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-GEO-04-S2-T2",
+                  "name": "Properties of Quadrilaterals",
+                  "descriptor": "Understand and apply properties of quadrilaterals to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-GEO-04-S2-T3",
+                  "name": "Polygons",
+                  "descriptor": "Understand and apply polygons to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-GEO-04-S2-T4",
+                  "name": "Circles and Their Parts",
+                  "descriptor": "Understand and apply circles and their parts to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT7-GEO-04-S3",
+              "name": "Solid Figures",
+              "descriptor": "Understand and apply solid figures to solve everyday problems.",
+              "learningOutcome": "Understand and apply solid figures to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT7-GEO-04-S3-T1",
+                  "name": "Cubes and Cuboids",
+                  "descriptor": "Understand and apply cubes and cuboids to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-GEO-04-S3-T2",
+                  "name": "Prisms and Cylinders",
+                  "descriptor": "Understand and apply prisms and cylinders to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-GEO-04-S3-T3",
+                  "name": "Nets of Solids",
+                  "descriptor": "Understand and apply nets of solids to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-GEO-04-S3-T4",
+                  "name": "Faces, Edges and Vertices",
+                  "descriptor": "Understand and apply faces, edges and vertices to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT7-GEO-04-S4",
+              "name": "Position, Direction and Construction",
+              "descriptor": "Understand and apply position, direction and construction to solve everyday problems.",
+              "learningOutcome": "Understand and apply position, direction and construction to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT7-GEO-04-S4-T1",
+                  "name": "Compass Directions",
+                  "descriptor": "Understand and apply compass directions to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-GEO-04-S4-T2",
+                  "name": "Coordinates and Scale Drawing",
+                  "descriptor": "Understand and apply coordinates and scale drawing to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-GEO-04-S4-T3",
+                  "name": "Constructing Triangles",
+                  "descriptor": "Understand and apply constructing triangles to solve everyday problems."
+                },
+                {
+                  "code": "MAT7-GEO-04-S4-T4",
+                  "name": "Constructing Circles and Bisectors",
+                  "descriptor": "Understand and apply constructing circles and bisectors to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "gradeLevel": "Grade 8",
+      "strands": [
+        {
+          "code": "MAT8-NUM-01",
+          "name": "Numbers",
+          "descriptor": "Extend number work to integers, percentages, ratio, proportion and indices.",
+          "subStrands": [
+            {
+              "code": "MAT8-NUM-01-S1",
+              "name": "Integers",
+              "descriptor": "Understand and apply integers to solve everyday problems.",
+              "learningOutcome": "Understand and apply integers to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT8-NUM-01-S1-T1",
+                  "name": "The Number Line and Integers",
+                  "descriptor": "Understand and apply the number line and integers to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-NUM-01-S1-T2",
+                  "name": "Addition and Subtraction of Integers",
+                  "descriptor": "Understand and apply addition and subtraction of integers to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-NUM-01-S1-T3",
+                  "name": "Multiplication and Division of Integers",
+                  "descriptor": "Understand and apply multiplication and division of integers to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-NUM-01-S1-T4",
+                  "name": "Applications of Integers",
+                  "descriptor": "Understand and apply applications of integers to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT8-NUM-01-S2",
+              "name": "Fractions, Decimals and Percentages",
+              "descriptor": "Understand and apply fractions, decimals and percentages to solve everyday problems.",
+              "learningOutcome": "Understand and apply fractions, decimals and percentages to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT8-NUM-01-S2-T1",
+                  "name": "Converting Fractions, Decimals and Percentages",
+                  "descriptor": "Understand and apply converting fractions, decimals and percentages to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-NUM-01-S2-T2",
+                  "name": "Finding Percentages",
+                  "descriptor": "Understand and apply finding percentages to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-NUM-01-S2-T3",
+                  "name": "Percentage Increase and Decrease",
+                  "descriptor": "Understand and apply percentage increase and decrease to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-NUM-01-S2-T4",
+                  "name": "Simple Interest",
+                  "descriptor": "Understand and apply simple interest to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT8-NUM-01-S3",
+              "name": "Ratio and Proportion",
+              "descriptor": "Understand and apply ratio and proportion to solve everyday problems.",
+              "learningOutcome": "Understand and apply ratio and proportion to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT8-NUM-01-S3-T1",
+                  "name": "Ratio and Its Simplification",
+                  "descriptor": "Understand and apply ratio and its simplification to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-NUM-01-S3-T2",
+                  "name": "Direct Proportion",
+                  "descriptor": "Understand and apply direct proportion to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-NUM-01-S3-T3",
+                  "name": "Indirect Proportion",
+                  "descriptor": "Understand and apply indirect proportion to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-NUM-01-S3-T4",
+                  "name": "Sharing Using Ratios",
+                  "descriptor": "Understand and apply sharing using ratios to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT8-NUM-01-S4",
+              "name": "Indices and Roots",
+              "descriptor": "Understand and apply indices and roots to solve everyday problems.",
+              "learningOutcome": "Understand and apply indices and roots to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT8-NUM-01-S4-T1",
+                  "name": "Squares and Cube Roots",
+                  "descriptor": "Understand and apply squares and cube roots to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-NUM-01-S4-T2",
+                  "name": "Laws of Indices",
+                  "descriptor": "Understand and apply laws of indices to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-NUM-01-S4-T3",
+                  "name": "Standard Form",
+                  "descriptor": "Understand and apply standard form to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-NUM-01-S4-T4",
+                  "name": "Number Patterns and Sequences",
+                  "descriptor": "Understand and apply number patterns and sequences to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "MAT8-ALG-02",
+          "name": "Algebra",
+          "descriptor": "Manipulate algebraic expressions and solve equations, inequalities and linear graphs.",
+          "subStrands": [
+            {
+              "code": "MAT8-ALG-02-S1",
+              "name": "Algebraic Expressions",
+              "descriptor": "Understand and apply algebraic expressions to solve everyday problems.",
+              "learningOutcome": "Understand and apply algebraic expressions to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT8-ALG-02-S1-T1",
+                  "name": "Expanding Brackets",
+                  "descriptor": "Understand and apply expanding brackets to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-ALG-02-S1-T2",
+                  "name": "Factorising Expressions",
+                  "descriptor": "Understand and apply factorising expressions to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-ALG-02-S1-T3",
+                  "name": "Simplifying Algebraic Fractions",
+                  "descriptor": "Understand and apply simplifying algebraic fractions to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-ALG-02-S1-T4",
+                  "name": "Substitution and Evaluation",
+                  "descriptor": "Understand and apply substitution and evaluation to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT8-ALG-02-S2",
+              "name": "Linear Equations",
+              "descriptor": "Understand and apply linear equations to solve everyday problems.",
+              "learningOutcome": "Understand and apply linear equations to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT8-ALG-02-S2-T1",
+                  "name": "Equations with Fractions",
+                  "descriptor": "Understand and apply equations with fractions to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-ALG-02-S2-T2",
+                  "name": "Simultaneous Equations by Elimination",
+                  "descriptor": "Understand and apply simultaneous equations by elimination to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-ALG-02-S2-T3",
+                  "name": "Simultaneous Equations by Substitution",
+                  "descriptor": "Understand and apply simultaneous equations by substitution to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-ALG-02-S2-T4",
+                  "name": "Applications of Linear Equations",
+                  "descriptor": "Understand and apply applications of linear equations to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT8-ALG-02-S3",
+              "name": "Linear Inequalities",
+              "descriptor": "Understand and apply linear inequalities to solve everyday problems.",
+              "learningOutcome": "Understand and apply linear inequalities to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT8-ALG-02-S3-T1",
+                  "name": "Solving Linear Inequalities",
+                  "descriptor": "Understand and apply solving linear inequalities to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-ALG-02-S3-T2",
+                  "name": "Compound Inequalities",
+                  "descriptor": "Understand and apply compound inequalities to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-ALG-02-S3-T3",
+                  "name": "Graphical Representation of Inequalities",
+                  "descriptor": "Understand and apply graphical representation of inequalities to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-ALG-02-S3-T4",
+                  "name": "Applications of Inequalities",
+                  "descriptor": "Understand and apply applications of inequalities to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT8-ALG-02-S4",
+              "name": "Linear Graphs",
+              "descriptor": "Understand and apply linear graphs to solve everyday problems.",
+              "learningOutcome": "Understand and apply linear graphs to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT8-ALG-02-S4-T1",
+                  "name": "Gradient of a Straight Line",
+                  "descriptor": "Understand and apply gradient of a straight line to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-ALG-02-S4-T2",
+                  "name": "Equation of a Straight Line",
+                  "descriptor": "Understand and apply equation of a straight line to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-ALG-02-S4-T3",
+                  "name": "Graphs of Linear Equations",
+                  "descriptor": "Understand and apply graphs of linear equations to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-ALG-02-S4-T4",
+                  "name": "Applications of Linear Graphs",
+                  "descriptor": "Understand and apply applications of linear graphs to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "MAT8-MEAS-03",
+          "name": "Measurements",
+          "descriptor": "Calculate perimeter, area, volume, density, speed and their applications.",
+          "subStrands": [
+            {
+              "code": "MAT8-MEAS-03-S1",
+              "name": "Length, Area and Perimeter",
+              "descriptor": "Understand and apply length, area and perimeter to solve everyday problems.",
+              "learningOutcome": "Understand and apply length, area and perimeter to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT8-MEAS-03-S1-T1",
+                  "name": "Perimeter of Composite Figures",
+                  "descriptor": "Understand and apply perimeter of composite figures to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-MEAS-03-S1-T2",
+                  "name": "Area of Composite Figures",
+                  "descriptor": "Understand and apply area of composite figures to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-MEAS-03-S1-T3",
+                  "name": "Area of a Sector",
+                  "descriptor": "Understand and apply area of a sector to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-MEAS-03-S1-T4",
+                  "name": "Word Problems on Area and Perimeter",
+                  "descriptor": "Understand and apply word problems on area and perimeter to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT8-MEAS-03-S2",
+              "name": "Volume and Surface Area",
+              "descriptor": "Understand and apply volume and surface area to solve everyday problems.",
+              "learningOutcome": "Understand and apply volume and surface area to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT8-MEAS-03-S2-T1",
+                  "name": "Volume of Prisms and Cylinders",
+                  "descriptor": "Understand and apply volume of prisms and cylinders to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-MEAS-03-S2-T2",
+                  "name": "Surface Area of Prisms",
+                  "descriptor": "Understand and apply surface area of prisms to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-MEAS-03-S2-T3",
+                  "name": "Volume of Pyramids and Cones",
+                  "descriptor": "Understand and apply volume of pyramids and cones to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-MEAS-03-S2-T4",
+                  "name": "Word Problems on Volume",
+                  "descriptor": "Understand and apply word problems on volume to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT8-MEAS-03-S3",
+              "name": "Mass, Density and Weight",
+              "descriptor": "Understand and apply mass, density and weight to solve everyday problems.",
+              "learningOutcome": "Understand and apply mass, density and weight to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT8-MEAS-03-S3-T1",
+                  "name": "Units of Mass",
+                  "descriptor": "Understand and apply units of mass to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-MEAS-03-S3-T2",
+                  "name": "Density of Materials",
+                  "descriptor": "Understand and apply density of materials to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-MEAS-03-S3-T3",
+                  "name": "Mass, Volume and Density Problems",
+                  "descriptor": "Understand and apply mass, volume and density problems to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-MEAS-03-S3-T4",
+                  "name": "Weight and Mass",
+                  "descriptor": "Understand and apply weight and mass to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT8-MEAS-03-S4",
+              "name": "Distance, Speed and Time",
+              "descriptor": "Understand and apply distance, speed and time to solve everyday problems.",
+              "learningOutcome": "Understand and apply distance, speed and time to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT8-MEAS-03-S4-T1",
+                  "name": "Units of Speed",
+                  "descriptor": "Understand and apply units of speed to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-MEAS-03-S4-T2",
+                  "name": "Distance, Speed and Time Problems",
+                  "descriptor": "Understand and apply distance, speed and time problems to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-MEAS-03-S4-T3",
+                  "name": "Distance-Time Graphs",
+                  "descriptor": "Understand and apply distance-time graphs to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-MEAS-03-S4-T4",
+                  "name": "Average Speed",
+                  "descriptor": "Understand and apply average speed to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "MAT8-GEO-04",
+          "name": "Geometry",
+          "descriptor": "Explore angles and polygons, similarity, transformations and construction.",
+          "subStrands": [
+            {
+              "code": "MAT8-GEO-04-S1",
+              "name": "Angles and Polygons",
+              "descriptor": "Understand and apply angles and polygons to solve everyday problems.",
+              "learningOutcome": "Understand and apply angles and polygons to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT8-GEO-04-S1-T1",
+                  "name": "Interior Angles of Polygons",
+                  "descriptor": "Understand and apply interior angles of polygons to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-GEO-04-S1-T2",
+                  "name": "Exterior Angles of Polygons",
+                  "descriptor": "Understand and apply exterior angles of polygons to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-GEO-04-S1-T3",
+                  "name": "Angles in Parallel Lines",
+                  "descriptor": "Understand and apply angles in parallel lines to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-GEO-04-S1-T4",
+                  "name": "Bearings",
+                  "descriptor": "Understand and apply bearings to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT8-GEO-04-S2",
+              "name": "Similarity and Congruence",
+              "descriptor": "Understand and apply similarity and congruence to solve everyday problems.",
+              "learningOutcome": "Understand and apply similarity and congruence to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT8-GEO-04-S2-T1",
+                  "name": "Similar Figures",
+                  "descriptor": "Understand and apply similar figures to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-GEO-04-S2-T2",
+                  "name": "Congruent Figures",
+                  "descriptor": "Understand and apply congruent figures to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-GEO-04-S2-T3",
+                  "name": "Enlargement and Scale Factor",
+                  "descriptor": "Understand and apply enlargement and scale factor to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-GEO-04-S2-T4",
+                  "name": "Applications of Similarity",
+                  "descriptor": "Understand and apply applications of similarity to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT8-GEO-04-S3",
+              "name": "Transformations",
+              "descriptor": "Understand and apply transformations to solve everyday problems.",
+              "learningOutcome": "Understand and apply transformations to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT8-GEO-04-S3-T1",
+                  "name": "Reflection",
+                  "descriptor": "Understand and apply reflection to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-GEO-04-S3-T2",
+                  "name": "Rotation",
+                  "descriptor": "Understand and apply rotation to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-GEO-04-S3-T3",
+                  "name": "Translation",
+                  "descriptor": "Understand and apply translation to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-GEO-04-S3-T4",
+                  "name": "Combined Transformations",
+                  "descriptor": "Understand and apply combined transformations to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT8-GEO-04-S4",
+              "name": "Construction and Loci",
+              "descriptor": "Understand and apply construction and loci to solve everyday problems.",
+              "learningOutcome": "Understand and apply construction and loci to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT8-GEO-04-S4-T1",
+                  "name": "Constructing Perpendicular Lines",
+                  "descriptor": "Understand and apply constructing perpendicular lines to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-GEO-04-S4-T2",
+                  "name": "Constructing Angle Bisectors",
+                  "descriptor": "Understand and apply constructing angle bisectors to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-GEO-04-S4-T3",
+                  "name": "Loci of Points",
+                  "descriptor": "Understand and apply loci of points to solve everyday problems."
+                },
+                {
+                  "code": "MAT8-GEO-04-S4-T4",
+                  "name": "Scale Drawing",
+                  "descriptor": "Understand and apply scale drawing to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "gradeLevel": "Grade 9",
+      "strands": [
+        {
+          "code": "MAT9-NUM-01",
+          "name": "Numbers",
+          "descriptor": "Work with real numbers, surds, rates, indices and approximation.",
+          "subStrands": [
+            {
+              "code": "MAT9-NUM-01-S1",
+              "name": "Real Numbers",
+              "descriptor": "Understand and apply real numbers to solve everyday problems.",
+              "learningOutcome": "Understand and apply real numbers to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT9-NUM-01-S1-T1",
+                  "name": "Rational and Irrational Numbers",
+                  "descriptor": "Understand and apply rational and irrational numbers to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-NUM-01-S1-T2",
+                  "name": "Surds and Their Operations",
+                  "descriptor": "Understand and apply surds and their operations to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-NUM-01-S1-T3",
+                  "name": "Rationalising Denominators",
+                  "descriptor": "Understand and apply rationalising denominators to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-NUM-01-S1-T4",
+                  "name": "Number Bases and Operations",
+                  "descriptor": "Understand and apply number bases and operations to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT9-NUM-01-S2",
+              "name": "Fractions, Decimals and Percentages",
+              "descriptor": "Understand and apply fractions, decimals and percentages to solve everyday problems.",
+              "learningOutcome": "Understand and apply fractions, decimals and percentages to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT9-NUM-01-S2-T1",
+                  "name": "Recurring Decimals",
+                  "descriptor": "Understand and apply recurring decimals to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-NUM-01-S2-T2",
+                  "name": "Compound Interest",
+                  "descriptor": "Understand and apply compound interest to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-NUM-01-S2-T3",
+                  "name": "Percentage Profit and Loss",
+                  "descriptor": "Understand and apply percentage profit and loss to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-NUM-01-S2-T4",
+                  "name": "Hire Purchase and Discounts",
+                  "descriptor": "Understand and apply hire purchase and discounts to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT9-NUM-01-S3",
+              "name": "Ratio, Proportion and Rates",
+              "descriptor": "Understand and apply ratio, proportion and rates to solve everyday problems.",
+              "learningOutcome": "Understand and apply ratio, proportion and rates to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT9-NUM-01-S3-T1",
+                  "name": "Ratio and Rates",
+                  "descriptor": "Understand and apply ratio and rates to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-NUM-01-S3-T2",
+                  "name": "Direct and Inverse Proportion",
+                  "descriptor": "Understand and apply direct and inverse proportion to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-NUM-01-S3-T3",
+                  "name": "Rates of Work",
+                  "descriptor": "Understand and apply rates of work to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-NUM-01-S3-T4",
+                  "name": "Mixtures and Alligation",
+                  "descriptor": "Understand and apply mixtures and alligation to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT9-NUM-01-S4",
+              "name": "Indices and Approximation",
+              "descriptor": "Understand and apply indices and approximation to solve everyday problems.",
+              "learningOutcome": "Understand and apply indices and approximation to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT9-NUM-01-S4-T1",
+                  "name": "Laws of Indices",
+                  "descriptor": "Understand and apply laws of indices to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-NUM-01-S4-T2",
+                  "name": "Negative and Fractional Indices",
+                  "descriptor": "Understand and apply negative and fractional indices to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-NUM-01-S4-T3",
+                  "name": "Standard Form and Approximations",
+                  "descriptor": "Understand and apply standard form and approximations to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-NUM-01-S4-T4",
+                  "name": "Number Sequences and Patterns",
+                  "descriptor": "Understand and apply number sequences and patterns to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "MAT9-ALG-02",
+          "name": "Algebra",
+          "descriptor": "Solve quadratic and simultaneous equations and interpret functions and graphs.",
+          "subStrands": [
+            {
+              "code": "MAT9-ALG-02-S1",
+              "name": "Algebraic Expressions",
+              "descriptor": "Understand and apply algebraic expressions to solve everyday problems.",
+              "learningOutcome": "Understand and apply algebraic expressions to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT9-ALG-02-S1-T1",
+                  "name": "Factorising Quadratic Expressions",
+                  "descriptor": "Understand and apply factorising quadratic expressions to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-ALG-02-S1-T2",
+                  "name": "Completing the Square",
+                  "descriptor": "Understand and apply completing the square to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-ALG-02-S1-T3",
+                  "name": "Algebraic Fractions",
+                  "descriptor": "Understand and apply algebraic fractions to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-ALG-02-S1-T4",
+                  "name": "Formulae and Change of Subject",
+                  "descriptor": "Understand and apply formulae and change of subject to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT9-ALG-02-S2",
+              "name": "Quadratic Equations",
+              "descriptor": "Understand and apply quadratic equations to solve everyday problems.",
+              "learningOutcome": "Understand and apply quadratic equations to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT9-ALG-02-S2-T1",
+                  "name": "Solving Quadratic Equations by Factorisation",
+                  "descriptor": "Understand and apply solving quadratic equations by factorisation to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-ALG-02-S2-T2",
+                  "name": "Solving by Completing the Square",
+                  "descriptor": "Understand and apply solving by completing the square to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-ALG-02-S2-T3",
+                  "name": "The Quadratic Formula",
+                  "descriptor": "Understand and apply the quadratic formula to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-ALG-02-S2-T4",
+                  "name": "Applications of Quadratic Equations",
+                  "descriptor": "Understand and apply applications of quadratic equations to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT9-ALG-02-S3",
+              "name": "Simultaneous Equations",
+              "descriptor": "Understand and apply simultaneous equations to solve everyday problems.",
+              "learningOutcome": "Understand and apply simultaneous equations to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT9-ALG-02-S3-T1",
+                  "name": "Simultaneous Linear Equations",
+                  "descriptor": "Understand and apply simultaneous linear equations to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-ALG-02-S3-T2",
+                  "name": "Linear and Quadratic Simultaneous Equations",
+                  "descriptor": "Understand and apply linear and quadratic simultaneous equations to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-ALG-02-S3-T3",
+                  "name": "Graphical Solutions",
+                  "descriptor": "Understand and apply graphical solutions to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-ALG-02-S3-T4",
+                  "name": "Applications of Simultaneous Equations",
+                  "descriptor": "Understand and apply applications of simultaneous equations to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT9-ALG-02-S4",
+              "name": "Functions and Graphs",
+              "descriptor": "Understand and apply functions and graphs to solve everyday problems.",
+              "learningOutcome": "Understand and apply functions and graphs to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT9-ALG-02-S4-T1",
+                  "name": "Linear Functions and Graphs",
+                  "descriptor": "Understand and apply linear functions and graphs to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-ALG-02-S4-T2",
+                  "name": "Quadratic Graphs",
+                  "descriptor": "Understand and apply quadratic graphs to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-ALG-02-S4-T3",
+                  "name": "Interpreting Graphs",
+                  "descriptor": "Understand and apply interpreting graphs to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-ALG-02-S4-T4",
+                  "name": "Travel and Distance-Time Graphs",
+                  "descriptor": "Understand and apply travel and distance-time graphs to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "MAT9-GEO-03",
+          "name": "Geometry",
+          "descriptor": "Apply circle theorems, trigonometry, solids and transformations.",
+          "subStrands": [
+            {
+              "code": "MAT9-GEO-03-S1",
+              "name": "Circles",
+              "descriptor": "Understand and apply circles to solve everyday problems.",
+              "learningOutcome": "Understand and apply circles to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT9-GEO-03-S1-T1",
+                  "name": "Chords and Arcs",
+                  "descriptor": "Understand and apply chords and arcs to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-GEO-03-S1-T2",
+                  "name": "Angles in a Circle",
+                  "descriptor": "Understand and apply angles in a circle to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-GEO-03-S1-T3",
+                  "name": "Tangents to a Circle",
+                  "descriptor": "Understand and apply tangents to a circle to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-GEO-03-S1-T4",
+                  "name": "Cyclic Quadrilaterals",
+                  "descriptor": "Understand and apply cyclic quadrilaterals to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT9-GEO-03-S2",
+              "name": "Triangles and Polygons",
+              "descriptor": "Understand and apply triangles and polygons to solve everyday problems.",
+              "learningOutcome": "Understand and apply triangles and polygons to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT9-GEO-03-S2-T1",
+                  "name": "The Sine Rule",
+                  "descriptor": "Understand and apply the sine rule to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-GEO-03-S2-T2",
+                  "name": "The Cosine Rule",
+                  "descriptor": "Understand and apply the cosine rule to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-GEO-03-S2-T3",
+                  "name": "Area of a Triangle",
+                  "descriptor": "Understand and apply area of a triangle to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-GEO-03-S2-T4",
+                  "name": "Bearings and Distances",
+                  "descriptor": "Understand and apply bearings and distances to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT9-GEO-03-S3",
+              "name": "Solid Figures",
+              "descriptor": "Understand and apply solid figures to solve everyday problems.",
+              "learningOutcome": "Understand and apply solid figures to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT9-GEO-03-S3-T1",
+                  "name": "Volume and Surface Area of Solids",
+                  "descriptor": "Understand and apply volume and surface area of solids to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-GEO-03-S3-T2",
+                  "name": "Frustums",
+                  "descriptor": "Understand and apply frustums to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-GEO-03-S3-T3",
+                  "name": "Nets and Models",
+                  "descriptor": "Understand and apply nets and models to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-GEO-03-S3-T4",
+                  "name": "Scale Drawing of Solids",
+                  "descriptor": "Understand and apply scale drawing of solids to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT9-GEO-03-S4",
+              "name": "Transformations and Similarity",
+              "descriptor": "Understand and apply transformations and similarity to solve everyday problems.",
+              "learningOutcome": "Understand and apply transformations and similarity to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT9-GEO-03-S4-T1",
+                  "name": "Similar Triangles",
+                  "descriptor": "Understand and apply similar triangles to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-GEO-03-S4-T2",
+                  "name": "Enlargement and Scale Factor",
+                  "descriptor": "Understand and apply enlargement and scale factor to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-GEO-03-S4-T3",
+                  "name": "Combined Transformations",
+                  "descriptor": "Understand and apply combined transformations to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-GEO-03-S4-T4",
+                  "name": "Symmetry and Tessellation",
+                  "descriptor": "Understand and apply symmetry and tessellation to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "MAT9-DATA-04",
+          "name": "Data Handling",
+          "descriptor": "Collect, represent, interpret and reason about data and chance.",
+          "subStrands": [
+            {
+              "code": "MAT9-DATA-04-S1",
+              "name": "Collecting and Organising Data",
+              "descriptor": "Understand and apply collecting and organising data to solve everyday problems.",
+              "learningOutcome": "Understand and apply collecting and organising data to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT9-DATA-04-S1-T1",
+                  "name": "Sources of Data",
+                  "descriptor": "Understand and apply sources of data to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-DATA-04-S1-T2",
+                  "name": "Questionnaires and Interviews",
+                  "descriptor": "Understand and apply questionnaires and interviews to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-DATA-04-S1-T3",
+                  "name": "Frequency Tables",
+                  "descriptor": "Understand and apply frequency tables to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-DATA-04-S1-T4",
+                  "name": "Grouped Frequency Tables",
+                  "descriptor": "Understand and apply grouped frequency tables to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT9-DATA-04-S2",
+              "name": "Representing Data",
+              "descriptor": "Understand and apply representing data to solve everyday problems.",
+              "learningOutcome": "Understand and apply representing data to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT9-DATA-04-S2-T1",
+                  "name": "Bar Graphs and Histograms",
+                  "descriptor": "Understand and apply bar graphs and histograms to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-DATA-04-S2-T2",
+                  "name": "Pie Charts",
+                  "descriptor": "Understand and apply pie charts to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-DATA-04-S2-T3",
+                  "name": "Line Graphs and Frequency Polygons",
+                  "descriptor": "Understand and apply line graphs and frequency polygons to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-DATA-04-S2-T4",
+                  "name": "Choosing Suitable Representations",
+                  "descriptor": "Understand and apply choosing suitable representations to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT9-DATA-04-S3",
+              "name": "Interpreting Data",
+              "descriptor": "Understand and apply interpreting data to solve everyday problems.",
+              "learningOutcome": "Understand and apply interpreting data to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT9-DATA-04-S3-T1",
+                  "name": "Measures of Central Tendency",
+                  "descriptor": "Understand and apply measures of central tendency to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-DATA-04-S3-T2",
+                  "name": "Measures of Dispersion",
+                  "descriptor": "Understand and apply measures of dispersion to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-DATA-04-S3-T3",
+                  "name": "Reading and Interpreting Graphs",
+                  "descriptor": "Understand and apply reading and interpreting graphs to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-DATA-04-S3-T4",
+                  "name": "Drawing Conclusions From Data",
+                  "descriptor": "Understand and apply drawing conclusions from data to solve everyday problems."
+                }
+              ]
+            },
+            {
+              "code": "MAT9-DATA-04-S4",
+              "name": "Probability",
+              "descriptor": "Understand and apply probability to solve everyday problems.",
+              "learningOutcome": "Understand and apply probability to solve everyday problems.",
+              "topics": [
+                {
+                  "code": "MAT9-DATA-04-S4-T1",
+                  "name": "Chance Events",
+                  "descriptor": "Understand and apply chance events to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-DATA-04-S4-T2",
+                  "name": "Probability Scales",
+                  "descriptor": "Understand and apply probability scales to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-DATA-04-S4-T3",
+                  "name": "Probability of Events",
+                  "descriptor": "Understand and apply probability of events to solve everyday problems."
+                },
+                {
+                  "code": "MAT9-DATA-04-S4-T4",
+                  "name": "Simple Probability Experiments",
+                  "descriptor": "Understand and apply simple probability experiments to solve everyday problems."
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ]
 }

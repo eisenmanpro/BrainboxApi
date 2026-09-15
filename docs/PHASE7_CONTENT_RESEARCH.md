@@ -235,21 +235,25 @@ document rather than a model. This is the index everything else hangs off, and i
 makes search/strand filters look real. Rough shape: grade → subject → strand → sub-strand →
 8–20 topics.
 
-**Tier 0 status — delivered for five subjects at G4–G6 (7.5b-1 + 7.5b-2a).** The skeleton now
-lives in `cbc_strands` (level `STRAND`/`SUBSTRAND`, `parent_id`, `curriculum_version`) plus the
-shared `concepts`/`curriculum_map` layer, and is seeded from **versioned resource data**: one
-`curriculum_versions` row plus one JSON catalogue per subject under
-`src/main/resources/curriculum/` (`ke-cbc-v1.json` Mathematics, `ke-cbc-english.json`,
+**Tier 0 status — delivered for five subjects at G4–G9 (7.5b-1 + 7.5b-2a + 7.5b-2b).** The
+skeleton now lives in `cbc_strands` (level `STRAND`/`SUBSTRAND`, `parent_id`,
+`curriculum_version`) plus the shared `concepts`/`curriculum_map` layer, and is seeded from
+**versioned resource data**: one `curriculum_versions` row plus one JSON catalogue per subject
+under `src/main/resources/curriculum/` (`ke-cbc-v1.json` Mathematics, `ke-cbc-english.json`,
 `ke-cbc-integrated-science.json`, `ke-cbc-kiswahili.json` and `ke-cbc-social-studies.json`).
-`CurriculumSeeder` discovers every catalogue with a classpath wildcard, so adding a subject is a
-data-only change and the `curriculum_versions` row is never clobbered by a later subject file.
-The delivered G4–G6 breadth is **60 strands, 247 sub-strands and 977 topics**: Mathematics
-12/55/209 (unchanged from 7.5b-1) and English, Integrated Science, Kiswahili and Social Studies
-12/48/192 each (4 strands, 16 sub-strands and 64 topics per subject-grade; 3–5 sub-strands per
-strand and 3–5 topics per sub-strand). The catalogues are our own authored mapping aligned to the
-public Kenya CBC strand and sub-strand labels; they are not KICD text, and no KICD or KNEC
-document is ingested, quoted or attributed. The G7–G9 band follows in **7.5b-2b** as further data
-files, so adding a band stays a data-only change.
+`CurriculumSeeder` discovers every catalogue with a classpath wildcard, so adding a subject or a
+grade band is a data-only change and the `curriculum_versions` row is never clobbered by a later
+subject file. The delivered Tier 0 breadth is **120 strands, 487 sub-strands and 1937 topics**.
+The G4–G6 band (7.5b-1 + 7.5b-2a) is 60/247/977: Mathematics 12/55/209 and English, Integrated
+Science, Kiswahili and Social Studies 12/48/192 each. The G7–G9 Junior School band (7.5b-2b) adds
+**60/240/960**, with 4 strands, 16 sub-strands and 64 topics per subject-grade (4 sub-strands per
+strand and 4 topics per sub-strand), the canonical `Grade 7`/`Grade 8`/`Grade 9` strings and
+codes continuing each subject's pattern (`MAT7-...`, `ENG7-...`, `SCI7-...`, `KIS7-...`,
+`SST7-...`). JSS Integrated Science and Social Studies are their own subjects at this band, not the
+senior-school pathway splits. The catalogues are our own authored mapping aligned to the public
+Kenya CBC strand and sub-strand labels; they are not KICD text, and no KICD or KNEC document is
+ingested, quoted or attributed. Senior school G10–G12 and the remaining non-launch subjects
+(Agriculture, Pre-Technical Studies, Creative Arts and the rest) are later work.
 
 **Tier 1 — a batch-generated starter library.** For every topic, produce one `NOTES` post,
 one `QUIZ` and one `FLASHCARDS` set; for every subject×grade, one or two past papers and one

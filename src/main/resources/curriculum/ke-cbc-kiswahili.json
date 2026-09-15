@@ -1448,6 +1448,1449 @@
           ]
         }
       ]
+    },
+    {
+      "gradeLevel": "Grade 7",
+      "strands": [
+        {
+          "code": "KIS7-KK-01",
+          "name": "Kusikiliza na Kuzungumza",
+          "descriptor": "Kusikiliza kwa makini na kuzungumza kwa ufasaha katika hali mbalimbali.",
+          "subStrands": [
+            {
+              "code": "KIS7-KK-01-S1",
+              "name": "Matamshi Bora",
+              "descriptor": "Kutumia matamshi bora kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia matamshi bora kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS7-KK-01-S1-T1",
+                  "name": "Irabu na Konsonanti",
+                  "descriptor": "Kuelewa na kutumia irabu na konsonanti katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KK-01-S1-T2",
+                  "name": "Lafudhi Sahihi",
+                  "descriptor": "Kuelewa na kutumia lafudhi sahihi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KK-01-S1-T3",
+                  "name": "Kiimbo",
+                  "descriptor": "Kuelewa na kutumia kiimbo katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KK-01-S1-T4",
+                  "name": "Silabi",
+                  "descriptor": "Kuelewa na kutumia silabi katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS7-KK-01-S2",
+              "name": "Msamiati",
+              "descriptor": "Kutumia msamiati kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia msamiati kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS7-KK-01-S2-T1",
+                  "name": "Msamiati wa Shule",
+                  "descriptor": "Kuelewa na kutumia msamiati wa shule katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KK-01-S2-T2",
+                  "name": "Msamiati wa Jamii",
+                  "descriptor": "Kuelewa na kutumia msamiati wa jamii katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KK-01-S2-T3",
+                  "name": "Misemo na Vitendawili",
+                  "descriptor": "Kuelewa na kutumia misemo na vitendawili katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KK-01-S2-T4",
+                  "name": "Nahau",
+                  "descriptor": "Kuelewa na kutumia nahau katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS7-KK-01-S3",
+              "name": "Ufahamu wa Kusikiliza",
+              "descriptor": "Kutumia ufahamu wa kusikiliza kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia ufahamu wa kusikiliza kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS7-KK-01-S3-T1",
+                  "name": "Kusikiliza Hadithi",
+                  "descriptor": "Kuelewa na kutumia kusikiliza hadithi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KK-01-S3-T2",
+                  "name": "Kusikiliza Habari",
+                  "descriptor": "Kuelewa na kutumia kusikiliza habari katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KK-01-S3-T3",
+                  "name": "Kusikiliza Maelekezo",
+                  "descriptor": "Kuelewa na kutumia kusikiliza maelekezo katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KK-01-S3-T4",
+                  "name": "Kujibu Maswali",
+                  "descriptor": "Kuelewa na kutumia kujibu maswali katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS7-KK-01-S4",
+              "name": "Mazungumzo",
+              "descriptor": "Kutumia mazungumzo kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia mazungumzo kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS7-KK-01-S4-T1",
+                  "name": "Mazungumzo ya Kawaida",
+                  "descriptor": "Kuelewa na kutumia mazungumzo ya kawaida katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KK-01-S4-T2",
+                  "name": "Kuomba Ruhusa",
+                  "descriptor": "Kuelewa na kutumia kuomba ruhusa katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KK-01-S4-T3",
+                  "name": "Mazungumzo ya Simu",
+                  "descriptor": "Kuelewa na kutumia mazungumzo ya simu katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KK-01-S4-T4",
+                  "name": "Majadiliano ya Kikundi",
+                  "descriptor": "Kuelewa na kutumia majadiliano ya kikundi katika maisha ya kila siku."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "KIS7-KS-02",
+          "name": "Kusoma",
+          "descriptor": "Kusoma kwa ufasaha, kwa kina na kwa upana kwa madhumuni mbalimbali.",
+          "subStrands": [
+            {
+              "code": "KIS7-KS-02-S1",
+              "name": "Kusoma kwa Ufasaha",
+              "descriptor": "Kutumia kusoma kwa ufasaha kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia kusoma kwa ufasaha kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS7-KS-02-S1-T1",
+                  "name": "Kusoma kwa Sauti",
+                  "descriptor": "Kuelewa na kutumia kusoma kwa sauti katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KS-02-S1-T2",
+                  "name": "Kusoma kwa Kasi",
+                  "descriptor": "Kuelewa na kutumia kusoma kwa kasi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KS-02-S1-T3",
+                  "name": "Kusoma Mashairi",
+                  "descriptor": "Kuelewa na kutumia kusoma mashairi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KS-02-S1-T4",
+                  "name": "Kusoma kwa Hisia",
+                  "descriptor": "Kuelewa na kutumia kusoma kwa hisia katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS7-KS-02-S2",
+              "name": "Kusoma kwa Kina",
+              "descriptor": "Kutumia kusoma kwa kina kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia kusoma kwa kina kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS7-KS-02-S2-T1",
+                  "name": "Wazo Kuu",
+                  "descriptor": "Kuelewa na kutumia wazo kuu katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KS-02-S2-T2",
+                  "name": "Hoja na Ushahidi",
+                  "descriptor": "Kuelewa na kutumia hoja na ushahidi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KS-02-S2-T3",
+                  "name": "Kufikiri kwa Kina",
+                  "descriptor": "Kuelewa na kutumia kufikiri kwa kina katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KS-02-S2-T4",
+                  "name": "Kuhitimisha",
+                  "descriptor": "Kuelewa na kutumia kuhitimisha katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS7-KS-02-S3",
+              "name": "Kusoma kwa Upana",
+              "descriptor": "Kutumia kusoma kwa upana kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia kusoma kwa upana kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS7-KS-02-S3-T1",
+                  "name": "Hadithi Fupi",
+                  "descriptor": "Kuelewa na kutumia hadithi fupi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KS-02-S3-T2",
+                  "name": "Riwaya",
+                  "descriptor": "Kuelewa na kutumia riwaya katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KS-02-S3-T3",
+                  "name": "Magazeti",
+                  "descriptor": "Kuelewa na kutumia magazeti katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KS-02-S3-T4",
+                  "name": "Vitabu vya Kujisomea",
+                  "descriptor": "Kuelewa na kutumia vitabu vya kujisomea katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS7-KS-02-S4",
+              "name": "Ufahamu wa Kusoma",
+              "descriptor": "Kutumia ufahamu wa kusoma kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia ufahamu wa kusoma kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS7-KS-02-S4-T1",
+                  "name": "Kujibu Maswali",
+                  "descriptor": "Kuelewa na kutumia kujibu maswali katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KS-02-S4-T2",
+                  "name": "Wahusika na Maudhui",
+                  "descriptor": "Kuelewa na kutumia wahusika na maudhui katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KS-02-S4-T3",
+                  "name": "Mfululizo wa Matukio",
+                  "descriptor": "Kuelewa na kutumia mfululizo wa matukio katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KS-02-S4-T4",
+                  "name": "Maana ya Maneno",
+                  "descriptor": "Kuelewa na kutumia maana ya maneno katika maisha ya kila siku."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "KIS7-KA-03",
+          "name": "Kuandika",
+          "descriptor": "Kuandika kwa usahihi na ubunifu kwa madhumuni mbalimbali.",
+          "subStrands": [
+            {
+              "code": "KIS7-KA-03-S1",
+              "name": "Hati Nadhifu",
+              "descriptor": "Kutumia hati nadhifu kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia hati nadhifu kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS7-KA-03-S1-T1",
+                  "name": "Kuandika kwa Mkono",
+                  "descriptor": "Kuelewa na kutumia kuandika kwa mkono katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KA-03-S1-T2",
+                  "name": "Ulalo na Usafi",
+                  "descriptor": "Kuelewa na kutumia ulalo na usafi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KA-03-S1-T3",
+                  "name": "Kichwa cha Habari",
+                  "descriptor": "Kuelewa na kutumia kichwa cha habari katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KA-03-S1-T4",
+                  "name": "Kupanga Kazi",
+                  "descriptor": "Kuelewa na kutumia kupanga kazi katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS7-KA-03-S2",
+              "name": "Ijazo",
+              "descriptor": "Kutumia ijazo kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia ijazo kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS7-KA-03-S2-T1",
+                  "name": "Kuziba Nafasi",
+                  "descriptor": "Kuelewa na kutumia kuziba nafasi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KA-03-S2-T2",
+                  "name": "Ijazo la Maneno",
+                  "descriptor": "Kuelewa na kutumia ijazo la maneno katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KA-03-S2-T3",
+                  "name": "Ijazo la Sentensi",
+                  "descriptor": "Kuelewa na kutumia ijazo la sentensi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KA-03-S2-T4",
+                  "name": "Ijazo la Aya",
+                  "descriptor": "Kuelewa na kutumia ijazo la aya katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS7-KA-03-S3",
+              "name": "Insha",
+              "descriptor": "Kutumia insha kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia insha kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS7-KA-03-S3-T1",
+                  "name": "Insha ya Masimulizi",
+                  "descriptor": "Kuelewa na kutumia insha ya masimulizi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KA-03-S3-T2",
+                  "name": "Insha ya Maelezo",
+                  "descriptor": "Kuelewa na kutumia insha ya maelezo katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KA-03-S3-T3",
+                  "name": "Insha ya Methali",
+                  "descriptor": "Kuelewa na kutumia insha ya methali katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KA-03-S3-T4",
+                  "name": "Barua",
+                  "descriptor": "Kuelewa na kutumia barua katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS7-KA-03-S4",
+              "name": "Muhtasari na Kumbukumbu",
+              "descriptor": "Kutumia muhtasari na kumbukumbu kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia muhtasari na kumbukumbu kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS7-KA-03-S4-T1",
+                  "name": "Muhtasari",
+                  "descriptor": "Kuelewa na kutumia muhtasari katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KA-03-S4-T2",
+                  "name": "Vidokezo",
+                  "descriptor": "Kuelewa na kutumia vidokezo katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KA-03-S4-T3",
+                  "name": "Kumbukumbu za Mkutano",
+                  "descriptor": "Kuelewa na kutumia kumbukumbu za mkutano katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-KA-03-S4-T4",
+                  "name": "Ratiba",
+                  "descriptor": "Kuelewa na kutumia ratiba katika maisha ya kila siku."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "KIS7-SM-04",
+          "name": "Sarufi na Matumizi ya Lugha",
+          "descriptor": "Kutumia sarufi na misamiati ya Kiswahili kwa usahihi.",
+          "subStrands": [
+            {
+              "code": "KIS7-SM-04-S1",
+              "name": "Nomino",
+              "descriptor": "Kutumia nomino kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia nomino kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS7-SM-04-S1-T1",
+                  "name": "Aina za Nomino",
+                  "descriptor": "Kuelewa na kutumia aina za nomino katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-SM-04-S1-T2",
+                  "name": "Nomino za Pekee",
+                  "descriptor": "Kuelewa na kutumia nomino za pekee katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-SM-04-S1-T3",
+                  "name": "Ngeli za Nomino",
+                  "descriptor": "Kuelewa na kutumia ngeli za nomino katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-SM-04-S1-T4",
+                  "name": "Umbo la Nomino",
+                  "descriptor": "Kuelewa na kutumia umbo la nomino katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS7-SM-04-S2",
+              "name": "Vitenzi",
+              "descriptor": "Kutumia vitenzi kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia vitenzi kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS7-SM-04-S2-T1",
+                  "name": "Vitenzi vya Mnyambuliko",
+                  "descriptor": "Kuelewa na kutumia vitenzi vya mnyambuliko katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-SM-04-S2-T2",
+                  "name": "Nyakati",
+                  "descriptor": "Kuelewa na kutumia nyakati katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-SM-04-S2-T3",
+                  "name": "Vitendaji",
+                  "descriptor": "Kuelewa na kutumia vitendaji katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-SM-04-S2-T4",
+                  "name": "Vitenzi Kikundi",
+                  "descriptor": "Kuelewa na kutumia vitenzi kikundi katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS7-SM-04-S3",
+              "name": "Vivumishi",
+              "descriptor": "Kutumia vivumishi kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia vivumishi kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS7-SM-04-S3-T1",
+                  "name": "Vivumishi vya Sifa",
+                  "descriptor": "Kuelewa na kutumia vivumishi vya sifa katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-SM-04-S3-T2",
+                  "name": "Vivumishi vya Idadi",
+                  "descriptor": "Kuelewa na kutumia vivumishi vya idadi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-SM-04-S3-T3",
+                  "name": "Vivumishi vya Umiliki",
+                  "descriptor": "Kuelewa na kutumia vivumishi vya umiliki katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-SM-04-S3-T4",
+                  "name": "Vivumishi vya Kuonyesha",
+                  "descriptor": "Kuelewa na kutumia vivumishi vya kuonyesha katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS7-SM-04-S4",
+              "name": "Vielezi na Viunganishi",
+              "descriptor": "Kutumia vielezi na viunganishi kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia vielezi na viunganishi kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS7-SM-04-S4-T1",
+                  "name": "Vielezi vya Namna",
+                  "descriptor": "Kuelewa na kutumia vielezi vya namna katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-SM-04-S4-T2",
+                  "name": "Vielezi vya Wakati",
+                  "descriptor": "Kuelewa na kutumia vielezi vya wakati katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-SM-04-S4-T3",
+                  "name": "Viunganishi",
+                  "descriptor": "Kuelewa na kutumia viunganishi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS7-SM-04-S4-T4",
+                  "name": "Vihusishi",
+                  "descriptor": "Kuelewa na kutumia vihusishi katika maisha ya kila siku."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "gradeLevel": "Grade 8",
+      "strands": [
+        {
+          "code": "KIS8-KK-01",
+          "name": "Kusikiliza na Kuzungumza",
+          "descriptor": "Kusikiliza kwa ufahamu na kuzungumza kwa ufasaha katika mikutano na mahojiano.",
+          "subStrands": [
+            {
+              "code": "KIS8-KK-01-S1",
+              "name": "Matamshi Bora",
+              "descriptor": "Kutumia matamshi bora kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia matamshi bora kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS8-KK-01-S1-T1",
+                  "name": "Lafudhi ya Maneno",
+                  "descriptor": "Kuelewa na kutumia lafudhi ya maneno katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KK-01-S1-T2",
+                  "name": "Kiimbo cha Sentensi",
+                  "descriptor": "Kuelewa na kutumia kiimbo cha sentensi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KK-01-S1-T3",
+                  "name": "Uakifishaji wa Mdomo",
+                  "descriptor": "Kuelewa na kutumia uakifishaji wa mdomo katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KK-01-S1-T4",
+                  "name": "Midundo",
+                  "descriptor": "Kuelewa na kutumia midundo katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS8-KK-01-S2",
+              "name": "Msamiati",
+              "descriptor": "Kutumia msamiati kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia msamiati kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS8-KK-01-S2-T1",
+                  "name": "Msamiati wa Sayansi",
+                  "descriptor": "Kuelewa na kutumia msamiati wa sayansi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KK-01-S2-T2",
+                  "name": "Msamiati wa Biashara",
+                  "descriptor": "Kuelewa na kutumia msamiati wa biashara katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KK-01-S2-T3",
+                  "name": "Nahau na Misemo",
+                  "descriptor": "Kuelewa na kutumia nahau na misemo katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KK-01-S2-T4",
+                  "name": "Methali",
+                  "descriptor": "Kuelewa na kutumia methali katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS8-KK-01-S3",
+              "name": "Ufahamu wa Kusikiliza",
+              "descriptor": "Kutumia ufahamu wa kusikiliza kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia ufahamu wa kusikiliza kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS8-KK-01-S3-T1",
+                  "name": "Kusikiliza Hotuba",
+                  "descriptor": "Kuelewa na kutumia kusikiliza hotuba katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KK-01-S3-T2",
+                  "name": "Kusikiliza Mahojiano",
+                  "descriptor": "Kuelewa na kutumia kusikiliza mahojiano katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KK-01-S3-T3",
+                  "name": "Kusikiliza Matangazo",
+                  "descriptor": "Kuelewa na kutumia kusikiliza matangazo katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KK-01-S3-T4",
+                  "name": "Kuchukua Vidokezo",
+                  "descriptor": "Kuelewa na kutumia kuchukua vidokezo katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS8-KK-01-S4",
+              "name": "Mazungumzo",
+              "descriptor": "Kutumia mazungumzo kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia mazungumzo kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS8-KK-01-S4-T1",
+                  "name": "Mijadala",
+                  "descriptor": "Kuelewa na kutumia mijadala katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KK-01-S4-T2",
+                  "name": "Mahojiano",
+                  "descriptor": "Kuelewa na kutumia mahojiano katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KK-01-S4-T3",
+                  "name": "Kuwasilisha Maoni",
+                  "descriptor": "Kuelewa na kutumia kuwasilisha maoni katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KK-01-S4-T4",
+                  "name": "Utatuzi wa Migogoro",
+                  "descriptor": "Kuelewa na kutumia utatuzi wa migogoro katika maisha ya kila siku."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "KIS8-KS-02",
+          "name": "Kusoma",
+          "descriptor": "Kusoma kwa kina na kuchambua matini mbalimbali.",
+          "subStrands": [
+            {
+              "code": "KIS8-KS-02-S1",
+              "name": "Kusoma kwa Ufasaha",
+              "descriptor": "Kutumia kusoma kwa ufasaha kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia kusoma kwa ufasaha kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS8-KS-02-S1-T1",
+                  "name": "Kusoma kwa Ufasaha",
+                  "descriptor": "Kuelewa na kutumia kusoma kwa ufasaha katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KS-02-S1-T2",
+                  "name": "Kusoma kwa Mwitikio",
+                  "descriptor": "Kuelewa na kutumia kusoma kwa mwitikio katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KS-02-S1-T3",
+                  "name": "Kusoma kwa Kasi",
+                  "descriptor": "Kuelewa na kutumia kusoma kwa kasi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KS-02-S1-T4",
+                  "name": "Kusoma Riwaya",
+                  "descriptor": "Kuelewa na kutumia kusoma riwaya katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS8-KS-02-S2",
+              "name": "Kusoma kwa Kina",
+              "descriptor": "Kutumia kusoma kwa kina kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia kusoma kwa kina kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS8-KS-02-S2-T1",
+                  "name": "Dhamira",
+                  "descriptor": "Kuelewa na kutumia dhamira katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KS-02-S2-T2",
+                  "name": "Maudhui",
+                  "descriptor": "Kuelewa na kutumia maudhui katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KS-02-S2-T3",
+                  "name": "Sifa za Wahusika",
+                  "descriptor": "Kuelewa na kutumia sifa za wahusika katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KS-02-S2-T4",
+                  "name": "Uchambuzi wa Matini",
+                  "descriptor": "Kuelewa na kutumia uchambuzi wa matini katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS8-KS-02-S3",
+              "name": "Kusoma kwa Upana",
+              "descriptor": "Kutumia kusoma kwa upana kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia kusoma kwa upana kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS8-KS-02-S3-T1",
+                  "name": "Riwaya",
+                  "descriptor": "Kuelewa na kutumia riwaya katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KS-02-S3-T2",
+                  "name": "Tamthilia",
+                  "descriptor": "Kuelewa na kutumia tamthilia katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KS-02-S3-T3",
+                  "name": "Mashairi",
+                  "descriptor": "Kuelewa na kutumia mashairi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KS-02-S3-T4",
+                  "name": "Makala",
+                  "descriptor": "Kuelewa na kutumia makala katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS8-KS-02-S4",
+              "name": "Ufahamu wa Kusoma",
+              "descriptor": "Kutumia ufahamu wa kusoma kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia ufahamu wa kusoma kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS8-KS-02-S4-T1",
+                  "name": "Maswali ya Ufahamu",
+                  "descriptor": "Kuelewa na kutumia maswali ya ufahamu katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KS-02-S4-T2",
+                  "name": "Ushahidi kutoka Matini",
+                  "descriptor": "Kuelewa na kutumia ushahidi kutoka matini katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KS-02-S4-T3",
+                  "name": "Maana ya Maneno",
+                  "descriptor": "Kuelewa na kutumia maana ya maneno katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KS-02-S4-T4",
+                  "name": "Muhtasari",
+                  "descriptor": "Kuelewa na kutumia muhtasari katika maisha ya kila siku."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "KIS8-KA-03",
+          "name": "Kuandika",
+          "descriptor": "Kuandika makala, insha na kumbukumbu kwa usahihi.",
+          "subStrands": [
+            {
+              "code": "KIS8-KA-03-S1",
+              "name": "Hati Nadhifu",
+              "descriptor": "Kutumia hati nadhifu kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia hati nadhifu kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS8-KA-03-S1-T1",
+                  "name": "Kuandika kwa Ufasaha",
+                  "descriptor": "Kuelewa na kutumia kuandika kwa ufasaha katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KA-03-S1-T2",
+                  "name": "Kupanga Makala",
+                  "descriptor": "Kuelewa na kutumia kupanga makala katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KA-03-S1-T3",
+                  "name": "Kuandika kwa Kompyuta",
+                  "descriptor": "Kuelewa na kutumia kuandika kwa kompyuta katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KA-03-S1-T4",
+                  "name": "Usafi wa Kazi",
+                  "descriptor": "Kuelewa na kutumia usafi wa kazi katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS8-KA-03-S2",
+              "name": "Ijazo",
+              "descriptor": "Kutumia ijazo kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia ijazo kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS8-KA-03-S2-T1",
+                  "name": "Ijazo la Maneno",
+                  "descriptor": "Kuelewa na kutumia ijazo la maneno katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KA-03-S2-T2",
+                  "name": "Ijazo la Sentensi",
+                  "descriptor": "Kuelewa na kutumia ijazo la sentensi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KA-03-S2-T3",
+                  "name": "Ijazo la Aya",
+                  "descriptor": "Kuelewa na kutumia ijazo la aya katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KA-03-S2-T4",
+                  "name": "Ijazo la Makala",
+                  "descriptor": "Kuelewa na kutumia ijazo la makala katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS8-KA-03-S3",
+              "name": "Insha",
+              "descriptor": "Kutumia insha kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia insha kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS8-KA-03-S3-T1",
+                  "name": "Insha ya Masimulizi",
+                  "descriptor": "Kuelewa na kutumia insha ya masimulizi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KA-03-S3-T2",
+                  "name": "Insha ya Maelezo",
+                  "descriptor": "Kuelewa na kutumia insha ya maelezo katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KA-03-S3-T3",
+                  "name": "Insha ya Mjadala",
+                  "descriptor": "Kuelewa na kutumia insha ya mjadala katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KA-03-S3-T4",
+                  "name": "Barua Rasmi",
+                  "descriptor": "Kuelewa na kutumia barua rasmi katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS8-KA-03-S4",
+              "name": "Muhtasari na Kumbukumbu",
+              "descriptor": "Kutumia muhtasari na kumbukumbu kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia muhtasari na kumbukumbu kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS8-KA-03-S4-T1",
+                  "name": "Muhtasari wa Matini",
+                  "descriptor": "Kuelewa na kutumia muhtasari wa matini katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KA-03-S4-T2",
+                  "name": "Vidokezo",
+                  "descriptor": "Kuelewa na kutumia vidokezo katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KA-03-S4-T3",
+                  "name": "Kumbukumbu",
+                  "descriptor": "Kuelewa na kutumia kumbukumbu katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-KA-03-S4-T4",
+                  "name": "Ripoti",
+                  "descriptor": "Kuelewa na kutumia ripoti katika maisha ya kila siku."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "KIS8-SM-04",
+          "name": "Sarufi na Matumizi ya Lugha",
+          "descriptor": "Kutumia sarufi ya Kiswahili kwa usahihi na ubunifu.",
+          "subStrands": [
+            {
+              "code": "KIS8-SM-04-S1",
+              "name": "Nomino",
+              "descriptor": "Kutumia nomino kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia nomino kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS8-SM-04-S1-T1",
+                  "name": "Ngeli za Nomino",
+                  "descriptor": "Kuelewa na kutumia ngeli za nomino katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-SM-04-S1-T2",
+                  "name": "Nomino za Makundi",
+                  "descriptor": "Kuelewa na kutumia nomino za makundi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-SM-04-S1-T3",
+                  "name": "Nomino za Dhahania",
+                  "descriptor": "Kuelewa na kutumia nomino za dhahania katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-SM-04-S1-T4",
+                  "name": "Ukanushaji wa Nomino",
+                  "descriptor": "Kuelewa na kutumia ukanushaji wa nomino katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS8-SM-04-S2",
+              "name": "Vitenzi",
+              "descriptor": "Kutumia vitenzi kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia vitenzi kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS8-SM-04-S2-T1",
+                  "name": "Nyakati za Vitenzi",
+                  "descriptor": "Kuelewa na kutumia nyakati za vitenzi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-SM-04-S2-T2",
+                  "name": "Mnyambuliko",
+                  "descriptor": "Kuelewa na kutumia mnyambuliko katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-SM-04-S2-T3",
+                  "name": "Vitenzi vya Taarifa",
+                  "descriptor": "Kuelewa na kutumia vitenzi vya taarifa katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-SM-04-S2-T4",
+                  "name": "Vitenzi vya Amri",
+                  "descriptor": "Kuelewa na kutumia vitenzi vya amri katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS8-SM-04-S3",
+              "name": "Vivumishi",
+              "descriptor": "Kutumia vivumishi kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia vivumishi kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS8-SM-04-S3-T1",
+                  "name": "Vivumishi vya Sifa",
+                  "descriptor": "Kuelewa na kutumia vivumishi vya sifa katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-SM-04-S3-T2",
+                  "name": "Vivumishi vya Idadi",
+                  "descriptor": "Kuelewa na kutumia vivumishi vya idadi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-SM-04-S3-T3",
+                  "name": "Vivumishi vya Umiliki",
+                  "descriptor": "Kuelewa na kutumia vivumishi vya umiliki katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-SM-04-S3-T4",
+                  "name": "Vivumishi vya Kuonyesha",
+                  "descriptor": "Kuelewa na kutumia vivumishi vya kuonyesha katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS8-SM-04-S4",
+              "name": "Vielezi na Viunganishi",
+              "descriptor": "Kutumia vielezi na viunganishi kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia vielezi na viunganishi kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS8-SM-04-S4-T1",
+                  "name": "Vielezi vya Namna",
+                  "descriptor": "Kuelewa na kutumia vielezi vya namna katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-SM-04-S4-T2",
+                  "name": "Vielezi vya Wakati",
+                  "descriptor": "Kuelewa na kutumia vielezi vya wakati katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-SM-04-S4-T3",
+                  "name": "Viunganishi",
+                  "descriptor": "Kuelewa na kutumia viunganishi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS8-SM-04-S4-T4",
+                  "name": "Vihusishi",
+                  "descriptor": "Kuelewa na kutumia vihusishi katika maisha ya kila siku."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "gradeLevel": "Grade 9",
+      "strands": [
+        {
+          "code": "KIS9-KK-01",
+          "name": "Kusikiliza na Kuzungumza",
+          "descriptor": "Kusikiliza kwa uchambuzi na kuzungumza kwa ufasaha katika miktadha mbalimbali.",
+          "subStrands": [
+            {
+              "code": "KIS9-KK-01-S1",
+              "name": "Matamshi Bora",
+              "descriptor": "Kutumia matamshi bora kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia matamshi bora kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS9-KK-01-S1-T1",
+                  "name": "Matamshi ya Kiswahili Sanifu",
+                  "descriptor": "Kuelewa na kutumia matamshi ya Kiswahili sanifu katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KK-01-S1-T2",
+                  "name": "Kiimbo",
+                  "descriptor": "Kuelewa na kutumia kiimbo katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KK-01-S1-T3",
+                  "name": "Uakifishaji wa Mdomo",
+                  "descriptor": "Kuelewa na kutumia uakifishaji wa mdomo katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KK-01-S1-T4",
+                  "name": "Ufasaha wa Lugha",
+                  "descriptor": "Kuelewa na kutumia ufasaha wa lugha katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS9-KK-01-S2",
+              "name": "Msamiati",
+              "descriptor": "Kutumia msamiati kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia msamiati kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS9-KK-01-S2-T1",
+                  "name": "Msamiati wa Fasihi",
+                  "descriptor": "Kuelewa na kutumia msamiati wa fasihi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KK-01-S2-T2",
+                  "name": "Msamiati wa Sayansi na Teknolojia",
+                  "descriptor": "Kuelewa na kutumia msamiati wa sayansi na teknolojia katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KK-01-S2-T3",
+                  "name": "Methali na Nahau",
+                  "descriptor": "Kuelewa na kutumia methali na nahau katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KK-01-S2-T4",
+                  "name": "Misemo",
+                  "descriptor": "Kuelewa na kutumia misemo katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS9-KK-01-S3",
+              "name": "Ufahamu wa Kusikiliza",
+              "descriptor": "Kutumia ufahamu wa kusikiliza kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia ufahamu wa kusikiliza kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS9-KK-01-S3-T1",
+                  "name": "Kusikiliza Hotuba",
+                  "descriptor": "Kuelewa na kutumia kusikiliza hotuba katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KK-01-S3-T2",
+                  "name": "Kusikiliza Mijadala",
+                  "descriptor": "Kuelewa na kutumia kusikiliza mijadala katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KK-01-S3-T3",
+                  "name": "Kusikiliza Habari",
+                  "descriptor": "Kuelewa na kutumia kusikiliza habari katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KK-01-S3-T4",
+                  "name": "Kuchambua Hoja",
+                  "descriptor": "Kuelewa na kutumia kuchambua hoja katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS9-KK-01-S4",
+              "name": "Mazungumzo",
+              "descriptor": "Kutumia mazungumzo kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia mazungumzo kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS9-KK-01-S4-T1",
+                  "name": "Majadiliano",
+                  "descriptor": "Kuelewa na kutumia majadiliano katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KK-01-S4-T2",
+                  "name": "Mahojiano ya Kazi",
+                  "descriptor": "Kuelewa na kutumia mahojiano ya kazi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KK-01-S4-T3",
+                  "name": "Kuwasilisha Hoja",
+                  "descriptor": "Kuelewa na kutumia kuwasilisha hoja katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KK-01-S4-T4",
+                  "name": "Utatuzi wa Migogoro",
+                  "descriptor": "Kuelewa na kutumia utatuzi wa migogoro katika maisha ya kila siku."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "KIS9-KS-02",
+          "name": "Kusoma",
+          "descriptor": "Kusoma kwa uchambuzi na kufasiri matini kwa kina.",
+          "subStrands": [
+            {
+              "code": "KIS9-KS-02-S1",
+              "name": "Kusoma kwa Ufasaha",
+              "descriptor": "Kutumia kusoma kwa ufasaha kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia kusoma kwa ufasaha kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS9-KS-02-S1-T1",
+                  "name": "Kusoma kwa Hisia",
+                  "descriptor": "Kuelewa na kutumia kusoma kwa hisia katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KS-02-S1-T2",
+                  "name": "Kusoma kwa Mwitikio",
+                  "descriptor": "Kuelewa na kutumia kusoma kwa mwitikio katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KS-02-S1-T3",
+                  "name": "Kusoma Mashairi",
+                  "descriptor": "Kuelewa na kutumia kusoma mashairi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KS-02-S1-T4",
+                  "name": "Kusoma kwa Kasi",
+                  "descriptor": "Kuelewa na kutumia kusoma kwa kasi katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS9-KS-02-S2",
+              "name": "Kusoma kwa Kina",
+              "descriptor": "Kutumia kusoma kwa kina kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia kusoma kwa kina kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS9-KS-02-S2-T1",
+                  "name": "Dhamira",
+                  "descriptor": "Kuelewa na kutumia dhamira katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KS-02-S2-T2",
+                  "name": "Maudhui",
+                  "descriptor": "Kuelewa na kutumia maudhui katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KS-02-S2-T3",
+                  "name": "Mbinu za Kisanaa",
+                  "descriptor": "Kuelewa na kutumia mbinu za kisanaa katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KS-02-S2-T4",
+                  "name": "Uchambuzi",
+                  "descriptor": "Kuelewa na kutumia uchambuzi katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS9-KS-02-S3",
+              "name": "Kusoma kwa Upana",
+              "descriptor": "Kutumia kusoma kwa upana kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia kusoma kwa upana kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS9-KS-02-S3-T1",
+                  "name": "Riwaya",
+                  "descriptor": "Kuelewa na kutumia riwaya katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KS-02-S3-T2",
+                  "name": "Tamthilia",
+                  "descriptor": "Kuelewa na kutumia tamthilia katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KS-02-S3-T3",
+                  "name": "Hadithi Fupi",
+                  "descriptor": "Kuelewa na kutumia hadithi fupi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KS-02-S3-T4",
+                  "name": "Makala",
+                  "descriptor": "Kuelewa na kutumia makala katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS9-KS-02-S4",
+              "name": "Ufahamu wa Kusoma",
+              "descriptor": "Kutumia ufahamu wa kusoma kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia ufahamu wa kusoma kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS9-KS-02-S4-T1",
+                  "name": "Maswali ya Ufahamu",
+                  "descriptor": "Kuelewa na kutumia maswali ya ufahamu katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KS-02-S4-T2",
+                  "name": "Ushahidi",
+                  "descriptor": "Kuelewa na kutumia ushahidi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KS-02-S4-T3",
+                  "name": "Maana ya Maneno",
+                  "descriptor": "Kuelewa na kutumia maana ya maneno katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KS-02-S4-T4",
+                  "name": "Muhtasari",
+                  "descriptor": "Kuelewa na kutumia muhtasari katika maisha ya kila siku."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "KIS9-KA-03",
+          "name": "Kuandika",
+          "descriptor": "Kuandika kwa usahihi, ubunifu na mtindo unaofaa.",
+          "subStrands": [
+            {
+              "code": "KIS9-KA-03-S1",
+              "name": "Hati Nadhifu",
+              "descriptor": "Kutumia hati nadhifu kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia hati nadhifu kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS9-KA-03-S1-T1",
+                  "name": "Kuandika kwa Ufasaha",
+                  "descriptor": "Kuelewa na kutumia kuandika kwa ufasaha katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KA-03-S1-T2",
+                  "name": "Kupanga Makala",
+                  "descriptor": "Kuelewa na kutumia kupanga makala katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KA-03-S1-T3",
+                  "name": "Kuandika Rasmi",
+                  "descriptor": "Kuelewa na kutumia kuandika rasmi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KA-03-S1-T4",
+                  "name": "Usafi wa Kazi",
+                  "descriptor": "Kuelewa na kutumia usafi wa kazi katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS9-KA-03-S2",
+              "name": "Ijazo",
+              "descriptor": "Kutumia ijazo kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia ijazo kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS9-KA-03-S2-T1",
+                  "name": "Ijazo la Maneno",
+                  "descriptor": "Kuelewa na kutumia ijazo la maneno katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KA-03-S2-T2",
+                  "name": "Ijazo la Sentensi",
+                  "descriptor": "Kuelewa na kutumia ijazo la sentensi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KA-03-S2-T3",
+                  "name": "Ijazo la Aya",
+                  "descriptor": "Kuelewa na kutumia ijazo la aya katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KA-03-S2-T4",
+                  "name": "Ijazo la Makala",
+                  "descriptor": "Kuelewa na kutumia ijazo la makala katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS9-KA-03-S3",
+              "name": "Insha",
+              "descriptor": "Kutumia insha kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia insha kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS9-KA-03-S3-T1",
+                  "name": "Insha ya Mjadala",
+                  "descriptor": "Kuelewa na kutumia insha ya mjadala katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KA-03-S3-T2",
+                  "name": "Insha ya Masimulizi",
+                  "descriptor": "Kuelewa na kutumia insha ya masimulizi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KA-03-S3-T3",
+                  "name": "Insha ya Kuethibitisha",
+                  "descriptor": "Kuelewa na kutumia insha ya kuethibitisha katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KA-03-S3-T4",
+                  "name": "Barua Rasmi",
+                  "descriptor": "Kuelewa na kutumia barua rasmi katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS9-KA-03-S4",
+              "name": "Muhtasari na Kumbukumbu",
+              "descriptor": "Kutumia muhtasari na kumbukumbu kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia muhtasari na kumbukumbu kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS9-KA-03-S4-T1",
+                  "name": "Muhtasari",
+                  "descriptor": "Kuelewa na kutumia muhtasari katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KA-03-S4-T2",
+                  "name": "Vidokezo",
+                  "descriptor": "Kuelewa na kutumia vidokezo katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KA-03-S4-T3",
+                  "name": "Kumbukumbu za Mkutano",
+                  "descriptor": "Kuelewa na kutumia kumbukumbu za mkutano katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-KA-03-S4-T4",
+                  "name": "Ripoti",
+                  "descriptor": "Kuelewa na kutumia ripoti katika maisha ya kila siku."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "KIS9-SM-04",
+          "name": "Sarufi na Matumizi ya Lugha",
+          "descriptor": "Kutumia sarufi ya Kiswahili kwa uthabiti na usahihi.",
+          "subStrands": [
+            {
+              "code": "KIS9-SM-04-S1",
+              "name": "Nomino",
+              "descriptor": "Kutumia nomino kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia nomino kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS9-SM-04-S1-T1",
+                  "name": "Ngeli za Nomino",
+                  "descriptor": "Kuelewa na kutumia ngeli za nomino katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-SM-04-S1-T2",
+                  "name": "Nomino za Makundi",
+                  "descriptor": "Kuelewa na kutumia nomino za makundi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-SM-04-S1-T3",
+                  "name": "Nomino za Dhahania",
+                  "descriptor": "Kuelewa na kutumia nomino za dhahania katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-SM-04-S1-T4",
+                  "name": "Ukanushaji",
+                  "descriptor": "Kuelewa na kutumia ukanushaji katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS9-SM-04-S2",
+              "name": "Vitenzi",
+              "descriptor": "Kutumia vitenzi kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia vitenzi kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS9-SM-04-S2-T1",
+                  "name": "Nyakati",
+                  "descriptor": "Kuelewa na kutumia nyakati katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-SM-04-S2-T2",
+                  "name": "Mnyambuliko",
+                  "descriptor": "Kuelewa na kutumia mnyambuliko katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-SM-04-S2-T3",
+                  "name": "Vitenzi vya Taarifa",
+                  "descriptor": "Kuelewa na kutumia vitenzi vya taarifa katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-SM-04-S2-T4",
+                  "name": "Vitenzi vya Amri",
+                  "descriptor": "Kuelewa na kutumia vitenzi vya amri katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS9-SM-04-S3",
+              "name": "Vivumishi",
+              "descriptor": "Kutumia vivumishi kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia vivumishi kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS9-SM-04-S3-T1",
+                  "name": "Vivumishi vya Sifa",
+                  "descriptor": "Kuelewa na kutumia vivumishi vya sifa katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-SM-04-S3-T2",
+                  "name": "Vivumishi vya Idadi",
+                  "descriptor": "Kuelewa na kutumia vivumishi vya idadi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-SM-04-S3-T3",
+                  "name": "Vivumishi vya Umiliki",
+                  "descriptor": "Kuelewa na kutumia vivumishi vya umiliki katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-SM-04-S3-T4",
+                  "name": "Vivumishi vya Kuonyesha",
+                  "descriptor": "Kuelewa na kutumia vivumishi vya kuonyesha katika maisha ya kila siku."
+                }
+              ]
+            },
+            {
+              "code": "KIS9-SM-04-S4",
+              "name": "Vielezi na Viunganishi",
+              "descriptor": "Kutumia vielezi na viunganishi kwa usahihi katika mawasiliano.",
+              "learningOutcome": "Kutumia vielezi na viunganishi kwa usahihi katika mawasiliano.",
+              "topics": [
+                {
+                  "code": "KIS9-SM-04-S4-T1",
+                  "name": "Vielezi vya Namna",
+                  "descriptor": "Kuelewa na kutumia vielezi vya namna katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-SM-04-S4-T2",
+                  "name": "Vielezi vya Wakati",
+                  "descriptor": "Kuelewa na kutumia vielezi vya wakati katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-SM-04-S4-T3",
+                  "name": "Viunganishi",
+                  "descriptor": "Kuelewa na kutumia viunganishi katika maisha ya kila siku."
+                },
+                {
+                  "code": "KIS9-SM-04-S4-T4",
+                  "name": "Vihusishi",
+                  "descriptor": "Kuelewa na kutumia vihusishi katika maisha ya kila siku."
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ]
 }

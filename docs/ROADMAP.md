@@ -666,9 +666,16 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       subject-grade; 12/48/192 each), joining the existing Mathematics catalogue for 60 strands,
       247 sub-strands and 977 topics. Deterministic and idempotent; the Tier 1 producer that runs
       the seed batch is delivered in 7.5e.
-- [ ] 7.5b-2b Tier 0 breadth at G7-G9: the Junior School band for the five subjects as further
-      data files. The producer that runs the Tier 1 seed batch is delivered in 7.5e; running it at
-      breadth still waits on this data-only expansion.
+- [x] 7.5b-2b Tier 0 breadth at G7-G9: Grades 7, 8 and 9 were authored for all five launch
+      subjects (Mathematics, English, Integrated Science, Kiswahili, Social Studies) as a data-only
+      addition to the same five JSON catalogues, with the canonical `Grade 7`/`Grade 8`/`Grade 9`
+      strings and stable codes continuing each subject's pattern (`MAT7-...`, `ENG7-...`,
+      `SCI7-...`, `KIS7-...`, `SST7-...`). The Junior School band adds 60 strands, 240
+      sub-strands and 960 topics (4 strands, 16 sub-strands and 64 topics per subject-grade), so
+      the completed G4-G9 Tier 0 breadth is 120 strands, 487 sub-strands and 1937 topics. JSS
+      Integrated Science and Social Studies stay their own subjects, not the senior-school pathway
+      splits. The producer that runs the Tier 1 seed batch is delivered in 7.5e; running it at
+      breadth still waits on 7.6.
 - [x] 7.5c machine-first auto-approval with a human exception queue: `AutoApprovalService` now
       approves a clean UNIT by default (no blockers, validator score 1.0, at least 8 questions when
       present, non-null critic confidence >= 0.90, still UNREVIEWED) and records

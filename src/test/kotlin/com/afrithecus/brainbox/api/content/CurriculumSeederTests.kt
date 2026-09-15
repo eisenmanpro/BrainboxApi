@@ -14,10 +14,11 @@ import org.springframework.test.context.ActiveProfiles
 import org.springframework.transaction.annotation.Transactional
 
 /**
- * Phase 7.5b-1/7.5b-2a: the Tier 0 curriculum seeder discovers every catalogue on
- * the classpath, seeds the five Kenya CBC G4-G6 subjects deterministically and
- * idempotently, keeps the curriculum-level version row stable, and the startup
- * bootstrap stays off unless app.content.curriculum.seed-on-startup is enabled.
+ * Phase 7.5b-1/7.5b-2a/7.5b-2b: the Tier 0 curriculum seeder discovers every
+ * catalogue on the classpath, seeds the five Kenya CBC subjects at Grades 4-9
+ * deterministically and idempotently, keeps the curriculum-level version row
+ * stable, and the startup bootstrap stays off unless
+ * app.content.curriculum.seed-on-startup is enabled.
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -124,6 +125,79 @@ class CurriculumSeederTests(
     }
 
     @Test
+    fun `all five subjects have the expected depth at Grades seven to nine`() {
+        val summary = seeder.seed()
+
+        check(summary.perSubject.size == CATALOGUES)
+        summary.perSubject.forEach { perSubject ->
+            check(perSubject.grades == 6) { perSubject.subject + " should carry six grade bands" }
+            check(perSubject.strands == GRADE_STRANDS * 6) { perSubject.subject + " strand total" }
+        }
+
+        SUBJECT_PREFIXES.forEach { (subject, prefix) ->
+            (7..9).forEach { grade ->
+                val codePrefix = prefix + grade + "-"
+                val gradeStrands = strands.findAll().filter { it.code.startsWith(codePrefix) }
+                check(gradeStrands.count { it.level == "STRAND" } == JSS_STRANDS_PER_GRADE) {
+                    subject + " Grade " + grade + " strand count"
+                }
+                check(gradeStrands.count { it.level == "SUBSTRAND" } == JSS_SUBSTRANDS_PER_GRADE) {
+                    subject + " Grade " + grade + " sub-strand count"
+                }
+                val gradeConcepts = concepts.findAll().filter { it.code.startsWith(codePrefix) }
+                check(gradeConcepts.size == JSS_STRANDS_PER_GRADE + JSS_SUBSTRANDS_PER_GRADE + JSS_TOPICS_PER_GRADE) {
+                    subject + " Grade " + grade + " concept count"
+                }
+                check(gradeConcepts.count { TOPIC_CODE.containsMatchIn(it.code) } == JSS_TOPICS_PER_GRADE) {
+                    subject + " Grade " + grade + " topic count"
+                }
+                val gradeMaps = maps.findAll().filter {
+                    it.gradeLevel == "Grade " + grade && it.curriculumVersion == VERSION &&
+                        it.strandCode?.startsWith(codePrefix) == true
+                }
+                check(gradeMaps.size == JSS_STRANDS_PER_GRADE + JSS_SUBSTRANDS_PER_GRADE + JSS_TOPICS_PER_GRADE) {
+                    subject + " Grade " + grade + " curriculum map count"
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `second seed run is idempotent across every grade band`() {
+        seeder.seed()
+        val afterFirst = counts()
+        val bandsAfterFirst = gradeBandMapCounts()
+        check(bandsAfterFirst.size == SUBJECT_PREFIXES.size * 6) { "expected a count for every subject-grade band" }
+        check(bandsAfterFirst.values.all { it > 0 }) { "a grade band resolved no curriculum maps: " + bandsAfterFirst }
+
+        val second = seeder.seed()
+
+        check(counts() == afterFirst) { "row counts changed on the second seed run" }
+        check(gradeBandMapCounts() == bandsAfterFirst) { "per-grade map counts changed on the second seed run" }
+        check(second.inserted == 0) { "the second seed run inserted " + second.inserted + " rows" }
+        check(second.updated > 0) { "the second seed run should have refreshed existing rows" }
+    }
+
+    @Test
+    fun `batch producer resolves all five subjects at Grades seven to nine`() {
+        seeder.seed()
+
+        SUBJECT_PREFIXES.forEach { (subject, _) ->
+            (7..9).forEach { grade ->
+                val gradeLevel = "Grade " + grade
+                val topics = batch.resolveTopicConcepts(gradeLevel, subject)
+                check(topics.isNotEmpty()) { "no leaf topics resolved for " + subject + " " + gradeLevel }
+                check(topics.all { it.subject == subject }) {
+                    "resolved topics leaked another subject for " + subject + " " + gradeLevel
+                }
+                check(topics.size == JSS_TOPICS_PER_GRADE) {
+                    subject + " " + gradeLevel + " should resolve " + JSS_TOPICS_PER_GRADE + " leaf topics"
+                }
+            }
+        }
+    }
+
+    @Test
     fun `whole catalogue has the expected depth`() {
         seeder.seed()
 
@@ -203,6 +277,17 @@ class CurriculumSeederTests(
         }
     }
 
+    private fun gradeBandMapCounts(): Map<String, Int> =
+        SUBJECT_PREFIXES.flatMap { (_, prefix) ->
+            (4..9).map { grade ->
+                val codePrefix = prefix + grade + "-"
+                (prefix + " Grade " + grade) to maps.findAll().count {
+                    it.gradeLevel == "Grade " + grade && it.curriculumVersion == VERSION &&
+                        it.strandCode?.startsWith(codePrefix) == true
+                }
+            }
+        }.toMap()
+
     private fun counts(): List<Long> = listOf(
         curriculumVersions.count(),
         strands.count(),
@@ -224,10 +309,19 @@ class CurriculumSeederTests(
         const val GRADE_SUBSTRANDS = 16
         const val GRADE_TOPICS = 64
 
-        // Whole-catalogue totals: Mathematics (12/55/209) + 4 x (12/48/192).
-        const val TOTAL_STRANDS = 12 + 4 * 12
-        const val TOTAL_SUBSTRANDS = 55 + 4 * 48
-        const val TOTAL_TOPICS = 209 + 4 * 192
+        // Grades 7-9 (7.5b-2b): 4 strands, 16 sub-strands and 64 topics per
+        // subject-grade for all five subjects, across three grades each.
+        const val JSS_STRANDS_PER_GRADE = 4
+        const val JSS_SUBSTRANDS_PER_GRADE = 16
+        const val JSS_TOPICS_PER_GRADE = 64
+        const val JSS_STRANDS = 5 * 3 * JSS_STRANDS_PER_GRADE
+        const val JSS_SUBSTRANDS = 5 * 3 * JSS_SUBSTRANDS_PER_GRADE
+        const val JSS_TOPICS = 5 * 3 * JSS_TOPICS_PER_GRADE
+
+        // Whole-catalogue totals G4-9: Mathematics (24/103/401) + 4 x (24/96/384).
+        const val TOTAL_STRANDS = 12 + 4 * 12 + JSS_STRANDS
+        const val TOTAL_SUBSTRANDS = 55 + 4 * 48 + JSS_SUBSTRANDS
+        const val TOTAL_TOPICS = 209 + 4 * 192 + JSS_TOPICS
         const val TOTAL_CONCEPTS = TOTAL_STRANDS + TOTAL_SUBSTRANDS + TOTAL_TOPICS
 
         val SUBJECTS = setOf("Mathematics", "English", "Integrated Science", "Kiswahili", "Social Studies")
@@ -238,7 +332,14 @@ class CurriculumSeederTests(
             "Kiswahili" to "KIS",
             "Social Studies" to "SST",
         )
+        val SUBJECT_PREFIXES = listOf(
+            "Mathematics" to "MAT",
+            "English" to "ENG",
+            "Integrated Science" to "SCI",
+            "Kiswahili" to "KIS",
+            "Social Studies" to "SST",
+        )
         val TOPIC_CODE = Regex("-S\\d+-T\\d+$")
-        val CATALOGUE_CONCEPT = Regex("^[A-Z]{3}[4-6]-")
+        val CATALOGUE_CONCEPT = Regex("^[A-Z]{3}[4-9]-")
     }
 }

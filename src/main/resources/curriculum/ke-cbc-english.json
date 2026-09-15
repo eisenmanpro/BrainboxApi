@@ -1448,6 +1448,1449 @@
           ]
         }
       ]
+    },
+    {
+      "gradeLevel": "Grade 7",
+      "strands": [
+        {
+          "code": "ENG7-LS-01",
+          "name": "Listening and Speaking",
+          "descriptor": "Listen attentively and speak confidently in a range of formal and informal situations.",
+          "subStrands": [
+            {
+              "code": "ENG7-LS-01-S1",
+              "name": "Pronunciation and Vocabulary",
+              "descriptor": "Demonstrate pronunciation and vocabulary in communication.",
+              "learningOutcome": "Demonstrate pronunciation and vocabulary in communication.",
+              "topics": [
+                {
+                  "code": "ENG7-LS-01-S1-T1",
+                  "name": "Stress and Intonation",
+                  "descriptor": "Understand and apply stress and intonation in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LS-01-S1-T2",
+                  "name": "Consonant and Vowel Sounds",
+                  "descriptor": "Understand and apply consonant and vowel sounds in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LS-01-S1-T3",
+                  "name": "Word Building",
+                  "descriptor": "Understand and apply word building in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LS-01-S1-T4",
+                  "name": "Idioms and Proverbs",
+                  "descriptor": "Understand and apply idioms and proverbs in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG7-LS-01-S2",
+              "name": "Listening Comprehension",
+              "descriptor": "Demonstrate listening comprehension in communication.",
+              "learningOutcome": "Demonstrate listening comprehension in communication.",
+              "topics": [
+                {
+                  "code": "ENG7-LS-01-S2-T1",
+                  "name": "Listening for Main Ideas",
+                  "descriptor": "Understand and apply listening for main ideas in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LS-01-S2-T2",
+                  "name": "Listening for Details",
+                  "descriptor": "Understand and apply listening for details in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LS-01-S2-T3",
+                  "name": "Note Taking from Speech",
+                  "descriptor": "Understand and apply note taking from speech in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LS-01-S2-T4",
+                  "name": "Summarising Spoken Text",
+                  "descriptor": "Understand and apply summarising spoken text in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG7-LS-01-S3",
+              "name": "Oral Presentation",
+              "descriptor": "Demonstrate oral presentation in communication.",
+              "learningOutcome": "Demonstrate oral presentation in communication.",
+              "topics": [
+                {
+                  "code": "ENG7-LS-01-S3-T1",
+                  "name": "Oral Reports",
+                  "descriptor": "Understand and apply oral reports in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LS-01-S3-T2",
+                  "name": "Giving a Speech",
+                  "descriptor": "Understand and apply giving a speech in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LS-01-S3-T3",
+                  "name": "Reciting Poems",
+                  "descriptor": "Understand and apply reciting poems in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LS-01-S3-T4",
+                  "name": "Telling Stories",
+                  "descriptor": "Understand and apply telling stories in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG7-LS-01-S4",
+              "name": "Conversational Skills",
+              "descriptor": "Demonstrate conversational skills in communication.",
+              "learningOutcome": "Demonstrate conversational skills in communication.",
+              "topics": [
+                {
+                  "code": "ENG7-LS-01-S4-T1",
+                  "name": "Group Discussions",
+                  "descriptor": "Understand and apply group discussions in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LS-01-S4-T2",
+                  "name": "Turn Taking",
+                  "descriptor": "Understand and apply turn taking in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LS-01-S4-T3",
+                  "name": "Polite Requests",
+                  "descriptor": "Understand and apply polite requests in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LS-01-S4-T4",
+                  "name": "Resolving Disagreements",
+                  "descriptor": "Understand and apply resolving disagreements in listening, speaking, reading and writing."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "ENG7-RD-02",
+          "name": "Reading",
+          "descriptor": "Read fluently and critically for information, pleasure and study.",
+          "subStrands": [
+            {
+              "code": "ENG7-RD-02-S1",
+              "name": "Reading Fluency",
+              "descriptor": "Demonstrate reading fluency in communication.",
+              "learningOutcome": "Demonstrate reading fluency in communication.",
+              "topics": [
+                {
+                  "code": "ENG7-RD-02-S1-T1",
+                  "name": "Reading Aloud with Expression",
+                  "descriptor": "Understand and apply reading aloud with expression in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-RD-02-S1-T2",
+                  "name": "Pace and Phrasing",
+                  "descriptor": "Understand and apply pace and phrasing in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-RD-02-S1-T3",
+                  "name": "Self-Correction Strategies",
+                  "descriptor": "Understand and apply self-correction strategies in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-RD-02-S1-T4",
+                  "name": "Reading Poems",
+                  "descriptor": "Understand and apply reading poems in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG7-RD-02-S2",
+              "name": "Intensive Reading",
+              "descriptor": "Demonstrate intensive reading in communication.",
+              "learningOutcome": "Demonstrate intensive reading in communication.",
+              "topics": [
+                {
+                  "code": "ENG7-RD-02-S2-T1",
+                  "name": "Comprehension Strategies",
+                  "descriptor": "Understand and apply comprehension strategies in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-RD-02-S2-T2",
+                  "name": "Reading for Main Ideas",
+                  "descriptor": "Understand and apply reading for main ideas in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-RD-02-S2-T3",
+                  "name": "Reading for Details",
+                  "descriptor": "Understand and apply reading for details in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-RD-02-S2-T4",
+                  "name": "Drawing Inferences",
+                  "descriptor": "Understand and apply drawing inferences in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG7-RD-02-S3",
+              "name": "Extensive Reading",
+              "descriptor": "Demonstrate extensive reading in communication.",
+              "learningOutcome": "Demonstrate extensive reading in communication.",
+              "topics": [
+                {
+                  "code": "ENG7-RD-02-S3-T1",
+                  "name": "Class Reader",
+                  "descriptor": "Understand and apply class reader in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-RD-02-S3-T2",
+                  "name": "Short Stories",
+                  "descriptor": "Understand and apply short stories in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-RD-02-S3-T3",
+                  "name": "Newspapers and Magazines",
+                  "descriptor": "Understand and apply newspapers and magazines in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-RD-02-S3-T4",
+                  "name": "Independent Reading",
+                  "descriptor": "Understand and apply independent reading in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG7-RD-02-S4",
+              "name": "Study Skills",
+              "descriptor": "Demonstrate study skills in communication.",
+              "learningOutcome": "Demonstrate study skills in communication.",
+              "topics": [
+                {
+                  "code": "ENG7-RD-02-S4-T1",
+                  "name": "Summarising",
+                  "descriptor": "Understand and apply summarising in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-RD-02-S4-T2",
+                  "name": "Note Making",
+                  "descriptor": "Understand and apply note making in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-RD-02-S4-T3",
+                  "name": "Using Reference Materials",
+                  "descriptor": "Understand and apply using reference materials in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-RD-02-S4-T4",
+                  "name": "Library Skills",
+                  "descriptor": "Understand and apply library skills in listening, speaking, reading and writing."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "ENG7-WR-03",
+          "name": "Writing",
+          "descriptor": "Write clearly, accurately and creatively for a range of purposes and audiences.",
+          "subStrands": [
+            {
+              "code": "ENG7-WR-03-S1",
+              "name": "Handwriting and Presentation",
+              "descriptor": "Demonstrate handwriting and presentation in communication.",
+              "learningOutcome": "Demonstrate handwriting and presentation in communication.",
+              "topics": [
+                {
+                  "code": "ENG7-WR-03-S1-T1",
+                  "name": "Legible Handwriting",
+                  "descriptor": "Understand and apply legible handwriting in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-WR-03-S1-T2",
+                  "name": "Formatting Written Work",
+                  "descriptor": "Understand and apply formatting written work in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-WR-03-S1-T3",
+                  "name": "Headings and Titles",
+                  "descriptor": "Understand and apply headings and titles in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-WR-03-S1-T4",
+                  "name": "Neatness and Speed",
+                  "descriptor": "Understand and apply neatness and speed in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG7-WR-03-S2",
+              "name": "Spelling and Vocabulary",
+              "descriptor": "Demonstrate spelling and vocabulary in communication.",
+              "learningOutcome": "Demonstrate spelling and vocabulary in communication.",
+              "topics": [
+                {
+                  "code": "ENG7-WR-03-S2-T1",
+                  "name": "Spelling Patterns",
+                  "descriptor": "Understand and apply spelling patterns in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-WR-03-S2-T2",
+                  "name": "Commonly Misspelled Words",
+                  "descriptor": "Understand and apply commonly misspelled words in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-WR-03-S2-T3",
+                  "name": "Prefixes and Suffixes",
+                  "descriptor": "Understand and apply prefixes and suffixes in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-WR-03-S2-T4",
+                  "name": "Spelling from Dictation",
+                  "descriptor": "Understand and apply spelling from dictation in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG7-WR-03-S3",
+              "name": "Punctuation",
+              "descriptor": "Demonstrate punctuation in communication.",
+              "learningOutcome": "Demonstrate punctuation in communication.",
+              "topics": [
+                {
+                  "code": "ENG7-WR-03-S3-T1",
+                  "name": "Capital Letters and Full Stops",
+                  "descriptor": "Understand and apply capital letters and full stops in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-WR-03-S3-T2",
+                  "name": "Commas and Quotation Marks",
+                  "descriptor": "Understand and apply commas and quotation marks in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-WR-03-S3-T3",
+                  "name": "Apostrophes",
+                  "descriptor": "Understand and apply apostrophes in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-WR-03-S3-T4",
+                  "name": "Colons and Semicolons",
+                  "descriptor": "Understand and apply colons and semicolons in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG7-WR-03-S4",
+              "name": "Composition",
+              "descriptor": "Demonstrate composition in communication.",
+              "learningOutcome": "Demonstrate composition in communication.",
+              "topics": [
+                {
+                  "code": "ENG7-WR-03-S4-T1",
+                  "name": "Narrative Composition",
+                  "descriptor": "Understand and apply narrative composition in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-WR-03-S4-T2",
+                  "name": "Descriptive Composition",
+                  "descriptor": "Understand and apply descriptive composition in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-WR-03-S4-T3",
+                  "name": "Dialogue Writing",
+                  "descriptor": "Understand and apply dialogue writing in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-WR-03-S4-T4",
+                  "name": "Notices and Posters",
+                  "descriptor": "Understand and apply notices and posters in listening, speaking, reading and writing."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "ENG7-LU-04",
+          "name": "Grammar in Use",
+          "descriptor": "Apply grammatical structures accurately in speech and writing.",
+          "subStrands": [
+            {
+              "code": "ENG7-LU-04-S1",
+              "name": "Nouns and Pronouns",
+              "descriptor": "Demonstrate nouns and pronouns in communication.",
+              "learningOutcome": "Demonstrate nouns and pronouns in communication.",
+              "topics": [
+                {
+                  "code": "ENG7-LU-04-S1-T1",
+                  "name": "Common and Proper Nouns",
+                  "descriptor": "Understand and apply common and proper nouns in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LU-04-S1-T2",
+                  "name": "Abstract and Collective Nouns",
+                  "descriptor": "Understand and apply abstract and collective nouns in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LU-04-S1-T3",
+                  "name": "Personal and Possessive Pronouns",
+                  "descriptor": "Understand and apply personal and possessive pronouns in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LU-04-S1-T4",
+                  "name": "Reflexive Pronouns",
+                  "descriptor": "Understand and apply reflexive pronouns in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG7-LU-04-S2",
+              "name": "Verbs and Tenses",
+              "descriptor": "Demonstrate verbs and tenses in communication.",
+              "learningOutcome": "Demonstrate verbs and tenses in communication.",
+              "topics": [
+                {
+                  "code": "ENG7-LU-04-S2-T1",
+                  "name": "Simple Present and Past",
+                  "descriptor": "Understand and apply simple present and past in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LU-04-S2-T2",
+                  "name": "Progressive Tenses",
+                  "descriptor": "Understand and apply progressive tenses in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LU-04-S2-T3",
+                  "name": "Perfect Tenses",
+                  "descriptor": "Understand and apply perfect tenses in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LU-04-S2-T4",
+                  "name": "Subject-Verb Agreement",
+                  "descriptor": "Understand and apply subject-verb agreement in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG7-LU-04-S3",
+              "name": "Adjectives and Adverbs",
+              "descriptor": "Demonstrate adjectives and adverbs in communication.",
+              "learningOutcome": "Demonstrate adjectives and adverbs in communication.",
+              "topics": [
+                {
+                  "code": "ENG7-LU-04-S3-T1",
+                  "name": "Order of Adjectives",
+                  "descriptor": "Understand and apply order of adjectives in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LU-04-S3-T2",
+                  "name": "Comparative and Superlative",
+                  "descriptor": "Understand and apply comparative and superlative in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LU-04-S3-T3",
+                  "name": "Adverbs of Manner and Time",
+                  "descriptor": "Understand and apply adverbs of manner and time in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LU-04-S3-T4",
+                  "name": "Using Modifiers",
+                  "descriptor": "Understand and apply using modifiers in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG7-LU-04-S4",
+              "name": "Sentences and Phrases",
+              "descriptor": "Demonstrate sentences and phrases in communication.",
+              "learningOutcome": "Demonstrate sentences and phrases in communication.",
+              "topics": [
+                {
+                  "code": "ENG7-LU-04-S4-T1",
+                  "name": "Simple Sentences",
+                  "descriptor": "Understand and apply simple sentences in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LU-04-S4-T2",
+                  "name": "Compound Sentences",
+                  "descriptor": "Understand and apply compound sentences in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LU-04-S4-T3",
+                  "name": "Phrases and Clauses",
+                  "descriptor": "Understand and apply phrases and clauses in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG7-LU-04-S4-T4",
+                  "name": "Phrasal Verbs",
+                  "descriptor": "Understand and apply phrasal verbs in listening, speaking, reading and writing."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "gradeLevel": "Grade 8",
+      "strands": [
+        {
+          "code": "ENG8-LS-01",
+          "name": "Listening and Speaking",
+          "descriptor": "Listen critically and speak persuasively in formal and informal contexts.",
+          "subStrands": [
+            {
+              "code": "ENG8-LS-01-S1",
+              "name": "Pronunciation and Vocabulary",
+              "descriptor": "Demonstrate pronunciation and vocabulary in communication.",
+              "learningOutcome": "Demonstrate pronunciation and vocabulary in communication.",
+              "topics": [
+                {
+                  "code": "ENG8-LS-01-S1-T1",
+                  "name": "Word Stress",
+                  "descriptor": "Understand and apply word stress in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LS-01-S1-T2",
+                  "name": "Intonation Patterns",
+                  "descriptor": "Understand and apply intonation patterns in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LS-01-S1-T3",
+                  "name": "Minimal Pairs",
+                  "descriptor": "Understand and apply minimal pairs in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LS-01-S1-T4",
+                  "name": "Idiomatic Expressions",
+                  "descriptor": "Understand and apply idiomatic expressions in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG8-LS-01-S2",
+              "name": "Listening Comprehension",
+              "descriptor": "Demonstrate listening comprehension in communication.",
+              "learningOutcome": "Demonstrate listening comprehension in communication.",
+              "topics": [
+                {
+                  "code": "ENG8-LS-01-S2-T1",
+                  "name": "Listening for Persuasion",
+                  "descriptor": "Understand and apply listening for persuasion in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LS-01-S2-T2",
+                  "name": "Listening for Bias",
+                  "descriptor": "Understand and apply listening for bias in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LS-01-S2-T3",
+                  "name": "Listening to Announcements",
+                  "descriptor": "Understand and apply listening to announcements in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LS-01-S2-T4",
+                  "name": "Summarising Spoken Text",
+                  "descriptor": "Understand and apply summarising spoken text in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG8-LS-01-S3",
+              "name": "Oral Presentation",
+              "descriptor": "Demonstrate oral presentation in communication.",
+              "learningOutcome": "Demonstrate oral presentation in communication.",
+              "topics": [
+                {
+                  "code": "ENG8-LS-01-S3-T1",
+                  "name": "Debating a Motion",
+                  "descriptor": "Understand and apply debating a motion in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LS-01-S3-T2",
+                  "name": "Oral Reports",
+                  "descriptor": "Understand and apply oral reports in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LS-01-S3-T3",
+                  "name": "Dramatisation",
+                  "descriptor": "Understand and apply dramatisation in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LS-01-S3-T4",
+                  "name": "Public Speaking",
+                  "descriptor": "Understand and apply public speaking in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG8-LS-01-S4",
+              "name": "Conversational Skills",
+              "descriptor": "Demonstrate conversational skills in communication.",
+              "learningOutcome": "Demonstrate conversational skills in communication.",
+              "topics": [
+                {
+                  "code": "ENG8-LS-01-S4-T1",
+                  "name": "Interviews",
+                  "descriptor": "Understand and apply interviews in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LS-01-S4-T2",
+                  "name": "Negotiation",
+                  "descriptor": "Understand and apply negotiation in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LS-01-S4-T3",
+                  "name": "Leading a Discussion",
+                  "descriptor": "Understand and apply leading a discussion in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LS-01-S4-T4",
+                  "name": "Telephone Conversations",
+                  "descriptor": "Understand and apply telephone conversations in listening, speaking, reading and writing."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "ENG8-RD-02",
+          "name": "Reading",
+          "descriptor": "Read widely and critically to analyse and evaluate texts.",
+          "subStrands": [
+            {
+              "code": "ENG8-RD-02-S1",
+              "name": "Reading Fluency",
+              "descriptor": "Demonstrate reading fluency in communication.",
+              "learningOutcome": "Demonstrate reading fluency in communication.",
+              "topics": [
+                {
+                  "code": "ENG8-RD-02-S1-T1",
+                  "name": "Reading with Expression",
+                  "descriptor": "Understand and apply reading with expression in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-RD-02-S1-T2",
+                  "name": "Reading Complex Sentences",
+                  "descriptor": "Understand and apply reading complex sentences in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-RD-02-S1-T3",
+                  "name": "Reading Poetry Aloud",
+                  "descriptor": "Understand and apply reading poetry aloud in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-RD-02-S1-T4",
+                  "name": "Timed Reading",
+                  "descriptor": "Understand and apply timed reading in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG8-RD-02-S2",
+              "name": "Intensive Reading",
+              "descriptor": "Demonstrate intensive reading in communication.",
+              "learningOutcome": "Demonstrate intensive reading in communication.",
+              "topics": [
+                {
+                  "code": "ENG8-RD-02-S2-T1",
+                  "name": "Reading for Theme",
+                  "descriptor": "Understand and apply reading for theme in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-RD-02-S2-T2",
+                  "name": "Reading for Character",
+                  "descriptor": "Understand and apply reading for character in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-RD-02-S2-T3",
+                  "name": "Reading for Point of View",
+                  "descriptor": "Understand and apply reading for point of view in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-RD-02-S2-T4",
+                  "name": "Critical Reading",
+                  "descriptor": "Understand and apply critical reading in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG8-RD-02-S3",
+              "name": "Extensive Reading",
+              "descriptor": "Demonstrate extensive reading in communication.",
+              "learningOutcome": "Demonstrate extensive reading in communication.",
+              "topics": [
+                {
+                  "code": "ENG8-RD-02-S3-T1",
+                  "name": "Class Reader Study",
+                  "descriptor": "Understand and apply class reader study in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-RD-02-S3-T2",
+                  "name": "Reading Non-Fiction",
+                  "descriptor": "Understand and apply reading non-fiction in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-RD-02-S3-T3",
+                  "name": "Reading Plays",
+                  "descriptor": "Understand and apply reading plays in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-RD-02-S3-T4",
+                  "name": "Independent Wide Reading",
+                  "descriptor": "Understand and apply independent wide reading in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG8-RD-02-S4",
+              "name": "Study Skills",
+              "descriptor": "Demonstrate study skills in communication.",
+              "learningOutcome": "Demonstrate study skills in communication.",
+              "topics": [
+                {
+                  "code": "ENG8-RD-02-S4-T1",
+                  "name": "Summarising Passages",
+                  "descriptor": "Understand and apply summarising passages in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-RD-02-S4-T2",
+                  "name": "Making Outline Notes",
+                  "descriptor": "Understand and apply making outline notes in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-RD-02-S4-T3",
+                  "name": "Using a Dictionary and Thesaurus",
+                  "descriptor": "Understand and apply using a dictionary and thesaurus in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-RD-02-S4-T4",
+                  "name": "Research Skills",
+                  "descriptor": "Understand and apply research skills in listening, speaking, reading and writing."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "ENG8-WR-03",
+          "name": "Writing",
+          "descriptor": "Plan, draft and edit writing for varied purposes and audiences.",
+          "subStrands": [
+            {
+              "code": "ENG8-WR-03-S1",
+              "name": "Handwriting and Presentation",
+              "descriptor": "Demonstrate handwriting and presentation in communication.",
+              "learningOutcome": "Demonstrate handwriting and presentation in communication.",
+              "topics": [
+                {
+                  "code": "ENG8-WR-03-S1-T1",
+                  "name": "Consistent Handwriting",
+                  "descriptor": "Understand and apply consistent handwriting in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-WR-03-S1-T2",
+                  "name": "Layout of Formal Work",
+                  "descriptor": "Understand and apply layout of formal work in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-WR-03-S1-T3",
+                  "name": "Writing Headings",
+                  "descriptor": "Understand and apply writing headings in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-WR-03-S1-T4",
+                  "name": "Presentation of Projects",
+                  "descriptor": "Understand and apply presentation of projects in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG8-WR-03-S2",
+              "name": "Spelling and Vocabulary",
+              "descriptor": "Demonstrate spelling and vocabulary in communication.",
+              "learningOutcome": "Demonstrate spelling and vocabulary in communication.",
+              "topics": [
+                {
+                  "code": "ENG8-WR-03-S2-T1",
+                  "name": "Spelling Rules",
+                  "descriptor": "Understand and apply spelling rules in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-WR-03-S2-T2",
+                  "name": "Homophones and Homonyms",
+                  "descriptor": "Understand and apply homophones and homonyms in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-WR-03-S2-T3",
+                  "name": "Word Formation",
+                  "descriptor": "Understand and apply word formation in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-WR-03-S2-T4",
+                  "name": "Editing for Spelling",
+                  "descriptor": "Understand and apply editing for spelling in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG8-WR-03-S3",
+              "name": "Punctuation",
+              "descriptor": "Demonstrate punctuation in communication.",
+              "learningOutcome": "Demonstrate punctuation in communication.",
+              "topics": [
+                {
+                  "code": "ENG8-WR-03-S3-T1",
+                  "name": "Punctuating Direct Speech",
+                  "descriptor": "Understand and apply punctuating direct speech in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-WR-03-S3-T2",
+                  "name": "Punctuating Complex Sentences",
+                  "descriptor": "Understand and apply punctuating complex sentences in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-WR-03-S3-T3",
+                  "name": "Hyphens and Dashes",
+                  "descriptor": "Understand and apply hyphens and dashes in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-WR-03-S3-T4",
+                  "name": "Editing for Punctuation",
+                  "descriptor": "Understand and apply editing for punctuation in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG8-WR-03-S4",
+              "name": "Composition",
+              "descriptor": "Demonstrate composition in communication.",
+              "learningOutcome": "Demonstrate composition in communication.",
+              "topics": [
+                {
+                  "code": "ENG8-WR-03-S4-T1",
+                  "name": "Persuasive Writing",
+                  "descriptor": "Understand and apply persuasive writing in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-WR-03-S4-T2",
+                  "name": "Expository Writing",
+                  "descriptor": "Understand and apply expository writing in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-WR-03-S4-T3",
+                  "name": "Formal Letters",
+                  "descriptor": "Understand and apply formal letters in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-WR-03-S4-T4",
+                  "name": "Book Reviews",
+                  "descriptor": "Understand and apply book reviews in listening, speaking, reading and writing."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "ENG8-LU-04",
+          "name": "Grammar in Use",
+          "descriptor": "Use advanced grammatical structures accurately and appropriately.",
+          "subStrands": [
+            {
+              "code": "ENG8-LU-04-S1",
+              "name": "Nouns and Pronouns",
+              "descriptor": "Demonstrate nouns and pronouns in communication.",
+              "learningOutcome": "Demonstrate nouns and pronouns in communication.",
+              "topics": [
+                {
+                  "code": "ENG8-LU-04-S1-T1",
+                  "name": "Countable and Uncountable Nouns",
+                  "descriptor": "Understand and apply countable and uncountable nouns in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LU-04-S1-T2",
+                  "name": "Noun Phrases",
+                  "descriptor": "Understand and apply noun phrases in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LU-04-S1-T3",
+                  "name": "Relative Pronouns",
+                  "descriptor": "Understand and apply relative pronouns in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LU-04-S1-T4",
+                  "name": "Pronoun Agreement",
+                  "descriptor": "Understand and apply pronoun agreement in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG8-LU-04-S2",
+              "name": "Verbs and Tenses",
+              "descriptor": "Demonstrate verbs and tenses in communication.",
+              "learningOutcome": "Demonstrate verbs and tenses in communication.",
+              "topics": [
+                {
+                  "code": "ENG8-LU-04-S2-T1",
+                  "name": "Future Tenses",
+                  "descriptor": "Understand and apply future tenses in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LU-04-S2-T2",
+                  "name": "Modal Verbs",
+                  "descriptor": "Understand and apply modal verbs in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LU-04-S2-T3",
+                  "name": "Passive Voice",
+                  "descriptor": "Understand and apply passive voice in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LU-04-S2-T4",
+                  "name": "Conditional Sentences",
+                  "descriptor": "Understand and apply conditional sentences in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG8-LU-04-S3",
+              "name": "Adjectives and Adverbs",
+              "descriptor": "Demonstrate adjectives and adverbs in communication.",
+              "learningOutcome": "Demonstrate adjectives and adverbs in communication.",
+              "topics": [
+                {
+                  "code": "ENG8-LU-04-S3-T1",
+                  "name": "Adjective Clauses",
+                  "descriptor": "Understand and apply adjective clauses in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LU-04-S3-T2",
+                  "name": "Adverb Clauses",
+                  "descriptor": "Understand and apply adverb clauses in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LU-04-S3-T3",
+                  "name": "Participial Adjectives",
+                  "descriptor": "Understand and apply participial adjectives in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LU-04-S3-T4",
+                  "name": "Adverbs of Frequency",
+                  "descriptor": "Understand and apply adverbs of frequency in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG8-LU-04-S4",
+              "name": "Sentences and Phrases",
+              "descriptor": "Demonstrate sentences and phrases in communication.",
+              "learningOutcome": "Demonstrate sentences and phrases in communication.",
+              "topics": [
+                {
+                  "code": "ENG8-LU-04-S4-T1",
+                  "name": "Complex Sentences",
+                  "descriptor": "Understand and apply complex sentences in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LU-04-S4-T2",
+                  "name": "Direct and Indirect Speech",
+                  "descriptor": "Understand and apply direct and indirect speech in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LU-04-S4-T3",
+                  "name": "Affirmative and Negative Sentences",
+                  "descriptor": "Understand and apply affirmative and negative sentences in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG8-LU-04-S4-T4",
+                  "name": "Question Tags",
+                  "descriptor": "Understand and apply question tags in listening, speaking, reading and writing."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "gradeLevel": "Grade 9",
+      "strands": [
+        {
+          "code": "ENG9-LS-01",
+          "name": "Listening and Speaking",
+          "descriptor": "Listen analytically and speak fluently for a range of audiences and purposes.",
+          "subStrands": [
+            {
+              "code": "ENG9-LS-01-S1",
+              "name": "Pronunciation and Vocabulary",
+              "descriptor": "Demonstrate pronunciation and vocabulary in communication.",
+              "learningOutcome": "Demonstrate pronunciation and vocabulary in communication.",
+              "topics": [
+                {
+                  "code": "ENG9-LS-01-S1-T1",
+                  "name": "Stress and Rhythm",
+                  "descriptor": "Understand and apply stress and rhythm in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LS-01-S1-T2",
+                  "name": "Intonation in Questions",
+                  "descriptor": "Understand and apply intonation in questions in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LS-01-S1-T3",
+                  "name": "Word Origins",
+                  "descriptor": "Understand and apply word origins in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LS-01-S1-T4",
+                  "name": "Figurative Language",
+                  "descriptor": "Understand and apply figurative language in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG9-LS-01-S2",
+              "name": "Listening Comprehension",
+              "descriptor": "Demonstrate listening comprehension in communication.",
+              "learningOutcome": "Demonstrate listening comprehension in communication.",
+              "topics": [
+                {
+                  "code": "ENG9-LS-01-S2-T1",
+                  "name": "Listening for Inference",
+                  "descriptor": "Understand and apply listening for inference in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LS-01-S2-T2",
+                  "name": "Evaluating Spoken Arguments",
+                  "descriptor": "Understand and apply evaluating spoken arguments in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LS-01-S2-T3",
+                  "name": "Listening to Media",
+                  "descriptor": "Understand and apply listening to media in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LS-01-S2-T4",
+                  "name": "Note Taking",
+                  "descriptor": "Understand and apply note taking in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG9-LS-01-S3",
+              "name": "Oral Presentation",
+              "descriptor": "Demonstrate oral presentation in communication.",
+              "learningOutcome": "Demonstrate oral presentation in communication.",
+              "topics": [
+                {
+                  "code": "ENG9-LS-01-S3-T1",
+                  "name": "Giving a Persuasive Speech",
+                  "descriptor": "Understand and apply giving a persuasive speech in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LS-01-S3-T2",
+                  "name": "Chairing a Meeting",
+                  "descriptor": "Understand and apply chairing a meeting in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LS-01-S3-T3",
+                  "name": "Performing Poetry",
+                  "descriptor": "Understand and apply performing poetry in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LS-01-S3-T4",
+                  "name": "Presenting Projects",
+                  "descriptor": "Understand and apply presenting projects in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG9-LS-01-S4",
+              "name": "Conversational Skills",
+              "descriptor": "Demonstrate conversational skills in communication.",
+              "learningOutcome": "Demonstrate conversational skills in communication.",
+              "topics": [
+                {
+                  "code": "ENG9-LS-01-S4-T1",
+                  "name": "Formal Discussions",
+                  "descriptor": "Understand and apply formal discussions in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LS-01-S4-T2",
+                  "name": "Debates",
+                  "descriptor": "Understand and apply debates in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LS-01-S4-T3",
+                  "name": "Interviews",
+                  "descriptor": "Understand and apply interviews in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LS-01-S4-T4",
+                  "name": "Conflict Resolution",
+                  "descriptor": "Understand and apply conflict resolution in listening, speaking, reading and writing."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "ENG9-RD-02",
+          "name": "Reading",
+          "descriptor": "Read analytically and independently for study, pleasure and research.",
+          "subStrands": [
+            {
+              "code": "ENG9-RD-02-S1",
+              "name": "Reading Fluency",
+              "descriptor": "Demonstrate reading fluency in communication.",
+              "learningOutcome": "Demonstrate reading fluency in communication.",
+              "topics": [
+                {
+                  "code": "ENG9-RD-02-S1-T1",
+                  "name": "Fluent Reading Aloud",
+                  "descriptor": "Understand and apply fluent reading aloud in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-RD-02-S1-T2",
+                  "name": "Reading with Expression",
+                  "descriptor": "Understand and apply reading with expression in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-RD-02-S1-T3",
+                  "name": "Adjusting Reading Speed",
+                  "descriptor": "Understand and apply adjusting reading speed in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-RD-02-S1-T4",
+                  "name": "Reading for Pleasure",
+                  "descriptor": "Understand and apply reading for pleasure in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG9-RD-02-S2",
+              "name": "Intensive Reading",
+              "descriptor": "Demonstrate intensive reading in communication.",
+              "learningOutcome": "Demonstrate intensive reading in communication.",
+              "topics": [
+                {
+                  "code": "ENG9-RD-02-S2-T1",
+                  "name": "Reading for Inference",
+                  "descriptor": "Understand and apply reading for inference in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-RD-02-S2-T2",
+                  "name": "Analysing Argument",
+                  "descriptor": "Understand and apply analysing argument in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-RD-02-S2-T3",
+                  "name": "Evaluating Sources",
+                  "descriptor": "Understand and apply evaluating sources in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-RD-02-S2-T4",
+                  "name": "Comparing Texts",
+                  "descriptor": "Understand and apply comparing texts in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG9-RD-02-S3",
+              "name": "Extensive Reading",
+              "descriptor": "Demonstrate extensive reading in communication.",
+              "learningOutcome": "Demonstrate extensive reading in communication.",
+              "topics": [
+                {
+                  "code": "ENG9-RD-02-S3-T1",
+                  "name": "Novel Study",
+                  "descriptor": "Understand and apply novel study in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-RD-02-S3-T2",
+                  "name": "Reading Drama",
+                  "descriptor": "Understand and apply reading drama in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-RD-02-S3-T3",
+                  "name": "Reading Biographies",
+                  "descriptor": "Understand and apply reading biographies in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-RD-02-S3-T4",
+                  "name": "Independent Reading",
+                  "descriptor": "Understand and apply independent reading in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG9-RD-02-S4",
+              "name": "Study Skills",
+              "descriptor": "Demonstrate study skills in communication.",
+              "learningOutcome": "Demonstrate study skills in communication.",
+              "topics": [
+                {
+                  "code": "ENG9-RD-02-S4-T1",
+                  "name": "Summarising and Paraphrasing",
+                  "descriptor": "Understand and apply summarising and paraphrasing in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-RD-02-S4-T2",
+                  "name": "Referencing Skills",
+                  "descriptor": "Understand and apply referencing skills in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-RD-02-S4-T3",
+                  "name": "Interpreting Charts and Tables",
+                  "descriptor": "Understand and apply interpreting charts and tables in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-RD-02-S4-T4",
+                  "name": "Revision Techniques",
+                  "descriptor": "Understand and apply revision techniques in listening, speaking, reading and writing."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "ENG9-WR-03",
+          "name": "Writing",
+          "descriptor": "Write sustained, well-structured texts for a variety of purposes.",
+          "subStrands": [
+            {
+              "code": "ENG9-WR-03-S1",
+              "name": "Handwriting and Presentation",
+              "descriptor": "Demonstrate handwriting and presentation in communication.",
+              "learningOutcome": "Demonstrate handwriting and presentation in communication.",
+              "topics": [
+                {
+                  "code": "ENG9-WR-03-S1-T1",
+                  "name": "Neat and Legible Writing",
+                  "descriptor": "Understand and apply neat and legible writing in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-WR-03-S1-T2",
+                  "name": "Formatting Formal Documents",
+                  "descriptor": "Understand and apply formatting formal documents in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-WR-03-S1-T3",
+                  "name": "Using Headings and Subheadings",
+                  "descriptor": "Understand and apply using headings and subheadings in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-WR-03-S1-T4",
+                  "name": "Proofreading",
+                  "descriptor": "Understand and apply proofreading in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG9-WR-03-S2",
+              "name": "Spelling and Vocabulary",
+              "descriptor": "Demonstrate spelling and vocabulary in communication.",
+              "learningOutcome": "Demonstrate spelling and vocabulary in communication.",
+              "topics": [
+                {
+                  "code": "ENG9-WR-03-S2-T1",
+                  "name": "Spelling Complex Words",
+                  "descriptor": "Understand and apply spelling complex words in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-WR-03-S2-T2",
+                  "name": "Foreign Words in English",
+                  "descriptor": "Understand and apply foreign words in English in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-WR-03-S2-T3",
+                  "name": "Synonyms and Antonyms",
+                  "descriptor": "Understand and apply synonyms and antonyms in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-WR-03-S2-T4",
+                  "name": "Precise Word Choice",
+                  "descriptor": "Understand and apply precise word choice in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG9-WR-03-S3",
+              "name": "Punctuation",
+              "descriptor": "Demonstrate punctuation in communication.",
+              "learningOutcome": "Demonstrate punctuation in communication.",
+              "topics": [
+                {
+                  "code": "ENG9-WR-03-S3-T1",
+                  "name": "Punctuating Longer Texts",
+                  "descriptor": "Understand and apply punctuating longer texts in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-WR-03-S3-T2",
+                  "name": "Brackets and Ellipses",
+                  "descriptor": "Understand and apply brackets and ellipses in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-WR-03-S3-T3",
+                  "name": "Editing and Proofreading",
+                  "descriptor": "Understand and apply editing and proofreading in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-WR-03-S3-T4",
+                  "name": "Punctuation for Effect",
+                  "descriptor": "Understand and apply punctuation for effect in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG9-WR-03-S4",
+              "name": "Composition",
+              "descriptor": "Demonstrate composition in communication.",
+              "learningOutcome": "Demonstrate composition in communication.",
+              "topics": [
+                {
+                  "code": "ENG9-WR-03-S4-T1",
+                  "name": "Argumentative Essays",
+                  "descriptor": "Understand and apply argumentative essays in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-WR-03-S4-T2",
+                  "name": "Creative Writing",
+                  "descriptor": "Understand and apply creative writing in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-WR-03-S4-T3",
+                  "name": "Reports and Articles",
+                  "descriptor": "Understand and apply reports and articles in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-WR-03-S4-T4",
+                  "name": "Speeches and Minutes",
+                  "descriptor": "Understand and apply speeches and minutes in listening, speaking, reading and writing."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "ENG9-LU-04",
+          "name": "Grammar in Use",
+          "descriptor": "Apply grammar accurately for cohesion, emphasis and effect.",
+          "subStrands": [
+            {
+              "code": "ENG9-LU-04-S1",
+              "name": "Nouns and Pronouns",
+              "descriptor": "Demonstrate nouns and pronouns in communication.",
+              "learningOutcome": "Demonstrate nouns and pronouns in communication.",
+              "topics": [
+                {
+                  "code": "ENG9-LU-04-S1-T1",
+                  "name": "Nominalisation",
+                  "descriptor": "Understand and apply nominalisation in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LU-04-S1-T2",
+                  "name": "Possessive Forms",
+                  "descriptor": "Understand and apply possessive forms in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LU-04-S1-T3",
+                  "name": "Pronoun Case",
+                  "descriptor": "Understand and apply pronoun case in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LU-04-S1-T4",
+                  "name": "Cohesive Devices",
+                  "descriptor": "Understand and apply cohesive devices in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG9-LU-04-S2",
+              "name": "Verbs and Tenses",
+              "descriptor": "Demonstrate verbs and tenses in communication.",
+              "learningOutcome": "Demonstrate verbs and tenses in communication.",
+              "topics": [
+                {
+                  "code": "ENG9-LU-04-S2-T1",
+                  "name": "Tenses in Narration",
+                  "descriptor": "Understand and apply tenses in narration in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LU-04-S2-T2",
+                  "name": "Passive Constructions",
+                  "descriptor": "Understand and apply passive constructions in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LU-04-S2-T3",
+                  "name": "Conditionals",
+                  "descriptor": "Understand and apply conditionals in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LU-04-S2-T4",
+                  "name": "Phrasal Verbs",
+                  "descriptor": "Understand and apply phrasal verbs in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG9-LU-04-S3",
+              "name": "Adjectives and Adverbs",
+              "descriptor": "Demonstrate adjectives and adverbs in communication.",
+              "learningOutcome": "Demonstrate adjectives and adverbs in communication.",
+              "topics": [
+                {
+                  "code": "ENG9-LU-04-S3-T1",
+                  "name": "Comparative Structures",
+                  "descriptor": "Understand and apply comparative structures in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LU-04-S3-T2",
+                  "name": "Adjectival Phrases",
+                  "descriptor": "Understand and apply adjectival phrases in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LU-04-S3-T3",
+                  "name": "Adverbial Phrases",
+                  "descriptor": "Understand and apply adverbial phrases in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LU-04-S3-T4",
+                  "name": "Clause Modifiers",
+                  "descriptor": "Understand and apply clause modifiers in listening, speaking, reading and writing."
+                }
+              ]
+            },
+            {
+              "code": "ENG9-LU-04-S4",
+              "name": "Sentences and Phrases",
+              "descriptor": "Demonstrate sentences and phrases in communication.",
+              "learningOutcome": "Demonstrate sentences and phrases in communication.",
+              "topics": [
+                {
+                  "code": "ENG9-LU-04-S4-T1",
+                  "name": "Sentence Variety",
+                  "descriptor": "Understand and apply sentence variety in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LU-04-S4-T2",
+                  "name": "Combining Sentences",
+                  "descriptor": "Understand and apply combining sentences in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LU-04-S4-T3",
+                  "name": "Reported Speech",
+                  "descriptor": "Understand and apply reported speech in listening, speaking, reading and writing."
+                },
+                {
+                  "code": "ENG9-LU-04-S4-T4",
+                  "name": "Editing Sentences",
+                  "descriptor": "Understand and apply editing sentences in listening, speaking, reading and writing."
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ]
 }
