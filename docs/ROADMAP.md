@@ -673,6 +673,18 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       `answer_key_drop_disagreements` (default true) selects the disposition or, when false, the
       legacy whole-unit ratio with no deletion. A quiz can therefore ship with 8-9 of its generated
       questions instead of being discarded over one bad item.
+- [x] 7.5i live-batch structure fixes: a live Grade 4 Mathematics batch (20 topics x NOTES+QUIZ = 40
+      real jobs, generation + independent verification) completed in about 6.5 minutes on one worker
+      at batch-size 5, with 32/40 published, 0 job failures and all 8 exceptions WARNING-only (score
+      0.9). Six NOTES units were generated with zero questions (`STRUCTURE_NO_QUESTIONS`) and two
+      QUIZ units were withheld - one left with 7 questions after disposition dropped 3 (below the 8
+      floor) and one tripped `STRUCTURE_FINAL_STEP_NO_QUESTIONS`, a lesson rule wrongly applied to a
+      quiz. The DeepSeek system prompt now requires a NOTES/LESSON task to interleave 3-5 nested
+      check questions with its steps (each with a non-null `correctAnswer`) and raises the QUIZ
+      target to 10-12 questions so a per-question disposition still leaves at least 8 survivors, and
+      `StructureValidator` emits the final-step warning only for a non-assessment unit, so a quiz's
+      questions need not be attached to a step. `STRUCTURE_NO_QUESTIONS` and the lesson
+      minimum-step rule are unchanged; no internal retry was added.
 - [ ] 7.6 breadth: run the 7.5e producer at full Tier 1 breadth, then past papers, study guides and the remaining subjects.
 - [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences)
 - [ ] Agent tools: DB metric queries, internet search, content validators

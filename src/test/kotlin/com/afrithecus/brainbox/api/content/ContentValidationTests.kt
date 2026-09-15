@@ -124,6 +124,73 @@ class ContentValidationTests(
     }
 
     @Test
+    fun `structure validator does not apply the final-step rule to a quiz with unattached questions`() {
+        // 7.5i: a quiz's questions need not be attached to a step, so the lesson-only
+        // final-step warning must not fire even when the quiz carries lesson steps.
+        val concept = concepts.save(concept())
+        curriculumMaps.save(
+            CurriculumMapEntity().apply {
+                conceptId = concept.id
+                countryCode = "KE"
+                curriculum = "CBC"
+                gradeLevel = "Grade 4"
+            }
+        )
+        val unit = contentUnits.save(
+            unit(title = "Fractions quiz", conceptId = concept.id).apply { this.taskType = "QUIZ" }
+        )
+        seedThreeSteps(unit.id)
+        repeat(8) { index ->
+            seedQuestion(
+                unitId = unit.id,
+                stepId = null,
+                orderIndex = index,
+                qType = "MCQ",
+                text = "Question " + index + "?",
+                options = listOf("A", "B", "C", "D"),
+                answer = "A",
+            )
+        }
+
+        val report = validation.validate("UNIT", unit.id)
+        check(report.has("STRUCTURE_FINAL_STEP_NO_QUESTIONS", FindingSeverity.WARNING).not()) {
+            "a quiz's unattached questions must not trip the lesson final-step rule: " + report.findings
+        }
+        check(report.blockers.not()) { "expected a clean quiz with steps, got " + report.findings }
+        check(report.score == 1.0)
+    }
+
+    @Test
+    fun `structure validator still warns when a notes unit's final step has no question`() {
+        // Regression guard: the final-step rule is a lesson rule and must keep firing
+        // for a non-assessment unit whose earlier step carries the only question.
+        val unit = seedValidUnit()
+        val firstStep = steps.findAllByUnitIdOrderByOrderIndexAsc(unit.id).first()
+        val existing = questions.findAllByUnitIdOrderByOrderIndexAsc(unit.id).single()
+        existing.stepId = firstStep.id
+        questions.save(existing)
+        entityManager.flush()
+
+        val report = validation.validate("UNIT", unit.id)
+        check(report.has("STRUCTURE_FINAL_STEP_NO_QUESTIONS", FindingSeverity.WARNING)) {
+            "a notes unit's final step without a question must still warn"
+        }
+    }
+
+    @Test
+    fun `structure validator warns when a notes unit has no questions`() {
+        val unit = seedValidUnit()
+        questions.findAllByUnitIdOrderByOrderIndexAsc(unit.id).forEach { questions.delete(it) }
+        entityManager.flush()
+
+        val report = validation.validate("UNIT", unit.id)
+        check(report.has("STRUCTURE_NO_QUESTIONS", FindingSeverity.WARNING)) {
+            "a notes unit with zero questions must still warn"
+        }
+        check(report.blockers.not())
+    }
+
+    @Test
     fun `structure validator still blocks a notes unit with only two steps`() {
         val unit = contentUnits.save(unit(title = "Two-step notes"))
         seedStep(unit.id, 0)

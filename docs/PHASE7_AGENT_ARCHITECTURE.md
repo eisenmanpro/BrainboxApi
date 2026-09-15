@@ -209,8 +209,10 @@ version and aggregates their findings into a `ValidationReport`:
   readable unit (NOTES/BOOK/CHUNK, and anything that is not an assessment) still needs at least
   three steps; an assessment (`QUIZ`/`EXAM`/`ASSESSMENT`) is measured by its questions, so a quiz
   is not a lesson and may carry zero lesson steps and only questions. A unit with no questions still
-  gets the `STRUCTURE_NO_QUESTIONS` warning, and the final-step question warning only applies when
-  steps exist. Questions require a prompt and, for multiple choice, at least two distinct options;
+  gets the `STRUCTURE_NO_QUESTIONS` warning, and the final-step question warning is a lesson rule
+  (7.5i): it is emitted only for a non-assessment unit whose final existing step has no attached
+  question, because a quiz's questions need not be attached to a step. Questions require a prompt
+  and, for multiple choice, at least two distinct options;
   the answer-key check requires a key that matches exactly one option; curriculum requires a
   resolved concept and a mapping; language requires a language tag and teachable text.
 

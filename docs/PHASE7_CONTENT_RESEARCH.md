@@ -380,6 +380,23 @@ versioned table that content is tagged against.
   wrong key can ship - and a quiz is not discarded over a single item; an all-disputed unit
   records 0.0 and fails closed. The policy key is `answer_key_drop_disagreements` (default true);
   set it false to keep the old whole-unit agreement ratio with no deletion.
+- Live batch measurement and structure fixes (implemented, 7.5i): a live Grade 4 Mathematics batch of
+  20 topics x (NOTES + QUIZ) = 40 real jobs (generation + independent verification) completed in
+  about 6.5 minutes on one worker at batch-size 5, with 32/40 published and 0 job failures. All 8
+  exceptions were validator WARNINGs (score 0.9, no blockers) in exactly two shapes. Six of twenty
+  NOTES units were generated with zero questions, tripping `STRUCTURE_NO_QUESTIONS` - the BrainBox
+  standard wants nested check questions inside a lesson. Two of twenty QUIZ units were withheld: one
+  ended with 7 surviving questions after per-question disposition dropped 3 (below the 8 floor), and
+  one tripped `STRUCTURE_FINAL_STEP_NO_QUESTIONS`, a lesson rule ("the final step must carry a
+  question") wrongly applied to a quiz, where step attachment is optional. Two fixes follow: the
+  generation system prompt now requires every NOTES/LESSON task to carry 3-5 nested check questions
+  interleaved with the steps (each with a non-null `correctAnswer`), so a lesson is not a wall of
+  prose, and it raises the QUIZ target from 8-12 to 10-12 questions so that a per-question
+  disposition which drops one or two still leaves at least 8 survivors; and `StructureValidator`
+  now emits the final-step warning only for a non-assessment unit, so a quiz's questions need not be
+  attached to a step. `STRUCTURE_NO_QUESTIONS` stays a WARNING for any unit with no questions, the
+  title/step-body rules are unchanged, the minimum-step rule remains a lesson rule, and no internal
+  retry was added.
 
 ---
 

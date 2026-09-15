@@ -212,8 +212,13 @@ class DeepSeekContentGenerationProvider(
             - For MULTIPLE_CHOICE and TRUE_FALSE the "correctAnswer" MUST be copied
               exactly from one of the strings in that question's "options"; never a
               letter, a number or a paraphrase.
-            - For a QUIZ task the response MUST contain at least 8 and at most 12
-              questions.
+            - For a QUIZ task the response MUST contain at least 10 and at most 12
+              questions, so that dropping one or two disputed answers still leaves
+              at least 8.
+            - For a NOTES or LESSON task (any non-assessment task) the response MUST
+              contain between 3 and 5 nested check questions interleaved with the
+              steps. Attach each check to the step it checks ("stepIndex") and give
+              it a non-null "correctAnswer", so a lesson is not a wall of prose.
             Never include markdown fences or commentary.
         """.trimIndent()
         val VERIFY_SYSTEM_PROMPT = """
