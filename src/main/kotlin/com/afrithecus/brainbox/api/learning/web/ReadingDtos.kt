@@ -35,6 +35,12 @@ data class ReadableFilePayload(
     val category: String? = null,
     /** Android `ReadableFile.filePath` (was `fileUrl`, which the client cannot map). */
     val filePath: String,
+    /**
+     * Inline markdown body for a generated quick-read chunk (section F of the phase-7
+     * client doc). Null for file-backed materials; a chunk has an empty [filePath] and
+     * carries its content here instead.
+     */
+    val body: String? = null,
     /** PDF | EPUB | PLAINTEXT, matching the Android `ReadableFileType`. */
     val fileType: String,
     /** Android `ReadableFile.totalPages` (was `pageCount`). */

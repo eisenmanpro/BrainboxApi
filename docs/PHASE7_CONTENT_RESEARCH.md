@@ -148,8 +148,9 @@ Verified against the code, not the docs:
     strips QUIZ keys (`LearningService.contentOf` / `stripKeys`).
   - `GET /past-papers/{examId}/content` is assembled per request from `exams` +
     `exam_questions`, PAST_PAPER-only, with the marking scheme embedded.
-  - `GET /materials/readable/{id}` is **metadata only** (a `fileUrl` + page count, no
-    body). This is the single biggest Phase 7 blocker.
+  - `GET /materials/readable/{id}` was **metadata only** (a `fileUrl` + page count, no
+    body) — the single biggest Phase 7 blocker. Fixed: the payload now carries the
+    chunk's inline `body` (see the serving-path status below).
 - **Where bodies live:** `learning_content.content` (markdown/text) + `metadata` (QUIZ JSON,
   server-side), `readable_files.file_url` (a hosted document via `MediaService`), and
   `exams`/`exam_questions`. `learning_content` has **no file/PDF column**, so DOCUMENT-type
@@ -163,6 +164,18 @@ Verified against the code, not the docs:
   are declared but their auto-config is excluded.
 - **Bonus gap:** the *student* homework payload (`StudentHomeworkPayload`) never carries
   `questions`, so generated homework questions have no delivery path yet.
+
+**Serving-path status (verified end to end).** The generated content serving path is now
+proven by `GeneratedContentServingTests`: a batch `NOTES`/`QUIZ`/`CHUNK` job drains the
+durable queue through the fake router, the validator/safety gates, auto-approval and
+`ContentProjectionService`, and a signed-in learner reads the projected content back from
+`GET /learning/post/{id}/content` (the unit id is the post id; the generated NOTES blocks
+come back in `orderIndex` order with the QUIZ block) and `GET /materials/readable/{id}`
+(the generated chunk's inline `body`). Projected quiz metadata now carries the client's
+`questions[].correct` 0-based option index while the learner read still strips every key,
+and an unreviewed/gated unit still returns 404 on both reads. The remaining Phase 7 serving
+gap is generated **past papers** (7.6): `GET /past-papers/{examId}/content` is verified only
+against an admin-created paper because the batch producer does not emit past papers yet.
 
 ### 1.6 Delivery contract blockers (fix before generating anything)
 

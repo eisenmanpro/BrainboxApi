@@ -196,7 +196,9 @@ class LearningService(
         if (node.isObject) {
             val copy = (node as? tools.jackson.databind.node.ObjectNode)?.deepCopy()
                 ?: return node
-            copy.remove(listOf("correctAnswer", "explanation", "matchingPairs"))
+            // "correct" is the client-side option index the projection emits alongside
+            // "correctAnswer"; both are key material for a hub quiz.
+            copy.remove(listOf("correctAnswer", "correct", "explanation", "matchingPairs"))
             val names = copy.propertyNames().toList()
             for (name in names) {
                 copy.get(name)?.let { child -> copy.replace(name, stripKeys(child)) }

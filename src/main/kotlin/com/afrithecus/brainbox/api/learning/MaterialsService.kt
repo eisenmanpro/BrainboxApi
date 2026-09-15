@@ -199,6 +199,8 @@ class MaterialsService(
         subject = file.subject,
         category = file.category,
         filePath = file.fileUrl,
+        // A generated chunk carries its content inline; file-backed materials leave this null.
+        body = file.body,
         fileType = clientFileType(file),
         totalPages = file.pageCount,
         thumbnailUrl = null,

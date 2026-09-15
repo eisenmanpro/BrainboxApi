@@ -738,8 +738,12 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - [ ] Moderator gate (AI + human-in-the-loop UI) — nothing ships unmoderated
 - [ ] Content JSON schema v1; answer-key stripping before student delivery; scope inheritance
 - [ ] Observable jobs: agent trace, provider, tokens, moderation outcome (audit trail)
-- [ ] Serve through existing client endpoints: GET /learning/post/{id}/content,
-      GET /past-papers/{examId}/content, GET /materials/readable/{id}
+- [x] Serve through existing client endpoints: `GET /learning/post/{id}/content` and
+      `GET /materials/readable/{id}` now return generated, auto-approved content end to end
+      (`GeneratedContentServingTests`; the post/file id is the content-unit id, quiz metadata
+      carries the client `questions[].correct` index, and a gated unit still 404s).
+      `GET /past-papers/{examId}/content` is verified against an admin-created paper only;
+      generated past papers stay in 7.6.
 - [ ] Budget/storage story: generate-on-demand + cache instead of PDF storage
 
 ---

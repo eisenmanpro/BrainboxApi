@@ -179,18 +179,48 @@ class ContentProjectionService(
      */
     private fun quizMetadataJson(questions: List<ContentUnitQuestionEntity>): String {
         val payload = questions.map { q ->
-            mapOf(
+            val options = codec.parseList(q.options) ?: emptyList<String>()
+            val entry = linkedMapOf<String, Any?>(
                 "text" to q.text,
                 "type" to q.qType,
-                "options" to (codec.parseList(q.options) ?: emptyList<String>()),
+                "options" to options,
                 "correctAnswer" to q.correctAnswer,
                 "explanation" to q.explanation,
                 "points" to q.points,
                 "difficulty" to q.difficulty,
                 "matchingPairs" to (codec.parseMap(q.matchingPairs) ?: emptyMap<String, String>()),
             )
+            // The Android MiniQuiz parser reads `questions[].correct` as a 0-based option
+            // index and silently ignores an option list without it, so a quiz projected
+            // with only `correctAnswer` renders no answers. Emit the index the client
+            // parses as well; the learner projection still strips both keys.
+            optionIndex(options, q.correctAnswer)?.let { entry["correct"] = it }
+            entry
         }
         return mapper.writeValueAsString(mapOf("questions" to payload))
+    }
+
+    /**
+     * Resolves the stored answer to the 0-based option index the client parses
+     * (`questions[].correct`). Accepts the option text, a single A-Z letter or a
+     * 1-based option number; null when the question has no options or the key does
+     * not identify one, so the client treats it as ungradable rather than wrong.
+     */
+    private fun optionIndex(options: List<String>, answer: String?): Int? {
+        val key = answer?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        if (options.isEmpty()) return null
+        options.indexOfFirst { it.trim().equals(key, ignoreCase = true) }
+            .takeIf { it >= 0 }
+            ?.let { return it }
+        val token = key.lowercase()
+        if (token.length == 1 && token[0] in 'a'..'z') {
+            val index = token[0] - 'a'
+            if (index < options.size) return index
+        }
+        token.toIntOrNull()?.let { number ->
+            if (number in 1..options.size) return number - 1
+        }
+        return null
     }
 
     /**
