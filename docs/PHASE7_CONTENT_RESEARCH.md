@@ -370,6 +370,16 @@ versioned table that content is tagged against.
   return 8-12 questions - while the strict-JSON-only instruction is kept. There is no internal
   retry: the deterministic validators remain the gate, so a still-imperfect response keeps
   routing to the human exception queue.
+- Disputed-key disposition (implemented, 7.5h): measured on the live provider, five real Grade 4
+  Mathematics `QUIZ` jobs after 7.5g were all structurally valid with 10 questions and a clean
+  validator score, yet only one auto-approved because the independent verifier's agreement was
+  0.8, 0.9, 0.9 and 1.0. A whole-unit 1.0 bar threw away an accurate quiz over one or two bad
+  items. The disposition is now per question: the disputed items are dropped from the unit, the
+  survivors become the quiz, and the unit publishes only when at least one question survives,
+  every surviving key agrees and the assessment floor is still met. Quality is unchanged - no
+  wrong key can ship - and a quiz is not discarded over a single item; an all-disputed unit
+  records 0.0 and fails closed. The policy key is `answer_key_drop_disagreements` (default true);
+  set it false to keep the old whole-unit agreement ratio with no deletion.
 
 ---
 

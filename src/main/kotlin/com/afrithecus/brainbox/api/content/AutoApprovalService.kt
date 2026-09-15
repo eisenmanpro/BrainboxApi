@@ -24,14 +24,16 @@ import java.util.UUID
  *  4. if the unit has questions, its critic confidence is non-null and at least
  *     `auto_approve_min_critic_confidence` (default 0.90; a null confidence fails
  *     closed);
- *  5. if the unit is an assessment task type (QUIZ/EXAM/ASSESSMENT) and has
- *     questions, it carries at least `auto_approve_min_questions` (default 8). A
- *     NOTES micro-lesson may carry a few nested checks without meeting 8, because
- *     the question count is not the product there;
- *  6. if the unit is an assessment task type with questions, its answer keys have
- *     been independently verified and the agreement is at least
- *     `answer_key_min_agreement` (default 1.0). An unverified or partly-agreeing
- *     assessment fails closed into the exception queue (Phase 7.5f);
+ *  5. if the unit is an assessment task type (QUIZ/EXAM/ASSESSMENT), it carries at
+ *     least `auto_approve_min_questions` (default 8) unconditionally, so a unit whose
+ *     disputed keys were all dropped (question count 0) fails the gate instead of
+ *     skipping it (Phase 7.5h). A NOTES micro-lesson may carry a few nested checks
+ *     without meeting 8, because the question count is not the product there;
+ *  6. if the unit is an assessment task type, its answer keys have been independently
+ *     verified and the agreement is at least `answer_key_min_agreement` (default 1.0).
+ *     An unverified or partly-agreeing assessment fails closed into the exception queue
+ *     (Phase 7.5f); after the 7.5h per-question disposition only the surviving keys are
+ *     compared, so a dropped item never hides a wrong key;
  *  7. the unit is still `UNREVIEWED`, so a human decision (REVIEWED or REJECTED)
  *     is never touched, overwritten or re-attributed.
  *
@@ -64,23 +66,25 @@ class AutoApprovalService(
         if (report.score < moderationPolicy.autoApproveMinValidatorScore()) return false
 
         val questionCount = unitQuestions.findAllByUnitIdOrderByOrderIndexAsc(contentId).size
-        if (questionCount > 0) {
+        if (ContentTaskTypes.isAssessment(unit.taskType)) {
+            // An assessment is measured by its questions, so the floor is unconditional:
+            // a unit whose disputed keys were all dropped (questionCount 0) must fail the
+            // gate rather than skip it (Phase 7.5h).
+            if (questionCount < moderationPolicy.autoApproveMinQuestions()) return false
             val confidence = unit.confidence ?: return false
             if (confidence < moderationPolicy.autoApproveMinCriticConfidence()) return false
-            // The question-count floor is an assessment rule. A NOTES/readable unit with a
-            // few nested checks is exactly the BrainBox standard, so it must not be held to 8.
-            if (ContentTaskTypes.isAssessment(unit.taskType) && questionCount < moderationPolicy.autoApproveMinQuestions()) {
-                return false
-            }
             // Phase 7.5f hard gate: an assessment's keys are only as good as an
             // independent solve. Fail closed when there is no verification, and
-            // require the agreement ratio to clear the policy bar (default 1.0,
-            // every stored key agrees).
-            if (ContentTaskTypes.isAssessment(unit.taskType)) {
-                if (unit.answerKeyVerifiedAt == null) return false
-                val agreement = unit.answerKeyAgreement ?: return false
-                if (agreement < moderationPolicy.answerKeyMinAgreement()) return false
-            }
+            // require the agreement ratio to clear the policy bar (default 1.0, every
+            // surviving key agrees after the 7.5h disposition).
+            if (unit.answerKeyVerifiedAt == null) return false
+            val agreement = unit.answerKeyAgreement ?: return false
+            if (agreement < moderationPolicy.answerKeyMinAgreement()) return false
+        } else if (questionCount > 0) {
+            // The question-count floor is an assessment rule. A NOTES/readable unit with a
+            // few nested checks is exactly the BrainBox standard, so it must not be held to 8.
+            val confidence = unit.confidence ?: return false
+            if (confidence < moderationPolicy.autoApproveMinCriticConfidence()) return false
         }
 
         unit.reviewState = STATE_REVIEWED

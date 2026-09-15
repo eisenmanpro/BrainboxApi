@@ -18,6 +18,8 @@ import com.afrithecus.brainbox.api.content.repository.ContentUnitRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitStepRepository
 import com.afrithecus.brainbox.api.content.repository.CurriculumMapRepository
 import com.afrithecus.brainbox.api.content.repository.ModelCallRepository
+import com.afrithecus.brainbox.api.learning.model.ContentType
+import com.afrithecus.brainbox.api.learning.repository.LearningContentRepository
 import com.afrithecus.brainbox.api.learning.repository.LearningPostRepository
 import jakarta.persistence.EntityManager
 import org.junit.jupiter.api.BeforeEach
@@ -56,6 +58,8 @@ class AnswerVerificationTests(
     @Autowired private val curriculumMaps: CurriculumMapRepository,
     @Autowired private val agentRuns: AgentRunRepository,
     @Autowired private val modelCalls: ModelCallRepository,
+    @Autowired private val policy: ModerationPolicyService,
+    @Autowired private val learningContents: LearningContentRepository,
     @Autowired private val posts: LearningPostRepository,
     @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val entityManager: EntityManager,
@@ -132,18 +136,176 @@ class AnswerVerificationTests(
 
         val agreement = router.verifyAnswerKeys(unit.id)
 
-        check(agreement != null && abs(agreement - 7.0 / 8.0) < 1e-9) {
-            "expected 0.875, got " + agreement
-        }
+        // 7.5h default disposition: the disputed item is dropped and the survivors agree,
+        // but 7 questions is below the 8-question assessment floor, so it still waits.
+        check(agreement == 1.0) { "expected 1.0 after disposition, got " + agreement }
 
-        projection.project(unit.id)
         entityManager.flush()
         entityManager.clear()
 
         val stored = contentUnits.findById(unit.id).orElseThrow()
         check(stored.answerKeyVerifiedAt != null)
-        check(stored.reviewState == "UNREVIEWED") { "a disagreeing key must be an exception" }
+        check(stored.answerKeyDropped == 1)
+        check(unitQuestions.findAllByUnitIdOrderByOrderIndexAsc(unit.id).size == 7)
+        check(stored.reviewState == "UNREVIEWED") { "a below-floor quiz must be an exception" }
+
+        projection.project(unit.id)
+        entityManager.flush()
+        entityManager.clear()
+        check(contentUnits.findById(unit.id).orElseThrow().reviewState == "UNREVIEWED")
         check(!posts.findById(unit.id).orElseThrow().isPublished)
+    }
+
+    @Test
+    fun `one disputed item is dropped and a ten-question quiz ships with nine`() {
+        val unit = seedAssessment("QUIZ", 10)
+        fake.verificationAnswers = (0 until 10).associateWith { if (it == 4) "B" else "A" }
+
+        val agreement = router.verifyAnswerKeys(unit.id)
+
+        check(agreement == 1.0) { "expected 1.0, got " + agreement }
+        entityManager.flush()
+        entityManager.clear()
+
+        val stored = contentUnits.findById(unit.id).orElseThrow()
+        check(stored.answerKeyDropped == 1) { "expected one dropped item" }
+        check(stored.answerKeyAgreement == 1.0)
+        val detail = objectMapper.readTree(stored.answerKeyDroppedDetail!!)
+        check(detail.size() == 1)
+        val dropped = detail.get(0)
+        check(dropped.get("orderIndex").asInt() == 4)
+        check(dropped.get("text").asString() == "Question 4?")
+        check(dropped.get("storedKey").asString() == "A")
+        check(dropped.get("verifiedAnswer").asString() == "B")
+
+        val surviving = unitQuestions.findAllByUnitIdOrderByOrderIndexAsc(unit.id)
+        check(surviving.size == 9) { "expected 9 survivors, got " + surviving.size }
+        check(surviving.none { it.orderIndex == 4 })
+
+        // The verification is still exactly one agent_run plus one model_call (7.5f capture).
+        val verificationRuns = agentRuns.findAllByGenerationKeyOrderByCreatedAtDesc(unit.generationKey)
+            .filter { it.promptVersion == "answer-verify-v1" }
+        check(verificationRuns.size == 1)
+        check(modelCalls.findAllByAgentRunId(verificationRuns[0].id).size == 1)
+
+        projection.project(unit.id)
+        entityManager.flush()
+        entityManager.clear()
+
+        check(contentUnits.findById(unit.id).orElseThrow().reviewState == "REVIEWED")
+        check(posts.findById(unit.id).orElseThrow().isPublished)
+        val quiz = learningContents.findAllByPostIdOrderByOrderIndexAsc(unit.id)
+            .single { it.contentType == ContentType.QUIZ }
+        val asked = objectMapper.readTree(quiz.metadata!!).get("questions")
+        check(asked.size() == 9) { "the published quiz must carry 9 questions, got " + asked.size() }
+    }
+
+    @Test
+    fun `three disputes leave seven questions below the floor and never publish`() {
+        val unit = seedAssessment("QUIZ", 10)
+        fake.verificationAnswers = (0 until 10).associateWith { if (it in 2..4) "B" else "A" }
+
+        val agreement = router.verifyAnswerKeys(unit.id)
+
+        check(agreement == 1.0)
+        entityManager.flush()
+        entityManager.clear()
+        check(unitQuestions.findAllByUnitIdOrderByOrderIndexAsc(unit.id).size == 7)
+        check(contentUnits.findById(unit.id).orElseThrow().answerKeyDropped == 3)
+
+        projection.project(unit.id)
+        entityManager.flush()
+        entityManager.clear()
+        check(contentUnits.findById(unit.id).orElseThrow().reviewState == "UNREVIEWED")
+        check(!posts.findById(unit.id).orElseThrow().isPublished)
+    }
+
+    @Test
+    fun `an assessment where every answer disagrees drops all questions and never publishes`() {
+        val unit = seedAssessment("QUIZ", 10)
+        // One plainly wrong answer and nine blank/dropped independent answers: every
+        // question is disputed, so no question survives.
+        fake.verificationAnswers = (0 until 10).associateWith { if (it == 0) "B" else null }
+
+        val agreement = router.verifyAnswerKeys(unit.id)
+
+        check(agreement == 0.0) { "expected 0.0 when nothing survives, got " + agreement }
+        entityManager.flush()
+        entityManager.clear()
+
+        val stored = contentUnits.findById(unit.id).orElseThrow()
+        check(stored.answerKeyDropped == 10)
+        check(stored.answerKeyAgreement == 0.0)
+        check(unitQuestions.findAllByUnitIdOrderByOrderIndexAsc(unit.id).isEmpty())
+
+        projection.project(unit.id)
+        entityManager.flush()
+        entityManager.clear()
+        check(contentUnits.findById(unit.id).orElseThrow().reviewState == "UNREVIEWED")
+        check(!posts.findById(unit.id).orElseThrow().isPublished)
+    }
+
+    @Test
+    fun `with the drop policy off a disagreement keeps a sub-one ratio and does not publish`() {
+        policy.set("answer_key_drop_disagreements", "false")
+        val unit = seedAssessment("QUIZ", 10)
+        fake.verificationAnswers = (0 until 10).associateWith { if (it == 5) "B" else "A" }
+
+        val agreement = router.verifyAnswerKeys(unit.id)
+
+        check(agreement != null && abs(agreement - 0.9) < 1e-9) { "expected 0.9, got " + agreement }
+        entityManager.flush()
+        entityManager.clear()
+
+        check(contentUnits.findById(unit.id).orElseThrow().answerKeyDropped == 0) {
+            "policy off must not delete"
+        }
+        check(unitQuestions.findAllByUnitIdOrderByOrderIndexAsc(unit.id).size == 10)
+
+        projection.project(unit.id)
+        entityManager.flush()
+        entityManager.clear()
+        check(contentUnits.findById(unit.id).orElseThrow().reviewState == "UNREVIEWED")
+        check(!posts.findById(unit.id).orElseThrow().isPublished)
+    }
+
+    @Test
+    fun `a second verify reuses the disposition without another model call or deletion`() {
+        val unit = seedAssessment("QUIZ", 10)
+        fake.verificationAnswers = (0 until 10).associateWith { if (it == 6) "B" else "A" }
+
+        check(router.verifyAnswerKeys(unit.id) == 1.0)
+        check(fake.verificationCalls == 1)
+
+        entityManager.flush()
+        entityManager.clear()
+        check(unitQuestions.findAllByUnitIdOrderByOrderIndexAsc(unit.id).size == 9)
+
+        check(router.verifyAnswerKeys(unit.id) == 1.0)
+        check(fake.verificationCalls == 1) { "force=false must not spend another model call" }
+        check(unitQuestions.findAllByUnitIdOrderByOrderIndexAsc(unit.id).size == 9) {
+            "force=false must not delete anything again"
+        }
+        check(contentUnits.findById(unit.id).orElseThrow().answerKeyDropped == 1)
+    }
+
+    @Test
+    fun `a NOTES unit with a disputed nested question drops it and still auto-approves`() {
+        val unit = seedAssessment("NOTES", 4)
+        fake.verificationAnswers = (0 until 4).associateWith { if (it == 1) "B" else "A" }
+
+        check(router.verifyAnswerKeys(unit.id) == 1.0)
+
+        entityManager.flush()
+        entityManager.clear()
+        check(unitQuestions.findAllByUnitIdOrderByOrderIndexAsc(unit.id).size == 3)
+        check(contentUnits.findById(unit.id).orElseThrow().answerKeyDropped == 1)
+
+        projection.project(unit.id)
+        entityManager.flush()
+        entityManager.clear()
+        check(contentUnits.findById(unit.id).orElseThrow().reviewState == "REVIEWED")
+        check(posts.findById(unit.id).orElseThrow().isPublished)
     }
 
     @Test

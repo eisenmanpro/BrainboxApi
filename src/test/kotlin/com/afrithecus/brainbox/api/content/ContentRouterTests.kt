@@ -81,8 +81,12 @@ class ContentRouterTests(
         var verificationCalls = 0
         var verifyFailNext: String? = null
 
-        /** When set, these orderIndex -> answer values are returned verbatim. */
-        var verificationAnswers: Map<Int, String>? = null
+        /**
+         * When set, these orderIndex -> answer values are returned verbatim. A present
+         * null value scripts a dropped/blank independent answer; an absent key falls
+         * back to the last generated result's stored key.
+         */
+        var verificationAnswers: Map<Int, String?>? = null
 
         /** The last generated result, used as an honest oracle when no override is set. */
         private var lastResult: GenerationResult? = null
@@ -145,9 +149,12 @@ class ContentRouterTests(
                 throw IllegalStateException(message)
             }
             val answers = request.questions.map { question ->
-                val override = verificationAnswers?.get(question.orderIndex)
-                val answer = override
-                    ?: lastResult?.questions?.firstOrNull { it.orderIndex == question.orderIndex }?.correctAnswer
+                val scripted = verificationAnswers
+                val answer = if (scripted != null && scripted.containsKey(question.orderIndex)) {
+                    scripted[question.orderIndex]
+                } else {
+                    lastResult?.questions?.firstOrNull { it.orderIndex == question.orderIndex }?.correctAnswer
+                }
                 VerificationAnswer(orderIndex = question.orderIndex, answer = answer)
             }
             return AnswerVerificationResult(

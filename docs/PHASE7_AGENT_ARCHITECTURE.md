@@ -249,6 +249,23 @@ is set and `answer_key_agreement >= answer_key_min_agreement`; anything else sta
 re-projection (including a human approval) reuses the stored result, so no second model
 call is spent. Non-assessment units are not subject to this gate.
 
+**Per-question disposition of disputed keys (delivered, 7.5h).** Measured on the live provider,
+five Grade 4 Mathematics `QUIZ` jobs after 7.5g were structurally valid with 10 questions and a
+clean validator score, but only one auto-approved: the independent verifier returned agreement
+0.8, 0.9, 0.9 and 1.0, and the whole-unit 1.0 bar discarded an otherwise accurate quiz over one or
+two bad items. The disposition is now per question. When `answer_key_drop_disagreements` is true
+(the default), every question whose independent answer did not agree - including a dropped/blank
+answer or a missing stored key - is deleted from `content_unit_questions`, and the unit records
+the count in `answer_key_dropped` and a JSON audit of `{orderIndex, text, storedKey,
+verifiedAnswer}` per removed item in `answer_key_dropped_detail` (V69). The agreement becomes
+1.0 when at least one question survives and 0.0 when none does, and the deletion commits in the
+same transaction as the `agent_runs` + `model_calls` capture, so the capture and the
+disposition can never diverge. Every surviving key therefore agrees, so no wrong key can ship,
+while the question floor still decides whether the quiz is complete enough to publish. When the
+policy is false, nothing is deleted and the legacy `agreements / questions` ratio applies.
+Idempotency is unchanged: an already-verified unit returns its stored agreement (even 0.0 after
+an all-disputed run) and spends no further model call.
+
 **Auto-approval is the default bulk path (delivered, 7.5c).** The rule is machine-first,
 human-for-exceptions: `AutoApprovalService.maybeAutoApprove` approves a UNIT without a human
 whenever every gate holds, so teachers and Brainbox moderators only ever handle the exceptions
@@ -268,6 +285,15 @@ whenever every gate holds, so teachers and Brainbox moderators only ever handle 
 - `answer_key_min_agreement` (double, default **1.0**): the independent answer-key floor for an
   assessment task type with questions. 1.0 means every stored key must agree with the independent
   solve; an unverified unit fails closed.
+- `answer_key_drop_disagreements` (boolean, default **true**): the 7.5h per-question disposition.
+  True drops each disputed question and requires the surviving keys (and the floor) to pass; false
+  keeps the whole-unit `agreements / questions` ratio with no deletion.
+
+The assessment question floor is now unconditional (7.5h): because a unit can end with zero
+questions when every disputed item was dropped, `auto_approve_min_questions` is checked before
+anything else for `QUIZ`/`EXAM`/`ASSESSMENT`, so a zero-question assessment fails the gate
+instead of skipping it. A non-assessment unit with questions is still held to the confidence gate
+but never to the question floor.
 
 The unit must also still be `UNREVIEWED`: the machine never touches a `REVIEWED` or `REJECTED`
 unit, so a human decision and its reviewer attribution are never clobbered. On approval the unit

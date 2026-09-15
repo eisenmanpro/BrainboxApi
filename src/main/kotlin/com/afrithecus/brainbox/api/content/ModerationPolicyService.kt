@@ -25,6 +25,11 @@ import tools.jackson.databind.ObjectMapper
  * - `answer_key_min_agreement` (double, default 1.0): minimum independent answer-key
  *   agreement for an assessment; 1.0 means every stored key must agree with the
  *   independent solve, and an unverified unit fails closed.
+ * - `answer_key_drop_disagreements` (boolean, default true): per-question disposition of
+ *   disputed keys. When true, a question whose independent solve disagrees (including a
+ *   dropped/blank answer or a missing stored key) is deleted from the unit and the
+ *   surviving keys are compared at 1.0; when false, the old whole-unit ratio behaviour
+ *   applies and nothing is deleted.
  */
 @Service
 class ModerationPolicyService(
@@ -58,6 +63,15 @@ class ModerationPolicyService(
      */
     fun answerKeyMinAgreement(): Double =
         readDouble(KEY_ANSWER_KEY_MIN_AGREEMENT, DEFAULT_ANSWER_KEY_MIN_AGREEMENT)
+
+    /**
+     * Phase 7.5h: when true (default), a disputed question is dropped from its unit so an
+     * otherwise accurate quiz is not discarded over one or two items; only the surviving
+     * keys must agree. When false, the whole-unit agreement ratio is kept and nothing is
+     * deleted, so any disagreement leaves the unit below the (default 1.0) bar.
+     */
+    fun answerKeyDropDisagreements(): Boolean =
+        readBoolean(KEY_ANSWER_KEY_DROP_DISAGREEMENTS, DEFAULT_ANSWER_KEY_DROP_DISAGREEMENTS)
 
     /** Console write: sets one policy override to a JSON value. */
     @Transactional
@@ -95,11 +109,13 @@ class ModerationPolicyService(
         const val KEY_AUTO_APPROVE_MIN_QUESTIONS = "auto_approve_min_questions"
         const val KEY_AUTO_APPROVE_MIN_CRITIC_CONFIDENCE = "auto_approve_min_critic_confidence"
         const val KEY_ANSWER_KEY_MIN_AGREEMENT = "answer_key_min_agreement"
+        const val KEY_ANSWER_KEY_DROP_DISAGREEMENTS = "answer_key_drop_disagreements"
         const val DEFAULT_QUORUM_REQUIRED = 2
         const val DEFAULT_AUTO_APPROVE_ENABLED = true
         const val DEFAULT_AUTO_APPROVE_MIN_VALIDATOR_SCORE = 1.0
         const val DEFAULT_AUTO_APPROVE_MIN_QUESTIONS = 8
         const val DEFAULT_AUTO_APPROVE_MIN_CRITIC_CONFIDENCE = 0.90
         const val DEFAULT_ANSWER_KEY_MIN_AGREEMENT = 1.0
+        const val DEFAULT_ANSWER_KEY_DROP_DISAGREEMENTS = true
     }
 }

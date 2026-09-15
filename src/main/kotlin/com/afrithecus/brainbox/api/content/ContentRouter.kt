@@ -20,6 +20,7 @@ import com.afrithecus.brainbox.api.content.repository.ContentUnitStepRepository
 import com.afrithecus.brainbox.api.content.repository.GenerationJobRepository
 import com.afrithecus.brainbox.api.content.repository.ModelCallRepository
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 import java.util.UUID
@@ -33,7 +34,9 @@ import java.util.UUID
  *
  * Phase 7.5f adds [verifyAnswerKeys]: a second, independent model interaction that
  * also runs through this class, so the provider/capture invariant holds for
- * verification too.
+ * verification too. Phase 7.5h gives that verification a per-question disposition:
+ * when the policy allows it, a disputed question is dropped and the surviving keys
+ * become the unit, all inside the same transaction as the capture.
  *
  * The run mode is not this class's concern. The synchronous [resolve] path runs
  * the core inline; the worker path claims a job and calls [runQueued]. Both paths
@@ -50,6 +53,7 @@ class ContentRouter(
     private val modelCalls: ModelCallRepository,
     private val jobService: GenerationJobService,
     private val provider: ContentGenerationProvider,
+    private val moderationPolicy: ModerationPolicyService,
     private val mapper: ObjectMapper,
 ) {
 
@@ -111,16 +115,26 @@ class ContentRouter(
      * The request deliberately carries only the question stem, type and options -
      * never the stored [ContentUnitQuestionEntity.correctAnswer] - so the second
      * model solves the question independently. Each returned answer is compared with
-     * the stored key (normalised; see [answersMatch]) and the agreement ratio
-     * (agreements / questions, 0..1) is stored on the unit with the timestamp and
-     * model. A provider failure is captured as a failed model_call and rethrown: the
-     * unit stays unverified, which the auto-approval gate treats as fail-closed.
+     * the stored key (normalised; see [answersMatch]). With the default policy
+     * (`answer_key_drop_disagreements = true`) the disputed questions are deleted and
+     * the surviving keys define the unit: agreement is 1.0 when at least one survives,
+     * else 0.0. With the policy off, nothing is deleted and agreement stays
+     * agreements / questions. Either way the unit records the timestamp and model, and
+     * the deletion runs in this method's transaction so the capture and the
+     * disposition cannot diverge. A provider failure is captured as a failed
+     * model_call and rethrown: the unit stays unverified, which the auto-approval gate
+     * treats as fail-closed.
      */
+    @Transactional(noRollbackFor = [ApiException::class])
     fun verifyAnswerKeys(unitId: UUID, force: Boolean = false): Double? {
         val unit = contentUnits.findById(unitId).orElse(null) ?: return null
+        // Idempotency before the question load: an already-verified unit is reused
+        // unless forced, even when a prior disposition dropped every question (the
+        // stored agreement is then 0.0, not null).
+        if (unit.answerKeyVerifiedAt != null && !force) return unit.answerKeyAgreement
+
         val questions = unitQuestions.findAllByUnitIdOrderByOrderIndexAsc(unitId)
         if (questions.isEmpty()) return null
-        if (unit.answerKeyVerifiedAt != null && !force) return unit.answerKeyAgreement
 
         val request = AnswerVerificationRequest(
             questions = questions.map { question ->
@@ -168,7 +182,29 @@ class ContentRouter(
             }
         )
 
-        val agreement = agreementRatio(questions, result.answers)
+        val byIndex = result.answers.associateBy { it.orderIndex }
+        val disputed = questions.filter { question ->
+            !answersMatch(question, byIndex[question.orderIndex]?.answer)
+        }
+
+        val agreement = if (moderationPolicy.answerKeyDropDisagreements()) {
+            // Per-question disposition (7.5h): drop exactly the disputed items, keep the
+            // rest. Every survivor agrees by construction, so the unit is clean when at
+            // least one question remains; an all-disputed unit records 0.0 and can never
+            // clear the gate.
+            if (disputed.isEmpty()) {
+                unit.answerKeyDroppedDetail = null
+            } else {
+                unit.answerKeyDroppedDetail = droppedDetailJson(disputed, byIndex)
+                unitQuestions.deleteAll(disputed)
+            }
+            unit.answerKeyDropped = disputed.size
+            if (questions.size - disputed.size > 0) 1.0 else 0.0
+        } else {
+            // Legacy whole-unit behaviour: no deletion, agreement = agreements / questions.
+            (questions.size - disputed.size).toDouble() / questions.size.toDouble()
+        }
+
         unit.answerKeyAgreement = agreement
         unit.answerKeyVerifiedAt = Instant.now()
         unit.answerKeyVerifiedModel = result.model
@@ -197,21 +233,24 @@ class ContentRouter(
     }
 
     /**
-     * Agreement ratio over the unit's questions, 0..1. The question list is the
-     * denominator, so a dropped or unknown answer is a disagreement; a missing
-     * stored key can never agree.
+     * JSON audit of the dropped questions, one object per item:
+     * `{orderIndex, text, storedKey, verifiedAnswer}`. The stored key is captured
+     * before deletion so the exception queue can explain what was removed; a missing
+     * stored key or a dropped/blank independent answer is written as null.
      */
-    private fun agreementRatio(
-        questions: List<ContentUnitQuestionEntity>,
-        answers: List<VerificationAnswer>,
-    ): Double {
-        if (questions.isEmpty()) return 0.0
-        val byIndex = answers.associateBy { it.orderIndex }
-        val agreements = questions.count { question ->
-            answersMatch(question, byIndex[question.orderIndex]?.answer)
-        }
-        return agreements.toDouble() / questions.size.toDouble()
-    }
+    private fun droppedDetailJson(
+        disputed: List<ContentUnitQuestionEntity>,
+        byIndex: Map<Int, VerificationAnswer>,
+    ): String = mapper.writeValueAsString(
+        disputed.map { question ->
+            mapOf(
+                "orderIndex" to question.orderIndex,
+                "text" to question.text,
+                "storedKey" to question.correctAnswer,
+                "verifiedAnswer" to byIndex[question.orderIndex]?.answer,
+            )
+        },
+    )
 
     /**
      * Forgiving but safe answer comparison.

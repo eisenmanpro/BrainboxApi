@@ -81,6 +81,14 @@ class ContentUnitEntity : BaseEntity() {
     @Column(name = "answer_key_verified_model", length = 64)
     var answerKeyVerifiedModel: String? = null
 
+    /** Phase 7.5h: number of disputed questions dropped after independent verification. */
+    @Column(name = "answer_key_dropped", nullable = false)
+    var answerKeyDropped: Int = 0
+
+    /** Phase 7.5h: JSON audit array of the dropped items ({orderIndex, text, storedKey, verifiedAnswer}). */
+    @Column(name = "answer_key_dropped_detail", columnDefinition = "text")
+    var answerKeyDroppedDetail: String? = null
+
     @Column(name = "review_state", nullable = false, length = 16)
     var reviewState: String = "UNREVIEWED"
 

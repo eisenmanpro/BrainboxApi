@@ -662,6 +662,17 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       4 Mathematics QUIZ jobs, 0/5 auto-approved (4x `ANSWER_KEY_MISSING`, 1x
       `STRUCTURE_STEPS_TOO_FEW`); the deterministic validators remain the gate and no internal
       retry was added, so an imperfect response still routes to the human exception queue.
+- [x] 7.5h per-question disposition of disputed answer keys: measured on five live Grade 4
+      Mathematics QUIZ jobs after 7.5g, all were structurally valid with 10 questions and a clean
+      validator score yet only 1/5 auto-approved because the independent verifier's agreement was
+      0.8, 0.9, 0.9 and 1.0. The disposition is now per question: the disputed items are deleted
+      from `content_unit_questions`, the unit records `answer_key_dropped` and a JSON
+      `answer_key_dropped_detail` audit (V69), and the agreement becomes 1.0 when any question
+      survives (0.0 when none does). `AutoApprovalService` applies the assessment question floor
+      unconditionally, so a zero-question assessment fails the gate, and the new policy key
+      `answer_key_drop_disagreements` (default true) selects the disposition or, when false, the
+      legacy whole-unit ratio with no deletion. A quiz can therefore ship with 8-9 of its generated
+      questions instead of being discarded over one bad item.
 - [ ] 7.6 breadth: run the 7.5e producer at full Tier 1 breadth, then past papers, study guides and the remaining subjects.
 - [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences)
 - [ ] Agent tools: DB metric queries, internet search, content validators
