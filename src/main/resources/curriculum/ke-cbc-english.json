@@ -1,0 +1,1453 @@
+{
+  "countryCode": "KE",
+  "curriculum": "CBC",
+  "version": "v1",
+  "name": "Kenya CBC Tier 0 curriculum skeleton",
+  "notes": "Authored BrainBox mapping aligned to the public Kenya CBC strand and sub-strand labels. This is our own catalogue data, not KICD text, and no KICD or KNEC document is ingested, quoted or attributed.",
+  "subject": "English",
+  "grades": [
+    {
+      "gradeLevel": "Grade 4",
+      "strands": [
+        {
+          "code": "ENG4-LS-01",
+          "name": "Listening and Speaking",
+          "descriptor": "Listen attentively and speak clearly in a range of everyday situations.",
+          "subStrands": [
+            {
+              "code": "ENG4-LS-01-S1",
+              "name": "Pronunciation and Vocabulary",
+              "descriptor": "Use pronunciation and vocabulary correctly in speech and writing.",
+              "learningOutcome": "Use pronunciation and vocabulary correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG4-LS-01-S1-T1",
+                  "name": "Vowel Sounds in Words",
+                  "descriptor": "Understand and apply vowel sounds in words in everyday communication."
+                },
+                {
+                  "code": "ENG4-LS-01-S1-T2",
+                  "name": "Consonant Sounds in Words",
+                  "descriptor": "Understand and apply consonant sounds in words in everyday communication."
+                },
+                {
+                  "code": "ENG4-LS-01-S1-T3",
+                  "name": "Word Stress",
+                  "descriptor": "Understand and apply word stress in everyday communication."
+                },
+                {
+                  "code": "ENG4-LS-01-S1-T4",
+                  "name": "New Words in Context",
+                  "descriptor": "Understand and apply new words in context in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG4-LS-01-S2",
+              "name": "Listening Comprehension",
+              "descriptor": "Use listening comprehension correctly in speech and writing.",
+              "learningOutcome": "Use listening comprehension correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG4-LS-01-S2-T1",
+                  "name": "Listening for Main Ideas",
+                  "descriptor": "Understand and apply listening for main ideas in everyday communication."
+                },
+                {
+                  "code": "ENG4-LS-01-S2-T2",
+                  "name": "Listening for Details",
+                  "descriptor": "Understand and apply listening for details in everyday communication."
+                },
+                {
+                  "code": "ENG4-LS-01-S2-T3",
+                  "name": "Listening to Instructions",
+                  "descriptor": "Understand and apply listening to instructions in everyday communication."
+                },
+                {
+                  "code": "ENG4-LS-01-S2-T4",
+                  "name": "Responding to Stories",
+                  "descriptor": "Understand and apply responding to stories in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG4-LS-01-S3",
+              "name": "Oral Presentation",
+              "descriptor": "Use oral presentation correctly in speech and writing.",
+              "learningOutcome": "Use oral presentation correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG4-LS-01-S3-T1",
+                  "name": "Introducing Yourself",
+                  "descriptor": "Understand and apply introducing yourself in everyday communication."
+                },
+                {
+                  "code": "ENG4-LS-01-S3-T2",
+                  "name": "Reciting Poems",
+                  "descriptor": "Understand and apply reciting poems in everyday communication."
+                },
+                {
+                  "code": "ENG4-LS-01-S3-T3",
+                  "name": "Narrating Events",
+                  "descriptor": "Understand and apply narrating events in everyday communication."
+                },
+                {
+                  "code": "ENG4-LS-01-S3-T4",
+                  "name": "Presenting Group Work",
+                  "descriptor": "Understand and apply presenting group work in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG4-LS-01-S4",
+              "name": "Conversational Skills",
+              "descriptor": "Use conversational skills correctly in speech and writing.",
+              "learningOutcome": "Use conversational skills correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG4-LS-01-S4-T1",
+                  "name": "Greetings and Introductions",
+                  "descriptor": "Understand and apply greetings and introductions in everyday communication."
+                },
+                {
+                  "code": "ENG4-LS-01-S4-T2",
+                  "name": "Making Requests",
+                  "descriptor": "Understand and apply making requests in everyday communication."
+                },
+                {
+                  "code": "ENG4-LS-01-S4-T3",
+                  "name": "Telephone Conversations",
+                  "descriptor": "Understand and apply telephone conversations in everyday communication."
+                },
+                {
+                  "code": "ENG4-LS-01-S4-T4",
+                  "name": "Turn Taking in Dialogue",
+                  "descriptor": "Understand and apply turn taking in dialogue in everyday communication."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "ENG4-RD-02",
+          "name": "Reading",
+          "descriptor": "Read a range of texts fluently, accurately and with understanding.",
+          "subStrands": [
+            {
+              "code": "ENG4-RD-02-S1",
+              "name": "Reading Fluency",
+              "descriptor": "Use reading fluency correctly in speech and writing.",
+              "learningOutcome": "Use reading fluency correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG4-RD-02-S1-T1",
+                  "name": "Reading Aloud with Expression",
+                  "descriptor": "Understand and apply reading aloud with expression in everyday communication."
+                },
+                {
+                  "code": "ENG4-RD-02-S1-T2",
+                  "name": "Sight Words",
+                  "descriptor": "Understand and apply sight words in everyday communication."
+                },
+                {
+                  "code": "ENG4-RD-02-S1-T3",
+                  "name": "Phrasing and Pausing",
+                  "descriptor": "Understand and apply phrasing and pausing in everyday communication."
+                },
+                {
+                  "code": "ENG4-RD-02-S1-T4",
+                  "name": "Reading Speed",
+                  "descriptor": "Understand and apply reading speed in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG4-RD-02-S2",
+              "name": "Intensive Reading",
+              "descriptor": "Use intensive reading correctly in speech and writing.",
+              "learningOutcome": "Use intensive reading correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG4-RD-02-S2-T1",
+                  "name": "Reading for Main Ideas",
+                  "descriptor": "Understand and apply reading for main ideas in everyday communication."
+                },
+                {
+                  "code": "ENG4-RD-02-S2-T2",
+                  "name": "Reading for Details",
+                  "descriptor": "Understand and apply reading for details in everyday communication."
+                },
+                {
+                  "code": "ENG4-RD-02-S2-T3",
+                  "name": "Making Predictions",
+                  "descriptor": "Understand and apply making predictions in everyday communication."
+                },
+                {
+                  "code": "ENG4-RD-02-S2-T4",
+                  "name": "Drawing Conclusions",
+                  "descriptor": "Understand and apply drawing conclusions in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG4-RD-02-S3",
+              "name": "Extensive Reading",
+              "descriptor": "Use extensive reading correctly in speech and writing.",
+              "learningOutcome": "Use extensive reading correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG4-RD-02-S3-T1",
+                  "name": "Choosing Story Books",
+                  "descriptor": "Understand and apply choosing story books in everyday communication."
+                },
+                {
+                  "code": "ENG4-RD-02-S3-T2",
+                  "name": "Reading for Pleasure",
+                  "descriptor": "Understand and apply reading for pleasure in everyday communication."
+                },
+                {
+                  "code": "ENG4-RD-02-S3-T3",
+                  "name": "Sharing Book Reviews",
+                  "descriptor": "Understand and apply sharing book reviews in everyday communication."
+                },
+                {
+                  "code": "ENG4-RD-02-S3-T4",
+                  "name": "Keeping a Reading Log",
+                  "descriptor": "Understand and apply keeping a reading log in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG4-RD-02-S4",
+              "name": "Study Skills",
+              "descriptor": "Use study skills correctly in speech and writing.",
+              "learningOutcome": "Use study skills correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG4-RD-02-S4-T1",
+                  "name": "Using a Dictionary",
+                  "descriptor": "Understand and apply using a dictionary in everyday communication."
+                },
+                {
+                  "code": "ENG4-RD-02-S4-T2",
+                  "name": "Note Making",
+                  "descriptor": "Understand and apply note making in everyday communication."
+                },
+                {
+                  "code": "ENG4-RD-02-S4-T3",
+                  "name": "Summarising Texts",
+                  "descriptor": "Understand and apply summarising texts in everyday communication."
+                },
+                {
+                  "code": "ENG4-RD-02-S4-T4",
+                  "name": "Using a Library",
+                  "descriptor": "Understand and apply using a library in everyday communication."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "ENG4-WR-03",
+          "name": "Writing",
+          "descriptor": "Write legibly and compose clear texts for different purposes.",
+          "subStrands": [
+            {
+              "code": "ENG4-WR-03-S1",
+              "name": "Handwriting",
+              "descriptor": "Use handwriting correctly in speech and writing.",
+              "learningOutcome": "Use handwriting correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG4-WR-03-S1-T1",
+                  "name": "Correct Letter Formation",
+                  "descriptor": "Understand and apply correct letter formation in everyday communication."
+                },
+                {
+                  "code": "ENG4-WR-03-S1-T2",
+                  "name": "Joining Letters",
+                  "descriptor": "Understand and apply joining letters in everyday communication."
+                },
+                {
+                  "code": "ENG4-WR-03-S1-T3",
+                  "name": "Even Spacing",
+                  "descriptor": "Understand and apply even spacing in everyday communication."
+                },
+                {
+                  "code": "ENG4-WR-03-S1-T4",
+                  "name": "Neat Presentation",
+                  "descriptor": "Understand and apply neat presentation in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG4-WR-03-S2",
+              "name": "Spelling",
+              "descriptor": "Use spelling correctly in speech and writing.",
+              "learningOutcome": "Use spelling correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG4-WR-03-S2-T1",
+                  "name": "Common Spelling Patterns",
+                  "descriptor": "Understand and apply common spelling patterns in everyday communication."
+                },
+                {
+                  "code": "ENG4-WR-03-S2-T2",
+                  "name": "Spelling Homophones",
+                  "descriptor": "Understand and apply spelling homophones in everyday communication."
+                },
+                {
+                  "code": "ENG4-WR-03-S2-T3",
+                  "name": "Spelling Plurals",
+                  "descriptor": "Understand and apply spelling plurals in everyday communication."
+                },
+                {
+                  "code": "ENG4-WR-03-S2-T4",
+                  "name": "Dictation",
+                  "descriptor": "Understand and apply dictation in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG4-WR-03-S3",
+              "name": "Punctuation",
+              "descriptor": "Use punctuation correctly in speech and writing.",
+              "learningOutcome": "Use punctuation correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG4-WR-03-S3-T1",
+                  "name": "Capital Letters",
+                  "descriptor": "Understand and apply capital letters in everyday communication."
+                },
+                {
+                  "code": "ENG4-WR-03-S3-T2",
+                  "name": "Full Stops and Commas",
+                  "descriptor": "Understand and apply full stops and commas in everyday communication."
+                },
+                {
+                  "code": "ENG4-WR-03-S3-T3",
+                  "name": "Question and Exclamation Marks",
+                  "descriptor": "Understand and apply question and exclamation marks in everyday communication."
+                },
+                {
+                  "code": "ENG4-WR-03-S3-T4",
+                  "name": "Quotation Marks",
+                  "descriptor": "Understand and apply quotation marks in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG4-WR-03-S4",
+              "name": "Guided Writing",
+              "descriptor": "Use guided writing correctly in speech and writing.",
+              "learningOutcome": "Use guided writing correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG4-WR-03-S4-T1",
+                  "name": "Writing Simple Sentences",
+                  "descriptor": "Understand and apply writing simple sentences in everyday communication."
+                },
+                {
+                  "code": "ENG4-WR-03-S4-T2",
+                  "name": "Writing a Short Paragraph",
+                  "descriptor": "Understand and apply writing a short paragraph in everyday communication."
+                },
+                {
+                  "code": "ENG4-WR-03-S4-T3",
+                  "name": "Writing a Friendly Letter",
+                  "descriptor": "Understand and apply writing a friendly letter in everyday communication."
+                },
+                {
+                  "code": "ENG4-WR-03-S4-T4",
+                  "name": "Filling in Forms",
+                  "descriptor": "Understand and apply filling in forms in everyday communication."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "ENG4-LU-04",
+          "name": "Language Use",
+          "descriptor": "Use correct grammar and vocabulary in speech and writing.",
+          "subStrands": [
+            {
+              "code": "ENG4-LU-04-S1",
+              "name": "Nouns",
+              "descriptor": "Use nouns correctly in speech and writing.",
+              "learningOutcome": "Use nouns correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG4-LU-04-S1-T1",
+                  "name": "Common and Proper Nouns",
+                  "descriptor": "Understand and apply common and proper nouns in everyday communication."
+                },
+                {
+                  "code": "ENG4-LU-04-S1-T2",
+                  "name": "Singular and Plural Nouns",
+                  "descriptor": "Understand and apply singular and plural nouns in everyday communication."
+                },
+                {
+                  "code": "ENG4-LU-04-S1-T3",
+                  "name": "Countable and Uncountable Nouns",
+                  "descriptor": "Understand and apply countable and uncountable nouns in everyday communication."
+                },
+                {
+                  "code": "ENG4-LU-04-S1-T4",
+                  "name": "Noun Phrases",
+                  "descriptor": "Understand and apply noun phrases in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG4-LU-04-S2",
+              "name": "Pronouns",
+              "descriptor": "Use pronouns correctly in speech and writing.",
+              "learningOutcome": "Use pronouns correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG4-LU-04-S2-T1",
+                  "name": "Personal Pronouns",
+                  "descriptor": "Understand and apply personal pronouns in everyday communication."
+                },
+                {
+                  "code": "ENG4-LU-04-S2-T2",
+                  "name": "Possessive Pronouns",
+                  "descriptor": "Understand and apply possessive pronouns in everyday communication."
+                },
+                {
+                  "code": "ENG4-LU-04-S2-T3",
+                  "name": "Demonstrative Pronouns",
+                  "descriptor": "Understand and apply demonstrative pronouns in everyday communication."
+                },
+                {
+                  "code": "ENG4-LU-04-S2-T4",
+                  "name": "Using Pronouns Clearly",
+                  "descriptor": "Understand and apply using pronouns clearly in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG4-LU-04-S3",
+              "name": "Verbs and Tenses",
+              "descriptor": "Use verbs and tenses correctly in speech and writing.",
+              "learningOutcome": "Use verbs and tenses correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG4-LU-04-S3-T1",
+                  "name": "Action Verbs",
+                  "descriptor": "Understand and apply action verbs in everyday communication."
+                },
+                {
+                  "code": "ENG4-LU-04-S3-T2",
+                  "name": "Simple Present Tense",
+                  "descriptor": "Understand and apply simple present tense in everyday communication."
+                },
+                {
+                  "code": "ENG4-LU-04-S3-T3",
+                  "name": "Simple Past Tense",
+                  "descriptor": "Understand and apply simple past tense in everyday communication."
+                },
+                {
+                  "code": "ENG4-LU-04-S3-T4",
+                  "name": "Subject-Verb Agreement",
+                  "descriptor": "Understand and apply subject-verb agreement in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG4-LU-04-S4",
+              "name": "Adjectives and Adverbs",
+              "descriptor": "Use adjectives and adverbs correctly in speech and writing.",
+              "learningOutcome": "Use adjectives and adverbs correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG4-LU-04-S4-T1",
+                  "name": "Describing Words",
+                  "descriptor": "Understand and apply describing words in everyday communication."
+                },
+                {
+                  "code": "ENG4-LU-04-S4-T2",
+                  "name": "Comparing with Adjectives",
+                  "descriptor": "Understand and apply comparing with adjectives in everyday communication."
+                },
+                {
+                  "code": "ENG4-LU-04-S4-T3",
+                  "name": "Adverbs of Manner",
+                  "descriptor": "Understand and apply adverbs of manner in everyday communication."
+                },
+                {
+                  "code": "ENG4-LU-04-S4-T4",
+                  "name": "Adverbs of Time",
+                  "descriptor": "Understand and apply adverbs of time in everyday communication."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "gradeLevel": "Grade 5",
+      "strands": [
+        {
+          "code": "ENG5-LS-01",
+          "name": "Listening and Speaking",
+          "descriptor": "Listen attentively and speak clearly in a range of everyday situations.",
+          "subStrands": [
+            {
+              "code": "ENG5-LS-01-S1",
+              "name": "Pronunciation and Vocabulary",
+              "descriptor": "Use pronunciation and vocabulary correctly in speech and writing.",
+              "learningOutcome": "Use pronunciation and vocabulary correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG5-LS-01-S1-T1",
+                  "name": "Vowel Digraphs",
+                  "descriptor": "Understand and apply vowel digraphs in everyday communication."
+                },
+                {
+                  "code": "ENG5-LS-01-S1-T2",
+                  "name": "Consonant Clusters",
+                  "descriptor": "Understand and apply consonant clusters in everyday communication."
+                },
+                {
+                  "code": "ENG5-LS-01-S1-T3",
+                  "name": "Intonation Patterns",
+                  "descriptor": "Understand and apply intonation patterns in everyday communication."
+                },
+                {
+                  "code": "ENG5-LS-01-S1-T4",
+                  "name": "Vocabulary from Context",
+                  "descriptor": "Understand and apply vocabulary from context in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG5-LS-01-S2",
+              "name": "Listening Comprehension",
+              "descriptor": "Use listening comprehension correctly in speech and writing.",
+              "learningOutcome": "Use listening comprehension correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG5-LS-01-S2-T1",
+                  "name": "Listening for Sequence",
+                  "descriptor": "Understand and apply listening for sequence in everyday communication."
+                },
+                {
+                  "code": "ENG5-LS-01-S2-T2",
+                  "name": "Listening for Cause and Effect",
+                  "descriptor": "Understand and apply listening for cause and effect in everyday communication."
+                },
+                {
+                  "code": "ENG5-LS-01-S2-T3",
+                  "name": "Listening to Announcements",
+                  "descriptor": "Understand and apply listening to announcements in everyday communication."
+                },
+                {
+                  "code": "ENG5-LS-01-S2-T4",
+                  "name": "Interpreting Tone",
+                  "descriptor": "Understand and apply interpreting tone in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG5-LS-01-S3",
+              "name": "Oral Presentation",
+              "descriptor": "Use oral presentation correctly in speech and writing.",
+              "learningOutcome": "Use oral presentation correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG5-LS-01-S3-T1",
+                  "name": "Giving a Short Speech",
+                  "descriptor": "Understand and apply giving a short speech in everyday communication."
+                },
+                {
+                  "code": "ENG5-LS-01-S3-T2",
+                  "name": "Reciting Choral Verses",
+                  "descriptor": "Understand and apply reciting choral verses in everyday communication."
+                },
+                {
+                  "code": "ENG5-LS-01-S3-T3",
+                  "name": "Reporting an Event",
+                  "descriptor": "Understand and apply reporting an event in everyday communication."
+                },
+                {
+                  "code": "ENG5-LS-01-S3-T4",
+                  "name": "Presenting Arguments",
+                  "descriptor": "Understand and apply presenting arguments in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG5-LS-01-S4",
+              "name": "Conversational Skills",
+              "descriptor": "Use conversational skills correctly in speech and writing.",
+              "learningOutcome": "Use conversational skills correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG5-LS-01-S4-T1",
+                  "name": "Polite Requests",
+                  "descriptor": "Understand and apply polite requests in everyday communication."
+                },
+                {
+                  "code": "ENG5-LS-01-S4-T2",
+                  "name": "Giving Directions",
+                  "descriptor": "Understand and apply giving directions in everyday communication."
+                },
+                {
+                  "code": "ENG5-LS-01-S4-T3",
+                  "name": "Holding a Discussion",
+                  "descriptor": "Understand and apply holding a discussion in everyday communication."
+                },
+                {
+                  "code": "ENG5-LS-01-S4-T4",
+                  "name": "Resolving Disagreements",
+                  "descriptor": "Understand and apply resolving disagreements in everyday communication."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "ENG5-RD-02",
+          "name": "Reading",
+          "descriptor": "Read a range of texts fluently, accurately and with understanding.",
+          "subStrands": [
+            {
+              "code": "ENG5-RD-02-S1",
+              "name": "Reading Fluency",
+              "descriptor": "Use reading fluency correctly in speech and writing.",
+              "learningOutcome": "Use reading fluency correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG5-RD-02-S1-T1",
+                  "name": "Reading with Correct Intonation",
+                  "descriptor": "Understand and apply reading with correct intonation in everyday communication."
+                },
+                {
+                  "code": "ENG5-RD-02-S1-T2",
+                  "name": "Phrase Reading",
+                  "descriptor": "Understand and apply phrase reading in everyday communication."
+                },
+                {
+                  "code": "ENG5-RD-02-S1-T3",
+                  "name": "Word Attack Skills",
+                  "descriptor": "Understand and apply word attack skills in everyday communication."
+                },
+                {
+                  "code": "ENG5-RD-02-S1-T4",
+                  "name": "Timed Reading",
+                  "descriptor": "Understand and apply timed reading in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG5-RD-02-S2",
+              "name": "Intensive Reading",
+              "descriptor": "Use intensive reading correctly in speech and writing.",
+              "learningOutcome": "Use intensive reading correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG5-RD-02-S2-T1",
+                  "name": "Reading for Inference",
+                  "descriptor": "Understand and apply reading for inference in everyday communication."
+                },
+                {
+                  "code": "ENG5-RD-02-S2-T2",
+                  "name": "Reading for Cause and Effect",
+                  "descriptor": "Understand and apply reading for cause and effect in everyday communication."
+                },
+                {
+                  "code": "ENG5-RD-02-S2-T3",
+                  "name": "Distinguishing Fact and Opinion",
+                  "descriptor": "Understand and apply distinguishing fact and opinion in everyday communication."
+                },
+                {
+                  "code": "ENG5-RD-02-S2-T4",
+                  "name": "Comparing Texts",
+                  "descriptor": "Understand and apply comparing texts in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG5-RD-02-S3",
+              "name": "Extensive Reading",
+              "descriptor": "Use extensive reading correctly in speech and writing.",
+              "learningOutcome": "Use extensive reading correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG5-RD-02-S3-T1",
+                  "name": "Reading Newspapers",
+                  "descriptor": "Understand and apply reading newspapers in everyday communication."
+                },
+                {
+                  "code": "ENG5-RD-02-S3-T2",
+                  "name": "Reading Poems for Pleasure",
+                  "descriptor": "Understand and apply reading poems for pleasure in everyday communication."
+                },
+                {
+                  "code": "ENG5-RD-02-S3-T3",
+                  "name": "Comparing Stories",
+                  "descriptor": "Understand and apply comparing stories in everyday communication."
+                },
+                {
+                  "code": "ENG5-RD-02-S3-T4",
+                  "name": "Reading Diaries",
+                  "descriptor": "Understand and apply reading diaries in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG5-RD-02-S4",
+              "name": "Study Skills",
+              "descriptor": "Use study skills correctly in speech and writing.",
+              "learningOutcome": "Use study skills correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG5-RD-02-S4-T1",
+                  "name": "Using Reference Books",
+                  "descriptor": "Understand and apply using reference books in everyday communication."
+                },
+                {
+                  "code": "ENG5-RD-02-S4-T2",
+                  "name": "Making Summaries",
+                  "descriptor": "Understand and apply making summaries in everyday communication."
+                },
+                {
+                  "code": "ENG5-RD-02-S4-T3",
+                  "name": "Interpreting Pictures and Charts",
+                  "descriptor": "Understand and apply interpreting pictures and charts in everyday communication."
+                },
+                {
+                  "code": "ENG5-RD-02-S4-T4",
+                  "name": "Researching a Topic",
+                  "descriptor": "Understand and apply researching a topic in everyday communication."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "ENG5-WR-03",
+          "name": "Writing",
+          "descriptor": "Write legibly and compose clear texts for different purposes.",
+          "subStrands": [
+            {
+              "code": "ENG5-WR-03-S1",
+              "name": "Handwriting",
+              "descriptor": "Use handwriting correctly in speech and writing.",
+              "learningOutcome": "Use handwriting correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG5-WR-03-S1-T1",
+                  "name": "Cursive Writing",
+                  "descriptor": "Understand and apply cursive writing in everyday communication."
+                },
+                {
+                  "code": "ENG5-WR-03-S1-T2",
+                  "name": "Consistent Letter Size",
+                  "descriptor": "Understand and apply consistent letter size in everyday communication."
+                },
+                {
+                  "code": "ENG5-WR-03-S1-T3",
+                  "name": "Writing Neat Notes",
+                  "descriptor": "Understand and apply writing neat notes in everyday communication."
+                },
+                {
+                  "code": "ENG5-WR-03-S1-T4",
+                  "name": "Copying Accurately",
+                  "descriptor": "Understand and apply copying accurately in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG5-WR-03-S2",
+              "name": "Spelling",
+              "descriptor": "Use spelling correctly in speech and writing.",
+              "learningOutcome": "Use spelling correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG5-WR-03-S2-T1",
+                  "name": "Spelling Word Endings",
+                  "descriptor": "Understand and apply spelling word endings in everyday communication."
+                },
+                {
+                  "code": "ENG5-WR-03-S2-T2",
+                  "name": "Spelling Tricky Words",
+                  "descriptor": "Understand and apply spelling tricky words in everyday communication."
+                },
+                {
+                  "code": "ENG5-WR-03-S2-T3",
+                  "name": "Spelling Contractions",
+                  "descriptor": "Understand and apply spelling contractions in everyday communication."
+                },
+                {
+                  "code": "ENG5-WR-03-S2-T4",
+                  "name": "Spelling from Dictation",
+                  "descriptor": "Understand and apply spelling from dictation in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG5-WR-03-S3",
+              "name": "Punctuation",
+              "descriptor": "Use punctuation correctly in speech and writing.",
+              "learningOutcome": "Use punctuation correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG5-WR-03-S3-T1",
+                  "name": "Apostrophes",
+                  "descriptor": "Understand and apply apostrophes in everyday communication."
+                },
+                {
+                  "code": "ENG5-WR-03-S3-T2",
+                  "name": "Commas in Lists",
+                  "descriptor": "Understand and apply commas in lists in everyday communication."
+                },
+                {
+                  "code": "ENG5-WR-03-S3-T3",
+                  "name": "Direct Speech Punctuation",
+                  "descriptor": "Understand and apply direct speech punctuation in everyday communication."
+                },
+                {
+                  "code": "ENG5-WR-03-S3-T4",
+                  "name": "Colons and Semicolons",
+                  "descriptor": "Understand and apply colons and semicolons in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG5-WR-03-S4",
+              "name": "Guided Writing",
+              "descriptor": "Use guided writing correctly in speech and writing.",
+              "learningOutcome": "Use guided writing correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG5-WR-03-S4-T1",
+                  "name": "Writing a Descriptive Paragraph",
+                  "descriptor": "Understand and apply writing a descriptive paragraph in everyday communication."
+                },
+                {
+                  "code": "ENG5-WR-03-S4-T2",
+                  "name": "Writing a Narrative",
+                  "descriptor": "Understand and apply writing a narrative in everyday communication."
+                },
+                {
+                  "code": "ENG5-WR-03-S4-T3",
+                  "name": "Writing an Informal Letter",
+                  "descriptor": "Understand and apply writing an informal letter in everyday communication."
+                },
+                {
+                  "code": "ENG5-WR-03-S4-T4",
+                  "name": "Writing Notices",
+                  "descriptor": "Understand and apply writing notices in everyday communication."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "ENG5-LU-04",
+          "name": "Language Use",
+          "descriptor": "Use correct grammar and vocabulary in speech and writing.",
+          "subStrands": [
+            {
+              "code": "ENG5-LU-04-S1",
+              "name": "Nouns",
+              "descriptor": "Use nouns correctly in speech and writing.",
+              "learningOutcome": "Use nouns correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG5-LU-04-S1-T1",
+                  "name": "Abstract Nouns",
+                  "descriptor": "Understand and apply abstract nouns in everyday communication."
+                },
+                {
+                  "code": "ENG5-LU-04-S1-T2",
+                  "name": "Collective Nouns",
+                  "descriptor": "Understand and apply collective nouns in everyday communication."
+                },
+                {
+                  "code": "ENG5-LU-04-S1-T3",
+                  "name": "Noun Plurals",
+                  "descriptor": "Understand and apply noun plurals in everyday communication."
+                },
+                {
+                  "code": "ENG5-LU-04-S1-T4",
+                  "name": "Nouns in Sentences",
+                  "descriptor": "Understand and apply nouns in sentences in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG5-LU-04-S2",
+              "name": "Pronouns",
+              "descriptor": "Use pronouns correctly in speech and writing.",
+              "learningOutcome": "Use pronouns correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG5-LU-04-S2-T1",
+                  "name": "Reflexive Pronouns",
+                  "descriptor": "Understand and apply reflexive pronouns in everyday communication."
+                },
+                {
+                  "code": "ENG5-LU-04-S2-T2",
+                  "name": "Relative Pronouns",
+                  "descriptor": "Understand and apply relative pronouns in everyday communication."
+                },
+                {
+                  "code": "ENG5-LU-04-S2-T3",
+                  "name": "Pronoun Agreement",
+                  "descriptor": "Understand and apply pronoun agreement in everyday communication."
+                },
+                {
+                  "code": "ENG5-LU-04-S2-T4",
+                  "name": "Using Pronouns in Writing",
+                  "descriptor": "Understand and apply using pronouns in writing in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG5-LU-04-S3",
+              "name": "Verbs and Tenses",
+              "descriptor": "Use verbs and tenses correctly in speech and writing.",
+              "learningOutcome": "Use verbs and tenses correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG5-LU-04-S3-T1",
+                  "name": "Progressive Tenses",
+                  "descriptor": "Understand and apply progressive tenses in everyday communication."
+                },
+                {
+                  "code": "ENG5-LU-04-S3-T2",
+                  "name": "Future Tense",
+                  "descriptor": "Understand and apply future tense in everyday communication."
+                },
+                {
+                  "code": "ENG5-LU-04-S3-T3",
+                  "name": "Modal Verbs",
+                  "descriptor": "Understand and apply modal verbs in everyday communication."
+                },
+                {
+                  "code": "ENG5-LU-04-S3-T4",
+                  "name": "Irregular Verbs",
+                  "descriptor": "Understand and apply irregular verbs in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG5-LU-04-S4",
+              "name": "Adjectives and Adverbs",
+              "descriptor": "Use adjectives and adverbs correctly in speech and writing.",
+              "learningOutcome": "Use adjectives and adverbs correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG5-LU-04-S4-T1",
+                  "name": "Order of Adjectives",
+                  "descriptor": "Understand and apply order of adjectives in everyday communication."
+                },
+                {
+                  "code": "ENG5-LU-04-S4-T2",
+                  "name": "Adverbs of Frequency",
+                  "descriptor": "Understand and apply adverbs of frequency in everyday communication."
+                },
+                {
+                  "code": "ENG5-LU-04-S4-T3",
+                  "name": "Adverbs of Place",
+                  "descriptor": "Understand and apply adverbs of place in everyday communication."
+                },
+                {
+                  "code": "ENG5-LU-04-S4-T4",
+                  "name": "Comparative Adverbs",
+                  "descriptor": "Understand and apply comparative adverbs in everyday communication."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "gradeLevel": "Grade 6",
+      "strands": [
+        {
+          "code": "ENG6-LS-01",
+          "name": "Listening and Speaking",
+          "descriptor": "Listen attentively and speak clearly in a range of everyday situations.",
+          "subStrands": [
+            {
+              "code": "ENG6-LS-01-S1",
+              "name": "Pronunciation and Vocabulary",
+              "descriptor": "Use pronunciation and vocabulary correctly in speech and writing.",
+              "learningOutcome": "Use pronunciation and vocabulary correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG6-LS-01-S1-T1",
+                  "name": "Stress and Rhythm",
+                  "descriptor": "Understand and apply stress and rhythm in everyday communication."
+                },
+                {
+                  "code": "ENG6-LS-01-S1-T2",
+                  "name": "Silent Letters",
+                  "descriptor": "Understand and apply silent letters in everyday communication."
+                },
+                {
+                  "code": "ENG6-LS-01-S1-T3",
+                  "name": "Word Building",
+                  "descriptor": "Understand and apply word building in everyday communication."
+                },
+                {
+                  "code": "ENG6-LS-01-S1-T4",
+                  "name": "Idioms in Speech",
+                  "descriptor": "Understand and apply idioms in speech in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG6-LS-01-S2",
+              "name": "Listening Comprehension",
+              "descriptor": "Use listening comprehension correctly in speech and writing.",
+              "learningOutcome": "Use listening comprehension correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG6-LS-01-S2-T1",
+                  "name": "Listening for Persuasion",
+                  "descriptor": "Understand and apply listening for persuasion in everyday communication."
+                },
+                {
+                  "code": "ENG6-LS-01-S2-T2",
+                  "name": "Listening for Bias",
+                  "descriptor": "Understand and apply listening for bias in everyday communication."
+                },
+                {
+                  "code": "ENG6-LS-01-S2-T3",
+                  "name": "Note Taking from Speech",
+                  "descriptor": "Understand and apply note taking from speech in everyday communication."
+                },
+                {
+                  "code": "ENG6-LS-01-S2-T4",
+                  "name": "Summarising Spoken Text",
+                  "descriptor": "Understand and apply summarising spoken text in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG6-LS-01-S3",
+              "name": "Oral Presentation",
+              "descriptor": "Use oral presentation correctly in speech and writing.",
+              "learningOutcome": "Use oral presentation correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG6-LS-01-S3-T1",
+                  "name": "Debating a Motion",
+                  "descriptor": "Understand and apply debating a motion in everyday communication."
+                },
+                {
+                  "code": "ENG6-LS-01-S3-T2",
+                  "name": "Making a Presentation",
+                  "descriptor": "Understand and apply making a presentation in everyday communication."
+                },
+                {
+                  "code": "ENG6-LS-01-S3-T3",
+                  "name": "Storytelling",
+                  "descriptor": "Understand and apply storytelling in everyday communication."
+                },
+                {
+                  "code": "ENG6-LS-01-S3-T4",
+                  "name": "Presenting a Report",
+                  "descriptor": "Understand and apply presenting a report in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG6-LS-01-S4",
+              "name": "Conversational Skills",
+              "descriptor": "Use conversational skills correctly in speech and writing.",
+              "learningOutcome": "Use conversational skills correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG6-LS-01-S4-T1",
+                  "name": "Negotiating in Groups",
+                  "descriptor": "Understand and apply negotiating in groups in everyday communication."
+                },
+                {
+                  "code": "ENG6-LS-01-S4-T2",
+                  "name": "Interviewing",
+                  "descriptor": "Understand and apply interviewing in everyday communication."
+                },
+                {
+                  "code": "ENG6-LS-01-S4-T3",
+                  "name": "Leading a Discussion",
+                  "descriptor": "Understand and apply leading a discussion in everyday communication."
+                },
+                {
+                  "code": "ENG6-LS-01-S4-T4",
+                  "name": "Public Speaking Etiquette",
+                  "descriptor": "Understand and apply public speaking etiquette in everyday communication."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "ENG6-RD-02",
+          "name": "Reading",
+          "descriptor": "Read a range of texts fluently, accurately and with understanding.",
+          "subStrands": [
+            {
+              "code": "ENG6-RD-02-S1",
+              "name": "Reading Fluency",
+              "descriptor": "Use reading fluency correctly in speech and writing.",
+              "learningOutcome": "Use reading fluency correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG6-RD-02-S1-T1",
+                  "name": "Reading with Fluency and Pace",
+                  "descriptor": "Understand and apply reading with fluency and pace in everyday communication."
+                },
+                {
+                  "code": "ENG6-RD-02-S1-T2",
+                  "name": "Reading Complex Sentences",
+                  "descriptor": "Understand and apply reading complex sentences in everyday communication."
+                },
+                {
+                  "code": "ENG6-RD-02-S1-T3",
+                  "name": "Self-Correction Strategies",
+                  "descriptor": "Understand and apply self-correction strategies in everyday communication."
+                },
+                {
+                  "code": "ENG6-RD-02-S1-T4",
+                  "name": "Reading Aloud to an Audience",
+                  "descriptor": "Understand and apply reading aloud to an audience in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG6-RD-02-S2",
+              "name": "Intensive Reading",
+              "descriptor": "Use intensive reading correctly in speech and writing.",
+              "learningOutcome": "Use intensive reading correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG6-RD-02-S2-T1",
+                  "name": "Reading for Theme",
+                  "descriptor": "Understand and apply reading for theme in everyday communication."
+                },
+                {
+                  "code": "ENG6-RD-02-S2-T2",
+                  "name": "Reading for Character",
+                  "descriptor": "Understand and apply reading for character in everyday communication."
+                },
+                {
+                  "code": "ENG6-RD-02-S2-T3",
+                  "name": "Reading for Point of View",
+                  "descriptor": "Understand and apply reading for point of view in everyday communication."
+                },
+                {
+                  "code": "ENG6-RD-02-S2-T4",
+                  "name": "Critical Reading",
+                  "descriptor": "Understand and apply critical reading in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG6-RD-02-S3",
+              "name": "Extensive Reading",
+              "descriptor": "Use extensive reading correctly in speech and writing.",
+              "learningOutcome": "Use extensive reading correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG6-RD-02-S3-T1",
+                  "name": "Reading Short Stories",
+                  "descriptor": "Understand and apply reading short stories in everyday communication."
+                },
+                {
+                  "code": "ENG6-RD-02-S3-T2",
+                  "name": "Reading Informational Texts",
+                  "descriptor": "Understand and apply reading informational texts in everyday communication."
+                },
+                {
+                  "code": "ENG6-RD-02-S3-T3",
+                  "name": "Reading Magazines",
+                  "descriptor": "Understand and apply reading magazines in everyday communication."
+                },
+                {
+                  "code": "ENG6-RD-02-S3-T4",
+                  "name": "Independent Wide Reading",
+                  "descriptor": "Understand and apply independent wide reading in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG6-RD-02-S4",
+              "name": "Study Skills",
+              "descriptor": "Use study skills correctly in speech and writing.",
+              "learningOutcome": "Use study skills correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG6-RD-02-S4-T1",
+                  "name": "Library Research Skills",
+                  "descriptor": "Understand and apply library research skills in everyday communication."
+                },
+                {
+                  "code": "ENG6-RD-02-S4-T2",
+                  "name": "Making Outline Notes",
+                  "descriptor": "Understand and apply making outline notes in everyday communication."
+                },
+                {
+                  "code": "ENG6-RD-02-S4-T3",
+                  "name": "Summarising a Passage",
+                  "descriptor": "Understand and apply summarising a passage in everyday communication."
+                },
+                {
+                  "code": "ENG6-RD-02-S4-T4",
+                  "name": "Using a Thesaurus",
+                  "descriptor": "Understand and apply using a thesaurus in everyday communication."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "ENG6-WR-03",
+          "name": "Writing",
+          "descriptor": "Write legibly and compose clear texts for different purposes.",
+          "subStrands": [
+            {
+              "code": "ENG6-WR-03-S1",
+              "name": "Handwriting",
+              "descriptor": "Use handwriting correctly in speech and writing.",
+              "learningOutcome": "Use handwriting correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG6-WR-03-S1-T1",
+                  "name": "Legible Cursive Writing",
+                  "descriptor": "Understand and apply legible cursive writing in everyday communication."
+                },
+                {
+                  "code": "ENG6-WR-03-S1-T2",
+                  "name": "Writing Headings and Titles",
+                  "descriptor": "Understand and apply writing headings and titles in everyday communication."
+                },
+                {
+                  "code": "ENG6-WR-03-S1-T3",
+                  "name": "Formatting a Page",
+                  "descriptor": "Understand and apply formatting a page in everyday communication."
+                },
+                {
+                  "code": "ENG6-WR-03-S1-T4",
+                  "name": "Speed and Neatness",
+                  "descriptor": "Understand and apply speed and neatness in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG6-WR-03-S2",
+              "name": "Spelling",
+              "descriptor": "Use spelling correctly in speech and writing.",
+              "learningOutcome": "Use spelling correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG6-WR-03-S2-T1",
+                  "name": "Spelling Prefixes and Suffixes",
+                  "descriptor": "Understand and apply spelling prefixes and suffixes in everyday communication."
+                },
+                {
+                  "code": "ENG6-WR-03-S2-T2",
+                  "name": "Spelling Frequently Misspelled Words",
+                  "descriptor": "Understand and apply spelling frequently misspelled words in everyday communication."
+                },
+                {
+                  "code": "ENG6-WR-03-S2-T3",
+                  "name": "Spelling Compound Words",
+                  "descriptor": "Understand and apply spelling compound words in everyday communication."
+                },
+                {
+                  "code": "ENG6-WR-03-S2-T4",
+                  "name": "Proofreading for Spelling",
+                  "descriptor": "Understand and apply proofreading for spelling in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG6-WR-03-S3",
+              "name": "Punctuation",
+              "descriptor": "Use punctuation correctly in speech and writing.",
+              "learningOutcome": "Use punctuation correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG6-WR-03-S3-T1",
+                  "name": "Punctuation in Dialogue",
+                  "descriptor": "Understand and apply punctuation in dialogue in everyday communication."
+                },
+                {
+                  "code": "ENG6-WR-03-S3-T2",
+                  "name": "Punctuation in Complex Sentences",
+                  "descriptor": "Understand and apply punctuation in complex sentences in everyday communication."
+                },
+                {
+                  "code": "ENG6-WR-03-S3-T3",
+                  "name": "Hyphens and Dashes",
+                  "descriptor": "Understand and apply hyphens and dashes in everyday communication."
+                },
+                {
+                  "code": "ENG6-WR-03-S3-T4",
+                  "name": "Editing for Punctuation",
+                  "descriptor": "Understand and apply editing for punctuation in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG6-WR-03-S4",
+              "name": "Guided Writing",
+              "descriptor": "Use guided writing correctly in speech and writing.",
+              "learningOutcome": "Use guided writing correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG6-WR-03-S4-T1",
+                  "name": "Writing a Book Review",
+                  "descriptor": "Understand and apply writing a book review in everyday communication."
+                },
+                {
+                  "code": "ENG6-WR-03-S4-T2",
+                  "name": "Writing a Persuasive Essay",
+                  "descriptor": "Understand and apply writing a persuasive essay in everyday communication."
+                },
+                {
+                  "code": "ENG6-WR-03-S4-T3",
+                  "name": "Writing a Formal Letter",
+                  "descriptor": "Understand and apply writing a formal letter in everyday communication."
+                },
+                {
+                  "code": "ENG6-WR-03-S4-T4",
+                  "name": "Writing a Project Report",
+                  "descriptor": "Understand and apply writing a project report in everyday communication."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "ENG6-LU-04",
+          "name": "Language Use",
+          "descriptor": "Use correct grammar and vocabulary in speech and writing.",
+          "subStrands": [
+            {
+              "code": "ENG6-LU-04-S1",
+              "name": "Nouns",
+              "descriptor": "Use nouns correctly in speech and writing.",
+              "learningOutcome": "Use nouns correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG6-LU-04-S1-T1",
+                  "name": "Gerunds and Infinitives",
+                  "descriptor": "Understand and apply gerunds and infinitives in everyday communication."
+                },
+                {
+                  "code": "ENG6-LU-04-S1-T2",
+                  "name": "Noun Clauses",
+                  "descriptor": "Understand and apply noun clauses in everyday communication."
+                },
+                {
+                  "code": "ENG6-LU-04-S1-T3",
+                  "name": "Appositives",
+                  "descriptor": "Understand and apply appositives in everyday communication."
+                },
+                {
+                  "code": "ENG6-LU-04-S1-T4",
+                  "name": "Using Nouns for Effect",
+                  "descriptor": "Understand and apply using nouns for effect in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG6-LU-04-S2",
+              "name": "Pronouns",
+              "descriptor": "Use pronouns correctly in speech and writing.",
+              "learningOutcome": "Use pronouns correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG6-LU-04-S2-T1",
+                  "name": "Indefinite Pronouns",
+                  "descriptor": "Understand and apply indefinite pronouns in everyday communication."
+                },
+                {
+                  "code": "ENG6-LU-04-S2-T2",
+                  "name": "Interrogative Pronouns",
+                  "descriptor": "Understand and apply interrogative pronouns in everyday communication."
+                },
+                {
+                  "code": "ENG6-LU-04-S2-T3",
+                  "name": "Pronoun Case",
+                  "descriptor": "Understand and apply pronoun case in everyday communication."
+                },
+                {
+                  "code": "ENG6-LU-04-S2-T4",
+                  "name": "Cohesive Pronouns",
+                  "descriptor": "Understand and apply cohesive pronouns in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG6-LU-04-S3",
+              "name": "Verbs and Tenses",
+              "descriptor": "Use verbs and tenses correctly in speech and writing.",
+              "learningOutcome": "Use verbs and tenses correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG6-LU-04-S3-T1",
+                  "name": "Perfect Tenses",
+                  "descriptor": "Understand and apply perfect tenses in everyday communication."
+                },
+                {
+                  "code": "ENG6-LU-04-S3-T2",
+                  "name": "Passive Voice",
+                  "descriptor": "Understand and apply passive voice in everyday communication."
+                },
+                {
+                  "code": "ENG6-LU-04-S3-T3",
+                  "name": "Conditional Sentences",
+                  "descriptor": "Understand and apply conditional sentences in everyday communication."
+                },
+                {
+                  "code": "ENG6-LU-04-S3-T4",
+                  "name": "Phrasal Verbs",
+                  "descriptor": "Understand and apply phrasal verbs in everyday communication."
+                }
+              ]
+            },
+            {
+              "code": "ENG6-LU-04-S4",
+              "name": "Adjectives and Adverbs",
+              "descriptor": "Use adjectives and adverbs correctly in speech and writing.",
+              "learningOutcome": "Use adjectives and adverbs correctly in speech and writing.",
+              "topics": [
+                {
+                  "code": "ENG6-LU-04-S4-T1",
+                  "name": "Participial Adjectives",
+                  "descriptor": "Understand and apply participial adjectives in everyday communication."
+                },
+                {
+                  "code": "ENG6-LU-04-S4-T2",
+                  "name": "Adjective Clauses",
+                  "descriptor": "Understand and apply adjective clauses in everyday communication."
+                },
+                {
+                  "code": "ENG6-LU-04-S4-T3",
+                  "name": "Adverb Clauses",
+                  "descriptor": "Understand and apply adverb clauses in everyday communication."
+                },
+                {
+                  "code": "ENG6-LU-04-S4-T4",
+                  "name": "Using Modifiers Effectively",
+                  "descriptor": "Understand and apply using modifiers effectively in everyday communication."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

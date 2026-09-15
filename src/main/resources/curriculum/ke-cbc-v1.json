@@ -2,8 +2,8 @@
   "countryCode": "KE",
   "curriculum": "CBC",
   "version": "v1",
-  "name": "Kenya CBC Tier 0 curriculum skeleton (Mathematics G4-G6)",
-  "notes": "Authored BrainBox mapping aligned to the public Kenya CBC Mathematics strand and sub-strand labels. This is our own catalogue data, not KICD text, and no KICD or KNEC document is ingested, quoted or attributed.",
+  "name": "Kenya CBC Tier 0 curriculum skeleton",
+  "notes": "Authored BrainBox mapping aligned to the public Kenya CBC strand and sub-strand labels. This is our own catalogue data, not KICD text, and no KICD or KNEC document is ingested, quoted or attributed.",
   "subject": "Mathematics",
   "grades": [
     {

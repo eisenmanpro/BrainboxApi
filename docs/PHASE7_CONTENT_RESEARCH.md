@@ -235,14 +235,21 @@ document rather than a model. This is the index everything else hangs off, and i
 makes search/strand filters look real. Rough shape: grade → subject → strand → sub-strand →
 8–20 topics.
 
-**Tier 0 status — delivered for Mathematics G4–G6 (7.5b-1).** The skeleton now lives in
-`cbc_strands` (level `STRAND`/`SUBSTRAND`, `parent_id`, `curriculum_version`) plus the shared
-`concepts`/`curriculum_map` layer, and is seeded from **versioned resource data**: a
-`curriculum_versions` row plus `src/main/resources/curriculum/ke-cbc-v1.json`. The catalogue is
-our own authored mapping aligned to the public Kenya CBC Mathematics strand and sub-strand labels;
-it is not KICD text, and no KICD or KNEC document is ingested, quoted or attributed. English,
-Integrated Science, Kiswahili and Social Studies, and the G7–G9 band, follow in **7.5b-2** as
-further data files, so adding a subject or band is a data-only change.
+**Tier 0 status — delivered for five subjects at G4–G6 (7.5b-1 + 7.5b-2a).** The skeleton now
+lives in `cbc_strands` (level `STRAND`/`SUBSTRAND`, `parent_id`, `curriculum_version`) plus the
+shared `concepts`/`curriculum_map` layer, and is seeded from **versioned resource data**: one
+`curriculum_versions` row plus one JSON catalogue per subject under
+`src/main/resources/curriculum/` (`ke-cbc-v1.json` Mathematics, `ke-cbc-english.json`,
+`ke-cbc-integrated-science.json`, `ke-cbc-kiswahili.json` and `ke-cbc-social-studies.json`).
+`CurriculumSeeder` discovers every catalogue with a classpath wildcard, so adding a subject is a
+data-only change and the `curriculum_versions` row is never clobbered by a later subject file.
+The delivered G4–G6 breadth is **60 strands, 247 sub-strands and 977 topics**: Mathematics
+12/55/209 (unchanged from 7.5b-1) and English, Integrated Science, Kiswahili and Social Studies
+12/48/192 each (4 strands, 16 sub-strands and 64 topics per subject-grade; 3–5 sub-strands per
+strand and 3–5 topics per sub-strand). The catalogues are our own authored mapping aligned to the
+public Kenya CBC strand and sub-strand labels; they are not KICD text, and no KICD or KNEC
+document is ingested, quoted or attributed. The G7–G9 band follows in **7.5b-2b** as further data
+files, so adding a band stays a data-only change.
 
 **Tier 1 — a batch-generated starter library.** For every topic, produce one `NOTES` post,
 one `QUIZ` and one `FLASHCARDS` set; for every subject×grade, one or two past papers and one
@@ -328,6 +335,13 @@ provenance (source URLs + licence) for audit and to satisfy the Data Protection 
 while CBC band subjects include Integrated Science, Science & Technology, Agriculture,
 Pre-Technical and Creative Arts. Non-enum subjects must ride `customSubjectName`, or the
 enum gets widened client-side (a client change, so a contract decision).
+
+The Tier 0 catalogues use `Integrated Science` as the subject string for the G4–G6 Science
+stream, matching the existing `cbc_strands` subject value from V45 and the subject the Tier 1
+producer resolves by exact name (`ContentBatchService.resolveTopicConcepts`). It is not a client
+`Subject` enum value, so the client canonicalises it through `customSubjectName` (as
+`Science and Technology` would also have to). Any future rename to `Science and Technology`
+must change the catalogue `subject` strings and the strand-row subject in lockstep.
 
 Curriculum configuration must be **versioned data, not code**. Senior School's Mathematics
 policy flipped between March and August 2025 (dropped, then reinstated as compulsory), and

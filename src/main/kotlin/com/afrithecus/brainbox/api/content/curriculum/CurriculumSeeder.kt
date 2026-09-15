@@ -8,7 +8,7 @@ import com.afrithecus.brainbox.api.content.entity.CurriculumVersionEntity
 import com.afrithecus.brainbox.api.content.repository.ConceptRepository
 import com.afrithecus.brainbox.api.content.repository.CurriculumMapRepository
 import com.afrithecus.brainbox.api.content.repository.CurriculumVersionRepository
-import org.springframework.core.io.ClassPathResource
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
@@ -16,13 +16,20 @@ import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 /**
- * Phase 7.5b-1: seeds the Tier 0 curriculum skeleton from authored resource
- * data (never from the LLM). It is deterministic and idempotent: every row id
- * is derived from a stable catalogue code with [UUID.nameUUIDFromBytes], and
- * each upsert looks the row up by its stable code before writing, so a second
- * run inserts nothing and changes no row counts.
+ * Phase 7.5b-1/7.5b-2a: seeds the Tier 0 curriculum skeleton from authored
+ * resource data (never from the LLM). Discovery is a classpath wildcard, so
+ * every JSON catalogue under `curriculum/` is seeded and adding a subject or a
+ * grade band is a data-only change.
  *
- * The catalogue is our own authored mapping aligned to the public Kenya CBC
+ * It is deterministic and idempotent: every row id is derived from a stable
+ * catalogue code with [UUID.nameUUIDFromBytes], and each upsert looks the row up
+ * by its stable code before writing, so a second run inserts nothing and changes
+ * no row counts. The `curriculum_versions` row is curriculum-level (keyed by
+ * country + curriculum + version): the first catalogue to seed it inserts it and
+ * later subject files only refresh `is_active`, so no later subject can clobber
+ * the version name or notes.
+ *
+ * The catalogues are our own authored mapping aligned to the public Kenya CBC
  * strand/sub-strand labels; KICD documents are not a source.
  */
 @Service
@@ -36,9 +43,21 @@ class CurriculumSeeder(
 
     @Transactional
     fun seed(): CurriculumSeedSummary {
-        val catalogue = loadCatalogue()
-        val counters = Counters()
+        val catalogues = loadCatalogues()
+        val totals = Counters()
+        val perSubject = mutableListOf<SubjectSeedSummary>()
 
+        catalogues.forEach { catalogue ->
+            val counters = Counters()
+            seedCatalogue(catalogue, counters)
+            totals.add(counters)
+            perSubject += counters.toSubjectSummary(catalogue)
+        }
+
+        return totals.toSummary(catalogues, perSubject)
+    }
+
+    private fun seedCatalogue(catalogue: CurriculumCatalogue, counters: Counters) {
         upsertVersion(catalogue, counters)
 
         var sortOrder = 0
@@ -155,16 +174,28 @@ class CurriculumSeeder(
                 }
             }
         }
-
-        return counters.toSummary(catalogue)
     }
 
-    private fun loadCatalogue(): CurriculumCatalogue {
-        val resource = ClassPathResource(RESOURCE)
-        check(resource.exists()) { "curriculum catalogue not found on the classpath: " + RESOURCE }
-        return resource.inputStream.use { objectMapper.readValue(it, CurriculumCatalogue::class.java) }
+    /**
+     * Every catalogue on the classpath under `curriculum/`. Sorted by filename so
+     * the seed order, the version metadata and the aggregated summary are
+     * deterministic across runs and environments.
+     */
+    private fun loadCatalogues(): List<CurriculumCatalogue> {
+        val resources = PathMatchingResourcePatternResolver()
+            .getResources(RESOURCE_PATTERN)
+            .sortedBy { it.filename ?: it.description }
+        check(resources.isNotEmpty()) { "curriculum catalogues not found on the classpath: " + RESOURCE_PATTERN }
+        return resources.map { resource ->
+            resource.inputStream.use { objectMapper.readValue(it, CurriculumCatalogue::class.java) }
+        }
     }
 
+    /**
+     * The version row is curriculum-level, not subject-level: insert it on the
+     * first catalogue, then only refresh `is_active`. A later subject file must
+     * never overwrite the name or notes authored by the file that created it.
+     */
     private fun upsertVersion(catalogue: CurriculumCatalogue, counters: Counters) {
         val existing = curriculumVersions
             .findByCountryCodeAndCurriculumAndCurriculumVersion(catalogue.countryCode, catalogue.curriculum, catalogue.version)
@@ -182,8 +213,6 @@ class CurriculumSeeder(
             )
             counters.versionsInserted++
         } else {
-            existing.name = catalogue.name
-            existing.notes = catalogue.notes
             existing.isActive = true
             counters.versionsUpdated++
         }
@@ -330,9 +359,25 @@ class CurriculumSeeder(
         var mappingsInserted = 0
         var mappingsUpdated = 0
 
-        fun toSummary(catalogue: CurriculumCatalogue): CurriculumSeedSummary = CurriculumSeedSummary(
-            version = catalogue.version,
+        fun add(other: Counters) {
+            versionsInserted += other.versionsInserted
+            versionsUpdated += other.versionsUpdated
+            strandsInserted += other.strandsInserted
+            strandsUpdated += other.strandsUpdated
+            conceptsInserted += other.conceptsInserted
+            conceptsUpdated += other.conceptsUpdated
+            mappingsInserted += other.mappingsInserted
+            mappingsUpdated += other.mappingsUpdated
+        }
+
+        fun toSubjectSummary(catalogue: CurriculumCatalogue): SubjectSeedSummary = SubjectSeedSummary(
+            subject = catalogue.subject,
             grades = catalogue.grades.size,
+            strands = catalogue.grades.sumOf { it.strands.size },
+            subStrands = catalogue.grades.sumOf { grade -> grade.strands.sumOf { it.subStrands.size } },
+            topics = catalogue.grades.sumOf { grade ->
+                grade.strands.sumOf { strand -> strand.subStrands.sumOf { it.topics.size } }
+            },
             versionsInserted = versionsInserted,
             versionsUpdated = versionsUpdated,
             strandsInserted = strandsInserted,
@@ -342,17 +387,42 @@ class CurriculumSeeder(
             mappingsInserted = mappingsInserted,
             mappingsUpdated = mappingsUpdated,
         )
+
+        fun toSummary(
+            catalogues: List<CurriculumCatalogue>,
+            perSubject: List<SubjectSeedSummary>,
+        ): CurriculumSeedSummary = CurriculumSeedSummary(
+            version = catalogues.map { it.version }.distinct().joinToString(","),
+            grades = catalogues.sumOf { it.grades.size },
+            catalogues = catalogues.size,
+            subjects = catalogues.map { it.subject },
+            versionsInserted = versionsInserted,
+            versionsUpdated = versionsUpdated,
+            strandsInserted = strandsInserted,
+            strandsUpdated = strandsUpdated,
+            conceptsInserted = conceptsInserted,
+            conceptsUpdated = conceptsUpdated,
+            mappingsInserted = mappingsInserted,
+            mappingsUpdated = mappingsUpdated,
+            authoredStrands = perSubject.sumOf { it.strands },
+            authoredSubStrands = perSubject.sumOf { it.subStrands },
+            authoredTopics = perSubject.sumOf { it.topics },
+            perSubject = perSubject,
+        )
     }
 
     companion object {
-        const val RESOURCE: String = "curriculum/ke-cbc-v1.json"
+        /** Classpath wildcard pattern: every JSON catalogue under the curriculum directory is one subject. */
+        const val RESOURCE_PATTERN: String = "classpath*:curriculum/*.json"
     }
 }
 
-/** Counts inserted/updated per table for one seed run, so a caller can log it. */
+/** Counts inserted/updated per table for one catalogue or one whole seed run. */
 data class CurriculumSeedSummary(
     val version: String,
     val grades: Int,
+    val catalogues: Int,
+    val subjects: List<String>,
     val versionsInserted: Int,
     val versionsUpdated: Int,
     val strandsInserted: Int,
@@ -361,7 +431,28 @@ data class CurriculumSeedSummary(
     val conceptsUpdated: Int,
     val mappingsInserted: Int,
     val mappingsUpdated: Int,
+    val authoredStrands: Int,
+    val authoredSubStrands: Int,
+    val authoredTopics: Int,
+    val perSubject: List<SubjectSeedSummary> = emptyList(),
 ) {
     val inserted: Int get() = versionsInserted + strandsInserted + conceptsInserted + mappingsInserted
     val updated: Int get() = versionsUpdated + strandsUpdated + conceptsUpdated + mappingsUpdated
 }
+
+/** Authored depth and write counters for one subject catalogue. */
+data class SubjectSeedSummary(
+    val subject: String,
+    val grades: Int,
+    val strands: Int,
+    val subStrands: Int,
+    val topics: Int,
+    val versionsInserted: Int,
+    val versionsUpdated: Int,
+    val strandsInserted: Int,
+    val strandsUpdated: Int,
+    val conceptsInserted: Int,
+    val conceptsUpdated: Int,
+    val mappingsInserted: Int,
+    val mappingsUpdated: Int,
+)

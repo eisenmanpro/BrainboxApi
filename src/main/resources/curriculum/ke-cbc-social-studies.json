@@ -1,0 +1,1453 @@
+{
+  "countryCode": "KE",
+  "curriculum": "CBC",
+  "version": "v1",
+  "name": "Kenya CBC Tier 0 curriculum skeleton",
+  "notes": "Authored BrainBox mapping aligned to the public Kenya CBC strand and sub-strand labels. This is our own catalogue data, not KICD text, and no KICD or KNEC document is ingested, quoted or attributed.",
+  "subject": "Social Studies",
+  "grades": [
+    {
+      "gradeLevel": "Grade 4",
+      "strands": [
+        {
+          "code": "SST4-CT-01",
+          "name": "Citizenship",
+          "descriptor": "Understand values, rights and responsibilities of a good citizen.",
+          "subStrands": [
+            {
+              "code": "SST4-CT-01-S1",
+              "name": "National Values",
+              "descriptor": "Explain national values and its importance in the community.",
+              "learningOutcome": "Explain national values and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST4-CT-01-S1-T1",
+                  "name": "Values at Home",
+                  "descriptor": "Understand and apply values at home in the community."
+                },
+                {
+                  "code": "SST4-CT-01-S1-T2",
+                  "name": "Values at School",
+                  "descriptor": "Understand and apply values at school in the community."
+                },
+                {
+                  "code": "SST4-CT-01-S1-T3",
+                  "name": "Honesty and Integrity",
+                  "descriptor": "Understand and apply honesty and integrity in the community."
+                },
+                {
+                  "code": "SST4-CT-01-S1-T4",
+                  "name": "Respect for Others",
+                  "descriptor": "Understand and apply respect for others in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST4-CT-01-S2",
+              "name": "Rights and Responsibilities",
+              "descriptor": "Explain rights and responsibilities and its importance in the community.",
+              "learningOutcome": "Explain rights and responsibilities and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST4-CT-01-S2-T1",
+                  "name": "Rights of the Child",
+                  "descriptor": "Understand and apply rights of the child in the community."
+                },
+                {
+                  "code": "SST4-CT-01-S2-T2",
+                  "name": "Duties at Home and School",
+                  "descriptor": "Understand and apply duties at home and school in the community."
+                },
+                {
+                  "code": "SST4-CT-01-S2-T3",
+                  "name": "Protecting the Rights of Others",
+                  "descriptor": "Understand and apply protecting the rights of others in the community."
+                },
+                {
+                  "code": "SST4-CT-01-S2-T4",
+                  "name": "Reporting Abuse",
+                  "descriptor": "Understand and apply reporting abuse in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST4-CT-01-S3",
+              "name": "Patriotism",
+              "descriptor": "Explain patriotism and its importance in the community.",
+              "learningOutcome": "Explain patriotism and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST4-CT-01-S3-T1",
+                  "name": "The National Flag",
+                  "descriptor": "Understand and apply the national flag in the community."
+                },
+                {
+                  "code": "SST4-CT-01-S3-T2",
+                  "name": "The National Anthem",
+                  "descriptor": "Understand and apply the national anthem in the community."
+                },
+                {
+                  "code": "SST4-CT-01-S3-T3",
+                  "name": "National Symbols",
+                  "descriptor": "Understand and apply national symbols in the community."
+                },
+                {
+                  "code": "SST4-CT-01-S3-T4",
+                  "name": "Loving Our Country",
+                  "descriptor": "Understand and apply loving our country in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST4-CT-01-S4",
+              "name": "Social Cohesion",
+              "descriptor": "Explain social cohesion and its importance in the community.",
+              "learningOutcome": "Explain social cohesion and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST4-CT-01-S4-T1",
+                  "name": "Living Together in Harmony",
+                  "descriptor": "Understand and apply living together in harmony in the community."
+                },
+                {
+                  "code": "SST4-CT-01-S4-T2",
+                  "name": "Sharing Resources Fairly",
+                  "descriptor": "Understand and apply sharing resources fairly in the community."
+                },
+                {
+                  "code": "SST4-CT-01-S4-T3",
+                  "name": "Helping Neighbours",
+                  "descriptor": "Understand and apply helping neighbours in the community."
+                },
+                {
+                  "code": "SST4-CT-01-S4-T4",
+                  "name": "Respecting Diversity",
+                  "descriptor": "Understand and apply respecting diversity in the community."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "SST4-GG-02",
+          "name": "Geography",
+          "descriptor": "Locate and describe physical and human features of the environment.",
+          "subStrands": [
+            {
+              "code": "SST4-GG-02-S1",
+              "name": "Maps and Map Reading",
+              "descriptor": "Explain maps and map reading and its importance in the community.",
+              "learningOutcome": "Explain maps and map reading and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST4-GG-02-S1-T1",
+                  "name": "What Is a Map",
+                  "descriptor": "Understand and apply what is a map in the community."
+                },
+                {
+                  "code": "SST4-GG-02-S1-T2",
+                  "name": "Map Symbols",
+                  "descriptor": "Understand and apply map symbols in the community."
+                },
+                {
+                  "code": "SST4-GG-02-S1-T3",
+                  "name": "Directions on a Map",
+                  "descriptor": "Understand and apply directions on a map in the community."
+                },
+                {
+                  "code": "SST4-GG-02-S1-T4",
+                  "name": "Drawing a Simple Map",
+                  "descriptor": "Understand and apply drawing a simple map in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST4-GG-02-S2",
+              "name": "Physical Features",
+              "descriptor": "Explain physical features and its importance in the community.",
+              "learningOutcome": "Explain physical features and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST4-GG-02-S2-T1",
+                  "name": "Hills and Mountains",
+                  "descriptor": "Understand and apply hills and mountains in the community."
+                },
+                {
+                  "code": "SST4-GG-02-S2-T2",
+                  "name": "Rivers and Lakes",
+                  "descriptor": "Understand and apply rivers and lakes in the community."
+                },
+                {
+                  "code": "SST4-GG-02-S2-T3",
+                  "name": "The Rift Valley",
+                  "descriptor": "Understand and apply the rift valley in the community."
+                },
+                {
+                  "code": "SST4-GG-02-S2-T4",
+                  "name": "The Coastal Plain",
+                  "descriptor": "Understand and apply the coastal plain in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST4-GG-02-S3",
+              "name": "Climate and Weather",
+              "descriptor": "Explain climate and weather and its importance in the community.",
+              "learningOutcome": "Explain climate and weather and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST4-GG-02-S3-T1",
+                  "name": "Weather in My Area",
+                  "descriptor": "Understand and apply weather in my area in the community."
+                },
+                {
+                  "code": "SST4-GG-02-S3-T2",
+                  "name": "Rainfall and Sunshine",
+                  "descriptor": "Understand and apply rainfall and sunshine in the community."
+                },
+                {
+                  "code": "SST4-GG-02-S3-T3",
+                  "name": "Seasons in Kenya",
+                  "descriptor": "Understand and apply seasons in Kenya in the community."
+                },
+                {
+                  "code": "SST4-GG-02-S3-T4",
+                  "name": "Weather and Clothing",
+                  "descriptor": "Understand and apply weather and clothing in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST4-GG-02-S4",
+              "name": "Human Activities",
+              "descriptor": "Explain human activities and its importance in the community.",
+              "learningOutcome": "Explain human activities and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST4-GG-02-S4-T1",
+                  "name": "Farming in the Community",
+                  "descriptor": "Understand and apply farming in the community in the community."
+                },
+                {
+                  "code": "SST4-GG-02-S4-T2",
+                  "name": "Fishing",
+                  "descriptor": "Understand and apply fishing in the community."
+                },
+                {
+                  "code": "SST4-GG-02-S4-T3",
+                  "name": "Trading",
+                  "descriptor": "Understand and apply trading in the community."
+                },
+                {
+                  "code": "SST4-GG-02-S4-T4",
+                  "name": "Transport in the Community",
+                  "descriptor": "Understand and apply transport in the community in the community."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "SST4-HT-03",
+          "name": "History",
+          "descriptor": "Describe the history and heritage of Kenyan communities.",
+          "subStrands": [
+            {
+              "code": "SST4-HT-03-S1",
+              "name": "Kenyan Communities",
+              "descriptor": "Explain Kenyan communities and its importance in the community.",
+              "learningOutcome": "Explain Kenyan communities and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST4-HT-03-S1-T1",
+                  "name": "Communities in My County",
+                  "descriptor": "Understand and apply communities in my county in the community."
+                },
+                {
+                  "code": "SST4-HT-03-S1-T2",
+                  "name": "Language and Culture",
+                  "descriptor": "Understand and apply language and culture in the community."
+                },
+                {
+                  "code": "SST4-HT-03-S1-T3",
+                  "name": "Family and Clan",
+                  "descriptor": "Understand and apply family and clan in the community."
+                },
+                {
+                  "code": "SST4-HT-03-S1-T4",
+                  "name": "Cooperation Among Communities",
+                  "descriptor": "Understand and apply cooperation among communities in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST4-HT-03-S2",
+              "name": "Early Visitors and Traders",
+              "descriptor": "Explain early visitors and traders and its importance in the community.",
+              "learningOutcome": "Explain early visitors and traders and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST4-HT-03-S2-T1",
+                  "name": "Arab Traders at the Coast",
+                  "descriptor": "Understand and apply Arab traders at the coast in the community."
+                },
+                {
+                  "code": "SST4-HT-03-S2-T2",
+                  "name": "The Coming of Missionaries",
+                  "descriptor": "Understand and apply the coming of missionaries in the community."
+                },
+                {
+                  "code": "SST4-HT-03-S2-T3",
+                  "name": "Trade Routes",
+                  "descriptor": "Understand and apply trade routes in the community."
+                },
+                {
+                  "code": "SST4-HT-03-S2-T4",
+                  "name": "New Ideas from Visitors",
+                  "descriptor": "Understand and apply new ideas from visitors in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST4-HT-03-S3",
+              "name": "Colonial Administration",
+              "descriptor": "Explain colonial administration and its importance in the community.",
+              "learningOutcome": "Explain colonial administration and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST4-HT-03-S3-T1",
+                  "name": "The Coming of the British",
+                  "descriptor": "Understand and apply the coming of the British in the community."
+                },
+                {
+                  "code": "SST4-HT-03-S3-T2",
+                  "name": "Colonial Chiefs",
+                  "descriptor": "Understand and apply colonial chiefs in the community."
+                },
+                {
+                  "code": "SST4-HT-03-S3-T3",
+                  "name": "Colonial Schools",
+                  "descriptor": "Understand and apply colonial schools in the community."
+                },
+                {
+                  "code": "SST4-HT-03-S3-T4",
+                  "name": "Changes in Land Ownership",
+                  "descriptor": "Understand and apply changes in land ownership in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST4-HT-03-S4",
+              "name": "Struggle for Independence",
+              "descriptor": "Explain struggle for independence and its importance in the community.",
+              "learningOutcome": "Explain struggle for independence and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST4-HT-03-S4-T1",
+                  "name": "Early Resistance",
+                  "descriptor": "Understand and apply early resistance in the community."
+                },
+                {
+                  "code": "SST4-HT-03-S4-T2",
+                  "name": "The Freedom Fighters",
+                  "descriptor": "Understand and apply the freedom fighters in the community."
+                },
+                {
+                  "code": "SST4-HT-03-S4-T3",
+                  "name": "Important Leaders",
+                  "descriptor": "Understand and apply important leaders in the community."
+                },
+                {
+                  "code": "SST4-HT-03-S4-T4",
+                  "name": "Remembering Independence",
+                  "descriptor": "Understand and apply remembering independence in the community."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "SST4-GV-04",
+          "name": "Governance",
+          "descriptor": "Understand democracy, the constitution and the structure of government.",
+          "subStrands": [
+            {
+              "code": "SST4-GV-04-S1",
+              "name": "Democracy",
+              "descriptor": "Explain democracy and its importance in the community.",
+              "learningOutcome": "Explain democracy and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST4-GV-04-S1-T1",
+                  "name": "Decisions in a Group",
+                  "descriptor": "Understand and apply decisions in a group in the community."
+                },
+                {
+                  "code": "SST4-GV-04-S1-T2",
+                  "name": "Choosing Leaders",
+                  "descriptor": "Understand and apply choosing leaders in the community."
+                },
+                {
+                  "code": "SST4-GV-04-S1-T3",
+                  "name": "Fair Play",
+                  "descriptor": "Understand and apply fair play in the community."
+                },
+                {
+                  "code": "SST4-GV-04-S1-T4",
+                  "name": "Majority Rule",
+                  "descriptor": "Understand and apply majority rule in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST4-GV-04-S2",
+              "name": "The Constitution",
+              "descriptor": "Explain the constitution and its importance in the community.",
+              "learningOutcome": "Explain the constitution and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST4-GV-04-S2-T1",
+                  "name": "Rules and Laws",
+                  "descriptor": "Understand and apply rules and laws in the community."
+                },
+                {
+                  "code": "SST4-GV-04-S2-T2",
+                  "name": "The Constitution of Kenya",
+                  "descriptor": "Understand and apply the constitution of Kenya in the community."
+                },
+                {
+                  "code": "SST4-GV-04-S2-T3",
+                  "name": "Children's Rights in the Constitution",
+                  "descriptor": "Understand and apply children's rights in the constitution in the community."
+                },
+                {
+                  "code": "SST4-GV-04-S2-T4",
+                  "name": "Respecting the Law",
+                  "descriptor": "Understand and apply respecting the law in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST4-GV-04-S3",
+              "name": "National Government",
+              "descriptor": "Explain national government and its importance in the community.",
+              "learningOutcome": "Explain national government and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST4-GV-04-S3-T1",
+                  "name": "The National Government",
+                  "descriptor": "Understand and apply the national government in the community."
+                },
+                {
+                  "code": "SST4-GV-04-S3-T2",
+                  "name": "The Three Arms of Government",
+                  "descriptor": "Understand and apply the three arms of government in the community."
+                },
+                {
+                  "code": "SST4-GV-04-S3-T3",
+                  "name": "The President",
+                  "descriptor": "Understand and apply the president in the community."
+                },
+                {
+                  "code": "SST4-GV-04-S3-T4",
+                  "name": "Parliament",
+                  "descriptor": "Understand and apply parliament in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST4-GV-04-S4",
+              "name": "County Government",
+              "descriptor": "Explain county government and its importance in the community.",
+              "learningOutcome": "Explain county government and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST4-GV-04-S4-T1",
+                  "name": "The County Government",
+                  "descriptor": "Understand and apply the county government in the community."
+                },
+                {
+                  "code": "SST4-GV-04-S4-T2",
+                  "name": "The Governor and County Assembly",
+                  "descriptor": "Understand and apply the governor and county assembly in the community."
+                },
+                {
+                  "code": "SST4-GV-04-S4-T3",
+                  "name": "Functions of a County",
+                  "descriptor": "Understand and apply functions of a county in the community."
+                },
+                {
+                  "code": "SST4-GV-04-S4-T4",
+                  "name": "Paying Taxes",
+                  "descriptor": "Understand and apply paying taxes in the community."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "gradeLevel": "Grade 5",
+      "strands": [
+        {
+          "code": "SST5-CT-01",
+          "name": "Citizenship",
+          "descriptor": "Understand values, rights and responsibilities of a good citizen.",
+          "subStrands": [
+            {
+              "code": "SST5-CT-01-S1",
+              "name": "National Values",
+              "descriptor": "Explain national values and its importance in the community.",
+              "learningOutcome": "Explain national values and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST5-CT-01-S1-T1",
+                  "name": "Values for Good Citizenship",
+                  "descriptor": "Understand and apply values for good citizenship in the community."
+                },
+                {
+                  "code": "SST5-CT-01-S1-T2",
+                  "name": "Integrity in Public Life",
+                  "descriptor": "Understand and apply integrity in public life in the community."
+                },
+                {
+                  "code": "SST5-CT-01-S1-T3",
+                  "name": "Responsibility at Home and School",
+                  "descriptor": "Understand and apply responsibility at home and school in the community."
+                },
+                {
+                  "code": "SST5-CT-01-S1-T4",
+                  "name": "Service to the Community",
+                  "descriptor": "Understand and apply service to the community in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST5-CT-01-S2",
+              "name": "Rights and Responsibilities",
+              "descriptor": "Explain rights and responsibilities and its importance in the community.",
+              "learningOutcome": "Explain rights and responsibilities and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST5-CT-01-S2-T1",
+                  "name": "Rights of the Child",
+                  "descriptor": "Understand and apply rights of the child in the community."
+                },
+                {
+                  "code": "SST5-CT-01-S2-T2",
+                  "name": "Child Protection",
+                  "descriptor": "Understand and apply child protection in the community."
+                },
+                {
+                  "code": "SST5-CT-01-S2-T3",
+                  "name": "Responsibilities of Citizens",
+                  "descriptor": "Understand and apply responsibilities of citizens in the community."
+                },
+                {
+                  "code": "SST5-CT-01-S2-T4",
+                  "name": "Equal Opportunities",
+                  "descriptor": "Understand and apply equal opportunities in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST5-CT-01-S3",
+              "name": "Patriotism",
+              "descriptor": "Explain patriotism and its importance in the community.",
+              "learningOutcome": "Explain patriotism and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST5-CT-01-S3-T1",
+                  "name": "National Symbols and Their Meaning",
+                  "descriptor": "Understand and apply national symbols and their meaning in the community."
+                },
+                {
+                  "code": "SST5-CT-01-S3-T2",
+                  "name": "The Kenyan Flag and Its Colours",
+                  "descriptor": "Understand and apply the Kenyan flag and its colours in the community."
+                },
+                {
+                  "code": "SST5-CT-01-S3-T3",
+                  "name": "Heroes and Heroines",
+                  "descriptor": "Understand and apply heroes and heroines in the community."
+                },
+                {
+                  "code": "SST5-CT-01-S3-T4",
+                  "name": "National Days",
+                  "descriptor": "Understand and apply national days in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST5-CT-01-S4",
+              "name": "Social Cohesion",
+              "descriptor": "Explain social cohesion and its importance in the community.",
+              "learningOutcome": "Explain social cohesion and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST5-CT-01-S4-T1",
+                  "name": "Peaceful Coexistence",
+                  "descriptor": "Understand and apply peaceful coexistence in the community."
+                },
+                {
+                  "code": "SST5-CT-01-S4-T2",
+                  "name": "Conflict Resolution",
+                  "descriptor": "Understand and apply conflict resolution in the community."
+                },
+                {
+                  "code": "SST5-CT-01-S4-T3",
+                  "name": "Volunteering",
+                  "descriptor": "Understand and apply volunteering in the community."
+                },
+                {
+                  "code": "SST5-CT-01-S4-T4",
+                  "name": "Respecting Persons with Disabilities",
+                  "descriptor": "Understand and apply respecting persons with disabilities in the community."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "SST5-GG-02",
+          "name": "Geography",
+          "descriptor": "Locate and describe physical and human features of the environment.",
+          "subStrands": [
+            {
+              "code": "SST5-GG-02-S1",
+              "name": "Maps and Map Reading",
+              "descriptor": "Explain maps and map reading and its importance in the community.",
+              "learningOutcome": "Explain maps and map reading and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST5-GG-02-S1-T1",
+                  "name": "Scale on Maps",
+                  "descriptor": "Understand and apply scale on maps in the community."
+                },
+                {
+                  "code": "SST5-GG-02-S1-T2",
+                  "name": "Measuring Distance",
+                  "descriptor": "Understand and apply measuring distance in the community."
+                },
+                {
+                  "code": "SST5-GG-02-S1-T3",
+                  "name": "Interpreting Physical Maps",
+                  "descriptor": "Understand and apply interpreting physical maps in the community."
+                },
+                {
+                  "code": "SST5-GG-02-S1-T4",
+                  "name": "Using an Atlas",
+                  "descriptor": "Understand and apply using an atlas in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST5-GG-02-S2",
+              "name": "Physical Features",
+              "descriptor": "Explain physical features and its importance in the community.",
+              "learningOutcome": "Explain physical features and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST5-GG-02-S2-T1",
+                  "name": "The Great Rift Valley",
+                  "descriptor": "Understand and apply the great rift valley in the community."
+                },
+                {
+                  "code": "SST5-GG-02-S2-T2",
+                  "name": "Mountains and Plateaus",
+                  "descriptor": "Understand and apply mountains and plateaus in the community."
+                },
+                {
+                  "code": "SST5-GG-02-S2-T3",
+                  "name": "Drainage Systems",
+                  "descriptor": "Understand and apply drainage systems in the community."
+                },
+                {
+                  "code": "SST5-GG-02-S2-T4",
+                  "name": "The Indian Ocean Coast",
+                  "descriptor": "Understand and apply the Indian ocean coast in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST5-GG-02-S3",
+              "name": "Climate and Weather",
+              "descriptor": "Explain climate and weather and its importance in the community.",
+              "learningOutcome": "Explain climate and weather and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST5-GG-02-S3-T1",
+                  "name": "Climatic Regions of Kenya",
+                  "descriptor": "Understand and apply climatic regions of Kenya in the community."
+                },
+                {
+                  "code": "SST5-GG-02-S3-T2",
+                  "name": "Factors Affecting Climate",
+                  "descriptor": "Understand and apply factors affecting climate in the community."
+                },
+                {
+                  "code": "SST5-GG-02-S3-T3",
+                  "name": "Weather Charts",
+                  "descriptor": "Understand and apply weather charts in the community."
+                },
+                {
+                  "code": "SST5-GG-02-S3-T4",
+                  "name": "Climate and Farming",
+                  "descriptor": "Understand and apply climate and farming in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST5-GG-02-S4",
+              "name": "Human Activities",
+              "descriptor": "Explain human activities and its importance in the community.",
+              "learningOutcome": "Explain human activities and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST5-GG-02-S4-T1",
+                  "name": "Agriculture in Kenya",
+                  "descriptor": "Understand and apply agriculture in Kenya in the community."
+                },
+                {
+                  "code": "SST5-GG-02-S4-T2",
+                  "name": "Mining",
+                  "descriptor": "Understand and apply mining in the community."
+                },
+                {
+                  "code": "SST5-GG-02-S4-T3",
+                  "name": "Tourism",
+                  "descriptor": "Understand and apply tourism in the community."
+                },
+                {
+                  "code": "SST5-GG-02-S4-T4",
+                  "name": "Industry and Transport",
+                  "descriptor": "Understand and apply industry and transport in the community."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "SST5-HT-03",
+          "name": "History",
+          "descriptor": "Describe the history and heritage of Kenyan communities.",
+          "subStrands": [
+            {
+              "code": "SST5-HT-03-S1",
+              "name": "Kenyan Communities",
+              "descriptor": "Explain Kenyan communities and its importance in the community.",
+              "learningOutcome": "Explain Kenyan communities and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST5-HT-03-S1-T1",
+                  "name": "Migration of Communities",
+                  "descriptor": "Understand and apply migration of communities in the community."
+                },
+                {
+                  "code": "SST5-HT-03-S1-T2",
+                  "name": "Settlement Patterns",
+                  "descriptor": "Understand and apply settlement patterns in the community."
+                },
+                {
+                  "code": "SST5-HT-03-S1-T3",
+                  "name": "Cultural Heritage",
+                  "descriptor": "Understand and apply cultural heritage in the community."
+                },
+                {
+                  "code": "SST5-HT-03-S1-T4",
+                  "name": "Community Leadership",
+                  "descriptor": "Understand and apply community leadership in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST5-HT-03-S2",
+              "name": "Early Visitors and Traders",
+              "descriptor": "Explain early visitors and traders and its importance in the community.",
+              "learningOutcome": "Explain early visitors and traders and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST5-HT-03-S2-T1",
+                  "name": "Trade and Commerce",
+                  "descriptor": "Understand and apply trade and commerce in the community."
+                },
+                {
+                  "code": "SST5-HT-03-S2-T2",
+                  "name": "The Spread of Religion",
+                  "descriptor": "Understand and apply the spread of religion in the community."
+                },
+                {
+                  "code": "SST5-HT-03-S2-T3",
+                  "name": "The Building of Railways",
+                  "descriptor": "Understand and apply the building of railways in the community."
+                },
+                {
+                  "code": "SST5-HT-03-S2-T4",
+                  "name": "Early Urban Centres",
+                  "descriptor": "Understand and apply early urban centres in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST5-HT-03-S3",
+              "name": "Colonial Administration",
+              "descriptor": "Explain colonial administration and its importance in the community.",
+              "learningOutcome": "Explain colonial administration and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST5-HT-03-S3-T1",
+                  "name": "Colonial Rule in Kenya",
+                  "descriptor": "Understand and apply colonial rule in Kenya in the community."
+                },
+                {
+                  "code": "SST5-HT-03-S3-T2",
+                  "name": "The Kipande System",
+                  "descriptor": "Understand and apply the kipande system in the community."
+                },
+                {
+                  "code": "SST5-HT-03-S3-T3",
+                  "name": "Taxation and Labor",
+                  "descriptor": "Understand and apply taxation and labor in the community."
+                },
+                {
+                  "code": "SST5-HT-03-S3-T4",
+                  "name": "Resistance Movements",
+                  "descriptor": "Understand and apply resistance movements in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST5-HT-03-S4",
+              "name": "Struggle for Independence",
+              "descriptor": "Explain struggle for independence and its importance in the community.",
+              "learningOutcome": "Explain struggle for independence and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST5-HT-03-S4-T1",
+                  "name": "The Mau Mau Struggle",
+                  "descriptor": "Understand and apply the Mau Mau struggle in the community."
+                },
+                {
+                  "code": "SST5-HT-03-S4-T2",
+                  "name": "Constitutional Reforms",
+                  "descriptor": "Understand and apply constitutional reforms in the community."
+                },
+                {
+                  "code": "SST5-HT-03-S4-T3",
+                  "name": "Political Parties",
+                  "descriptor": "Understand and apply political parties in the community."
+                },
+                {
+                  "code": "SST5-HT-03-S4-T4",
+                  "name": "Towards Independence",
+                  "descriptor": "Understand and apply towards independence in the community."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "SST5-GV-04",
+          "name": "Governance",
+          "descriptor": "Understand democracy, the constitution and the structure of government.",
+          "subStrands": [
+            {
+              "code": "SST5-GV-04-S1",
+              "name": "Democracy",
+              "descriptor": "Explain democracy and its importance in the community.",
+              "learningOutcome": "Explain democracy and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST5-GV-04-S1-T1",
+                  "name": "Democratic Values",
+                  "descriptor": "Understand and apply democratic values in the community."
+                },
+                {
+                  "code": "SST5-GV-04-S1-T2",
+                  "name": "Elections and Voting",
+                  "descriptor": "Understand and apply elections and voting in the community."
+                },
+                {
+                  "code": "SST5-GV-04-S1-T3",
+                  "name": "Political Parties",
+                  "descriptor": "Understand and apply political parties in the community."
+                },
+                {
+                  "code": "SST5-GV-04-S1-T4",
+                  "name": "Participation in Democracy",
+                  "descriptor": "Understand and apply participation in democracy in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST5-GV-04-S2",
+              "name": "The Constitution",
+              "descriptor": "Explain the constitution and its importance in the community.",
+              "learningOutcome": "Explain the constitution and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST5-GV-04-S2-T1",
+                  "name": "The Constitution and Human Rights",
+                  "descriptor": "Understand and apply the constitution and human rights in the community."
+                },
+                {
+                  "code": "SST5-GV-04-S2-T2",
+                  "name": "The Bill of Rights",
+                  "descriptor": "Understand and apply the bill of rights in the community."
+                },
+                {
+                  "code": "SST5-GV-04-S2-T3",
+                  "name": "Independent Commissions",
+                  "descriptor": "Understand and apply independent commissions in the community."
+                },
+                {
+                  "code": "SST5-GV-04-S2-T4",
+                  "name": "The Rule of Law",
+                  "descriptor": "Understand and apply the rule of law in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST5-GV-04-S3",
+              "name": "National Government",
+              "descriptor": "Explain national government and its importance in the community.",
+              "learningOutcome": "Explain national government and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST5-GV-04-S3-T1",
+                  "name": "The Legislature",
+                  "descriptor": "Understand and apply the legislature in the community."
+                },
+                {
+                  "code": "SST5-GV-04-S3-T2",
+                  "name": "The Executive",
+                  "descriptor": "Understand and apply the executive in the community."
+                },
+                {
+                  "code": "SST5-GV-04-S3-T3",
+                  "name": "The Judiciary",
+                  "descriptor": "Understand and apply the judiciary in the community."
+                },
+                {
+                  "code": "SST5-GV-04-S3-T4",
+                  "name": "Separation of Powers",
+                  "descriptor": "Understand and apply separation of powers in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST5-GV-04-S4",
+              "name": "County Government",
+              "descriptor": "Explain county government and its importance in the community.",
+              "learningOutcome": "Explain county government and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST5-GV-04-S4-T1",
+                  "name": "The Structure of County Government",
+                  "descriptor": "Understand and apply the structure of county government in the community."
+                },
+                {
+                  "code": "SST5-GV-04-S4-T2",
+                  "name": "Functions of County Government",
+                  "descriptor": "Understand and apply functions of county government in the community."
+                },
+                {
+                  "code": "SST5-GV-04-S4-T3",
+                  "name": "Public Participation",
+                  "descriptor": "Understand and apply public participation in the community."
+                },
+                {
+                  "code": "SST5-GV-04-S4-T4",
+                  "name": "Development Projects",
+                  "descriptor": "Understand and apply development projects in the community."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "gradeLevel": "Grade 6",
+      "strands": [
+        {
+          "code": "SST6-CT-01",
+          "name": "Citizenship",
+          "descriptor": "Understand values, rights and responsibilities of a good citizen.",
+          "subStrands": [
+            {
+              "code": "SST6-CT-01-S1",
+              "name": "National Values",
+              "descriptor": "Explain national values and its importance in the community.",
+              "learningOutcome": "Explain national values and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST6-CT-01-S1-T1",
+                  "name": "Citizenship and Identity",
+                  "descriptor": "Understand and apply citizenship and identity in the community."
+                },
+                {
+                  "code": "SST6-CT-01-S1-T2",
+                  "name": "Values and National Development",
+                  "descriptor": "Understand and apply values and national development in the community."
+                },
+                {
+                  "code": "SST6-CT-01-S1-T3",
+                  "name": "Integrity in Leadership",
+                  "descriptor": "Understand and apply integrity in leadership in the community."
+                },
+                {
+                  "code": "SST6-CT-01-S1-T4",
+                  "name": "Social Responsibility",
+                  "descriptor": "Understand and apply social responsibility in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST6-CT-01-S2",
+              "name": "Rights and Responsibilities",
+              "descriptor": "Explain rights and responsibilities and its importance in the community.",
+              "learningOutcome": "Explain rights and responsibilities and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST6-CT-01-S2-T1",
+                  "name": "Rights and the Law",
+                  "descriptor": "Understand and apply rights and the law in the community."
+                },
+                {
+                  "code": "SST6-CT-01-S2-T2",
+                  "name": "Child Labour Awareness",
+                  "descriptor": "Understand and apply child labour awareness in the community."
+                },
+                {
+                  "code": "SST6-CT-01-S2-T3",
+                  "name": "Protecting Human Rights",
+                  "descriptor": "Understand and apply protecting human rights in the community."
+                },
+                {
+                  "code": "SST6-CT-01-S2-T4",
+                  "name": "Civic Duties",
+                  "descriptor": "Understand and apply civic duties in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST6-CT-01-S3",
+              "name": "Patriotism",
+              "descriptor": "Explain patriotism and its importance in the community.",
+              "learningOutcome": "Explain patriotism and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST6-CT-01-S3-T1",
+                  "name": "National Heritage",
+                  "descriptor": "Understand and apply national heritage in the community."
+                },
+                {
+                  "code": "SST6-CT-01-S3-T2",
+                  "name": "Kenyan Heroes and Heroines",
+                  "descriptor": "Understand and apply Kenyan heroes and heroines in the community."
+                },
+                {
+                  "code": "SST6-CT-01-S3-T3",
+                  "name": "Patriotism in Daily Life",
+                  "descriptor": "Understand and apply patriotism in daily life in the community."
+                },
+                {
+                  "code": "SST6-CT-01-S3-T4",
+                  "name": "National Cohesion",
+                  "descriptor": "Understand and apply national cohesion in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST6-CT-01-S4",
+              "name": "Social Cohesion",
+              "descriptor": "Explain social cohesion and its importance in the community.",
+              "learningOutcome": "Explain social cohesion and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST6-CT-01-S4-T1",
+                  "name": "Unity in Diversity",
+                  "descriptor": "Understand and apply unity in diversity in the community."
+                },
+                {
+                  "code": "SST6-CT-01-S4-T2",
+                  "name": "Managing Conflict",
+                  "descriptor": "Understand and apply managing conflict in the community."
+                },
+                {
+                  "code": "SST6-CT-01-S4-T3",
+                  "name": "Community Service",
+                  "descriptor": "Understand and apply community service in the community."
+                },
+                {
+                  "code": "SST6-CT-01-S4-T4",
+                  "name": "Inclusion and Equality",
+                  "descriptor": "Understand and apply inclusion and equality in the community."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "SST6-GG-02",
+          "name": "Geography",
+          "descriptor": "Locate and describe physical and human features of the environment.",
+          "subStrands": [
+            {
+              "code": "SST6-GG-02-S1",
+              "name": "Maps and Map Reading",
+              "descriptor": "Explain maps and map reading and its importance in the community.",
+              "learningOutcome": "Explain maps and map reading and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST6-GG-02-S1-T1",
+                  "name": "Latitude and Longitude",
+                  "descriptor": "Understand and apply latitude and longitude in the community."
+                },
+                {
+                  "code": "SST6-GG-02-S1-T2",
+                  "name": "Map Scales and Grids",
+                  "descriptor": "Understand and apply map scales and grids in the community."
+                },
+                {
+                  "code": "SST6-GG-02-S1-T3",
+                  "name": "Reading Landforms on Maps",
+                  "descriptor": "Understand and apply reading landforms on maps in the community."
+                },
+                {
+                  "code": "SST6-GG-02-S1-T4",
+                  "name": "Digital Maps",
+                  "descriptor": "Understand and apply digital maps in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST6-GG-02-S2",
+              "name": "Physical Features",
+              "descriptor": "Explain physical features and its importance in the community.",
+              "learningOutcome": "Explain physical features and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST6-GG-02-S2-T1",
+                  "name": "Relief of Kenya",
+                  "descriptor": "Understand and apply relief of Kenya in the community."
+                },
+                {
+                  "code": "SST6-GG-02-S2-T2",
+                  "name": "Soils and Vegetation",
+                  "descriptor": "Understand and apply soils and vegetation in the community."
+                },
+                {
+                  "code": "SST6-GG-02-S2-T3",
+                  "name": "Rivers and Lakes",
+                  "descriptor": "Understand and apply rivers and lakes in the community."
+                },
+                {
+                  "code": "SST6-GG-02-S2-T4",
+                  "name": "Environmental Regions",
+                  "descriptor": "Understand and apply environmental regions in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST6-GG-02-S3",
+              "name": "Climate and Weather",
+              "descriptor": "Explain climate and weather and its importance in the community.",
+              "learningOutcome": "Explain climate and weather and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST6-GG-02-S3-T1",
+                  "name": "Climate Change",
+                  "descriptor": "Understand and apply climate change in the community."
+                },
+                {
+                  "code": "SST6-GG-02-S3-T2",
+                  "name": "Weather Forecasting",
+                  "descriptor": "Understand and apply weather forecasting in the community."
+                },
+                {
+                  "code": "SST6-GG-02-S3-T3",
+                  "name": "Drought and Floods",
+                  "descriptor": "Understand and apply drought and floods in the community."
+                },
+                {
+                  "code": "SST6-GG-02-S3-T4",
+                  "name": "Climate and Settlement",
+                  "descriptor": "Understand and apply climate and settlement in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST6-GG-02-S4",
+              "name": "Human Activities",
+              "descriptor": "Explain human activities and its importance in the community.",
+              "learningOutcome": "Explain human activities and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST6-GG-02-S4-T1",
+                  "name": "Agriculture and Trade",
+                  "descriptor": "Understand and apply agriculture and trade in the community."
+                },
+                {
+                  "code": "SST6-GG-02-S4-T2",
+                  "name": "Fishing and Forestry",
+                  "descriptor": "Understand and apply fishing and forestry in the community."
+                },
+                {
+                  "code": "SST6-GG-02-S4-T3",
+                  "name": "Mining and Energy",
+                  "descriptor": "Understand and apply mining and energy in the community."
+                },
+                {
+                  "code": "SST6-GG-02-S4-T4",
+                  "name": "Urbanization in Kenya",
+                  "descriptor": "Understand and apply urbanization in Kenya in the community."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "SST6-HT-03",
+          "name": "History",
+          "descriptor": "Describe the history and heritage of Kenyan communities.",
+          "subStrands": [
+            {
+              "code": "SST6-HT-03-S1",
+              "name": "Kenyan Communities",
+              "descriptor": "Explain Kenyan communities and its importance in the community.",
+              "learningOutcome": "Explain Kenyan communities and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST6-HT-03-S1-T1",
+                  "name": "Origin of Kenyan Communities",
+                  "descriptor": "Understand and apply origin of Kenyan communities in the community."
+                },
+                {
+                  "code": "SST6-HT-03-S1-T2",
+                  "name": "Early Kingdoms and Chiefdoms",
+                  "descriptor": "Understand and apply early kingdoms and chiefdoms in the community."
+                },
+                {
+                  "code": "SST6-HT-03-S1-T3",
+                  "name": "Cultural Practices",
+                  "descriptor": "Understand and apply cultural practices in the community."
+                },
+                {
+                  "code": "SST6-HT-03-S1-T4",
+                  "name": "Trade and Exchange",
+                  "descriptor": "Understand and apply trade and exchange in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST6-HT-03-S2",
+              "name": "Early Visitors and Traders",
+              "descriptor": "Explain early visitors and traders and its importance in the community.",
+              "learningOutcome": "Explain early visitors and traders and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST6-HT-03-S2-T1",
+                  "name": "Foreign Traders at the Coast",
+                  "descriptor": "Understand and apply foreign traders at the coast in the community."
+                },
+                {
+                  "code": "SST6-HT-03-S2-T2",
+                  "name": "The Portuguese and Omani Rule",
+                  "descriptor": "Understand and apply the Portuguese and Omani rule in the community."
+                },
+                {
+                  "code": "SST6-HT-03-S2-T3",
+                  "name": "Mission Stations",
+                  "descriptor": "Understand and apply mission stations in the community."
+                },
+                {
+                  "code": "SST6-HT-03-S2-T4",
+                  "name": "Early Explorers",
+                  "descriptor": "Understand and apply early explorers in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST6-HT-03-S3",
+              "name": "Colonial Administration",
+              "descriptor": "Explain colonial administration and its importance in the community.",
+              "learningOutcome": "Explain colonial administration and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST6-HT-03-S3-T1",
+                  "name": "Colonial Land Policies",
+                  "descriptor": "Understand and apply colonial land policies in the community."
+                },
+                {
+                  "code": "SST6-HT-03-S3-T2",
+                  "name": "The Colonial Economy",
+                  "descriptor": "Understand and apply the colonial economy in the community."
+                },
+                {
+                  "code": "SST6-HT-03-S3-T3",
+                  "name": "African Nationalism",
+                  "descriptor": "Understand and apply African nationalism in the community."
+                },
+                {
+                  "code": "SST6-HT-03-S3-T4",
+                  "name": "Trade Unions and Politics",
+                  "descriptor": "Understand and apply trade unions and politics in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST6-HT-03-S4",
+              "name": "Struggle for Independence",
+              "descriptor": "Explain struggle for independence and its importance in the community.",
+              "learningOutcome": "Explain struggle for independence and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST6-HT-03-S4-T1",
+                  "name": "The Struggle for Freedom",
+                  "descriptor": "Understand and apply the struggle for freedom in the community."
+                },
+                {
+                  "code": "SST6-HT-03-S4-T2",
+                  "name": "The 1963 Independence",
+                  "descriptor": "Understand and apply the 1963 independence in the community."
+                },
+                {
+                  "code": "SST6-HT-03-S4-T3",
+                  "name": "Constitutional Development",
+                  "descriptor": "Understand and apply constitutional development in the community."
+                },
+                {
+                  "code": "SST6-HT-03-S4-T4",
+                  "name": "The Birth of the Republic",
+                  "descriptor": "Understand and apply the birth of the republic in the community."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "SST6-GV-04",
+          "name": "Governance",
+          "descriptor": "Understand democracy, the constitution and the structure of government.",
+          "subStrands": [
+            {
+              "code": "SST6-GV-04-S1",
+              "name": "Democracy",
+              "descriptor": "Explain democracy and its importance in the community.",
+              "learningOutcome": "Explain democracy and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST6-GV-04-S1-T1",
+                  "name": "Democracy and Human Rights",
+                  "descriptor": "Understand and apply democracy and human rights in the community."
+                },
+                {
+                  "code": "SST6-GV-04-S1-T2",
+                  "name": "Elections and the Electoral Process",
+                  "descriptor": "Understand and apply elections and the electoral process in the community."
+                },
+                {
+                  "code": "SST6-GV-04-S1-T3",
+                  "name": "Political Participation",
+                  "descriptor": "Understand and apply political participation in the community."
+                },
+                {
+                  "code": "SST6-GV-04-S1-T4",
+                  "name": "Devolution and Democracy",
+                  "descriptor": "Understand and apply devolution and democracy in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST6-GV-04-S2",
+              "name": "The Constitution",
+              "descriptor": "Explain the constitution and its importance in the community.",
+              "learningOutcome": "Explain the constitution and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST6-GV-04-S2-T1",
+                  "name": "The Constitution of Kenya 2010",
+                  "descriptor": "Understand and apply the constitution of Kenya 2010 in the community."
+                },
+                {
+                  "code": "SST6-GV-04-S2-T2",
+                  "name": "The Bill of Rights",
+                  "descriptor": "Understand and apply the bill of rights in the community."
+                },
+                {
+                  "code": "SST6-GV-04-S2-T3",
+                  "name": "National Values in the Constitution",
+                  "descriptor": "Understand and apply national values in the constitution in the community."
+                },
+                {
+                  "code": "SST6-GV-04-S2-T4",
+                  "name": "Access to Justice",
+                  "descriptor": "Understand and apply access to justice in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST6-GV-04-S3",
+              "name": "National Government",
+              "descriptor": "Explain national government and its importance in the community.",
+              "learningOutcome": "Explain national government and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST6-GV-04-S3-T1",
+                  "name": "The National Executive",
+                  "descriptor": "Understand and apply the national executive in the community."
+                },
+                {
+                  "code": "SST6-GV-04-S3-T2",
+                  "name": "The National Assembly and Senate",
+                  "descriptor": "Understand and apply the national assembly and senate in the community."
+                },
+                {
+                  "code": "SST6-GV-04-S3-T3",
+                  "name": "The Judiciary",
+                  "descriptor": "Understand and apply the judiciary in the community."
+                },
+                {
+                  "code": "SST6-GV-04-S3-T4",
+                  "name": "Independent Offices",
+                  "descriptor": "Understand and apply independent offices in the community."
+                }
+              ]
+            },
+            {
+              "code": "SST6-GV-04-S4",
+              "name": "County Government",
+              "descriptor": "Explain county government and its importance in the community.",
+              "learningOutcome": "Explain county government and its importance in the community.",
+              "topics": [
+                {
+                  "code": "SST6-GV-04-S4-T1",
+                  "name": "County Governance",
+                  "descriptor": "Understand and apply county governance in the community."
+                },
+                {
+                  "code": "SST6-GV-04-S4-T2",
+                  "name": "County Resources and Budget",
+                  "descriptor": "Understand and apply county resources and budget in the community."
+                },
+                {
+                  "code": "SST6-GV-04-S4-T3",
+                  "name": "Public Participation in Counties",
+                  "descriptor": "Understand and apply public participation in counties in the community."
+                },
+                {
+                  "code": "SST6-GV-04-S4-T4",
+                  "name": "Accountability in Government",
+                  "descriptor": "Understand and apply accountability in government in the community."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

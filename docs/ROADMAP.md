@@ -657,9 +657,18 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       (`src/main/resources/curriculum/ke-cbc-v1.json`) into the strand/sub-strand and
       concepts/curriculum_map layers, and `CurriculumSeedBootstrap` seeds on startup only when
       `app.content.curriculum.seed-on-startup=true` (default false).
-- [ ] 7.5b-2 Tier 0 breadth: English, Integrated Science, Kiswahili, Social Studies and G7-G9. The
-      producer that runs the Tier 1 seed batch is delivered in 7.5e; running it at breadth still waits
-      on this data-only expansion.
+- [x] 7.5b-2a Tier 0 breadth at G4-G6: the multi-catalogue `CurriculumSeeder` discovers every JSON
+      catalogue under `src/main/resources/curriculum/` with a classpath wildcard and seeds it, so a
+      new subject is a data-only change; the `curriculum_versions` row stays curriculum-level
+      (insert-if-absent, only `is_active` refreshed) and `seed()` returns an aggregated
+      per-subject summary. English, Integrated Science, Kiswahili and Social Studies G4-G6 were
+      authored to the same depth as Mathematics (4 strands, 16 sub-strands and 64 topics per
+      subject-grade; 12/48/192 each), joining the existing Mathematics catalogue for 60 strands,
+      247 sub-strands and 977 topics. Deterministic and idempotent; the Tier 1 producer that runs
+      the seed batch is delivered in 7.5e.
+- [ ] 7.5b-2b Tier 0 breadth at G7-G9: the Junior School band for the five subjects as further
+      data files. The producer that runs the Tier 1 seed batch is delivered in 7.5e; running it at
+      breadth still waits on this data-only expansion.
 - [x] 7.5c machine-first auto-approval with a human exception queue: `AutoApprovalService` now
       approves a clean UNIT by default (no blockers, validator score 1.0, at least 8 questions when
       present, non-null critic confidence >= 0.90, still UNREVIEWED) and records

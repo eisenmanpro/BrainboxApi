@@ -1,0 +1,1453 @@
+{
+  "countryCode": "KE",
+  "curriculum": "CBC",
+  "version": "v1",
+  "name": "Kenya CBC Tier 0 curriculum skeleton",
+  "notes": "Authored BrainBox mapping aligned to the public Kenya CBC strand and sub-strand labels. This is our own catalogue data, not KICD text, and no KICD or KNEC document is ingested, quoted or attributed.",
+  "subject": "Integrated Science",
+  "grades": [
+    {
+      "gradeLevel": "Grade 4",
+      "strands": [
+        {
+          "code": "SCI4-LT-01",
+          "name": "Living Things and Their Environment",
+          "descriptor": "Observe, classify and explain living things and their environment.",
+          "subStrands": [
+            {
+              "code": "SCI4-LT-01-S1",
+              "name": "Plants",
+              "descriptor": "Investigate and explain plants in everyday life.",
+              "learningOutcome": "Investigate and explain plants in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI4-LT-01-S1-T1",
+                  "name": "Parts of a Plant",
+                  "descriptor": "Understand and apply parts of a plant in everyday life."
+                },
+                {
+                  "code": "SCI4-LT-01-S1-T2",
+                  "name": "Functions of Plant Parts",
+                  "descriptor": "Understand and apply functions of plant parts in everyday life."
+                },
+                {
+                  "code": "SCI4-LT-01-S1-T3",
+                  "name": "Plants in the Local Environment",
+                  "descriptor": "Understand and apply plants in the local environment in everyday life."
+                },
+                {
+                  "code": "SCI4-LT-01-S1-T4",
+                  "name": "Caring for Plants",
+                  "descriptor": "Understand and apply caring for plants in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI4-LT-01-S2",
+              "name": "Animals",
+              "descriptor": "Investigate and explain animals in everyday life.",
+              "learningOutcome": "Investigate and explain animals in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI4-LT-01-S2-T1",
+                  "name": "Common Animals in the Local Area",
+                  "descriptor": "Understand and apply common animals in the local area in everyday life."
+                },
+                {
+                  "code": "SCI4-LT-01-S2-T2",
+                  "name": "Food and Feeding Habits",
+                  "descriptor": "Understand and apply food and feeding habits in everyday life."
+                },
+                {
+                  "code": "SCI4-LT-01-S2-T3",
+                  "name": "Animal Homes",
+                  "descriptor": "Understand and apply animal homes in everyday life."
+                },
+                {
+                  "code": "SCI4-LT-01-S2-T4",
+                  "name": "Caring for Animals",
+                  "descriptor": "Understand and apply caring for animals in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI4-LT-01-S3",
+              "name": "Human Body",
+              "descriptor": "Investigate and explain human body in everyday life.",
+              "learningOutcome": "Investigate and explain human body in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI4-LT-01-S3-T1",
+                  "name": "External Body Parts",
+                  "descriptor": "Understand and apply external body parts in everyday life."
+                },
+                {
+                  "code": "SCI4-LT-01-S3-T2",
+                  "name": "The Sense Organs",
+                  "descriptor": "Understand and apply the sense organs in everyday life."
+                },
+                {
+                  "code": "SCI4-LT-01-S3-T3",
+                  "name": "Keeping the Body Clean",
+                  "descriptor": "Understand and apply keeping the body clean in everyday life."
+                },
+                {
+                  "code": "SCI4-LT-01-S3-T4",
+                  "name": "Healthy Eating",
+                  "descriptor": "Understand and apply healthy eating in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI4-LT-01-S4",
+              "name": "Health Education",
+              "descriptor": "Investigate and explain health education in everyday life.",
+              "learningOutcome": "Investigate and explain health education in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI4-LT-01-S4-T1",
+                  "name": "Personal Hygiene",
+                  "descriptor": "Understand and apply personal hygiene in everyday life."
+                },
+                {
+                  "code": "SCI4-LT-01-S4-T2",
+                  "name": "Common Communicable Diseases",
+                  "descriptor": "Understand and apply common communicable diseases in everyday life."
+                },
+                {
+                  "code": "SCI4-LT-01-S4-T3",
+                  "name": "First Aid at Home",
+                  "descriptor": "Understand and apply first aid at home in everyday life."
+                },
+                {
+                  "code": "SCI4-LT-01-S4-T4",
+                  "name": "Safe Drinking Water",
+                  "descriptor": "Understand and apply safe drinking water in everyday life."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "SCI4-MT-02",
+          "name": "Matter",
+          "descriptor": "Investigate the properties, states and changes of matter.",
+          "subStrands": [
+            {
+              "code": "SCI4-MT-02-S1",
+              "name": "States of Matter",
+              "descriptor": "Investigate and explain states of matter in everyday life.",
+              "learningOutcome": "Investigate and explain states of matter in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI4-MT-02-S1-T1",
+                  "name": "Solids Around Us",
+                  "descriptor": "Understand and apply solids around us in everyday life."
+                },
+                {
+                  "code": "SCI4-MT-02-S1-T2",
+                  "name": "Liquids Around Us",
+                  "descriptor": "Understand and apply liquids around us in everyday life."
+                },
+                {
+                  "code": "SCI4-MT-02-S1-T3",
+                  "name": "Gases Around Us",
+                  "descriptor": "Understand and apply gases around us in everyday life."
+                },
+                {
+                  "code": "SCI4-MT-02-S1-T4",
+                  "name": "Comparing Solids and Liquids",
+                  "descriptor": "Understand and apply comparing solids and liquids in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI4-MT-02-S2",
+              "name": "Changes of State",
+              "descriptor": "Investigate and explain changes of state in everyday life.",
+              "learningOutcome": "Investigate and explain changes of state in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI4-MT-02-S2-T1",
+                  "name": "Melting and Freezing",
+                  "descriptor": "Understand and apply melting and freezing in everyday life."
+                },
+                {
+                  "code": "SCI4-MT-02-S2-T2",
+                  "name": "Evaporation and Condensation",
+                  "descriptor": "Understand and apply evaporation and condensation in everyday life."
+                },
+                {
+                  "code": "SCI4-MT-02-S2-T3",
+                  "name": "Changes in Everyday Life",
+                  "descriptor": "Understand and apply changes in everyday life in everyday life."
+                },
+                {
+                  "code": "SCI4-MT-02-S2-T4",
+                  "name": "Reversible Changes",
+                  "descriptor": "Understand and apply reversible changes in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI4-MT-02-S3",
+              "name": "Mixtures and Solutions",
+              "descriptor": "Investigate and explain mixtures and solutions in everyday life.",
+              "learningOutcome": "Investigate and explain mixtures and solutions in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI4-MT-02-S3-T1",
+                  "name": "Making Mixtures",
+                  "descriptor": "Understand and apply making mixtures in everyday life."
+                },
+                {
+                  "code": "SCI4-MT-02-S3-T2",
+                  "name": "Separating Mixtures by Hand",
+                  "descriptor": "Understand and apply separating mixtures by hand in everyday life."
+                },
+                {
+                  "code": "SCI4-MT-02-S3-T3",
+                  "name": "Sieving and Filtering",
+                  "descriptor": "Understand and apply sieving and filtering in everyday life."
+                },
+                {
+                  "code": "SCI4-MT-02-S3-T4",
+                  "name": "Solutions in the Home",
+                  "descriptor": "Understand and apply solutions in the home in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI4-MT-02-S4",
+              "name": "Properties of Materials",
+              "descriptor": "Investigate and explain properties of materials in everyday life.",
+              "learningOutcome": "Investigate and explain properties of materials in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI4-MT-02-S4-T1",
+                  "name": "Hard and Soft Materials",
+                  "descriptor": "Understand and apply hard and soft materials in everyday life."
+                },
+                {
+                  "code": "SCI4-MT-02-S4-T2",
+                  "name": "Floating and Sinking",
+                  "descriptor": "Understand and apply floating and sinking in everyday life."
+                },
+                {
+                  "code": "SCI4-MT-02-S4-T3",
+                  "name": "Magnetic Materials",
+                  "descriptor": "Understand and apply magnetic materials in everyday life."
+                },
+                {
+                  "code": "SCI4-MT-02-S4-T4",
+                  "name": "Choosing the Right Material",
+                  "descriptor": "Understand and apply choosing the right material in everyday life."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "SCI4-FE-03",
+          "name": "Force and Energy",
+          "descriptor": "Investigate force, energy and their applications in everyday life.",
+          "subStrands": [
+            {
+              "code": "SCI4-FE-03-S1",
+              "name": "Force",
+              "descriptor": "Investigate and explain force in everyday life.",
+              "learningOutcome": "Investigate and explain force in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI4-FE-03-S1-T1",
+                  "name": "Pushing and Pulling",
+                  "descriptor": "Understand and apply pushing and pulling in everyday life."
+                },
+                {
+                  "code": "SCI4-FE-03-S1-T2",
+                  "name": "Effects of Force",
+                  "descriptor": "Understand and apply effects of force in everyday life."
+                },
+                {
+                  "code": "SCI4-FE-03-S1-T3",
+                  "name": "Gravity in Everyday Life",
+                  "descriptor": "Understand and apply gravity in everyday life in everyday life."
+                },
+                {
+                  "code": "SCI4-FE-03-S1-T4",
+                  "name": "Friction Around Us",
+                  "descriptor": "Understand and apply friction around us in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI4-FE-03-S2",
+              "name": "Energy",
+              "descriptor": "Investigate and explain energy in everyday life.",
+              "learningOutcome": "Investigate and explain energy in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI4-FE-03-S2-T1",
+                  "name": "Sources of Energy",
+                  "descriptor": "Understand and apply sources of energy in everyday life."
+                },
+                {
+                  "code": "SCI4-FE-03-S2-T2",
+                  "name": "Using Energy at Home",
+                  "descriptor": "Understand and apply using energy at home in everyday life."
+                },
+                {
+                  "code": "SCI4-FE-03-S2-T3",
+                  "name": "Saving Energy",
+                  "descriptor": "Understand and apply saving energy in everyday life."
+                },
+                {
+                  "code": "SCI4-FE-03-S2-T4",
+                  "name": "Energy from the Sun",
+                  "descriptor": "Understand and apply energy from the sun in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI4-FE-03-S3",
+              "name": "Simple Machines",
+              "descriptor": "Investigate and explain simple machines in everyday life.",
+              "learningOutcome": "Investigate and explain simple machines in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI4-FE-03-S3-T1",
+                  "name": "Levers in the Home",
+                  "descriptor": "Understand and apply levers in the home in everyday life."
+                },
+                {
+                  "code": "SCI4-FE-03-S3-T2",
+                  "name": "Ramps and Inclined Planes",
+                  "descriptor": "Understand and apply ramps and inclined planes in everyday life."
+                },
+                {
+                  "code": "SCI4-FE-03-S3-T3",
+                  "name": "Wheels and Axles",
+                  "descriptor": "Understand and apply wheels and axles in everyday life."
+                },
+                {
+                  "code": "SCI4-FE-03-S3-T4",
+                  "name": "Using Simple Machines",
+                  "descriptor": "Understand and apply using simple machines in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI4-FE-03-S4",
+              "name": "Light and Heat",
+              "descriptor": "Investigate and explain light and heat in everyday life.",
+              "learningOutcome": "Investigate and explain light and heat in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI4-FE-03-S4-T1",
+                  "name": "Sources of Light",
+                  "descriptor": "Understand and apply sources of light in everyday life."
+                },
+                {
+                  "code": "SCI4-FE-03-S4-T2",
+                  "name": "Shadow Formation",
+                  "descriptor": "Understand and apply shadow formation in everyday life."
+                },
+                {
+                  "code": "SCI4-FE-03-S4-T3",
+                  "name": "Sources of Heat",
+                  "descriptor": "Understand and apply sources of heat in everyday life."
+                },
+                {
+                  "code": "SCI4-FE-03-S4-T4",
+                  "name": "Keeping Cool and Warm",
+                  "descriptor": "Understand and apply keeping cool and warm in everyday life."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "SCI4-ES-04",
+          "name": "Earth and Space",
+          "descriptor": "Explain the earth, weather and space phenomena in the environment.",
+          "subStrands": [
+            {
+              "code": "SCI4-ES-04-S1",
+              "name": "Weather and Climate",
+              "descriptor": "Investigate and explain weather and climate in everyday life.",
+              "learningOutcome": "Investigate and explain weather and climate in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI4-ES-04-S1-T1",
+                  "name": "Weather Today",
+                  "descriptor": "Understand and apply weather today in everyday life."
+                },
+                {
+                  "code": "SCI4-ES-04-S1-T2",
+                  "name": "Measuring Rainfall",
+                  "descriptor": "Understand and apply measuring rainfall in everyday life."
+                },
+                {
+                  "code": "SCI4-ES-04-S1-T3",
+                  "name": "Recording Temperature",
+                  "descriptor": "Understand and apply recording temperature in everyday life."
+                },
+                {
+                  "code": "SCI4-ES-04-S1-T4",
+                  "name": "Keeping Weather Records",
+                  "descriptor": "Understand and apply keeping weather records in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI4-ES-04-S2",
+              "name": "Water",
+              "descriptor": "Investigate and explain water in everyday life.",
+              "learningOutcome": "Investigate and explain water in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI4-ES-04-S2-T1",
+                  "name": "Sources of Water",
+                  "descriptor": "Understand and apply sources of water in everyday life."
+                },
+                {
+                  "code": "SCI4-ES-04-S2-T2",
+                  "name": "The Water Cycle",
+                  "descriptor": "Understand and apply the water cycle in everyday life."
+                },
+                {
+                  "code": "SCI4-ES-04-S2-T3",
+                  "name": "Uses of Water",
+                  "descriptor": "Understand and apply uses of water in everyday life."
+                },
+                {
+                  "code": "SCI4-ES-04-S2-T4",
+                  "name": "Conserving Water",
+                  "descriptor": "Understand and apply conserving water in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI4-ES-04-S3",
+              "name": "Air",
+              "descriptor": "Investigate and explain air in everyday life.",
+              "learningOutcome": "Investigate and explain air in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI4-ES-04-S3-T1",
+                  "name": "Air Around Us",
+                  "descriptor": "Understand and apply air around us in everyday life."
+                },
+                {
+                  "code": "SCI4-ES-04-S3-T2",
+                  "name": "Air Supports Burning",
+                  "descriptor": "Understand and apply air supports burning in everyday life."
+                },
+                {
+                  "code": "SCI4-ES-04-S3-T3",
+                  "name": "Air in the Soil",
+                  "descriptor": "Understand and apply air in the soil in everyday life."
+                },
+                {
+                  "code": "SCI4-ES-04-S3-T4",
+                  "name": "Keeping Air Clean",
+                  "descriptor": "Understand and apply keeping air clean in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI4-ES-04-S4",
+              "name": "The Solar System",
+              "descriptor": "Investigate and explain the solar system in everyday life.",
+              "learningOutcome": "Investigate and explain the solar system in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI4-ES-04-S4-T1",
+                  "name": "The Sun",
+                  "descriptor": "Understand and apply the sun in everyday life."
+                },
+                {
+                  "code": "SCI4-ES-04-S4-T2",
+                  "name": "Day and Night",
+                  "descriptor": "Understand and apply day and night in everyday life."
+                },
+                {
+                  "code": "SCI4-ES-04-S4-T3",
+                  "name": "The Moon",
+                  "descriptor": "Understand and apply the moon in everyday life."
+                },
+                {
+                  "code": "SCI4-ES-04-S4-T4",
+                  "name": "Stars in the Sky",
+                  "descriptor": "Understand and apply stars in the sky in everyday life."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "gradeLevel": "Grade 5",
+      "strands": [
+        {
+          "code": "SCI5-LT-01",
+          "name": "Living Things and Their Environment",
+          "descriptor": "Observe, classify and explain living things and their environment.",
+          "subStrands": [
+            {
+              "code": "SCI5-LT-01-S1",
+              "name": "Plants",
+              "descriptor": "Investigate and explain plants in everyday life.",
+              "learningOutcome": "Investigate and explain plants in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI5-LT-01-S1-T1",
+                  "name": "Classification of Plants",
+                  "descriptor": "Understand and apply classification of plants in everyday life."
+                },
+                {
+                  "code": "SCI5-LT-01-S1-T2",
+                  "name": "Flowering and Non-Flowering Plants",
+                  "descriptor": "Understand and apply flowering and non-flowering plants in everyday life."
+                },
+                {
+                  "code": "SCI5-LT-01-S1-T3",
+                  "name": "Plant Nutrition",
+                  "descriptor": "Understand and apply plant nutrition in everyday life."
+                },
+                {
+                  "code": "SCI5-LT-01-S1-T4",
+                  "name": "Plant Reproduction",
+                  "descriptor": "Understand and apply plant reproduction in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI5-LT-01-S2",
+              "name": "Animals",
+              "descriptor": "Investigate and explain animals in everyday life.",
+              "learningOutcome": "Investigate and explain animals in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI5-LT-01-S2-T1",
+                  "name": "Classification of Animals",
+                  "descriptor": "Understand and apply classification of animals in everyday life."
+                },
+                {
+                  "code": "SCI5-LT-01-S2-T2",
+                  "name": "Vertebrates and Invertebrates",
+                  "descriptor": "Understand and apply vertebrates and invertebrates in everyday life."
+                },
+                {
+                  "code": "SCI5-LT-01-S2-T3",
+                  "name": "Animal Life Cycles",
+                  "descriptor": "Understand and apply animal life cycles in everyday life."
+                },
+                {
+                  "code": "SCI5-LT-01-S2-T4",
+                  "name": "Adaptation in Animals",
+                  "descriptor": "Understand and apply adaptation in animals in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI5-LT-01-S3",
+              "name": "Human Body",
+              "descriptor": "Investigate and explain human body in everyday life.",
+              "learningOutcome": "Investigate and explain human body in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI5-LT-01-S3-T1",
+                  "name": "The Digestive System",
+                  "descriptor": "Understand and apply the digestive system in everyday life."
+                },
+                {
+                  "code": "SCI5-LT-01-S3-T2",
+                  "name": "The Respiratory System",
+                  "descriptor": "Understand and apply the respiratory system in everyday life."
+                },
+                {
+                  "code": "SCI5-LT-01-S3-T3",
+                  "name": "The Circulatory System",
+                  "descriptor": "Understand and apply the circulatory system in everyday life."
+                },
+                {
+                  "code": "SCI5-LT-01-S3-T4",
+                  "name": "The Skeletal System",
+                  "descriptor": "Understand and apply the skeletal system in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI5-LT-01-S4",
+              "name": "Health Education",
+              "descriptor": "Investigate and explain health education in everyday life.",
+              "learningOutcome": "Investigate and explain health education in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI5-LT-01-S4-T1",
+                  "name": "Preventing Communicable Diseases",
+                  "descriptor": "Understand and apply preventing communicable diseases in everyday life."
+                },
+                {
+                  "code": "SCI5-LT-01-S4-T2",
+                  "name": "Immunisation",
+                  "descriptor": "Understand and apply immunisation in everyday life."
+                },
+                {
+                  "code": "SCI5-LT-01-S4-T3",
+                  "name": "Substance Abuse Awareness",
+                  "descriptor": "Understand and apply substance abuse awareness in everyday life."
+                },
+                {
+                  "code": "SCI5-LT-01-S4-T4",
+                  "name": "Basic First Aid",
+                  "descriptor": "Understand and apply basic first aid in everyday life."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "SCI5-MT-02",
+          "name": "Matter",
+          "descriptor": "Investigate the properties, states and changes of matter.",
+          "subStrands": [
+            {
+              "code": "SCI5-MT-02-S1",
+              "name": "States of Matter",
+              "descriptor": "Investigate and explain states of matter in everyday life.",
+              "learningOutcome": "Investigate and explain states of matter in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI5-MT-02-S1-T1",
+                  "name": "Particle Arrangement in Solids",
+                  "descriptor": "Understand and apply particle arrangement in solids in everyday life."
+                },
+                {
+                  "code": "SCI5-MT-02-S1-T2",
+                  "name": "Particle Arrangement in Liquids",
+                  "descriptor": "Understand and apply particle arrangement in liquids in everyday life."
+                },
+                {
+                  "code": "SCI5-MT-02-S1-T3",
+                  "name": "Particle Arrangement in Gases",
+                  "descriptor": "Understand and apply particle arrangement in gases in everyday life."
+                },
+                {
+                  "code": "SCI5-MT-02-S1-T4",
+                  "name": "Diffusion and Pressure",
+                  "descriptor": "Understand and apply diffusion and pressure in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI5-MT-02-S2",
+              "name": "Changes of State",
+              "descriptor": "Investigate and explain changes of state in everyday life.",
+              "learningOutcome": "Investigate and explain changes of state in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI5-MT-02-S2-T1",
+                  "name": "Boiling and Evaporation",
+                  "descriptor": "Understand and apply boiling and evaporation in everyday life."
+                },
+                {
+                  "code": "SCI5-MT-02-S2-T2",
+                  "name": "Condensation and Freezing",
+                  "descriptor": "Understand and apply condensation and freezing in everyday life."
+                },
+                {
+                  "code": "SCI5-MT-02-S2-T3",
+                  "name": "Sublimation",
+                  "descriptor": "Understand and apply sublimation in everyday life."
+                },
+                {
+                  "code": "SCI5-MT-02-S2-T4",
+                  "name": "Irreversible Changes",
+                  "descriptor": "Understand and apply irreversible changes in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI5-MT-02-S3",
+              "name": "Mixtures and Solutions",
+              "descriptor": "Investigate and explain mixtures and solutions in everyday life.",
+              "learningOutcome": "Investigate and explain mixtures and solutions in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI5-MT-02-S3-T1",
+                  "name": "Solutes and Solvents",
+                  "descriptor": "Understand and apply solutes and solvents in everyday life."
+                },
+                {
+                  "code": "SCI5-MT-02-S3-T2",
+                  "name": "Concentration of Solutions",
+                  "descriptor": "Understand and apply concentration of solutions in everyday life."
+                },
+                {
+                  "code": "SCI5-MT-02-S3-T3",
+                  "name": "Crystallisation",
+                  "descriptor": "Understand and apply crystallisation in everyday life."
+                },
+                {
+                  "code": "SCI5-MT-02-S3-T4",
+                  "name": "Separating Soluble Substances",
+                  "descriptor": "Understand and apply separating soluble substances in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI5-MT-02-S4",
+              "name": "Properties of Materials",
+              "descriptor": "Investigate and explain properties of materials in everyday life.",
+              "learningOutcome": "Investigate and explain properties of materials in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI5-MT-02-S4-T1",
+                  "name": "Conductors and Insulators",
+                  "descriptor": "Understand and apply conductors and insulators in everyday life."
+                },
+                {
+                  "code": "SCI5-MT-02-S4-T2",
+                  "name": "Elastic Materials",
+                  "descriptor": "Understand and apply elastic materials in everyday life."
+                },
+                {
+                  "code": "SCI5-MT-02-S4-T3",
+                  "name": "Transparent and Opaque Materials",
+                  "descriptor": "Understand and apply transparent and opaque materials in everyday life."
+                },
+                {
+                  "code": "SCI5-MT-02-S4-T4",
+                  "name": "Testing Material Properties",
+                  "descriptor": "Understand and apply testing material properties in everyday life."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "SCI5-FE-03",
+          "name": "Force and Energy",
+          "descriptor": "Investigate force, energy and their applications in everyday life.",
+          "subStrands": [
+            {
+              "code": "SCI5-FE-03-S1",
+              "name": "Force",
+              "descriptor": "Investigate and explain force in everyday life.",
+              "learningOutcome": "Investigate and explain force in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI5-FE-03-S1-T1",
+                  "name": "Measuring Force",
+                  "descriptor": "Understand and apply measuring force in everyday life."
+                },
+                {
+                  "code": "SCI5-FE-03-S1-T2",
+                  "name": "Balanced and Unbalanced Forces",
+                  "descriptor": "Understand and apply balanced and unbalanced forces in everyday life."
+                },
+                {
+                  "code": "SCI5-FE-03-S1-T3",
+                  "name": "Friction and Its Effects",
+                  "descriptor": "Understand and apply friction and its effects in everyday life."
+                },
+                {
+                  "code": "SCI5-FE-03-S1-T4",
+                  "name": "Air Resistance and Water Resistance",
+                  "descriptor": "Understand and apply air resistance and water resistance in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI5-FE-03-S2",
+              "name": "Energy",
+              "descriptor": "Investigate and explain energy in everyday life.",
+              "learningOutcome": "Investigate and explain energy in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI5-FE-03-S2-T1",
+                  "name": "Forms of Energy",
+                  "descriptor": "Understand and apply forms of energy in everyday life."
+                },
+                {
+                  "code": "SCI5-FE-03-S2-T2",
+                  "name": "Energy Changes",
+                  "descriptor": "Understand and apply energy changes in everyday life."
+                },
+                {
+                  "code": "SCI5-FE-03-S2-T3",
+                  "name": "Renewable Energy Sources",
+                  "descriptor": "Understand and apply renewable energy sources in everyday life."
+                },
+                {
+                  "code": "SCI5-FE-03-S2-T4",
+                  "name": "Energy Conservation",
+                  "descriptor": "Understand and apply energy conservation in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI5-FE-03-S3",
+              "name": "Simple Machines",
+              "descriptor": "Investigate and explain simple machines in everyday life.",
+              "learningOutcome": "Investigate and explain simple machines in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI5-FE-03-S3-T1",
+                  "name": "Classes of Levers",
+                  "descriptor": "Understand and apply classes of levers in everyday life."
+                },
+                {
+                  "code": "SCI5-FE-03-S3-T2",
+                  "name": "Pulleys",
+                  "descriptor": "Understand and apply pulleys in everyday life."
+                },
+                {
+                  "code": "SCI5-FE-03-S3-T3",
+                  "name": "Gears and Wheels",
+                  "descriptor": "Understand and apply gears and wheels in everyday life."
+                },
+                {
+                  "code": "SCI5-FE-03-S3-T4",
+                  "name": "Mechanical Advantage",
+                  "descriptor": "Understand and apply mechanical advantage in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI5-FE-03-S4",
+              "name": "Light and Heat",
+              "descriptor": "Investigate and explain light and heat in everyday life.",
+              "learningOutcome": "Investigate and explain light and heat in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI5-FE-03-S4-T1",
+                  "name": "Reflection of Light",
+                  "descriptor": "Understand and apply reflection of light in everyday life."
+                },
+                {
+                  "code": "SCI5-FE-03-S4-T2",
+                  "name": "Refraction of Light",
+                  "descriptor": "Understand and apply refraction of light in everyday life."
+                },
+                {
+                  "code": "SCI5-FE-03-S4-T3",
+                  "name": "Heat Transfer by Conduction",
+                  "descriptor": "Understand and apply heat transfer by conduction in everyday life."
+                },
+                {
+                  "code": "SCI5-FE-03-S4-T4",
+                  "name": "Heat Transfer by Convection",
+                  "descriptor": "Understand and apply heat transfer by convection in everyday life."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "SCI5-ES-04",
+          "name": "Earth and Space",
+          "descriptor": "Explain the earth, weather and space phenomena in the environment.",
+          "subStrands": [
+            {
+              "code": "SCI5-ES-04-S1",
+              "name": "Weather and Climate",
+              "descriptor": "Investigate and explain weather and climate in everyday life.",
+              "learningOutcome": "Investigate and explain weather and climate in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI5-ES-04-S1-T1",
+                  "name": "Elements of Weather",
+                  "descriptor": "Understand and apply elements of weather in everyday life."
+                },
+                {
+                  "code": "SCI5-ES-04-S1-T2",
+                  "name": "Weather Instruments",
+                  "descriptor": "Understand and apply weather instruments in everyday life."
+                },
+                {
+                  "code": "SCI5-ES-04-S1-T3",
+                  "name": "Seasons in Kenya",
+                  "descriptor": "Understand and apply seasons in Kenya in everyday life."
+                },
+                {
+                  "code": "SCI5-ES-04-S1-T4",
+                  "name": "Climate and Human Activity",
+                  "descriptor": "Understand and apply climate and human activity in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI5-ES-04-S2",
+              "name": "Water",
+              "descriptor": "Investigate and explain water in everyday life.",
+              "learningOutcome": "Investigate and explain water in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI5-ES-04-S2-T1",
+                  "name": "Water as a Resource",
+                  "descriptor": "Understand and apply water as a resource in everyday life."
+                },
+                {
+                  "code": "SCI5-ES-04-S2-T2",
+                  "name": "Purifying Water",
+                  "descriptor": "Understand and apply purifying water in everyday life."
+                },
+                {
+                  "code": "SCI5-ES-04-S2-T3",
+                  "name": "Water Pollution",
+                  "descriptor": "Understand and apply water pollution in everyday life."
+                },
+                {
+                  "code": "SCI5-ES-04-S2-T4",
+                  "name": "Water and Agriculture",
+                  "descriptor": "Understand and apply water and agriculture in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI5-ES-04-S3",
+              "name": "Air",
+              "descriptor": "Investigate and explain air in everyday life.",
+              "learningOutcome": "Investigate and explain air in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI5-ES-04-S3-T1",
+                  "name": "Composition of Air",
+                  "descriptor": "Understand and apply composition of air in everyday life."
+                },
+                {
+                  "code": "SCI5-ES-04-S3-T2",
+                  "name": "Air Pollution",
+                  "descriptor": "Understand and apply air pollution in everyday life."
+                },
+                {
+                  "code": "SCI5-ES-04-S3-T3",
+                  "name": "The Greenhouse Effect",
+                  "descriptor": "Understand and apply the greenhouse effect in everyday life."
+                },
+                {
+                  "code": "SCI5-ES-04-S3-T4",
+                  "name": "Clean Air Practices",
+                  "descriptor": "Understand and apply clean air practices in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI5-ES-04-S4",
+              "name": "The Solar System",
+              "descriptor": "Investigate and explain the solar system in everyday life.",
+              "learningOutcome": "Investigate and explain the solar system in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI5-ES-04-S4-T1",
+                  "name": "The Solar System",
+                  "descriptor": "Understand and apply the solar system in everyday life."
+                },
+                {
+                  "code": "SCI5-ES-04-S4-T2",
+                  "name": "Rotation and Revolution",
+                  "descriptor": "Understand and apply rotation and revolution in everyday life."
+                },
+                {
+                  "code": "SCI5-ES-04-S4-T3",
+                  "name": "The Moon and Its Phases",
+                  "descriptor": "Understand and apply the moon and its phases in everyday life."
+                },
+                {
+                  "code": "SCI5-ES-04-S4-T4",
+                  "name": "Eclipses",
+                  "descriptor": "Understand and apply eclipses in everyday life."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "gradeLevel": "Grade 6",
+      "strands": [
+        {
+          "code": "SCI6-LT-01",
+          "name": "Living Things and Their Environment",
+          "descriptor": "Observe, classify and explain living things and their environment.",
+          "subStrands": [
+            {
+              "code": "SCI6-LT-01-S1",
+              "name": "Plants",
+              "descriptor": "Investigate and explain plants in everyday life.",
+              "learningOutcome": "Investigate and explain plants in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI6-LT-01-S1-T1",
+                  "name": "Plant Cells",
+                  "descriptor": "Understand and apply plant cells in everyday life."
+                },
+                {
+                  "code": "SCI6-LT-01-S1-T2",
+                  "name": "Photosynthesis",
+                  "descriptor": "Understand and apply photosynthesis in everyday life."
+                },
+                {
+                  "code": "SCI6-LT-01-S1-T3",
+                  "name": "Plant Diseases",
+                  "descriptor": "Understand and apply plant diseases in everyday life."
+                },
+                {
+                  "code": "SCI6-LT-01-S1-T4",
+                  "name": "Conserving Plants",
+                  "descriptor": "Understand and apply conserving plants in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI6-LT-01-S2",
+              "name": "Animals",
+              "descriptor": "Investigate and explain animals in everyday life.",
+              "learningOutcome": "Investigate and explain animals in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI6-LT-01-S2-T1",
+                  "name": "Animal Cells",
+                  "descriptor": "Understand and apply animal cells in everyday life."
+                },
+                {
+                  "code": "SCI6-LT-01-S2-T2",
+                  "name": "Food Chains and Food Webs",
+                  "descriptor": "Understand and apply food chains and food webs in everyday life."
+                },
+                {
+                  "code": "SCI6-LT-01-S2-T3",
+                  "name": "Animal Diseases",
+                  "descriptor": "Understand and apply animal diseases in everyday life."
+                },
+                {
+                  "code": "SCI6-LT-01-S2-T4",
+                  "name": "Conserving Wildlife",
+                  "descriptor": "Understand and apply conserving wildlife in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI6-LT-01-S3",
+              "name": "Human Body",
+              "descriptor": "Investigate and explain human body in everyday life.",
+              "learningOutcome": "Investigate and explain human body in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI6-LT-01-S3-T1",
+                  "name": "The Nervous System",
+                  "descriptor": "Understand and apply the nervous system in everyday life."
+                },
+                {
+                  "code": "SCI6-LT-01-S3-T2",
+                  "name": "The Excretory System",
+                  "descriptor": "Understand and apply the excretory system in everyday life."
+                },
+                {
+                  "code": "SCI6-LT-01-S3-T3",
+                  "name": "The Reproductive System",
+                  "descriptor": "Understand and apply the reproductive system in everyday life."
+                },
+                {
+                  "code": "SCI6-LT-01-S3-T4",
+                  "name": "Growth and Development",
+                  "descriptor": "Understand and apply growth and development in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI6-LT-01-S4",
+              "name": "Health Education",
+              "descriptor": "Investigate and explain health education in everyday life.",
+              "learningOutcome": "Investigate and explain health education in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI6-LT-01-S4-T1",
+                  "name": "Healthy Lifestyles",
+                  "descriptor": "Understand and apply healthy lifestyles in everyday life."
+                },
+                {
+                  "code": "SCI6-LT-01-S4-T2",
+                  "name": "Adolescent Health",
+                  "descriptor": "Understand and apply adolescent health in everyday life."
+                },
+                {
+                  "code": "SCI6-LT-01-S4-T3",
+                  "name": "Community Health Services",
+                  "descriptor": "Understand and apply community health services in everyday life."
+                },
+                {
+                  "code": "SCI6-LT-01-S4-T4",
+                  "name": "Emergency Response",
+                  "descriptor": "Understand and apply emergency response in everyday life."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "SCI6-MT-02",
+          "name": "Matter",
+          "descriptor": "Investigate the properties, states and changes of matter.",
+          "subStrands": [
+            {
+              "code": "SCI6-MT-02-S1",
+              "name": "States of Matter",
+              "descriptor": "Investigate and explain states of matter in everyday life.",
+              "learningOutcome": "Investigate and explain states of matter in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI6-MT-02-S1-T1",
+                  "name": "Kinetic Theory of Matter",
+                  "descriptor": "Understand and apply kinetic theory of matter in everyday life."
+                },
+                {
+                  "code": "SCI6-MT-02-S1-T2",
+                  "name": "Compression of Gases",
+                  "descriptor": "Understand and apply compression of gases in everyday life."
+                },
+                {
+                  "code": "SCI6-MT-02-S1-T3",
+                  "name": "Liquid Pressure",
+                  "descriptor": "Understand and apply liquid pressure in everyday life."
+                },
+                {
+                  "code": "SCI6-MT-02-S1-T4",
+                  "name": "Identifying Matter",
+                  "descriptor": "Understand and apply identifying matter in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI6-MT-02-S2",
+              "name": "Changes of State",
+              "descriptor": "Investigate and explain changes of state in everyday life.",
+              "learningOutcome": "Investigate and explain changes of state in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI6-MT-02-S2-T1",
+                  "name": "Latent Heat",
+                  "descriptor": "Understand and apply latent heat in everyday life."
+                },
+                {
+                  "code": "SCI6-MT-02-S2-T2",
+                  "name": "Effects of Heating and Cooling",
+                  "descriptor": "Understand and apply effects of heating and cooling in everyday life."
+                },
+                {
+                  "code": "SCI6-MT-02-S2-T3",
+                  "name": "Controlling Changes of State",
+                  "descriptor": "Understand and apply controlling changes of state in everyday life."
+                },
+                {
+                  "code": "SCI6-MT-02-S2-T4",
+                  "name": "Applications of Change of State",
+                  "descriptor": "Understand and apply applications of change of state in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI6-MT-02-S3",
+              "name": "Mixtures and Solutions",
+              "descriptor": "Investigate and explain mixtures and solutions in everyday life.",
+              "learningOutcome": "Investigate and explain mixtures and solutions in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI6-MT-02-S3-T1",
+                  "name": "Suspensions and Emulsions",
+                  "descriptor": "Understand and apply suspensions and emulsions in everyday life."
+                },
+                {
+                  "code": "SCI6-MT-02-S3-T2",
+                  "name": "Separating Immiscible Liquids",
+                  "descriptor": "Understand and apply separating immiscible liquids in everyday life."
+                },
+                {
+                  "code": "SCI6-MT-02-S3-T3",
+                  "name": "Chromatography",
+                  "descriptor": "Understand and apply chromatography in everyday life."
+                },
+                {
+                  "code": "SCI6-MT-02-S3-T4",
+                  "name": "Water Treatment",
+                  "descriptor": "Understand and apply water treatment in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI6-MT-02-S4",
+              "name": "Properties of Materials",
+              "descriptor": "Investigate and explain properties of materials in everyday life.",
+              "learningOutcome": "Investigate and explain properties of materials in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI6-MT-02-S4-T1",
+                  "name": "Acids and Bases",
+                  "descriptor": "Understand and apply acids and bases in everyday life."
+                },
+                {
+                  "code": "SCI6-MT-02-S4-T2",
+                  "name": "Corrosion of Metals",
+                  "descriptor": "Understand and apply corrosion of metals in everyday life."
+                },
+                {
+                  "code": "SCI6-MT-02-S4-T3",
+                  "name": "Biodegradable Materials",
+                  "descriptor": "Understand and apply biodegradable materials in everyday life."
+                },
+                {
+                  "code": "SCI6-MT-02-S4-T4",
+                  "name": "Recycling Materials",
+                  "descriptor": "Understand and apply recycling materials in everyday life."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "SCI6-FE-03",
+          "name": "Force and Energy",
+          "descriptor": "Investigate force, energy and their applications in everyday life.",
+          "subStrands": [
+            {
+              "code": "SCI6-FE-03-S1",
+              "name": "Force",
+              "descriptor": "Investigate and explain force in everyday life.",
+              "learningOutcome": "Investigate and explain force in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI6-FE-03-S1-T1",
+                  "name": "Force and Motion",
+                  "descriptor": "Understand and apply force and motion in everyday life."
+                },
+                {
+                  "code": "SCI6-FE-03-S1-T2",
+                  "name": "Newton's First Law",
+                  "descriptor": "Understand and apply newton's first law in everyday life."
+                },
+                {
+                  "code": "SCI6-FE-03-S1-T3",
+                  "name": "Deformation of Materials",
+                  "descriptor": "Understand and apply deformation of materials in everyday life."
+                },
+                {
+                  "code": "SCI6-FE-03-S1-T4",
+                  "name": "Safety with Forces",
+                  "descriptor": "Understand and apply safety with forces in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI6-FE-03-S2",
+              "name": "Energy",
+              "descriptor": "Investigate and explain energy in everyday life.",
+              "learningOutcome": "Investigate and explain energy in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI6-FE-03-S2-T1",
+                  "name": "Energy Transformations",
+                  "descriptor": "Understand and apply energy transformations in everyday life."
+                },
+                {
+                  "code": "SCI6-FE-03-S2-T2",
+                  "name": "Electrical Energy",
+                  "descriptor": "Understand and apply electrical energy in everyday life."
+                },
+                {
+                  "code": "SCI6-FE-03-S2-T3",
+                  "name": "Energy Efficiency",
+                  "descriptor": "Understand and apply energy efficiency in everyday life."
+                },
+                {
+                  "code": "SCI6-FE-03-S2-T4",
+                  "name": "Energy and the Environment",
+                  "descriptor": "Understand and apply energy and the environment in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI6-FE-03-S3",
+              "name": "Simple Machines",
+              "descriptor": "Investigate and explain simple machines in everyday life.",
+              "learningOutcome": "Investigate and explain simple machines in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI6-FE-03-S3-T1",
+                  "name": "Compound Machines",
+                  "descriptor": "Understand and apply compound machines in everyday life."
+                },
+                {
+                  "code": "SCI6-FE-03-S3-T2",
+                  "name": "Efficiency of Machines",
+                  "descriptor": "Understand and apply efficiency of machines in everyday life."
+                },
+                {
+                  "code": "SCI6-FE-03-S3-T3",
+                  "name": "Machines in the Community",
+                  "descriptor": "Understand and apply machines in the community in everyday life."
+                },
+                {
+                  "code": "SCI6-FE-03-S3-T4",
+                  "name": "Designing a Simple Machine",
+                  "descriptor": "Understand and apply designing a simple machine in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI6-FE-03-S4",
+              "name": "Light and Heat",
+              "descriptor": "Investigate and explain light and heat in everyday life.",
+              "learningOutcome": "Investigate and explain light and heat in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI6-FE-03-S4-T1",
+                  "name": "Lenses and Mirrors",
+                  "descriptor": "Understand and apply lenses and mirrors in everyday life."
+                },
+                {
+                  "code": "SCI6-FE-03-S4-T2",
+                  "name": "Dispersion of Light",
+                  "descriptor": "Understand and apply dispersion of light in everyday life."
+                },
+                {
+                  "code": "SCI6-FE-03-S4-T3",
+                  "name": "Radiation of Heat",
+                  "descriptor": "Understand and apply radiation of heat in everyday life."
+                },
+                {
+                  "code": "SCI6-FE-03-S4-T4",
+                  "name": "Heat and Temperature",
+                  "descriptor": "Understand and apply heat and temperature in everyday life."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "SCI6-ES-04",
+          "name": "Earth and Space",
+          "descriptor": "Explain the earth, weather and space phenomena in the environment.",
+          "subStrands": [
+            {
+              "code": "SCI6-ES-04-S1",
+              "name": "Weather and Climate",
+              "descriptor": "Investigate and explain weather and climate in everyday life.",
+              "learningOutcome": "Investigate and explain weather and climate in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI6-ES-04-S1-T1",
+                  "name": "Climate Change",
+                  "descriptor": "Understand and apply climate change in everyday life."
+                },
+                {
+                  "code": "SCI6-ES-04-S1-T2",
+                  "name": "Weather Forecasting",
+                  "descriptor": "Understand and apply weather forecasting in everyday life."
+                },
+                {
+                  "code": "SCI6-ES-04-S1-T3",
+                  "name": "Drought and Floods",
+                  "descriptor": "Understand and apply drought and floods in everyday life."
+                },
+                {
+                  "code": "SCI6-ES-04-S1-T4",
+                  "name": "Climate and Settlement",
+                  "descriptor": "Understand and apply climate and settlement in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI6-ES-04-S2",
+              "name": "Water",
+              "descriptor": "Investigate and explain water in everyday life.",
+              "learningOutcome": "Investigate and explain water in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI6-ES-04-S2-T1",
+                  "name": "Water Treatment",
+                  "descriptor": "Understand and apply water treatment in everyday life."
+                },
+                {
+                  "code": "SCI6-ES-04-S2-T2",
+                  "name": "Water Conservation",
+                  "descriptor": "Understand and apply water conservation in everyday life."
+                },
+                {
+                  "code": "SCI6-ES-04-S2-T3",
+                  "name": "Water and Health",
+                  "descriptor": "Understand and apply water and health in everyday life."
+                },
+                {
+                  "code": "SCI6-ES-04-S2-T4",
+                  "name": "Water in the Community",
+                  "descriptor": "Understand and apply water in the community in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI6-ES-04-S3",
+              "name": "Air",
+              "descriptor": "Investigate and explain air in everyday life.",
+              "learningOutcome": "Investigate and explain air in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI6-ES-04-S3-T1",
+                  "name": "Air Pressure",
+                  "descriptor": "Understand and apply air pressure in everyday life."
+                },
+                {
+                  "code": "SCI6-ES-04-S3-T2",
+                  "name": "Air and Weather",
+                  "descriptor": "Understand and apply air and weather in everyday life."
+                },
+                {
+                  "code": "SCI6-ES-04-S3-T3",
+                  "name": "Air Quality",
+                  "descriptor": "Understand and apply air quality in everyday life."
+                },
+                {
+                  "code": "SCI6-ES-04-S3-T4",
+                  "name": "Protecting the Atmosphere",
+                  "descriptor": "Understand and apply protecting the atmosphere in everyday life."
+                }
+              ]
+            },
+            {
+              "code": "SCI6-ES-04-S4",
+              "name": "The Solar System",
+              "descriptor": "Investigate and explain the solar system in everyday life.",
+              "learningOutcome": "Investigate and explain the solar system in everyday life.",
+              "topics": [
+                {
+                  "code": "SCI6-ES-04-S4-T1",
+                  "name": "The Planets",
+                  "descriptor": "Understand and apply the planets in everyday life."
+                },
+                {
+                  "code": "SCI6-ES-04-S4-T2",
+                  "name": "Gravity and Orbits",
+                  "descriptor": "Understand and apply gravity and orbits in everyday life."
+                },
+                {
+                  "code": "SCI6-ES-04-S4-T3",
+                  "name": "Space Exploration",
+                  "descriptor": "Understand and apply space exploration in everyday life."
+                },
+                {
+                  "code": "SCI6-ES-04-S4-T4",
+                  "name": "The Universe",
+                  "descriptor": "Understand and apply the universe in everyday life."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
