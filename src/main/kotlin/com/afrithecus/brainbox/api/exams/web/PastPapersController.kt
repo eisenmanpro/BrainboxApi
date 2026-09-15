@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.exams.web
 
+import com.afrithecus.brainbox.api.common.config.HttpCachingConfig
 import com.afrithecus.brainbox.api.exams.PastPaperService
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import jakarta.validation.Valid
@@ -32,11 +33,15 @@ class PastPapersController(private val service: PastPaperService) {
         @RequestParam q: String,
     ): List<DocumentItem> = service.search(currentUser.userId, q)
 
+    /** Origin-cached (H1): ETag + `max-age=60, must-revalidate, private`. */
     @GetMapping("/{examId}/content")
     fun content(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @PathVariable examId: String,
-    ): ExamContentPayload = service.content(currentUser.userId, examId)
+    ): ResponseEntity<ExamContentPayload> =
+        ResponseEntity.ok()
+            .cacheControl(HttpCachingConfig.CONTENT_READ_CACHE_CONTROL)
+            .body(service.content(currentUser.userId, examId))
 
     @PostMapping("/{examId}/attempts")
     fun recordAttempt(

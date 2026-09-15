@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.security
 
+import com.afrithecus.brainbox.api.common.config.HttpCachingConfig
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
@@ -35,9 +36,19 @@ class SecurityConfig(
             .headers { headers ->
                 headers.frameOptions { it.deny() }
                 headers.referrerPolicy { it.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER) }
-                headers.addHeaderWriter { _, response ->
+                // H1: drop Spring Security's default multi-directive Cache-Control so the writer
+                // below is the single source of truth. The learner content reads set their own
+                // private revalidation policy (ETag + max-age=60, must-revalidate, private) in
+                // the controller; every other endpoint keeps a plain no-store. An unauthenticated
+                // request never reaches a controller, so no endpoint policy can leak to an
+                // anonymous caller.
+                headers.cacheControl { it.disable() }
+                headers.addHeaderWriter { request, response ->
                     response.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-                    response.setHeader("Cache-Control", "no-store")
+                    val path = request.requestURI.removePrefix(request.contextPath)
+                    if (!HttpCachingConfig.isContentReadPath(path)) {
+                        response.setHeader("Cache-Control", "no-store")
+                    }
                 }
                 headers.httpStrictTransportSecurity {
                     it.includeSubDomains(true).maxAgeInSeconds(31536000)

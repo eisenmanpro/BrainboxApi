@@ -18,6 +18,7 @@ import com.afrithecus.brainbox.api.content.validation.ValidationReport
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
+import io.micrometer.core.instrument.MeterRegistry
 import jakarta.persistence.EntityManager
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -53,6 +54,7 @@ class ContentValidationTests(
     @Autowired private val users: UserRepository,
     @Autowired private val mapper: ObjectMapper,
     @Autowired private val entityManager: EntityManager,
+    @Autowired private val registry: MeterRegistry,
 ) {
 
     @Test
@@ -280,6 +282,28 @@ class ContentValidationTests(
         check(outcome.reviewerId == null)
         check(outcome.confidenceScore == 1.0)
         check(outcome.quorumRequired == 2)
+    }
+
+    @Test
+    fun `auto-approval emits approved and exception counters with the gate reason`() {
+        val approvedBefore = registry.counter("brainbox.content.autoapprove", "result", "approved").count()
+
+        val clean = seedAutoApprovableUnit()
+        check(autoApproval.maybeAutoApprove("UNIT", clean.id))
+        check(registry.counter("brainbox.content.autoapprove", "result", "approved").count() == approvedBefore + 1.0)
+
+        // A blocked unit records an exception tagged with the first blocker/warning code.
+        val blocked = contentUnits.save(unit(title = null))
+        val report = validation.validate("UNIT", blocked.id)
+        val reason = report.findings.first { it.severity != FindingSeverity.INFO }.code
+        val reasonBefore = registry.counter(
+            "brainbox.content.autoapprove", "result", "exception", "reason", reason,
+        ).count()
+        check(autoApproval.maybeAutoApprove("UNIT", blocked.id).not())
+        check(
+            registry.counter("brainbox.content.autoapprove", "result", "exception", "reason", reason).count() ==
+                reasonBefore + 1.0,
+        ) { "exception counter did not move for reason " + reason }
     }
 
     @Test

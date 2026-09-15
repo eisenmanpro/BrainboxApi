@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.learning.web
 
+import com.afrithecus.brainbox.api.common.config.HttpCachingConfig
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
@@ -30,11 +31,15 @@ class MaterialsController(
     fun readable(@AuthenticationPrincipal currentUser: CurrentUser): List<ReadableFilePayload> =
         service.list(user(currentUser))
 
+    /** Origin-cached (H1): ETag + `max-age=60, must-revalidate, private`. */
     @GetMapping("/readable/{id}")
     fun detail(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @PathVariable id: String,
-    ): ReadableFilePayload = service.detail(user(currentUser), id)
+    ): ResponseEntity<ReadableFilePayload> =
+        ResponseEntity.ok()
+            .cacheControl(HttpCachingConfig.CONTENT_READ_CACHE_CONTROL)
+            .body(service.detail(user(currentUser), id))
 
     @GetMapping("/readable/category/{category}")
     fun byCategory(

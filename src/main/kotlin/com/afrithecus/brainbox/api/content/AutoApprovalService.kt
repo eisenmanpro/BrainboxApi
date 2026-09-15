@@ -5,6 +5,8 @@ import com.afrithecus.brainbox.api.content.repository.ContentUnitQuestionReposit
 import com.afrithecus.brainbox.api.content.repository.ContentUnitRepository
 import com.afrithecus.brainbox.api.content.repository.ModerationOutcomeRepository
 import com.afrithecus.brainbox.api.content.validation.ContentValidationService
+import com.afrithecus.brainbox.api.content.validation.FindingSeverity
+import com.afrithecus.brainbox.api.content.validation.ValidationReport
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -48,43 +50,47 @@ class AutoApprovalService(
     private val contentUnits: ContentUnitRepository,
     private val unitQuestions: ContentUnitQuestionRepository,
     private val outcomes: ModerationOutcomeRepository,
+    /** H1 observability: approved/exception rate and the first gate that tripped. */
+    private val metrics: ContentMetrics,
 ) {
 
     @Transactional
     fun maybeAutoApprove(contentType: String, contentId: UUID, contentVersion: Int = 1): Boolean {
-        if (!moderationPolicy.autoApproveEnabled()) return false
+        if (!moderationPolicy.autoApproveEnabled()) return gateException(REASON_POLICY_DISABLED)
 
         val type = contentType.trim().uppercase()
-        if (type != ContentValidationService.CONTENT_TYPE_UNIT) return false
+        if (type != ContentValidationService.CONTENT_TYPE_UNIT) return gateException(REASON_NOT_UNIT)
 
         // A human decision wins: only an untouched unit may be machine-approved.
-        val unit = contentUnits.findById(contentId).orElse(null) ?: return false
-        if (unit.reviewState != STATE_UNREVIEWED) return false
+        val unit = contentUnits.findById(contentId).orElse(null) ?: return gateException(REASON_NOT_FOUND)
+        if (unit.reviewState != STATE_UNREVIEWED) return gateException(REASON_HUMAN_DECISION)
 
         val report = validation.validate(type, contentId)
-        if (report.blockers) return false
-        if (report.score < moderationPolicy.autoApproveMinValidatorScore()) return false
+        if (report.blockers) return gateException(reportReason(report, REASON_VALIDATOR_BLOCKER))
+        if (report.score < moderationPolicy.autoApproveMinValidatorScore()) {
+            return gateException(reportReason(report, REASON_VALIDATOR_SCORE))
+        }
 
         val questionCount = unitQuestions.findAllByUnitIdOrderByOrderIndexAsc(contentId).size
         if (ContentTaskTypes.isAssessment(unit.taskType)) {
             // An assessment is measured by its questions, so the floor is unconditional:
             // a unit whose disputed keys were all dropped (questionCount 0) must fail the
             // gate rather than skip it (Phase 7.5h).
-            if (questionCount < moderationPolicy.autoApproveMinQuestions()) return false
-            val confidence = unit.confidence ?: return false
-            if (confidence < moderationPolicy.autoApproveMinCriticConfidence()) return false
+            if (questionCount < moderationPolicy.autoApproveMinQuestions()) return gateException(REASON_QUESTION_FLOOR)
+            val confidence = unit.confidence ?: return gateException(REASON_CRITIC_CONFIDENCE)
+            if (confidence < moderationPolicy.autoApproveMinCriticConfidence()) return gateException(REASON_CRITIC_CONFIDENCE)
             // Phase 7.5f hard gate: an assessment's keys are only as good as an
             // independent solve. Fail closed when there is no verification, and
             // require the agreement ratio to clear the policy bar (default 1.0, every
             // surviving key agrees after the 7.5h disposition).
-            if (unit.answerKeyVerifiedAt == null) return false
-            val agreement = unit.answerKeyAgreement ?: return false
-            if (agreement < moderationPolicy.answerKeyMinAgreement()) return false
+            if (unit.answerKeyVerifiedAt == null) return gateException(REASON_ANSWER_KEY_UNVERIFIED)
+            val agreement = unit.answerKeyAgreement ?: return gateException(REASON_ANSWER_KEY_UNVERIFIED)
+            if (agreement < moderationPolicy.answerKeyMinAgreement()) return gateException(REASON_ANSWER_KEY_AGREEMENT)
         } else if (questionCount > 0) {
             // The question-count floor is an assessment rule. A NOTES/readable unit with a
             // few nested checks is exactly the BrainBox standard, so it must not be held to 8.
-            val confidence = unit.confidence ?: return false
-            if (confidence < moderationPolicy.autoApproveMinCriticConfidence()) return false
+            val confidence = unit.confidence ?: return gateException(REASON_CRITIC_CONFIDENCE)
+            if (confidence < moderationPolicy.autoApproveMinCriticConfidence()) return gateException(REASON_CRITIC_CONFIDENCE)
         }
 
         unit.reviewState = STATE_REVIEWED
@@ -103,11 +109,39 @@ class AutoApprovalService(
         outcome.quorumRequired = moderationPolicy.quorumRequired()
         outcome.decidedAt = Instant.now()
         outcomes.save(outcome)
+        metrics.recordAutoApproved()
         return true
     }
+
+    /**
+     * Records one exception and returns false so every gate stays a one-liner. The
+     * reason is the first blocker/warning code from the validator report when the
+     * report ran, otherwise the name of the gate that failed.
+     */
+    private fun gateException(reason: String): Boolean {
+        metrics.recordAutoApprovalException(reason)
+        return false
+    }
+
+    /** The first non-INFO finding code, then any finding, then [fallback]. */
+    private fun reportReason(report: ValidationReport, fallback: String): String =
+        report.findings.firstOrNull { it.severity != FindingSeverity.INFO }?.code
+            ?: report.findings.firstOrNull()?.code
+            ?: fallback
 
     private companion object {
         const val STATE_UNREVIEWED = "UNREVIEWED"
         const val STATE_REVIEWED = "REVIEWED"
+
+        const val REASON_POLICY_DISABLED = "AUTO_APPROVE_DISABLED"
+        const val REASON_NOT_UNIT = "UNSUPPORTED_TYPE"
+        const val REASON_NOT_FOUND = "CONTENT_NOT_FOUND"
+        const val REASON_HUMAN_DECISION = "HUMAN_DECISION"
+        const val REASON_VALIDATOR_BLOCKER = "VALIDATOR_BLOCKER"
+        const val REASON_VALIDATOR_SCORE = "VALIDATOR_SCORE"
+        const val REASON_QUESTION_FLOOR = "QUESTION_FLOOR"
+        const val REASON_CRITIC_CONFIDENCE = "CRITIC_CONFIDENCE"
+        const val REASON_ANSWER_KEY_UNVERIFIED = "ANSWER_KEY_UNVERIFIED"
+        const val REASON_ANSWER_KEY_AGREEMENT = "ANSWER_KEY_AGREEMENT"
     }
 }

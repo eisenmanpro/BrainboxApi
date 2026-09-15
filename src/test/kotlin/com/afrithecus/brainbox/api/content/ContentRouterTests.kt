@@ -22,6 +22,7 @@ import com.afrithecus.brainbox.api.content.repository.ContentUnitStepRepository
 import com.afrithecus.brainbox.api.content.repository.CurriculumMapRepository
 import com.afrithecus.brainbox.api.content.repository.GenerationJobRepository
 import com.afrithecus.brainbox.api.content.repository.ModelCallRepository
+import io.micrometer.core.instrument.MeterRegistry
 import jakarta.persistence.EntityManager
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -59,6 +60,7 @@ class ContentRouterTests(
     @Autowired private val mcpToolClient: McpToolClient,
     @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val entityManager: EntityManager,
+    @Autowired private val registry: MeterRegistry,
 ) {
 
     @TestConfiguration
@@ -365,6 +367,36 @@ class ContentRouterTests(
         check(calls.size == 1)
         check(!calls[0].success)
         check(calls[0].error!!.contains("model exploded"))
+    }
+
+    @Test
+    fun `successful generation records latency and token metrics`() {
+        val promptBefore = registry.counter("brainbox.content.tokens", "type", "prompt").count()
+        val completionBefore = registry.counter("brainbox.content.tokens", "type", "completion").count()
+        val latencyBefore = registry.find("brainbox.content.generation.latency").tag("provider", "fake").timer()?.count() ?: 0L
+
+        router.resolve(request("ke:cbc:grade4:mat-num-frac:lesson:metrics-ok"))
+
+        check(registry.counter("brainbox.content.tokens", "type", "prompt").count() == promptBefore + 1000.0)
+        check(registry.counter("brainbox.content.tokens", "type", "completion").count() == completionBefore + 500.0)
+        val timer = registry.find("brainbox.content.generation.latency").tag("provider", "fake").timer()
+        check(timer != null && timer.count() == latencyBefore + 1L) { "latency timer did not record" }
+    }
+
+    @Test
+    fun `failed provider call records the provider error metric`() {
+        val key = "ke:cbc:grade4:mat-num-frac:lesson:metrics-fail"
+        val before = registry.counter(
+            "brainbox.content.provider.errors", "provider", "fake", "reason", "other",
+        ).count()
+
+        fake.failNext = "model exploded"
+        assertFailsWith<ApiException> { router.resolve(request(key)) }
+
+        check(
+            registry.counter("brainbox.content.provider.errors", "provider", "fake", "reason", "other").count() ==
+                before + 1.0,
+        ) { "provider error counter did not move" }
     }
 
     @Test

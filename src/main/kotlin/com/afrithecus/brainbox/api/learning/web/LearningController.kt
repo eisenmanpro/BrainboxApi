@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.learning.web
 
+import com.afrithecus.brainbox.api.common.config.HttpCachingConfig
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.learning.LearningProgressService
@@ -53,11 +54,15 @@ class LearningController(
         @PathVariable postId: String,
     ): LearningPostPayload = service.detail(user(currentUser), postId)
 
+    /** Origin-cached (H1): ETag + `max-age=60, must-revalidate, private`. */
     @GetMapping("/post/{postId}/content")
     fun content(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @PathVariable postId: String,
-    ): List<LearningContentPayload> = service.contentOf(user(currentUser), postId)
+    ): ResponseEntity<List<LearningContentPayload>> =
+        ResponseEntity.ok()
+            .cacheControl(HttpCachingConfig.CONTENT_READ_CACHE_CONTROL)
+            .body(service.contentOf(user(currentUser), postId))
 
     @PostMapping("/post/{postId}/view")
     fun recordView(

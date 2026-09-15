@@ -558,6 +558,18 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - [x] Monitoring & logging: actuator health/info/metrics with liveness/readiness probes and
       `show-details: when_authorized`, a bounded `/actuator/info` contributor, custom Micrometer
       counters (push delivery, optimistic conflicts) and ECS structured console logs in prod.
+- [x] H1 hardening - origin read caching + real pipeline metrics (observability / read path).
+      **No third-party CDN:** Brainbox runs in Kenyan data centres for data sovereignty, so the
+      read path is cached at the origin instead. The three learner content reads
+      (`GET /learning/post/{postId}/content`, `GET /materials/readable/{id}`,
+      `GET /past-papers/{examId}/content`) return a body-derived strong `ETag` and
+      `Cache-Control: max-age=60, must-revalidate, private`, and answer `If-None-Match` with
+      `304 Not Modified` and no body (`ShallowEtagHeaderFilter`; those payloads are small
+      JSON, so buffering is fine). Pipeline metrics use the existing Micrometer `MeterRegistry`:
+      `brainbox.content.queue.depth` (tag `status`), `brainbox.content.generation.latency`
+      (tag `provider`), `brainbox.content.provider.errors` (tags `provider`, `reason`),
+      `brainbox.content.tokens` (tag `type`) and `brainbox.content.autoapprove`
+      (tag `result`, plus `reason` on exceptions).
 - [x] Conflict resolution, retry and resilience: JPA optimistic-lock failures map to a counted
       `409` instead of a `500`; a bounded exponential-backoff `Retry` (no extra dependency)
       wraps the FCM token exchange and transient sends; the idempotency filter, rate limiter,

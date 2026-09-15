@@ -414,6 +414,13 @@ licence, block the restricted set (KICD, KNEC, CC BY-NC/SA), and never reproduce
 Public store → existing client surfaces (`learning/post/{id}/content`, `materials/readable/{id}`,
 `past-papers/{examId}/content`) via the API-call path, with the 7.0 contract fixes applied first.
 
+**Read-path caching is origin-side (H1).** There is no third-party CDN in the Brainbox
+deployment (data sovereignty), so those three reads are cached at the origin: each returns a
+body-derived strong `ETag` with `Cache-Control: max-age=60, must-revalidate, private` and a
+matching `If-None-Match` gets `304 Not Modified`. The pipeline also exposes real Micrometer
+metrics on the existing `MeterRegistry` for queue depth, provider latency and errors, token
+spend and the auto-approval rate (see ROADMAP Phase 6 H1).
+
 ---
 
 ## 3. End-to-end flows

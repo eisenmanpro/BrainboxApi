@@ -55,6 +55,8 @@ class ContentRouter(
     private val provider: ContentGenerationProvider,
     private val moderationPolicy: ModerationPolicyService,
     private val mapper: ObjectMapper,
+    /** H1 pipeline metrics; the router is the only caller of the provider. */
+    private val metrics: ContentMetrics,
 ) {
 
     /**
@@ -159,6 +161,7 @@ class ContentRouter(
         val result = try {
             provider.verifyAnswerKeys(request)
         } catch (failure: Exception) {
+            metrics.recordProviderError(provider.name, ProviderErrorReasons.reasonFor(failure))
             recordFailedVerification(run, failure, startedAt)
             if (failure is ApiException) throw failure
             throw ApiException(
@@ -313,6 +316,7 @@ class ContentRouter(
      * caller owns the terminal job status (complete/fail).
      */
     private fun runCore(job: GenerationJobEntity, request: GenerationRequest): RunOutcome {
+        val providerName = provider.name
         var run = agentRuns.save(
             AgentRunEntity().apply {
                 jobId = job.id
@@ -325,12 +329,14 @@ class ContentRouter(
         val result = try {
             provider.generate(request)
         } catch (failure: Exception) {
-            val latencyMs = elapsedMillis(startedAt)
+            val latencyNanos = System.nanoTime() - startedAt
+            metrics.recordGenerationLatency(providerName, latencyNanos)
+            metrics.recordProviderError(providerName, ProviderErrorReasons.reasonFor(failure))
             modelCalls.save(
                 ModelCallEntity().apply {
                     agentRunId = run.id
-                    provider = this@ContentRouter.provider.name
-                    this.latencyMs = latencyMs
+                    provider = providerName
+                    this.latencyMs = latencyNanos / 1_000_000L
                     success = false
                     error = failure.message?.take(MAX_ERROR_CHARS)
                 }
@@ -348,12 +354,15 @@ class ContentRouter(
                 "content generation failed for '" + request.generationKey + "': " + (failure.message ?: failure.javaClass.simpleName)
             )
         }
-        val latencyMs = elapsedMillis(startedAt)
+        val latencyNanos = System.nanoTime() - startedAt
+        metrics.recordGenerationLatency(providerName, latencyNanos)
+        metrics.recordTokens(result.promptTokens, result.completionTokens)
+        val latencyMs = latencyNanos / 1_000_000L
 
         modelCalls.save(
             ModelCallEntity().apply {
                 agentRunId = run.id
-                provider = this@ContentRouter.provider.name
+                provider = providerName
                 model = result.model
                 promptTokens = result.promptTokens
                 completionTokens = result.completionTokens
