@@ -72,6 +72,10 @@ class GenerationJobWorkerTests(
         fake.requests.clear()
         fake.failNext = null
         fake.clean = false
+        fake.verificationRequests.clear()
+        fake.verificationCalls = 0
+        fake.verifyFailNext = null
+        fake.verificationAnswers = null
         val concept = concepts.save(
             ConceptEntity().apply {
                 code = "MAT-FRAC-01"

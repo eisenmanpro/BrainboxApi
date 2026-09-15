@@ -349,6 +349,13 @@ versioned table that content is tagged against.
   dangerous instructions and personal data. A match is a BLOCKER, so the unit scores 0.0, cannot
   auto-approve, and is routed to the human exception queue; a missing or unparseable blocklist
   also blocks. It is not a policy toggle: safety is always on.
+- Independent answer-key verification (implemented, 7.5f): the structural answer-key check only
+  proves a key exists and matches a single option, so a confident-but-wrong key used to pass. The
+  router now runs a second, separate model interaction that solves each question from its stem
+  and options alone - never from the stored key - and records the agreement ratio on the unit.
+  An assessment auto-approves only when every key agrees (policy `answer_key_min_agreement`,
+  default 1.0); a disagreement, a dropped answer or an unavailable verifier fails closed into the
+  human exception queue. Re-projection reuses the stored verification and spends no second call.
 
 ---
 

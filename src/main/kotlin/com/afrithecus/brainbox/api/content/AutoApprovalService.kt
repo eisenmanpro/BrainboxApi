@@ -28,7 +28,11 @@ import java.util.UUID
  *     questions, it carries at least `auto_approve_min_questions` (default 8). A
  *     NOTES micro-lesson may carry a few nested checks without meeting 8, because
  *     the question count is not the product there;
- *  6. the unit is still `UNREVIEWED`, so a human decision (REVIEWED or REJECTED)
+ *  6. if the unit is an assessment task type with questions, its answer keys have
+ *     been independently verified and the agreement is at least
+ *     `answer_key_min_agreement` (default 1.0). An unverified or partly-agreeing
+ *     assessment fails closed into the exception queue (Phase 7.5f);
+ *  7. the unit is still `UNREVIEWED`, so a human decision (REVIEWED or REJECTED)
  *     is never touched, overwritten or re-attributed.
  *
  * An auto-approved outcome carries `auto_approved = true`, the validator score in
@@ -67,6 +71,15 @@ class AutoApprovalService(
             // few nested checks is exactly the BrainBox standard, so it must not be held to 8.
             if (isAssessment(unit.taskType) && questionCount < moderationPolicy.autoApproveMinQuestions()) {
                 return false
+            }
+            // Phase 7.5f hard gate: an assessment's keys are only as good as an
+            // independent solve. Fail closed when there is no verification, and
+            // require the agreement ratio to clear the policy bar (default 1.0,
+            // every stored key agrees).
+            if (isAssessment(unit.taskType)) {
+                if (unit.answerKeyVerifiedAt == null) return false
+                val agreement = unit.answerKeyAgreement ?: return false
+                if (agreement < moderationPolicy.answerKeyMinAgreement()) return false
             }
         }
 

@@ -95,6 +95,10 @@ app:
       api-key: ${DEEPSEEK_API_KEY:}
       base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
       model: ${DEEPSEEK_MODEL:deepseek-chat}
+      # Phase 7.5f: model for the independent answer-key solve. Empty means the
+      # normal generation model; point DEEPSEEK_VERIFY_MODEL at a second model to
+      # make the verification call a genuinely independent second opinion.
+      verify-model: ${DEEPSEEK_VERIFY_MODEL:}
   content:
     # Phase 7.5a durable generation queue. api = this JVM enqueues only and a
     # separate worker drains; worker = drain only; both = enqueue and drain in

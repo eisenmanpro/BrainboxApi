@@ -2,12 +2,15 @@ package com.afrithecus.brainbox.api.content
 
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
+import com.afrithecus.brainbox.api.content.ai.AnswerVerificationRequest
+import com.afrithecus.brainbox.api.content.ai.AnswerVerificationResult
 import com.afrithecus.brainbox.api.content.ai.ContentGenerationProvider
 import com.afrithecus.brainbox.api.content.ai.DisabledContentGenerationProvider
 import com.afrithecus.brainbox.api.content.ai.GeneratedQuestion
 import com.afrithecus.brainbox.api.content.ai.GeneratedStep
 import com.afrithecus.brainbox.api.content.ai.GenerationRequest
 import com.afrithecus.brainbox.api.content.ai.GenerationResult
+import com.afrithecus.brainbox.api.content.ai.VerificationAnswer
 import com.afrithecus.brainbox.api.content.entity.ConceptEntity
 import com.afrithecus.brainbox.api.content.entity.CurriculumMapEntity
 import com.afrithecus.brainbox.api.content.mcp.McpToolClient
@@ -73,14 +76,29 @@ class ContentRouterTests(
         /** When true, return a gate-clean result so the 7.5c bar can be exercised. */
         var clean = false
 
+        /** 7.5f verification observability: call count, requests and scripted failure. */
+        val verificationRequests = mutableListOf<AnswerVerificationRequest>()
+        var verificationCalls = 0
+        var verifyFailNext: String? = null
+
+        /** When set, these orderIndex -> answer values are returned verbatim. */
+        var verificationAnswers: Map<Int, String>? = null
+
+        /** The last generated result, used as an honest oracle when no override is set. */
+        private var lastResult: GenerationResult? = null
+
         override fun generate(request: GenerationRequest): GenerationResult {
             requests += request
             failNext?.let { message ->
                 failNext = null
                 throw IllegalStateException(message)
             }
-            if (clean) return cleanResult(request)
-            return GenerationResult(
+            if (clean) {
+                val result = cleanResult(request)
+                lastResult = result
+                return result
+            }
+            val result = GenerationResult(
                 body = "Body for " + request.generationKey,
                 steps = listOf(
                     GeneratedStep(0, "Step one", "First step body", "<svg xmlns=\"http://www.w3.org/2000/svg\"/>"),
@@ -114,6 +132,29 @@ class ContentRouterTests(
                 completionTokens = 500,
                 sourceUrls = listOf("https://example.org/fractions"),
                 license = "CC-BY-4.0",
+            )
+            lastResult = result
+            return result
+        }
+
+        override fun verifyAnswerKeys(request: AnswerVerificationRequest): AnswerVerificationResult {
+            verificationCalls += 1
+            verificationRequests += request
+            verifyFailNext?.let { message ->
+                verifyFailNext = null
+                throw IllegalStateException(message)
+            }
+            val answers = request.questions.map { question ->
+                val override = verificationAnswers?.get(question.orderIndex)
+                val answer = override
+                    ?: lastResult?.questions?.firstOrNull { it.orderIndex == question.orderIndex }?.correctAnswer
+                VerificationAnswer(orderIndex = question.orderIndex, answer = answer)
+            }
+            return AnswerVerificationResult(
+                answers = answers,
+                model = "fake-verifier",
+                promptTokens = 200,
+                completionTokens = 100,
             )
         }
 
@@ -161,6 +202,10 @@ class ContentRouterTests(
         fake.requests.clear()
         fake.failNext = null
         fake.clean = false
+        fake.verificationRequests.clear()
+        fake.verificationCalls = 0
+        fake.verifyFailNext = null
+        fake.verificationAnswers = null
         concept = concepts.save(
             ConceptEntity().apply {
                 code = "MAT-FRAC-01"

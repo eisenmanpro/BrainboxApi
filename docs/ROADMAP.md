@@ -640,6 +640,18 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       `POST /admin/content/batch` plus `GET /admin/content/batch/candidates` are the one-command and
       one-call paths. Flashcards are deferred (the client has no flashcards content type) and past
       papers / study guides stay in 7.6.
+- [x] 7.5f independent answer-key verification gate: a second, separate model interaction solves each
+      question from its stem and options alone (never the stored key) through the router, so it stays
+      the only provider caller and capture writer (its own `agent_runs` + `model_calls` row,
+      prompt version `answer-verify-v1`). The agreement ratio, verification timestamp and verifying
+      model are stored on `content_units` (V68), and the worker verifies each generated unit before
+      projection; a verification failure is logged and swallowed so the job is never lost and the
+      unit stays unverified. `AutoApprovalService` now refuses an assessment task type with
+      questions unless it is verified and `answer_key_agreement >= answer_key_min_agreement`
+      (default 1.0, every key agrees), so a wrong or missing key routes to the exception queue
+      instead of shipping; re-projection reuses the stored result and does not re-run the model.
+      Comparison is forgiving but safe: case/whitespace/surrounding punctuation are normalised, and
+      a multiple-choice option letter or 1-based number is resolved to the option text first.
 - [ ] 7.6 breadth: run the 7.5e producer at full Tier 1 breadth, then past papers, study guides and the remaining subjects.
 - [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences)
 - [ ] Agent tools: DB metric queries, internet search, content validators

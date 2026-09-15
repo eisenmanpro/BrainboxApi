@@ -225,6 +225,25 @@ the blocklist resource is missing, blank or unparseable the validator emits the
 `SAFETY_CONFIG_MISSING` blocker for every unit, so nothing auto-approves. A false positive costs a
 human review; a false negative cannot silently pass.
 
+**Independent answer-key verification is a hard gate ahead of auto-approval (delivered,
+7.5f).** The deterministic `answer_key` validator is only structural: it checks that a key
+exists and, for multiple choice, that it matches exactly one option. A present-but-wrong
+key passes it. So before an assessment can auto-approve, the router runs a second, separate
+model interaction (`ContentRouter.verifyAnswerKeys`) that solves each question from its
+stem and options alone - the request never carries the stored `correctAnswer`, and the
+call is captured as its own `agent_runs` + `model_calls` pair through the router. The
+returned answers are compared with the stored keys under a forgiving-but-safe normalisation:
+case, whitespace and surrounding punctuation are ignored, and for multiple choice an
+`A`/`B`/`C`/`D` letter or a 1-based option number is resolved to the option text first.
+The agreement (`agreements / questions`) is stored on the unit as `answer_key_agreement`,
+`answer_key_verified_at` and `answer_key_verified_model` (V68). The gate is fail-closed:
+a disabled provider, an error, a malformed response or a dropped answer leaves the unit
+unverified. An assessment with questions auto-approves only when `answer_key_verified_at`
+is set and `answer_key_agreement >= answer_key_min_agreement`; anything else stays
+`UNREVIEWED` in the exception queue. Verification runs once per generated unit and
+re-projection (including a human approval) reuses the stored result, so no second model
+call is spent. Non-assessment units are not subject to this gate.
+
 **Auto-approval is the default bulk path (delivered, 7.5c).** The rule is machine-first,
 human-for-exceptions: `AutoApprovalService.maybeAutoApprove` approves a UNIT without a human
 whenever every gate holds, so teachers and Brainbox moderators only ever handle the exceptions
@@ -241,6 +260,9 @@ whenever every gate holds, so teachers and Brainbox moderators only ever handle 
   (`QUIZ`/`EXAM`/`ASSESSMENT`) that carry questions, where the question count is the product. A
   `NOTES`/readable micro-lesson may carry a few nested checks (the BrainBox standard wants them)
   and is not held to the floor; it is still bound by the validator-score and confidence gates.
+- `answer_key_min_agreement` (double, default **1.0**): the independent answer-key floor for an
+  assessment task type with questions. 1.0 means every stored key must agree with the independent
+  solve; an unverified unit fails closed.
 
 The unit must also still be `UNREVIEWED`: the machine never touches a `REVIEWED` or `REJECTED`
 unit, so a human decision and its reviewer attribution are never clobbered. On approval the unit

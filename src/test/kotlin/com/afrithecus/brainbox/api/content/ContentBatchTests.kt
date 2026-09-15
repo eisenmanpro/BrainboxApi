@@ -71,6 +71,10 @@ class ContentBatchServiceTests(
         fake.requests.clear()
         fake.failNext = null
         fake.clean = false
+        fake.verificationRequests.clear()
+        fake.verificationCalls = 0
+        fake.verifyFailNext = null
+        fake.verificationAnswers = null
 
         val matStrand = concept("MAT-STR-01", "Numbers", "Mathematics", null)
         val matSub = concept("MAT-SUB-01", "Fractions and decimals", "Mathematics", matStrand.id)

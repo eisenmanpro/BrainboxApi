@@ -17,5 +17,12 @@ data class AppAiProperties(
         val apiKey: String = "",
         val baseUrl: String = "https://api.deepseek.com",
         val model: String = "deepseek-chat",
+        /**
+         * Phase 7.5f: model used for independent answer-key verification. Empty
+         * means "use [model]", so verification defaults to the same engine as
+         * generation; the knob exists so a different model can be pointed at it
+         * without touching the router.
+         */
+        val verifyModel: String = "",
     )
 }

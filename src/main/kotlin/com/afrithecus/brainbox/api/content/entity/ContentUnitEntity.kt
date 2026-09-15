@@ -69,6 +69,18 @@ class ContentUnitEntity : BaseEntity() {
     @Column
     var confidence: Double? = null
 
+    /** Phase 7.5f: independent answer-key agreement ratio (agreements / questions). */
+    @Column(name = "answer_key_agreement")
+    var answerKeyAgreement: Double? = null
+
+    /** Phase 7.5f: when the independent verification last ran; null means unverified. */
+    @Column(name = "answer_key_verified_at")
+    var answerKeyVerifiedAt: Instant? = null
+
+    /** Phase 7.5f: model that returned the independent answers. */
+    @Column(name = "answer_key_verified_model", length = 64)
+    var answerKeyVerifiedModel: String? = null
+
     @Column(name = "review_state", nullable = false, length = 16)
     var reviewState: String = "UNREVIEWED"
 

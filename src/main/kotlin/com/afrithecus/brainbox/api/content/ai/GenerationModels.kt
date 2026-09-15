@@ -51,3 +51,32 @@ data class GeneratedQuestion(
     val difficulty: Int = 3,
     val matchingPairs: Map<String, String>? = null,
 )
+
+/**
+ * Phase 7.5f independent answer-key verification. A second, separate model
+ * interaction that only sees the question stem and its options - never the stored
+ * key - and returns its own answer per question. The router compares the two;
+ * only a full agreement lets an assessment auto-approve.
+ */
+data class AnswerVerificationRequest(
+    val questions: List<VerificationQuestion> = emptyList(),
+)
+
+data class VerificationQuestion(
+    val orderIndex: Int = 0,
+    val type: String = "MULTIPLE_CHOICE",
+    val text: String = "",
+    val options: List<String>? = null,
+)
+
+data class AnswerVerificationResult(
+    val answers: List<VerificationAnswer> = emptyList(),
+    val model: String? = null,
+    val promptTokens: Int = 0,
+    val completionTokens: Int = 0,
+)
+
+data class VerificationAnswer(
+    val orderIndex: Int = 0,
+    val answer: String? = null,
+)

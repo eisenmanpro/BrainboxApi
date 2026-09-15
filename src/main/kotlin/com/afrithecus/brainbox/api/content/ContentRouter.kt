@@ -2,8 +2,11 @@ package com.afrithecus.brainbox.api.content
 
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
+import com.afrithecus.brainbox.api.content.ai.AnswerVerificationRequest
 import com.afrithecus.brainbox.api.content.ai.ContentGenerationProvider
 import com.afrithecus.brainbox.api.content.ai.GenerationRequest
+import com.afrithecus.brainbox.api.content.ai.VerificationAnswer
+import com.afrithecus.brainbox.api.content.ai.VerificationQuestion
 import com.afrithecus.brainbox.api.content.entity.AgentRunEntity
 import com.afrithecus.brainbox.api.content.entity.ContentUnitEntity
 import com.afrithecus.brainbox.api.content.entity.ContentUnitQuestionEntity
@@ -18,6 +21,7 @@ import com.afrithecus.brainbox.api.content.repository.GenerationJobRepository
 import com.afrithecus.brainbox.api.content.repository.ModelCallRepository
 import org.springframework.stereotype.Service
 import tools.jackson.databind.ObjectMapper
+import java.time.Instant
 import java.util.UUID
 
 /**
@@ -26,6 +30,10 @@ import java.util.UUID
  * (generation_jobs, agent_runs, model_calls): a cache hit returns the stored
  * content_units row without touching the provider, a miss enqueues a durable job
  * and runs the provider through the shared core.
+ *
+ * Phase 7.5f adds [verifyAnswerKeys]: a second, independent model interaction that
+ * also runs through this class, so the provider/capture invariant holds for
+ * verification too.
  *
  * The run mode is not this class's concern. The synchronous [resolve] path runs
  * the core inline; the worker path claims a job and calls [runQueued]. Both paths
@@ -88,6 +96,176 @@ class ContentRouter(
         val outcome = runCore(job, request)
         jobService.complete(job.id, outcome.runId)
         return outcome.unit
+    }
+
+    /**
+     * Phase 7.5f independent answer-key verification. The router remains the only
+     * caller of the provider and the only writer of the capture tables, so this is
+     * a second model interaction through the same seam, not a second egress plane.
+     *
+     * It loads the unit and its questions; no questions means there is nothing to
+     * verify and it returns null. An already-verified unit is reused unless [force]
+     * is set, so re-projection (a human approval, an idempotent replay) never spends
+     * another model call.
+     *
+     * The request deliberately carries only the question stem, type and options -
+     * never the stored [ContentUnitQuestionEntity.correctAnswer] - so the second
+     * model solves the question independently. Each returned answer is compared with
+     * the stored key (normalised; see [answersMatch]) and the agreement ratio
+     * (agreements / questions, 0..1) is stored on the unit with the timestamp and
+     * model. A provider failure is captured as a failed model_call and rethrown: the
+     * unit stays unverified, which the auto-approval gate treats as fail-closed.
+     */
+    fun verifyAnswerKeys(unitId: UUID, force: Boolean = false): Double? {
+        val unit = contentUnits.findById(unitId).orElse(null) ?: return null
+        val questions = unitQuestions.findAllByUnitIdOrderByOrderIndexAsc(unitId)
+        if (questions.isEmpty()) return null
+        if (unit.answerKeyVerifiedAt != null && !force) return unit.answerKeyAgreement
+
+        val request = AnswerVerificationRequest(
+            questions = questions.map { question ->
+                VerificationQuestion(
+                    orderIndex = question.orderIndex,
+                    type = question.qType,
+                    text = question.text,
+                    options = parseOptions(question.options),
+                )
+            },
+        )
+
+        val run = agentRuns.save(
+            AgentRunEntity().apply {
+                generationKey = unit.generationKey
+                promptVersion = ANSWER_VERIFY_PROMPT_VERSION
+                status = "RUNNING"
+            }
+        )
+
+        val startedAt = System.nanoTime()
+        val result = try {
+            provider.verifyAnswerKeys(request)
+        } catch (failure: Exception) {
+            recordFailedVerification(run, failure, startedAt)
+            if (failure is ApiException) throw failure
+            throw ApiException(
+                ApiErrorCode.SERVICE_UNAVAILABLE,
+                "answer-key verification failed for unit '" + unit.id + "': " +
+                    (failure.message ?: failure.javaClass.simpleName),
+            )
+        }
+        val latencyMs = elapsedMillis(startedAt)
+
+        modelCalls.save(
+            ModelCallEntity().apply {
+                agentRunId = run.id
+                provider = this@ContentRouter.provider.name
+                model = result.model
+                promptTokens = result.promptTokens
+                completionTokens = result.completionTokens
+                costMicros = costMicros(result.promptTokens, result.completionTokens)
+                this.latencyMs = latencyMs
+                success = true
+            }
+        )
+
+        val agreement = agreementRatio(questions, result.answers)
+        unit.answerKeyAgreement = agreement
+        unit.answerKeyVerifiedAt = Instant.now()
+        unit.answerKeyVerifiedModel = result.model
+        contentUnits.save(unit)
+
+        run.status = "SUCCEEDED"
+        run.model = result.model
+        agentRuns.save(run)
+
+        return agreement
+    }
+
+    /** Captures a failed verification call on the same capture tables as generation. */
+    private fun recordFailedVerification(run: AgentRunEntity, failure: Exception, startedAt: Long) {
+        modelCalls.save(
+            ModelCallEntity().apply {
+                agentRunId = run.id
+                provider = this@ContentRouter.provider.name
+                this.latencyMs = elapsedMillis(startedAt)
+                success = false
+                error = failure.message?.take(MAX_ERROR_CHARS)
+            }
+        )
+        run.status = "FAILED"
+        agentRuns.save(run)
+    }
+
+    /**
+     * Agreement ratio over the unit's questions, 0..1. The question list is the
+     * denominator, so a dropped or unknown answer is a disagreement; a missing
+     * stored key can never agree.
+     */
+    private fun agreementRatio(
+        questions: List<ContentUnitQuestionEntity>,
+        answers: List<VerificationAnswer>,
+    ): Double {
+        if (questions.isEmpty()) return 0.0
+        val byIndex = answers.associateBy { it.orderIndex }
+        val agreements = questions.count { question ->
+            answersMatch(question, byIndex[question.orderIndex]?.answer)
+        }
+        return agreements.toDouble() / questions.size.toDouble()
+    }
+
+    /**
+     * Forgiving but safe answer comparison.
+     *
+     * Both sides are normalised: trimmed, lowercased, internal whitespace collapsed
+     * to a single space, and surrounding punctuation stripped
+     * (. , ; : ! ? " ( ) [ ] { }). So "Two equal parts." agrees with "two  equal parts".
+     *
+     * For MULTIPLE_CHOICE only, the independent solver may also return an option
+     * reference instead of the option text: a single letter (A/B/C/D,
+     * case-insensitive) or a 1-based option number. Each reference is resolved to
+     * the option at that position and compared with the stored key. The stored key
+     * is never rewritten, and a reference outside the option list is compared as
+     * plain text and cannot agree.
+     */
+    private fun answersMatch(question: ContentUnitQuestionEntity, given: String?): Boolean {
+        val expected = question.correctAnswer?.trim()?.takeIf { it.isNotEmpty() } ?: return false
+        val provided = given?.trim()?.takeIf { it.isNotEmpty() } ?: return false
+        val candidates = if (question.qType.trim().uppercase() == MULTIPLE_CHOICE) {
+            optionCandidates(provided, parseOptions(question.options).orEmpty())
+        } else {
+            listOf(provided)
+        }
+        val expectedNormalized = normalizeAnswer(expected)
+        return candidates.any { normalizeAnswer(it) == expectedNormalized }
+    }
+
+    /** The literal answer plus, for MC, the option a letter or 1-based number points at. */
+    private fun optionCandidates(given: String, options: List<String>): List<String> {
+        val candidates = mutableListOf(given)
+        val token = normalizeAnswer(given)
+        if (token.length == 1 && token[0] in 'a'..'z') {
+            options.getOrNull(token[0] - 'a')?.let { candidates += it }
+        }
+        token.toIntOrNull()?.let { number ->
+            if (number in 1..options.size) candidates += options[number - 1]
+        }
+        return candidates
+    }
+
+    /** Case/space/punctuation-normalised text; punctuation is stripped only at the ends. */
+    private fun normalizeAnswer(value: String): String =
+        value.trim()
+            .lowercase()
+            .replace(WHITESPACE, " ")
+            .trim(*TRAILING_PUNCTUATION)
+            .trim()
+
+    private fun parseOptions(json: String?): List<String>? {
+        if (json.isNullOrBlank()) return null
+        return runCatching {
+            val node = mapper.readTree(json)
+            (0 until node.size()).map { node.get(it).asString() }
+        }.getOrNull()
     }
 
     /**
@@ -229,5 +407,11 @@ class ContentRouter(
         const val MAX_ERROR_CHARS = 2000
         const val PROMPT_MICROS_PER_MILLION = 270_000L
         const val COMPLETION_MICROS_PER_MILLION = 1_100_000L
+
+        /** Prompt-version marker that distinguishes a verification agent_run. */
+        const val ANSWER_VERIFY_PROMPT_VERSION = "answer-verify-v1"
+        const val MULTIPLE_CHOICE = "MULTIPLE_CHOICE"
+        val WHITESPACE = Regex("\\s+")
+        val TRAILING_PUNCTUATION = charArrayOf('.', ',', ';', ':', '!', '?', '"', '(', ')', '[', ']', '{', '}')
     }
 }

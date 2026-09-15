@@ -19,4 +19,9 @@ class DisabledContentGenerationProvider : ContentGenerationProvider {
     override fun generate(request: GenerationRequest): GenerationResult {
         throw ApiException(ApiErrorCode.SERVICE_UNAVAILABLE, "content generation is disabled")
     }
+
+    /** Phase 7.5f: verify through the same disabled seam, so nothing auto-approves. */
+    override fun verifyAnswerKeys(request: AnswerVerificationRequest): AnswerVerificationResult {
+        throw ApiException(ApiErrorCode.SERVICE_UNAVAILABLE, "answer-key verification is disabled")
+    }
 }
