@@ -215,7 +215,7 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - [x] Exam session lifecycle (2A, doc 02 §3/§5): start/resume w/ withheld keys + countdown,
       idempotent progress sync, submit with server-side auto-grading (AutoGrader: MCQ/
       multi-select/matching/short/number/essay policy), results + submission endpoints,
-      past-paper discovery (all/search) + idempotent client-scored attempts
+      practice-paper discovery (all/search) + idempotent client-scored attempts
 - [x] Contest system (2B, doc 05 §1): V7/V8 schema; admin authoring (keys server-side);
       window-based upcoming/ongoing/completed + detail; registration w/ EXPLORER+ entitlement +
       capacity + window; session start/resume (keys withheld, end-window countdown) + idempotent
@@ -328,14 +328,14 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       tests + PG18 parity
       [client still computes StudyInsight locally in core/ml/StudyPatternEngine; the server contract is
       ready to wire when the app moves study data off-device]
-- [x] Homework attachments + past-paper flows (2P): V26 homework.related_paper_code /
-      related_document_id (web homework contract); PAST_PAPER_REVIEW now requires relatedPaperCode
+- [x] Homework attachments + practice-paper flows (2P): V26 homework.related_paper_code /
+      related_document_id (web homework contract); PRACTICE_PAPER_REVIEW now requires relatedPaperCode
       and the link round-trips through teacher create/update and both payloads.
-      * GET /past-papers/{examId}/content (doc 02 §4.2): builds the ExamContent payload with real cover
+      * GET /practice-papers/{examId}/content (doc 02 §4.2): builds the ExamContent payload with real cover
         metadata (school/student/subject/duration/year/mcp/questionCount), a STANDARD section of the
         exam's questions carrying per-question number/points/difficulty/topic, and a markingScheme with
         answers + marks + totalMarks + passingScore for offline self-grading. Scope-filtered and
-        restricted to PAST_PAPER exams so a live digital exam's keys are never exposed.
+        restricted to PRACTICE_PAPER exams so a live digital exam's keys are never exposed.
       * POST /homework/attachments: multipart upload returning {url, mediaType}, served from /media/
         (shared MediaService local-disk store; S3/MinIO presign stays Phase 6). Submission attachmentUrl
         already flows through student submit and teacher submission payloads.
@@ -562,7 +562,7 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       **No third-party CDN:** Brainbox runs in Kenyan data centres for data sovereignty, so the
       read path is cached at the origin instead. The three learner content reads
       (`GET /learning/post/{postId}/content`, `GET /materials/readable/{id}`,
-      `GET /past-papers/{examId}/content`) return a body-derived strong `ETag` and
+      `GET /practice-papers/{examId}/content`) return a body-derived strong `ETag` and
       `Cache-Control: max-age=60, must-revalidate, private`, and answer `If-None-Match` with
       `304 Not Modified` and no body (`ShallowEtagHeaderFilter`; those payloads are small
       JSON, so buffering is fine). Pipeline metrics use the existing Micrometer `MeterRegistry`:
@@ -747,7 +747,7 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       `StructureValidator` emits the final-step warning only for a non-assessment unit, so a quiz's
       questions need not be attached to a step. `STRUCTURE_NO_QUESTIONS` and the lesson
       minimum-step rule are unchanged; no internal retry was added.
-- [ ] 7.6 breadth: run the 7.5e producer at full Tier 1 breadth, then past papers, study guides and the remaining subjects.
+- [ ] 7.6 breadth: run the 7.5e producer at full Tier 1 breadth, then practice papers, study guides and the remaining subjects.
 - [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences)
 - [ ] Agent tools: DB metric queries, internet search, content validators
 - [ ] LLM provider routing by cost/latency; per-generation token tracking (DeepSeek + others)
@@ -758,8 +758,8 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       `GET /materials/readable/{id}` now return generated, auto-approved content end to end
       (`GeneratedContentServingTests`; the post/file id is the content-unit id, quiz metadata
       carries the client `questions[].correct` index, and a gated unit still 404s).
-      `GET /past-papers/{examId}/content` is verified against an admin-created paper only;
-      generated past papers stay in 7.6.
+      `GET /practice-papers/{examId}/content` is verified against an admin-created paper only;
+      generated practice papers stay in 7.6.
 - [ ] Budget/storage story: generate-on-demand + cache instead of PDF storage
 
 ---
@@ -804,7 +804,7 @@ of this catch-up.
 
 > Session status (2026-09-12): Phase 1 + 2A-2Q done, plus contract-hardening wave 2R in progress.
 > App-hardening contract alignment (2N, V24), study tools (2O, V25), homework attachments +
-> past-paper content (2P, V26) and class chat REST (2Q, V27) all shipped. 2R-p1 class-chat
+> practice-paper content (2P, V26) and class chat REST (2Q, V27) all shipped. 2R-p1 class-chat
 > transport alignment (V28), 2R-p2 exam-hub result/submission shapes, 2R-p3 traditional exam
 > engine + student reports (V29) and 2R-p4 dashboard contract 14 alignment all shipped. Wave 2R
 > is complete, and the teacher phase has begun with attendance (att-p1..p5, V30): register,

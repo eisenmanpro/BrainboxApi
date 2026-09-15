@@ -17,7 +17,7 @@ import com.afrithecus.brainbox.api.exams.web.ExamContentQuestionPayload
 import com.afrithecus.brainbox.api.exams.web.ExamCoverPayload
 import com.afrithecus.brainbox.api.exams.web.ExamSectionPayload
 import com.afrithecus.brainbox.api.exams.web.MarkingSchemePayload
-import com.afrithecus.brainbox.api.exams.web.PastPaperAttemptRequest
+import com.afrithecus.brainbox.api.exams.web.PracticePaperAttemptRequest
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import org.springframework.stereotype.Service
@@ -27,14 +27,14 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * Past-paper discovery and self-graded attempt recording (doc 02 §5). Lists are
+ * Practice-paper discovery and self-graded attempt recording (doc 02 §5). Lists are
  * scope-filtered; attempts are idempotent per (user, exam) so client replays
  * cannot double-record. Client-computed scores are stored as-is for v1
  * self-grading posture (doc 02 §5.3), explicitly flagged for later server-side
  * analytics migration.
  */
 @Service
-class PastPaperService(
+class PracticePaperService(
     private val examRepository: ExamRepository,
     private val submissionRepository: ExamSubmissionRepository,
     private val userRepository: UserRepository,
@@ -45,7 +45,7 @@ class PastPaperService(
 
     @Transactional(readOnly = true)
     fun list(userId: UUID, subject: String?, grade: String? = null): List<DocumentItem> =
-        visiblePastPapers(userId)
+        visiblePracticePapers(userId)
             .filter { subject == null || it.subject.equals(subject, ignoreCase = true) }
             .filter { matchesGrade(it.gradeLevel, grade) }
             .sortedBy { it.title.lowercase() }
@@ -55,17 +55,17 @@ class PastPaperService(
     fun search(userId: UUID, query: String): List<DocumentItem> {
         val q = query.trim()
         if (q.isEmpty()) return emptyList()
-        return visiblePastPapers(userId)
+        return visiblePracticePapers(userId)
             .filter { it.title.contains(q, ignoreCase = true) || it.subject.contains(q, ignoreCase = true) }
             .sortedBy { it.title.lowercase() }
             .map(::toDocumentItem)
     }
 
     @Transactional
-    fun recordAttempt(userId: UUID, examIdRaw: String, request: PastPaperAttemptRequest) {
+    fun recordAttempt(userId: UUID, examIdRaw: String, request: PracticePaperAttemptRequest) {
         val exam = examForUser(userId, examIdRaw)
-        if (exam.examType != ExamType.PAST_PAPER) {
-            throw invalidArgument("Only past papers accept self-graded attempts")
+        if (exam.examType != ExamType.PRACTICE_PAPER) {
+            throw invalidArgument("Only practice papers accept self-graded attempts")
         }
         val existing = submissionRepository.findByUserIdAndExamId(userId, exam.id)
         val submission = (existing ?: ExamSubmissionEntity().apply {
@@ -85,7 +85,7 @@ class PastPaperService(
         val exam = examForUser(userId, examIdRaw)
         // Keys are embedded in markingScheme, so this must never serve a live
         // digital exam (doc 02 §4.2 obligation 3).
-        if (exam.examType != ExamType.PAST_PAPER) throw notFound("Exam not found")
+        if (exam.examType != ExamType.PRACTICE_PAPER) throw notFound("Exam not found")
         val user = userRepository.findById(userId).orElseThrow { notFound("User not found") }
         val schoolName = exam.schoolId?.let { schoolRepository.findById(it).map { school -> school.name }.orElse("") }
             ?: user.schoolId?.let { schoolRepository.findById(it).map { school -> school.name }.orElse("") }
@@ -144,10 +144,10 @@ class PastPaperService(
         }.ifEmpty { minutes.toString() + "min" }
     }
 
-    private fun visiblePastPapers(userId: UUID): List<ExamEntity> {
+    private fun visiblePracticePapers(userId: UUID): List<ExamEntity> {
         val user = userRepository.findById(userId).orElseThrow { notFound("User not found") }
         return examRepository.findAllByStatus(ExamStatus.PUBLISHED)
-            .filter { it.examType == ExamType.PAST_PAPER }
+            .filter { it.examType == ExamType.PRACTICE_PAPER }
             .filter { exam ->
                 when (exam.scope) {
                     ExamScope.GLOBAL -> true
@@ -174,11 +174,11 @@ class PastPaperService(
     private fun toDocumentItem(exam: ExamEntity) = DocumentItem(
         id = exam.id.toString(),
         title = exam.title,
-        source = DocumentSourcePayload(type = "REMOTE", url = "/past-papers/" + exam.id + "/content"),
+        source = DocumentSourcePayload(type = "REMOTE", url = "/practice-papers/" + exam.id + "/content"),
         coverUrl = exam.coverImageUrl,
         addedAt = exam.createdAt.toEpochMilli(),
         code = exam.clientId,
-        isPastPaper = exam.examType == ExamType.PAST_PAPER,
+        isPracticePaper = exam.examType == ExamType.PRACTICE_PAPER,
         grade = exam.gradeLevel?.let { "Grade " + it },
         subject = exam.subject,
         scope = exam.scope.name,

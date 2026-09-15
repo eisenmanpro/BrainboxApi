@@ -219,12 +219,12 @@ class GeneratedContentServingTests(
     }
 
     @Test
-    fun `published past paper content still serves`() {
+    fun `published practice paper content still serves`() {
         val admin = adminToken()
-        val examId = createPastPaper(admin)
+        val examId = createPracticePaper(admin)
 
         val response = mockMvc.perform(
-            get("/past-papers/" + examId + "/content").header("Authorization", auth(learnerToken()))
+            get("/practice-papers/" + examId + "/content").header("Authorization", auth(learnerToken()))
         ).andExpect(status().isOk).andReturn().response.contentAsString
 
         val content = objectMapper.readValue(response, ExamContentPayload::class.java)
@@ -314,11 +314,11 @@ class GeneratedContentServingTests(
         return objectMapper.readValue(response, AuthResponse::class.java).sessionToken!!
     }
 
-    private fun createPastPaper(admin: String): String {
+    private fun createPracticePaper(admin: String): String {
         val request = CreateExamRequest(
-            title = "Serving Past Paper",
+            title = "Serving Practice Paper",
             subject = "Mathematics",
-            examType = "PAST_PAPER",
+            examType = "PRACTICE_PAPER",
             durationMinutes = 60,
             examYear = 2024,
             questions = listOf(

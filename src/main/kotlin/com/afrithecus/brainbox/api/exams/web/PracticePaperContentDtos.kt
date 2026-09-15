@@ -1,7 +1,7 @@
 package com.afrithecus.brainbox.api.exams.web
 
 /**
- * Past-paper content payload (doc 02 §4.2). Raw JSON matching the Android
+ * Practice-paper content payload (doc 02 §4.2). Raw JSON matching the Android
  * ExamContent contract; sections carry a discriminant "type" tag so the client
  * parser can pick the right sealed subtype. Answer keys travel inside
  * markingScheme for v1 offline self-grading (doc 02 §4.2 obligation 3).

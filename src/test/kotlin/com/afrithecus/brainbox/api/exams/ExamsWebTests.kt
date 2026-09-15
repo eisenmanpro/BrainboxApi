@@ -121,7 +121,7 @@ class ExamsWebTests(
         check(state.quizzesCount == 1)
         check(state.inProgressCount == 0)
         check(state.completedCount == 0)
-        check(state.pastPapersCount == 0)
+        check(state.practicePapersCount == 0)
     }
 
     @Test

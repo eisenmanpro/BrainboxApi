@@ -71,7 +71,7 @@ component rather than two.
 One durable job per content request: `reason → generate → critique → revise → (escalate) →
 store`. It must be **bounded and resumable**: a max-iteration and cost ceiling, an acceptance
 criterion per task type, and persisted state so a crash resumes rather than restarts. It owns
-the task type (hub book, readable chunk, quiz, past paper, homework), loads the concept +
+the task type (hub book, readable chunk, quiz, practice paper, homework), loads the concept +
 curriculum mapping + learner context, selects the subject agent, routes a versioned prompt, and
 decides when to escalate to a human.
 
@@ -221,7 +221,7 @@ The diagram's Subject A..N map to sub-agents, but the BrainBox standard means ea
 *concept + subject + pedagogy*: the same concept taught the BrainBox way. Expect dedicated
 roles beyond subjects — a **diagram/figure agent** (labelled SVG drawings), a **localisation
 agent** (examples, names, money, language), and an **assessment agent** (nested questions,
-past papers). All are stateless workers the loop can call in parallel.
+practice papers). All are stateless workers the loop can call in parallel.
 
 ### 2.3.1 The concept layer (locked: build now, Kenya as first mapping)
 
@@ -408,7 +408,7 @@ comments, side-by-side diff and rollback, served by the local console (§5). Thr
   visible to teachers (so they can rate it) and moderators, never to learners. Existing and
   teacher-uploaded rows are backfilled `REVIEWED` so nothing disappears; the model writer inserts
   `UNREVIEWED`. The filter applies to every learner read whose table the model writes to —
-  learning posts/content, readable materials, past papers/exams — and is part of the 7.0 contract
+  learning posts/content, readable materials, practice papers/exams — and is part of the 7.0 contract
   work, not an afterthought.
 - **One exception.** The real-time personalised path (§3.A2) is generated per request and returned
   after the synchronous rule filter instead of being read from the shared corpus, so it is the
@@ -489,7 +489,7 @@ licence, block the restricted set (KICD, KNEC, CC BY-NC/SA), and never reproduce
 ### 2.10 Delivery
 
 Public store → existing client surfaces (`learning/post/{id}/content`, `materials/readable/{id}`,
-`past-papers/{examId}/content`) via the API-call path, with the 7.0 contract fixes applied first.
+`practice-papers/{examId}/content`) via the API-call path, with the 7.0 contract fixes applied first.
 
 **Read-path caching is origin-side (H1).** There is no third-party CDN in the Brainbox
 deployment (data sovereignty), so those three reads are cached at the origin: each returns a
@@ -512,7 +512,7 @@ it tagged `UNREVIEWED` — a later moderator pass promotes or pulls it. Bulk con
 queue; the latency budget is what separates the two.
 
 **B. Quiz / flashcards.** Same unit, projected as an assessment block; answer keys stored
-separately and stripped for hub delivery, kept for past papers.
+separately and stripped for hub delivery, kept for practice papers.
 
 **C. Personalised exam paper.** Exam template + learner weak topics (mastery) + web intel →
 assessment agent → critique → human review → Exam hub `private`, then `public`.

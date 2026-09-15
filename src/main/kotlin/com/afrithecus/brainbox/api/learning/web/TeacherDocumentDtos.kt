@@ -24,7 +24,7 @@ data class TeacherDocumentPayload(
     val addedAt: Long = 0,
     val teacherId: String? = null,
     val code: String? = null,
-    val isPastPaper: Boolean = false,
+    val isPracticePaper: Boolean = false,
     val grade: String? = null,
     val subject: String? = null,
     val isLocked: Boolean = false,

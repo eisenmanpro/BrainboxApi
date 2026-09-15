@@ -147,7 +147,7 @@ class StudentHomeworkService(
                 // answers; auto-grading still runs when answers are supplied.
                 request.answers?.let { if (!it.isObject) throw invalidArgument("Question-set answers must be an object") }
             }
-            else -> { /* PAST_PAPER_REVIEW content arrives with past-paper flows */ }
+            else -> { /* PRACTICE_PAPER_REVIEW content arrives with practice-paper flows */ }
         }
     }
 

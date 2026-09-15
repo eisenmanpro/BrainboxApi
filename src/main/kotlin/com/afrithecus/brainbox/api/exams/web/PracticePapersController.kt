@@ -1,7 +1,7 @@
 package com.afrithecus.brainbox.api.exams.web
 
 import com.afrithecus.brainbox.api.common.config.HttpCachingConfig
-import com.afrithecus.brainbox.api.exams.PastPaperService
+import com.afrithecus.brainbox.api.exams.PracticePaperService
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
@@ -15,10 +15,10 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
-/** Past-paper discovery + attempt recording (doc 02 §5). */
+/** Practice-paper discovery + attempt recording (doc 02 §5). */
 @RestController
-@RequestMapping("/past-papers")
-class PastPapersController(private val service: PastPaperService) {
+@RequestMapping("/practice-papers")
+class PracticePapersController(private val service: PracticePaperService) {
 
     @GetMapping("/all")
     fun all(
@@ -47,7 +47,7 @@ class PastPapersController(private val service: PastPaperService) {
     fun recordAttempt(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @PathVariable examId: String,
-        @Valid @RequestBody request: PastPaperAttemptRequest,
+        @Valid @RequestBody request: PracticePaperAttemptRequest,
     ): ResponseEntity<Void> {
         service.recordAttempt(currentUser.userId, examId, request)
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build()

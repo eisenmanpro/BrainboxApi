@@ -27,8 +27,8 @@ import tools.jackson.databind.ObjectMapper
 import java.net.URI
 
 /**
- * Homework attachments + past-paper linking (web homework contract): the
- * PAST_PAPER_REVIEW type must carry relatedPaperCode, and submission attachments
+ * Homework attachments + practice-paper linking (web homework contract): the
+ * PRACTICE_PAPER_REVIEW type must carry relatedPaperCode, and submission attachments
  * upload through the shared media endpoint.
  */
 @SpringBootTest
@@ -77,12 +77,12 @@ class HomeworkAttachmentWebTests(
         HomeworkUpsertRequest(
             id = id,
             classId = classId,
-            title = "Past paper review",
-            description = "Review the attached past paper and answer the questions.",
+            title = "Practice paper review",
+            description = "Review the attached practice paper and answer the questions.",
             subject = "Mathematics",
             gradeLevel = 9,
             dueDate = System.currentTimeMillis() + 86_400_000,
-            submissionType = "PAST_PAPER_REVIEW",
+            submissionType = "PRACTICE_PAPER_REVIEW",
             relatedPaperCode = paperCode,
             relatedDocumentId = "doc_2024_1",
             scope = "SCHOOL_GRADE_CLASS",
@@ -90,7 +90,7 @@ class HomeworkAttachmentWebTests(
         )
 
     @Test
-    fun `past paper review requires a paper code and round-trips it`() {
+    fun `practice paper review requires a paper code and round-trips it`() {
         val teacher = newUser("0779500000", "attach.teacher@test", Role.TEACHER)
         val token = login("attach.teacher@test")
         val clazz = classRepository.save(TeacherClassEntity().apply {

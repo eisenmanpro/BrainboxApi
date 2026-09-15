@@ -279,12 +279,12 @@ class TeacherHomeworkService(
         entity.term = request.term ?: entity.term ?: termFor(entity.createdAt)
         entity.dueDate = Instant.ofEpochMilli(request.dueDate)
         val submissionType = parseSubmissionType(request.submissionType)
-        if (submissionType == SubmissionType.PAST_PAPER_REVIEW && request.relatedPaperCode.isNullOrBlank()) {
-            throw invalidArgument("relatedPaperCode is required for PAST_PAPER_REVIEW homework")
+        if (submissionType == SubmissionType.PRACTICE_PAPER_REVIEW && request.relatedPaperCode.isNullOrBlank()) {
+            throw invalidArgument("relatedPaperCode is required for PRACTICE_PAPER_REVIEW homework")
         }
         entity.submissionType = submissionType
         entity.gradingMode = request.gradingMode?.let { parseMode(it) }
-        entity.isPastPaperUnlocked = request.isPastPaperUnlocked
+        entity.isPracticePaperUnlocked = request.isPracticePaperUnlocked
         entity.relatedPaperCode = request.relatedPaperCode?.trim()?.takeIf { it.isNotEmpty() }
         entity.relatedDocumentId = request.relatedDocumentId?.trim()?.takeIf { it.isNotEmpty() }
         entity.cbcStrandTag = request.cbcStrandTag?.trim()?.takeIf { it.isNotEmpty() }
@@ -333,7 +333,7 @@ class TeacherHomeworkService(
         submissionType = homework.submissionType.name,
         checklistItems = codec.parseList(homework.checklistItems),
         gradingMode = homework.gradingMode?.name,
-        isPastPaperUnlocked = homework.isPastPaperUnlocked,
+        isPracticePaperUnlocked = homework.isPracticePaperUnlocked,
         relatedPaperCode = homework.relatedPaperCode,
         relatedDocumentId = homework.relatedDocumentId,
         cbcStrandTag = homework.cbcStrandTag,

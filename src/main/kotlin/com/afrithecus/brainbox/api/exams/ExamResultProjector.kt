@@ -27,7 +27,7 @@ class ExamResultProjector(
 
     /**
      * Full result for a graded submission. [submission] may come from server
-     * grading (online exams) or a self-graded past-paper attempt; the latter has
+     * grading (online exams) or a self-graded practice-paper attempt; the latter has
      * no stored per-question detail, so its client-reported score is treated as
      * fully auto-graded.
      */

@@ -26,7 +26,7 @@ import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
 
 /**
- * End-to-end exam session lifecycle (doc 02 §3) + past-paper attempt recording
+ * End-to-end exam session lifecycle (doc 02 §3) + practice-paper attempt recording
  * (doc 02 §5): start w/ withheld keys, sync idempotency, server grading,
  * results, re-submission rejection.
  */
@@ -222,11 +222,11 @@ class ExamSessionWebTests(
     }
 
     @Test
-    fun `past paper discovery and idempotent attempts`() {
+    fun `practice paper discovery and idempotent attempts`() {
         val student = signup("0770000004")
         val admin = adminToken()
         val request = CreateExamRequest(
-            title = "KCSE 2024 Maths PP1", subject = "Mathematics", examType = "PAST_PAPER",
+            title = "KCSE 2024 Maths PP1", subject = "Mathematics", examType = "PRACTICE_PAPER",
             durationMinutes = 120, examYear = 2024,
             questions = listOf(
                 CreateExamQuestionRequest(text = "Q", type = "MCQ", options = listOf("A", "B"), correctAnswer = "A")
@@ -240,27 +240,27 @@ class ExamSessionWebTests(
         val examId = objectMapper.readValue(created, ExamDetail::class.java).id
 
         val all = mockMvc.perform(
-            get("/past-papers/all").header("Authorization", auth(student.sessionToken!!))
+            get("/practice-papers/all").header("Authorization", auth(student.sessionToken!!))
         ).andExpect(status().isOk).andReturn().response.contentAsString
         val listed = objectMapper.readValue(all, Array<DocumentItem>::class.java)
         val paper = listed.first { it.examYear == 2024 }
         // The Android DocumentItem needs a source descriptor, scope and timestamps.
         check(paper.source.type == "REMOTE")
-        check(paper.scope == "GLOBAL" && paper.isPastPaper)
+        check(paper.scope == "GLOBAL" && paper.isPracticePaper)
         check(paper.addedAt > 0)
 
         val search = mockMvc.perform(
-            get("/past-papers/search?q=KCSE").header("Authorization", auth(student.sessionToken!!))
+            get("/practice-papers/search?q=KCSE").header("Authorization", auth(student.sessionToken!!))
         ).andExpect(status().isOk).andReturn().response.contentAsString
         check(objectMapper.readValue(search, Array<DocumentItem>::class.java).isNotEmpty())
 
         val attempt = """{"score":80,"totalPoints":100,"percentage":80,"submittedAt":${System.currentTimeMillis()}}"""
         mockMvc.perform(
-            post("/past-papers/${examId}/attempts").header("Authorization", auth(student.sessionToken!!))
+            post("/practice-papers/${examId}/attempts").header("Authorization", auth(student.sessionToken!!))
                 .contentType(MediaType.APPLICATION_JSON).content(attempt)
         ).andExpect(status().isNoContent)
         mockMvc.perform(
-            post("/past-papers/${examId}/attempts").header("Authorization", auth(student.sessionToken!!))
+            post("/practice-papers/${examId}/attempts").header("Authorization", auth(student.sessionToken!!))
                 .contentType(MediaType.APPLICATION_JSON).content(attempt)
         ).andExpect(status().isNoContent)
 
@@ -269,10 +269,10 @@ class ExamSessionWebTests(
         val resultBody = mockMvc.perform(
             get("/exams/${examId}/result").header("Authorization", auth(student.sessionToken!!))
         ).andExpect(status().isOk).andReturn().response.contentAsString
-        val pastResult = objectMapper.readValue(resultBody, ExamResultPayload::class.java)
-        check(pastResult.percentage == 80.0)
-        check(pastResult.status == "PUBLISHED")
-        check(pastResult.autoGradedScore == 80)
+        val practiceResult = objectMapper.readValue(resultBody, ExamResultPayload::class.java)
+        check(practiceResult.percentage == 80.0)
+        check(practiceResult.status == "PUBLISHED")
+        check(practiceResult.autoGradedScore == 80)
     }
 
     @Test

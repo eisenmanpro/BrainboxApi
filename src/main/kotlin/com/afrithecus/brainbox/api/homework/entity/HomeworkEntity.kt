@@ -69,10 +69,10 @@ class HomeworkEntity {
     @Column(name = "grading_mode", length = 32)
     var gradingMode: GradingMode? = null
 
-    @Column(name = "is_past_paper_unlocked", nullable = false)
-    var isPastPaperUnlocked: Boolean = false
+    @Column(name = "is_practice_paper_unlocked", nullable = false)
+    var isPracticePaperUnlocked: Boolean = false
 
-    /** Past-paper link required for PAST_PAPER_REVIEW homework. */
+    /** Practice-paper link required for PRACTICE_PAPER_REVIEW homework. */
     @Column(name = "related_paper_code", length = 64)
     var relatedPaperCode: String? = null
 

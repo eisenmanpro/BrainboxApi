@@ -71,7 +71,7 @@ The corpus is two axes, not one list:
 | **Chunk** (a quick topic read) | A short, self-contained topic chunk served as a readable material | The teacher's own PDF / ebook / text file |
 | **Book / full topic** | A hub post — a full topic or book with ordered content blocks | A teacher-published material (same hub shape) |
 
-Assessments — past papers, some homework, quizzes — are agent-generated regardless of size.
+Assessments — practice papers, some homework, quizzes — are agent-generated regardless of size.
 
 Consequences for the pipeline and schema:
 
@@ -118,15 +118,15 @@ Consequences for the pipeline and schema:
   raw JSON alone — the server has to render/cache a document (PDFBox is already on the
   classpath via the report renderer).
 
-### 1.3 Past papers / homework / quizzes — generated assessments (`ExamContent`, homework)
+### 1.3 Practice papers / homework / quizzes — generated assessments (`ExamContent`, homework)
 
-`models/ExamTemplateModels.kt`; backend `api/exams/web/PastPaperContentDtos.kt`
+`models/ExamTemplateModels.kt`; backend `api/exams/web/PracticePaperContentDtos.kt`
 
 - `ExamContent`: `cover` (school, student, time, questionCount, year, mcp, subject),
   `sections[]` discriminated as passage / diagram / standard, `questions[]` (type, options,
   `correctAnswer`, `explanation`, points, difficulty, `matchingPairs`, number, topic,
   subtopic) and `markingScheme` (per-question answers + marks + totals).
-- **Important asymmetry:** a past paper *carries its answer key* so the client can self-grade
+- **Important asymmetry:** a practice paper *carries its answer key* so the client can self-grade
   offline, whereas a hub `QUIZ` is expected to **withhold** the key (`03_…` §2.2). The
   pipeline needs one stored form and two delivery projections.
 
@@ -146,8 +146,8 @@ Verified against the code, not the docs:
 - **All three delivery endpoints already exist**, but only two carry real bodies.
   - `GET /learning/post/{id}/content` returns `learning_content` blocks and recursively
     strips QUIZ keys (`LearningService.contentOf` / `stripKeys`).
-  - `GET /past-papers/{examId}/content` is assembled per request from `exams` +
-    `exam_questions`, PAST_PAPER-only, with the marking scheme embedded.
+  - `GET /practice-papers/{examId}/content` is assembled per request from `exams` +
+    `exam_questions`, PRACTICE_PAPER-only, with the marking scheme embedded.
   - `GET /materials/readable/{id}` was **metadata only** (a `fileUrl` + page count, no
     body) — the single biggest Phase 7 blocker. Fixed: the payload now carries the
     chunk's inline `body` (see the serving-path status below).
@@ -174,8 +174,8 @@ come back in `orderIndex` order with the QUIZ block) and `GET /materials/readabl
 (the generated chunk's inline `body`). Projected quiz metadata now carries the client's
 `questions[].correct` 0-based option index while the learner read still strips every key,
 and an unreviewed/gated unit still returns 404 on both reads. The remaining Phase 7 serving
-gap is generated **past papers** (7.6): `GET /past-papers/{examId}/content` is verified only
-against an admin-created paper because the batch producer does not emit past papers yet.
+gap is generated **practice papers** (7.6): `GET /practice-papers/{examId}/content` is verified only
+against an admin-created paper because the batch producer does not emit practice papers yet.
 
 ### 1.6 Delivery contract blockers (fix before generating anything)
 
@@ -195,7 +195,7 @@ models, so content would not render even if it were seeded. These are Phase 7.0,
 4. **Hub post `status`.** The server omits `status`; the client defaults a missing status to
    `PUBLISHED`, so **archived and scheduled posts would leak to learners**. `authorName`,
    `cbcStrand`, `cbcSubStrand` and `isTrending` are also omitted and never render.
-5. **Past-paper listing.** The server returns a different `DocumentItem`; the client also needs
+5. **Practice-paper listing.** The server returns a different `DocumentItem`; the client also needs
    `grade`, `author`, `description`, `type`, `source`, `coverUrl`, `pageCount`, `sizeBytes`.
    Without `grade` the hub grade filter is meaningless.
 6. **Homework submit path.** The client posts `homework/submit` with the full `Homework` body;
@@ -205,8 +205,8 @@ models, so content would not render even if it were seeded. These are Phase 7.0,
    `POST doubt/questions/{id}/bookmark` with no server mapping, and expects accept/vote to
    return the updated resource while the server returns `204`.
 8. **Progress payloads** drop data: reading progress ignores bookmarks/highlights/annotations
-   and completion; learning progress has no `completedContentIds`. Past-paper attempts are
-   never uploaded and `GET past-papers/all` ignores `grade`.
+   and completion; learning progress has no `completedContentIds`. Practice-paper attempts are
+   never uploaded and `GET practice-papers/all` ignores `grade`.
 
 Until these are aligned, seeding or generating content cannot make staging/prod look
 populated — the dev mocks are what make dev look full.
@@ -221,7 +221,7 @@ populated — the dev mocks are what make dev look full.
 | Grade | Canonical `GRADE <n>` / `FORM <n>` (`GradeNormalizer.kt`); CBC uses raw numbers. Seed must normalise. |
 | CBC taxonomy | Server already seeds **15 strands** across Mathematics, English, Integrated Science, Kiswahili, Social Studies (`V45__cbc_strands_ratings.sql`), all `grade_level='ALL'`, with **no sub-strands or topics**. Physics/Chemistry/Biology/History/Geography have none. |
 | Scope | `GLOBAL` / `SCHOOL` / `SCHOOL_GRADE_CLASS`; generated content inherits the requester's scope. |
-| Answer keys | Hub quizzes strip `correctAnswer`; past papers keep the marking scheme. |
+| Answer keys | Hub quizzes strip `correctAnswer`; practice papers keep the marking scheme. |
 | Offline-first | Content is cached in Room and served while offline; a post must be self-contained enough to render without the network. |
 | Renderability | Notes are markdown; diagrams are inline SVG/URL; video is a URL. No arbitrary HTML/JS. |
 
@@ -256,7 +256,7 @@ ingested, quoted or attributed. Senior school G10–G12 and the remaining non-la
 (Agriculture, Pre-Technical Studies, Creative Arts and the rest) are later work.
 
 **Tier 1 — a batch-generated starter library.** For every topic, produce one `NOTES` post,
-one `QUIZ` and one `FLASHCARDS` set; for every subject×grade, one or two past papers and one
+one `QUIZ` and one `FLASHCARDS` set; for every subject×grade, one or two practice papers and one
 study-guide document. Run as a background batch (the Phase 6 scheduler exists for this),
 moderated once, then cached forever. This is what removes the empty rails.
 
@@ -266,7 +266,7 @@ subject) and enqueues one deterministic job per topic × task type through the d
 `POST /admin/content/batch` is the one-call path and `ContentBatchBootstrap` is the one-command
 (`run-on-startup`) path. The producer defaults to `NOTES` and `QUIZ` because both project to
 `learning_posts`. Flashcards are deferred: the client `ContentType` enum has no flashcards type, so
-there is nothing to render them into; BOOK-like extras and the per-subject×grade past papers and
+there is nothing to render them into; BOOK-like extras and the per-subject×grade practice papers and
 study guides stay in 7.6. Nothing the producer enqueues bypasses the router, the worker, the
 safety/validator gates or the 7.5c auto-approval bar, so a clean unit publishes and anything flagged
 waits in the human exception queue.
@@ -291,14 +291,14 @@ topic, scope, schemaVersion)`.
 
 ## 4. Content schema: from generation envelope to client delivery
 
-`ARCHITECTURE.md` §13.4's `BOOK|PAST_PAPER|QUIZ|NOTES` envelope is a fine internal generation
+`ARCHITECTURE.md` §13.4's `BOOK|PRACTICE_PAPER|QUIZ|NOTES` envelope is a fine internal generation
 contract, but the delivery layer must map it onto the three client models above. Required
 changes/additions:
 
 1. **Carry the CMS fields** the client renders: `subject`, `topic`, `subtopic`, `gradeLevel`
    (canonical), `cbcStrand`, `cbcSubStrand`, `estimatedMinutes`, `difficulty`, `tags`.
 2. **Separate the answer key from the student projection.** Store `correctAnswer`/
-   `explanation`/`matchingPairs` once; deliver them for past papers, strip them for hub quizzes.
+   `explanation`/`matchingPairs` once; deliver them for practice papers, strip them for hub quizzes.
 3. **`metadata` blocks must match the client parsers exactly** (`questions[].correct` index;
    `cards[].front/back`) or the UI silently renders nothing.
 4. **Attribution + licence fields** on every generated item (`sourceUrls[]`, `license`,
@@ -330,9 +330,10 @@ Safe to ground on (permissive and commercial-friendly):
 
 Do **not** ingest: CK-12 (BY-NC), Khan Academy (BY-NC-SA), MIT OCW (BY-NC-SA), Wikimedia text
 (BY-SA), OER Commons items without a strict CC0/CC BY filter, and — most importantly —
-**KICD curriculum designs/textbooks and KNEC past papers**, which are all-rights-reserved.
+**KICD curriculum designs/textbooks and KNEC examination papers**, which are all-rights-reserved.
 KICD's public strand/sub-strand *labels* are facts we can align to; the documents are not a
-source. Generated items must never be attributed to KICD or KNEC, and every item keeps
+source. Brainbox ships generated **PRACTICE papers** and never reproduces or attributes national
+papers. Generated items must never be attributed to KICD or KNEC, and every item keeps
 provenance (source URLs + licence) for audit and to satisfy the Data Protection Act 2019.
 
 **Product mismatch to resolve:** the client `Subject` enum is eight 8-4-4-style subjects,
@@ -445,7 +446,7 @@ versioned table that content is tagged against.
 ## 8. Suggested phasing
 
 0. **7.0 Delivery contract alignment** (§1.6): fix the existing endpoint/model mismatches —
-   materials field names, hub `subject`/`status`/`metadata`/`postId`, past-paper listing,
+   materials field names, hub `subject`/`status`/`metadata`/`postId`, practice-paper listing,
    homework submit path, doubt bookmark/return bodies, and the progress payloads — so generated
    content can actually render in staging/prod.
 1. **7.1 Schema + taxonomy**: content-cache table, taxonomy tables (`cbc_substrands`/`topics`),
@@ -456,7 +457,7 @@ versioned table that content is tagged against.
    `GET /learning/post/{id}/content` and rendered by the real client.
 4. **7.4 Moderation + observability**: validator chain, human queue, audit trail.
 5. **7.5 Seed batch**: run Tier 1 for the priority grade band and subjects; verify the rails.
-6. **7.6 Expand**: past papers + marking schemes, readable study guides, homework/exam/project
+6. **7.6 Expand**: practice papers + marking schemes, readable study guides, homework/exam/project
    and doubt generation, remaining subjects.
 
 ---
@@ -472,6 +473,7 @@ versioned table that content is tagged against.
    server-graded (key withheld). The client supports both.
 4. **Human moderators at launch**, or accept a stricter automated gate + sampled review.
 5. **House byline** ("BrainBox Study Team") vs clearly labelled AI-generated authorship.
-6. **Past-paper sourcing.** KNEC papers are copyrighted, so Tier 1 past papers must either be
-   *generated in the KNEC style* (difficulty-calibrated, never claimed to be real papers) or
-   licensed from a rights holder. Confirm which.
+6. **Practice-paper sourcing.** KNEC examination papers are copyrighted, so Tier 1 practice papers
+   must either be *generated in the KNEC style* (difficulty-calibrated, never claimed to be real
+   national papers) or licensed from a rights holder. Brainbox generates its own PRACTICE papers
+   and never reproduces or attributes national papers. Confirm which.

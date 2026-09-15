@@ -54,7 +54,7 @@ class HttpCachingConfig {
         val CONTENT_READ_PATHS: List<String> = listOf(
             "/learning/post/*/content",
             "/materials/readable/*",
-            "/past-papers/*/content",
+            "/practice-papers/*/content",
         )
 
         private val matcher = AntPathMatcher()

@@ -1,7 +1,7 @@
 package com.afrithecus.brainbox.api.exams.model
 
 /** Exam types (doc 02 §1.2). */
-enum class ExamType { DIGITAL, PAST_PAPER, TRADITIONAL, QUIZ }
+enum class ExamType { DIGITAL, PRACTICE_PAPER, TRADITIONAL, QUIZ }
 
 /** Content scope rules shared with the learning hub (ARCHITECTURE.md §A.2). */
 enum class ExamScope { GLOBAL, SCHOOL, SCHOOL_GRADE_CLASS }

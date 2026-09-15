@@ -89,8 +89,8 @@ data class ExamSubmissionDetailsPayload(
     val markingType: String,
 )
 
-/** Past-paper attempt recorded from the client's self-graded result (doc 02 §5.3). */
-data class PastPaperAttemptRequest(
+/** Practice-paper attempt recorded from the client's self-graded result (doc 02 §5.3). */
+data class PracticePaperAttemptRequest(
     @field:Min(0)
     val score: Int,
     @field:Min(1)
@@ -109,7 +109,7 @@ data class DocumentSourcePayload(
 )
 
 /**
- * Past-paper listing item (doc 02 §5.1). Field names mirror the Android `DocumentItem`
+ * Practice-paper listing item (doc 02 §5.1). Field names mirror the Android `DocumentItem`
  * (models/DocumentModels.kt) so the client maps the payload directly.
  */
 data class DocumentItem(
@@ -126,7 +126,7 @@ data class DocumentItem(
     val isBundled: Boolean = false,
     val addedAt: Long,
     val code: String? = null,
-    val isPastPaper: Boolean = true,
+    val isPracticePaper: Boolean = true,
     val grade: String? = null,
     val subject: String? = null,
     val isLocked: Boolean = false,

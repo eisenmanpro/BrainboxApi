@@ -73,7 +73,7 @@ data class ExamCard(
     val questionCount: Int,
     val difficulty: Int,
     val status: String,
-    val isPastPaper: Boolean,
+    val isPracticePaper: Boolean,
     val examYear: Int? = null,
     val coverImageUrl: String? = null,
     val averageScore: Int? = null,
@@ -87,7 +87,7 @@ data class HubState(
     val completedCount: Int,
     val quizzesCount: Int,
     val savedCount: Int,
-    val pastPapersCount: Int,
+    val practicePapersCount: Int,
 )
 
 /** Listing row for GET /exams (doc 02 §2.3). */
@@ -99,7 +99,7 @@ data class ExamSummary(
     val questionCount: Int,
     val difficulty: Int,
     val status: String,
-    val isPastPaper: Boolean,
+    val isPracticePaper: Boolean,
     val examYear: Int? = null,
     val coverImageUrl: String? = null,
     val averageScore: Int? = null,

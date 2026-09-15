@@ -45,7 +45,7 @@ class ExamCatalogService(
             completedCount = ctx.submissions.size,
             quizzesCount = ctx.visible.filter { it.examType == ExamType.QUIZ }.size,
             savedCount = ctx.sessions.values.count { it.status == SessionStatus.IN_PROGRESS },
-            pastPapersCount = ctx.visible.filter { it.examType == ExamType.PAST_PAPER }.size,
+            practicePapersCount = ctx.visible.filter { it.examType == ExamType.PRACTICE_PAPER }.size,
         )
     }
 
@@ -58,21 +58,21 @@ class ExamCatalogService(
                 .filter { it.status == SessionStatus.IN_PROGRESS }
                 .mapNotNull { s -> examRepository.findById(s.examId).orElse(null)?.let { it.toCard("IN_PROGRESS") } }
             "quizzes" -> ctx.visible.filter { it.examType == ExamType.QUIZ }.map { it.toCard("QUIZ") }
-            "past_papers" -> ctx.visible.filter { it.examType == ExamType.PAST_PAPER }.map { it.toCard("AVAILABLE", isPast = true) }
+            "practice_papers" -> ctx.visible.filter { it.examType == ExamType.PRACTICE_PAPER }.map { it.toCard("AVAILABLE", isPractice = true) }
             "completed", "analytics" -> ctx.submissions.map { s ->
                 val exam = examRepository.findById(s.examId).orElse(null)
                     ?: return@map null
                 exam.toCard("COMPLETED", average = s.percentage, completedAt = s.submittedAt.toEpochMilli())
             }.filterNotNull()
             else -> throw com.afrithecus.brainbox.api.common.error.invalidArgument(
-                "tab must be one of available|in_progress|completed|quizzes|saved|analytics|past_papers"
+                "tab must be one of available|in_progress|completed|quizzes|saved|analytics|practice_papers"
             )
         }
     }
 
     @Transactional(readOnly = true)
     fun allCards(userId: UUID): List<ExamCard> =
-        listOf("available", "in_progress", "quizzes", "past_papers", "completed")
+        listOf("available", "in_progress", "quizzes", "practice_papers", "completed")
             .flatMap { listByTab(userId, it) }
             .distinctBy { it.id + ":" + it.status }
 
@@ -169,7 +169,7 @@ class ExamCatalogService(
             questionCount = exam.questionCount,
             difficulty = exam.difficulty,
             status = exam.status.name,
-            isPastPaper = exam.examType == ExamType.PAST_PAPER,
+            isPracticePaper = exam.examType == ExamType.PRACTICE_PAPER,
             examYear = exam.examYear,
             coverImageUrl = exam.coverImageUrl,
             averageScore = if (subs.isEmpty()) null else subs.map { it.percentage }.average().toInt(),
@@ -181,7 +181,7 @@ class ExamCatalogService(
         cardStatus: String,
         average: Int? = null,
         completedAt: Long? = null,
-        isPast: Boolean = examType == ExamType.PAST_PAPER,
+        isPractice: Boolean = examType == ExamType.PRACTICE_PAPER,
     ) = ExamCard(
         id = id.toString(),
         title = title,
@@ -190,7 +190,7 @@ class ExamCatalogService(
         questionCount = questionCount,
         difficulty = difficulty,
         status = cardStatus,
-        isPastPaper = isPast,
+        isPracticePaper = isPractice,
         examYear = examYear,
         coverImageUrl = coverImageUrl,
         averageScore = average,

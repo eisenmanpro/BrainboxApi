@@ -112,11 +112,11 @@ class HttpReadCachingWebTests(
         return objectMapper.readValue(response, ReadableFilePayload::class.java).id
     }
 
-    private fun createPastPaper(admin: String): String {
+    private fun createPracticePaper(admin: String): String {
         val request = CreateExamRequest(
             title = "H1 Cached Paper",
             subject = "Mathematics",
-            examType = "PAST_PAPER",
+            examType = "PRACTICE_PAPER",
             durationMinutes = 60,
             examYear = 2024,
             questions = listOf(
@@ -170,11 +170,11 @@ class HttpReadCachingWebTests(
         val token = student.sessionToken!!
         val postId = createPost(admin)
         val fileId = createReadable(admin)
-        val paperId = createPastPaper(admin)
+        val paperId = createPracticePaper(admin)
 
         assertOriginCached("/learning/post/" + postId + "/content", token)
         assertOriginCached("/materials/readable/" + fileId, token)
-        assertOriginCached("/past-papers/" + paperId + "/content", token)
+        assertOriginCached("/practice-papers/" + paperId + "/content", token)
     }
 
     private companion object {

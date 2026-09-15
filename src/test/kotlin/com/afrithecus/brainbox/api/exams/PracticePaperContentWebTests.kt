@@ -24,7 +24,7 @@ import tools.jackson.databind.ObjectMapper
 import java.util.UUID
 
 /**
- * Past-paper content delivery (doc 02 §4.2): real cover metadata, a STANDARD
+ * Practice-paper content delivery (doc 02 §4.2): real cover metadata, a STANDARD
  * section with per-question keys inside markingScheme, and refusal to serve a
  * live digital exam whose keys must stay server-side.
  */
@@ -32,7 +32,7 @@ import java.util.UUID
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
-class PastPaperContentWebTests(
+class PracticePaperContentWebTests(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val userRepository: UserRepository,
@@ -93,13 +93,13 @@ class PastPaperContentWebTests(
     }
 
     @Test
-    fun `past paper content carries cover and marking scheme`() {
+    fun `practice paper content carries cover and marking scheme`() {
         val admin = adminToken()
-        val paperId = seedExam(admin, "PAST_PAPER", "KCSE 2024 Mathematics Paper 1")
+        val paperId = seedExam(admin, "PRACTICE_PAPER", "KCSE 2024 Mathematics Paper 1")
         val student = signup("0779400010")
 
         val content = objectMapper.readValue(
-            mockMvc.perform(get("/past-papers/${paperId}/content").header("Authorization", auth(student.sessionToken!!)))
+            mockMvc.perform(get("/practice-papers/${paperId}/content").header("Authorization", auth(student.sessionToken!!)))
                 .andExpect(status().isOk).andReturn().response.contentAsString,
             ExamContentPayload::class.java,
         )
@@ -132,12 +132,12 @@ class PastPaperContentWebTests(
         val student = signup("0779400011")
 
         // keys embedded in markingScheme must never be served for a live exam
-        mockMvc.perform(get("/past-papers/${digitalId}/content").header("Authorization", auth(student.sessionToken!!)))
+        mockMvc.perform(get("/practice-papers/${digitalId}/content").header("Authorization", auth(student.sessionToken!!)))
             .andExpect(status().isNotFound)
-        mockMvc.perform(get("/past-papers/not-a-uuid/content").header("Authorization", auth(student.sessionToken!!)))
+        mockMvc.perform(get("/practice-papers/not-a-uuid/content").header("Authorization", auth(student.sessionToken!!)))
             .andExpect(status().isBadRequest)
-        mockMvc.perform(get("/past-papers/${UUID.randomUUID()}/content").header("Authorization", auth(student.sessionToken!!)))
+        mockMvc.perform(get("/practice-papers/${UUID.randomUUID()}/content").header("Authorization", auth(student.sessionToken!!)))
             .andExpect(status().isNotFound)
-        mockMvc.perform(get("/past-papers/${digitalId}/content")).andExpect(status().isUnauthorized)
+        mockMvc.perform(get("/practice-papers/${digitalId}/content")).andExpect(status().isUnauthorized)
     }
 }

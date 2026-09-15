@@ -131,7 +131,7 @@ class ExamAuthoringService(
         questionCount = exam.questionCount,
         difficulty = exam.difficulty,
         status = exam.status.name,
-        isPastPaper = exam.examType == ExamType.PAST_PAPER,
+        isPracticePaper = exam.examType == ExamType.PRACTICE_PAPER,
         examYear = exam.examYear,
         coverImageUrl = exam.coverImageUrl,
         averageScore = averageScore(exam.id),
