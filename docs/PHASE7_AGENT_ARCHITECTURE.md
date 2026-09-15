@@ -234,11 +234,13 @@ whenever every gate holds, so teachers and Brainbox moderators only ever handle 
   turn the machine off for a deployment.
 - `auto_approve_min_validator_score` (double, default **1.0**): the report must have no blockers
   and score at least this; 1.0 means zero findings (no warnings or infos).
-- `auto_approve_min_questions` (int, default **8**): when a unit carries any questions it needs at
-  least this many.
 - `auto_approve_min_critic_confidence` (double, default **0.90**): when a unit carries any
   questions the model confidence must be non-null and at least this; a null confidence fails
   closed.
+- `auto_approve_min_questions` (int, default **8**): applies to **assessment task types**
+  (`QUIZ`/`EXAM`/`ASSESSMENT`) that carry questions, where the question count is the product. A
+  `NOTES`/readable micro-lesson may carry a few nested checks (the BrainBox standard wants them)
+  and is not held to the floor; it is still bound by the validator-score and confidence gates.
 
 The unit must also still be `UNREVIEWED`: the machine never touches a `REVIEWED` or `REJECTED`
 unit, so a human decision and its reviewer attribution are never clobbered. On approval the unit

@@ -183,14 +183,27 @@ class ContentValidationTests(
     }
 
     @Test
-    fun `auto-approval refuses a unit with fewer than the minimum questions`() {
-        val unit = seedAutoApprovableUnit(questionCount = 7)
+    fun `auto-approval refuses an assessment with fewer than the minimum questions`() {
+        val unit = seedAutoApprovableUnit(questionCount = 7, taskType = "QUIZ")
 
         check(autoApproval.maybeAutoApprove("UNIT", unit.id).not())
 
         entityManager.flush()
         entityManager.clear()
         check(contentUnits.findById(unit.id).orElseThrow().reviewState == "UNREVIEWED")
+    }
+
+    @Test
+    fun `auto-approval approves a NOTES unit with nested questions below the assessment floor`() {
+        // A micro-lesson legitimately carries a few nested checks; the 8-question floor is
+        // an assessment rule, so this must still auto-approve.
+        val unit = seedAutoApprovableUnit(questionCount = 4, taskType = "NOTES")
+
+        check(autoApproval.maybeAutoApprove("UNIT", unit.id))
+
+        entityManager.flush()
+        entityManager.clear()
+        check(contentUnits.findById(unit.id).orElseThrow().reviewState == "REVIEWED")
     }
 
     @Test
@@ -295,6 +308,7 @@ class ContentValidationTests(
         questionCount: Int = 8,
         confidence: Double? = 0.95,
         reviewState: String = "UNREVIEWED",
+        taskType: String = "NOTES",
     ): ContentUnitEntity {
         val concept = concepts.save(concept())
         curriculumMaps.save(
@@ -307,6 +321,7 @@ class ContentValidationTests(
         )
         val unit = contentUnits.save(
             unit(title = "Fractions made simple", conceptId = concept.id).apply {
+                this.taskType = taskType
                 this.confidence = confidence
                 this.reviewState = reviewState
             }

@@ -18,7 +18,8 @@ import tools.jackson.databind.ObjectMapper
  * - `quorum_required` (int, default 2): distinct-human approvals for the human path.
  * - `auto_approve_enabled` (boolean, default true): machine-first bulk approval.
  * - `auto_approve_min_validator_score` (double, default 1.0): zero validator findings.
- * - `auto_approve_min_questions` (int, default 8): minimum questions when a unit has any.
+ * - `auto_approve_min_questions` (int, default 8): minimum questions for an assessment task type
+ *   (QUIZ/EXAM/ASSESSMENT); a NOTES unit with nested checks is not held to the floor.
  * - `auto_approve_min_critic_confidence` (double, default 0.90): model-confidence floor,
  *   fail-closed when the unit carries no confidence.
  */

@@ -21,11 +21,13 @@ import java.util.UUID
  *  2. the validator report has no blockers;
  *  3. the validator score is at least `auto_approve_min_validator_score`
  *     (default 1.0, i.e. zero findings);
- *  4. if the unit has questions, it carries at least `auto_approve_min_questions`
- *     (default 8);
- *  5. if the unit has questions, its critic confidence is non-null and at least
+ *  4. if the unit has questions, its critic confidence is non-null and at least
  *     `auto_approve_min_critic_confidence` (default 0.90; a null confidence fails
  *     closed);
+ *  5. if the unit is an assessment task type (QUIZ/EXAM/ASSESSMENT) and has
+ *     questions, it carries at least `auto_approve_min_questions` (default 8). A
+ *     NOTES micro-lesson may carry a few nested checks without meeting 8, because
+ *     the question count is not the product there;
  *  6. the unit is still `UNREVIEWED`, so a human decision (REVIEWED or REJECTED)
  *     is never touched, overwritten or re-attributed.
  *
@@ -59,9 +61,13 @@ class AutoApprovalService(
 
         val questionCount = unitQuestions.findAllByUnitIdOrderByOrderIndexAsc(contentId).size
         if (questionCount > 0) {
-            if (questionCount < moderationPolicy.autoApproveMinQuestions()) return false
             val confidence = unit.confidence ?: return false
             if (confidence < moderationPolicy.autoApproveMinCriticConfidence()) return false
+            // The question-count floor is an assessment rule. A NOTES/readable unit with a
+            // few nested checks is exactly the BrainBox standard, so it must not be held to 8.
+            if (isAssessment(unit.taskType) && questionCount < moderationPolicy.autoApproveMinQuestions()) {
+                return false
+            }
         }
 
         unit.reviewState = STATE_REVIEWED
@@ -83,8 +89,14 @@ class AutoApprovalService(
         return true
     }
 
+    private fun isAssessment(taskType: String): Boolean =
+        taskType.trim().uppercase() in ASSESSMENT_TASK_TYPES
+
     private companion object {
         const val STATE_UNREVIEWED = "UNREVIEWED"
         const val STATE_REVIEWED = "REVIEWED"
+
+        /** Task types where the question count is the product, so the floor applies. */
+        val ASSESSMENT_TASK_TYPES = setOf("QUIZ", "EXAM", "ASSESSMENT")
     }
 }
