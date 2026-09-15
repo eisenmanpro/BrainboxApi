@@ -39,8 +39,8 @@ class GenerationJobController(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @RequestBody request: GenerateContentRequest,
     ): GenerationJobPayload {
-        actor(currentUser)
-        val job = service.enqueue(request.toGenerationRequest(), GenerationJobSource.USER)
+        val user = actor(currentUser)
+        val job = service.enqueue(request.toGenerationRequest(), GenerationJobSource.USER, user.schoolId)
         return payload(job)
     }
 

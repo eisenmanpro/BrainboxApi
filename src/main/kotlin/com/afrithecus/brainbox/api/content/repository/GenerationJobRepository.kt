@@ -21,6 +21,12 @@ interface GenerationJobSourceStatusCount {
     val total: Long
 }
 
+/** One school -> count row for the H3 per-school daily budget usage. */
+interface GenerationJobSchoolCount {
+    val schoolId: UUID
+    val total: Long
+}
+
 interface GenerationJobRepository : JpaRepository<GenerationJobEntity, UUID> {
 
     fun findAllByStatusOrderByCreatedAtAsc(status: String): List<GenerationJobEntity>
@@ -38,6 +44,19 @@ interface GenerationJobRepository : JpaRepository<GenerationJobEntity, UUID> {
             "GROUP BY j.source, j.status"
     )
     fun countGroupedBySourceAndStatus(): List<GenerationJobSourceStatusCount>
+
+    /** H3 platform budget usage: rows created at or after the start of the UTC day. */
+    fun countByCreatedAtGreaterThanEqual(createdAt: Instant): Long
+
+    /** H3 per-school budget usage: rows for [schoolId] created since the day start. */
+    fun countBySchoolIdAndCreatedAtGreaterThanEqual(schoolId: UUID, createdAt: Instant): Long
+
+    /** H3 admin visibility: jobs created since the day start grouped by school. */
+    @Query(
+        "SELECT j.schoolId AS schoolId, COUNT(j) AS total FROM GenerationJobEntity j " +
+            "WHERE j.createdAt >= :since AND j.schoolId IS NOT NULL GROUP BY j.schoolId"
+    )
+    fun countGroupedBySchoolSince(@Param("since") since: Instant): List<GenerationJobSchoolCount>
 
     /** Router upsert lookup: the newest job row for a generation key. */
     fun findAllByGenerationKeyOrderByCreatedAtAsc(generationKey: String): List<GenerationJobEntity>

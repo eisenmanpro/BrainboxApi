@@ -41,4 +41,13 @@ class ContentQueueAdminController(private val service: ContentQueueAdminService)
     @PutMapping("/sources")
     fun sources(@RequestBody request: ContentQueueSourcesRequest): ContentQueueSummary =
         service.setSources(request.sources)
+
+    /** H3: effective daily generation budgets plus today's platform usage. */
+    @GetMapping("/budget")
+    fun budget(): ContentQueueBudget = service.budget()
+
+    /** H3: sets one or both daily generation budgets and returns the new snapshot. */
+    @PutMapping("/budget")
+    fun budget(@RequestBody request: ContentQueueBudgetRequest): ContentQueueBudget =
+        service.setBudget(request)
 }

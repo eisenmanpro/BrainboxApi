@@ -54,4 +54,12 @@ class GenerationJobEntity : BaseEntity() {
 
     @Column(name = "run_id")
     var runId: UUID? = null
+
+    /**
+     * H3 per-school budget attribution: the requesting user's school when known
+     * (V71). Null for platform batch/proactive work, which counts only against the
+     * platform-wide daily budget.
+     */
+    @Column(name = "school_id")
+    var schoolId: UUID? = null
 }

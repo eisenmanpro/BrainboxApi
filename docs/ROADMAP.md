@@ -588,9 +588,22 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       set the policy and return the new summary, rejecting an unknown source with
       400. This lets a launch pause autonomous material generation without a
       redeploy while user-triggered generation keeps working.
-- [ ] H3 hardening - quotas and backpressure: per-tenant/per-provider generation
-      quotas and a bounded queue admission policy so a burst cannot starve the
-      request path.
+- [x] H3 hardening - daily generation budgets and batch backpressure. Enqueue is
+      capped before a new row is written by two runtime policy keys in the same
+      `moderation_policies` table: `generation_daily_job_budget` (int, default 500,
+      platform-wide jobs per UTC day) and `generation_daily_school_job_budget` (int,
+      default 100, jobs per school per UTC day); 0 or a negative value means unlimited.
+      V71 adds `generation_jobs.school_id` (set from the requesting teacher's school;
+      null for platform batch work) with an index on (school_id, created_at), so the
+      per-school day count is cheap. Over budget the enqueue throws
+      `TOO_MANY_REQUESTS` naming the budget and the UTC-day window and writes nothing;
+      re-enqueuing an existing generation key is never blocked because it creates no new
+      work. The Tier 1 batch producer stops at the first rejection, keeps the jobs already
+      enqueued and returns 200 with `budgetStopped` and `remainingCandidates` instead of
+      failing the call. `GET/PUT /admin/content/queue/budget` (ADMIN) reads the effective
+      caps plus today's platform usage and sets them, and
+      `brainbox.content.budget.used{scope=platform}` gauges usage beside queue depth.
+      Per-provider quotas and a Redis-backed multi-node budget remain future work.
 - [x] Conflict resolution, retry and resilience: JPA optimistic-lock failures map to a counted
       `409` instead of a `500`; a bounded exponential-backoff `Retry` (no extra dependency)
       wraps the FCM token exchange and transient sends; the idempotency filter, rate limiter,

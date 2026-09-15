@@ -172,6 +172,28 @@ runtime policy decision instead of an all-or-nothing drain:
   and `/resume` flip `content_worker_paused`; `PUT /admin/content/queue/sources`
   replaces the enabled sources and rejects an unknown name (400). Each write
   returns the new summary.
+- **Daily generation budgets and batch backpressure (H3).** Because the platform
+  pays per token, the enqueue path is capped before it writes new work. Two runtime
+  policy keys in the same `moderation_policies` table set the cap per calendar UTC
+  day:
+  - `generation_daily_job_budget` (int, default 500) - newly enqueued jobs
+    platform-wide per UTC day.
+  - `generation_daily_school_job_budget` (int, default 100) - newly enqueued jobs
+    per school per UTC day. The requesting user's school is recorded on the job
+    (V71 `generation_jobs.school_id`); platform batch/proactive work carries no
+    school and counts only against the platform cap.
+  A value of 0 (or a directly stored negative) means unlimited, so a bad write can
+  never block all generation. The check runs before the row is written: over budget
+  is a `429 TOO_MANY_REQUESTS` whose message names the budget and the UTC-day
+  window, with a `Retry-After` to the next UTC midnight, and no row is written.
+  Re-enqueuing an existing generation key creates no new work and is never blocked.
+  A batch producer that hits the cap stops cleanly - the jobs already enqueued are
+  kept and the response is a 200 summary with `budgetStopped: true` and
+  `remainingCandidates`. An operator reads today's usage and changes the caps with
+  `GET/PUT /admin/content/queue/budget`, and
+  `brainbox.content.budget.used{scope=platform}` exposes the same usage beside
+  the queue-depth gauge. Per-provider quotas and a Redis-backed multi-node budget
+  remain future work.
 
 **Launch runbook - pause autonomous generation without stopping user requests.**
 When a launch or an incident needs the worker to stop producing seed material

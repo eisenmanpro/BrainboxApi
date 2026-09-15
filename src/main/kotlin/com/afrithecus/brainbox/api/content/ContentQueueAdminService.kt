@@ -2,6 +2,8 @@ package com.afrithecus.brainbox.api.content
 
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.content.repository.GenerationJobRepository
+import com.afrithecus.brainbox.api.content.web.ContentQueueBudget
+import com.afrithecus.brainbox.api.content.web.ContentQueueBudgetRequest
 import com.afrithecus.brainbox.api.content.web.ContentQueueSummary
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -21,6 +23,7 @@ class ContentQueueAdminService(
     private val generationJobs: GenerationJobRepository,
     private val moderationPolicy: ModerationPolicyService,
     private val properties: AppContentProperties,
+    private val budgets: GenerationBudgetService,
 ) {
 
     /** Live policy plus queue depth; a pure read, no writes. */
@@ -69,6 +72,22 @@ class ContentQueueAdminService(
         }
         moderationPolicy.setContentWorkerSources(normalized)
         return summary()
+    }
+
+    /** H3: effective daily budgets plus today's platform usage and schools over budget. */
+    @Transactional(readOnly = true)
+    fun budget(): ContentQueueBudget = ContentQueueBudget(
+        platformBudget = budgets.platformBudget(),
+        platformUsed = budgets.platformUsedToday(),
+        schoolBudget = budgets.schoolBudget(),
+        schoolsOverBudget = budgets.schoolsOverBudget(),
+    )
+
+    /** H3: sets one or both daily budgets and returns the new snapshot. */
+    @Transactional
+    fun setBudget(request: ContentQueueBudgetRequest): ContentQueueBudget {
+        budgets.setBudgets(request.platformDailyJobs, request.schoolDailyJobs)
+        return budget()
     }
 
     /** Every canonical status is present so the shape is stable for an operator UI. */

@@ -1,5 +1,7 @@
 package com.afrithecus.brainbox.api.content.batch
 
+import com.afrithecus.brainbox.api.common.error.ApiErrorCode
+import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.content.GenerationJobService
 import com.afrithecus.brainbox.api.content.GenerationJobSource
@@ -9,6 +11,7 @@ import com.afrithecus.brainbox.api.content.repository.ConceptRepository
 import com.afrithecus.brainbox.api.content.repository.GenerationJobRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import java.util.UUID
 
 /**
  * Phase 7.5e Tier 1 batch producer. It resolves the leaf `topic` concepts of the
@@ -20,6 +23,11 @@ import org.springframework.stereotype.Service
  *
  * Enqueue is idempotent per generation key, so re-running the batch reuses the
  * existing `generation_jobs` row instead of duplicating work.
+ *
+ * H3: the loop stops at the first daily-budget rejection. The jobs already
+ * enqueued are kept and committed, and the summary reports `budgetStopped` plus
+ * the remaining candidate slots so the endpoint returns a 200 partial result
+ * instead of failing the whole call once progress has been made.
  */
 @Service
 class ContentBatchService(
@@ -64,31 +72,55 @@ class ContentBatchService(
         val selected = matched.take(limit)
         val truncated = selected.size < matched.size
 
+        val slots = selected.flatMap { topic -> taskTypes.map { taskType -> topic to taskType } }
+
         var enqueued = 0
         var alreadyPresent = 0
-        for (topic in selected) {
-            for (taskType in taskTypes) {
-                val generationRequest = buildRequest(topic, taskType, gradeLevel, language, standardVersion)
-                val existing = generationJobs
-                    .findAllByGenerationKeyOrderByCreatedAtAsc(generationRequest.generationKey)
-                    .isNotEmpty()
+        var processed = 0
+        var budgetStopped = false
+        val processedTopics = linkedSetOf<UUID>()
+
+        for ((topic, taskType) in slots) {
+            val generationRequest = buildRequest(topic, taskType, gradeLevel, language, standardVersion)
+            val existing = generationJobs
+                .findAllByGenerationKeyOrderByCreatedAtAsc(generationRequest.generationKey)
+                .isNotEmpty()
+            try {
                 jobService.enqueue(generationRequest, GenerationJobSource.BATCH)
-                if (existing) alreadyPresent++ else enqueued++
+            } catch (blocked: ApiException) {
+                if (blocked.code != ApiErrorCode.TOO_MANY_REQUESTS) throw blocked
+                // H3 backpressure: one over-budget job must not fail a call that has
+                // already made progress, so keep the enqueued jobs and stop cleanly.
+                budgetStopped = true
+                log.warn(
+                    "Tier 1 batch stopped at the daily generation budget after {} of {} job slots: {}",
+                    processed,
+                    slots.size,
+                    blocked.message,
+                )
+                break
             }
+            processed++
+            processedTopics += topic.id
+            if (existing) alreadyPresent++ else enqueued++
         }
+        val remainingCandidates = slots.size - processed
 
         val summary = ContentBatchSummary(
             subject = subject,
             gradeLevel = gradeLevel,
             taskTypes = taskTypes,
             conceptsMatched = matched.size,
-            conceptsQueued = selected.size,
+            conceptsQueued = processedTopics.size,
             jobsEnqueued = enqueued,
             jobsAlreadyPresent = alreadyPresent,
             truncated = truncated,
+            budgetStopped = budgetStopped,
+            remainingCandidates = remainingCandidates,
         )
         log.info(
-            "Tier 1 batch enqueued: subject={} gradeLevel={} taskTypes={} conceptsMatched={} conceptsQueued={} jobsEnqueued={} jobsAlreadyPresent={} truncated={}",
+            "Tier 1 batch enqueued: subject={} gradeLevel={} taskTypes={} conceptsMatched={} conceptsQueued={} " +
+                "jobsEnqueued={} jobsAlreadyPresent={} truncated={} budgetStopped={} remainingCandidates={}",
             summary.subject,
             summary.gradeLevel,
             summary.taskTypes,
@@ -97,6 +129,8 @@ class ContentBatchService(
             summary.jobsEnqueued,
             summary.jobsAlreadyPresent,
             summary.truncated,
+            summary.budgetStopped,
+            summary.remainingCandidates,
         )
         return summary
     }

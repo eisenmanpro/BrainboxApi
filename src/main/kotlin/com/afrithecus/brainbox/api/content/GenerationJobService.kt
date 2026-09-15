@@ -27,6 +27,8 @@ class GenerationJobService(
     private val properties: AppContentProperties,
     private val mapper: ObjectMapper,
     private val clock: Clock,
+    /** H3 daily budget/backpressure gate; enforced before a new row is written. */
+    private val budget: GenerationBudgetService,
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -39,10 +41,17 @@ class GenerationJobService(
      * H2: the job records [source] (default [GenerationJobSource.USER]). An
      * existing row is never downgraded to a lower-priority source, so a batch
      * re-enqueue cannot turn a queued interactive request into BATCH work.
+     *
+     * H3: [schoolId] is the requesting user's school when known and is the
+     * attribution for the per-school daily budget. A new row is charged against the
+     * daily budgets and an exhausted budget throws a 429 before anything is written;
+     * re-enqueuing an existing generation key creates no new work and is therefore
+     * never blocked by the budget.
      */
     fun enqueue(
         request: GenerationRequest,
         source: String = GenerationJobSource.USER,
+        schoolId: UUID? = null,
     ): GenerationJobEntity {
         val requestedSource = GenerationJobSource.normalize(source)
         val existing = generationJobs
@@ -50,7 +59,11 @@ class GenerationJobService(
             .lastOrNull()
         if (existing != null && existing.status == STATUS_SUCCEEDED) return existing
 
+        // H3: idempotency before budget. Only a brand-new key spends budget.
+        if (existing == null) budget.enforce(schoolId)
+
         val job = existing ?: GenerationJobEntity()
+        if (schoolId != null) job.schoolId = schoolId
         job.generationKey = request.generationKey
         job.taskType = request.taskType
         job.conceptId = conceptId(request.conceptCode)

@@ -59,6 +59,8 @@ class ContentBatchServiceTests(
     @Autowired private val learningService: LearningService,
     @Autowired private val users: UserRepository,
     @Autowired private val entityManager: EntityManager,
+    @Autowired private val moderationPolicy: ModerationPolicyService,
+    @Autowired private val budgets: GenerationBudgetService,
 ) {
 
     private val fake: ContentRouterTests.FakeContentGenerationProvider
@@ -225,6 +227,25 @@ class ContentBatchServiceTests(
         check(generationJobs.findAllByGenerationKeyOrderByCreatedAtAsc(key).single().status == "SUCCEEDED")
     }
 
+    @Test
+    fun `the batch stops at the daily budget and reports the remaining candidates`() {
+        val used = budgets.platformUsedToday()
+        moderationPolicy.setGenerationDailyJobBudget(used.toInt() + 1)
+
+        val summary = service.enqueueBatch(
+            ContentBatchRequest(gradeLevel = "Grade 4", subject = "Mathematics", limit = 50)
+        )
+
+        // Two topics x two task types = four slots; the first is enqueued, the second is blocked.
+        check(summary.budgetStopped) { "the run must report that the budget stopped it" }
+        check(summary.jobsEnqueued == 1)
+        check(summary.conceptsQueued == 1)
+        check(summary.conceptsMatched == 2)
+        check(summary.remainingCandidates == 3)
+        check(generationJobs.count() == used + 1) { "the blocked slot and the rest must not be written" }
+        check(!summary.truncated)
+    }
+
     private fun concept(code: String, name: String, subject: String, parentId: UUID?): ConceptEntity =
         concepts.save(
             ConceptEntity().apply {
@@ -281,6 +302,8 @@ class ContentBatchControllerTests(
     @Autowired private val curriculumMaps: CurriculumMapRepository,
     @Autowired private val users: UserRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
+    @Autowired private val moderationPolicy: ModerationPolicyService,
+    @Autowired private val budgets: GenerationBudgetService,
 ) {
 
     private var sortOrder = 0
@@ -383,6 +406,29 @@ class ContentBatchControllerTests(
         check(candidates.gradeLevel == "Grade 4")
         check(candidates.subject == "Mathematics")
         check(candidates.conceptsMatched == 2)
+    }
+
+    @Test
+    fun `the batch endpoint returns 200 with budgetStopped when the daily budget stops it`() {
+        val admin = seed("0744610406", Role.ADMIN, "Batch Admin")
+        moderationPolicy.setGenerationDailyJobBudget((budgets.platformUsedToday() + 1).toInt())
+        val body = objectMapper.writeValueAsString(
+            BatchEnqueueRequest(gradeLevel = "Grade 4", subject = "Mathematics")
+        )
+
+        val summary = read(
+            mockMvc.perform(
+                post("/admin/content/batch")
+                    .header("Authorization", auth(token(admin)))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body)
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            ContentBatchSummary::class.java,
+        )
+
+        check(summary.budgetStopped)
+        check(summary.jobsEnqueued == 1)
+        check(summary.remainingCandidates == 3)
     }
 
     private fun concept(code: String, name: String, subject: String, parentId: UUID?): ConceptEntity =

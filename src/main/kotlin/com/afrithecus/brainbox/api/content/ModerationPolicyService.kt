@@ -41,6 +41,15 @@ import tools.jackson.databind.ObjectMapper
  * - `content_worker_sources` (JSON array of strings, default every source): the job
  *   sources the worker may claim, for example `["USER"]` to keep user requests draining
  *   while batch/proactive material generation pauses. An empty array claims nothing.
+ *
+ * H3 daily generation budget keys (same table, same class - still not renamed):
+ *
+ * - `generation_daily_job_budget` (int, default 500): maximum generation jobs that may be
+ *   newly enqueued platform-wide per UTC day. 0 or a negative value means unlimited.
+ * - `generation_daily_school_job_budget` (int, default 100): maximum generation jobs that
+ *   may be newly enqueued for one school per UTC day. 0 or a negative value means unlimited.
+ *   The platform-wide cap always applies too; a job with no school (platform batch/proactive
+ *   work) counts only against the platform cap.
  */
 @Service
 class ModerationPolicyService(
@@ -130,6 +139,38 @@ class ModerationPolicyService(
         set(KEY_CONTENT_WORKER_SOURCES, mapper.writeValueAsString(sources))
     }
 
+    /**
+     * H3 operational policy: the maximum number of generation jobs that may be
+     * newly enqueued platform-wide in the current UTC day. Defaults to
+     * [DEFAULT_GENERATION_DAILY_JOB_BUDGET]; 0 or a negative value means unlimited,
+     * so a direct/legacy write can never block all generation.
+     */
+    fun generationDailyJobBudget(): Int =
+        readInt(KEY_GENERATION_DAILY_JOB_BUDGET, DEFAULT_GENERATION_DAILY_JOB_BUDGET)
+
+    /**
+     * H3 operational policy: the maximum number of generation jobs that may be
+     * newly enqueued for one school in the current UTC day. Defaults to
+     * [DEFAULT_GENERATION_DAILY_SCHOOL_JOB_BUDGET]; 0 or a negative value means
+     * unlimited. The platform-wide budget still applies.
+     */
+    fun generationDailySchoolJobBudget(): Int =
+        readInt(KEY_GENERATION_DAILY_SCHOOL_JOB_BUDGET, DEFAULT_GENERATION_DAILY_SCHOOL_JOB_BUDGET)
+
+    /** Console write: sets the platform-wide daily generation budget; a negative value is rejected. */
+    @Transactional
+    fun setGenerationDailyJobBudget(budget: Int) {
+        if (budget < 0) throw invalidArgument("generationDailyJobBudget must be zero or positive")
+        set(KEY_GENERATION_DAILY_JOB_BUDGET, mapper.writeValueAsString(budget))
+    }
+
+    /** Console write: sets the per-school daily generation budget; a negative value is rejected. */
+    @Transactional
+    fun setGenerationDailySchoolJobBudget(budget: Int) {
+        if (budget < 0) throw invalidArgument("generationDailySchoolJobBudget must be zero or positive")
+        set(KEY_GENERATION_DAILY_SCHOOL_JOB_BUDGET, mapper.writeValueAsString(budget))
+    }
+
     /** Console write: sets one policy override to a JSON value. */
     @Transactional
     fun set(key: String, json: String) {
@@ -171,6 +212,12 @@ class ModerationPolicyService(
         /** H2 operational keys; defaults live in AppContentProperties.worker. */
         const val KEY_CONTENT_WORKER_PAUSED = "content_worker_paused"
         const val KEY_CONTENT_WORKER_SOURCES = "content_worker_sources"
+
+        /** H3 daily generation budget keys; 0 (or a stored negative) means unlimited. */
+        const val KEY_GENERATION_DAILY_JOB_BUDGET = "generation_daily_job_budget"
+        const val KEY_GENERATION_DAILY_SCHOOL_JOB_BUDGET = "generation_daily_school_job_budget"
+        const val DEFAULT_GENERATION_DAILY_JOB_BUDGET = 500
+        const val DEFAULT_GENERATION_DAILY_SCHOOL_JOB_BUDGET = 100
         const val DEFAULT_QUORUM_REQUIRED = 2
         const val DEFAULT_AUTO_APPROVE_ENABLED = true
         const val DEFAULT_AUTO_APPROVE_MIN_VALIDATOR_SCORE = 1.0

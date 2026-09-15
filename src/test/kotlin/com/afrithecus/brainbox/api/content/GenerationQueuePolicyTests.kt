@@ -1,5 +1,7 @@
 package com.afrithecus.brainbox.api.content
 
+import com.afrithecus.brainbox.api.common.error.ApiErrorCode
+import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.content.ai.ContentGenerationProvider
 import com.afrithecus.brainbox.api.content.ai.GenerationRequest
 import com.afrithecus.brainbox.api.content.entity.ConceptEntity
@@ -8,6 +10,8 @@ import com.afrithecus.brainbox.api.content.repository.ConceptRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitRepository
 import com.afrithecus.brainbox.api.content.repository.CurriculumMapRepository
 import com.afrithecus.brainbox.api.content.repository.GenerationJobRepository
+import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
+import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import jakarta.persistence.EntityManager
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -16,6 +20,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.transaction.annotation.Transactional
+import kotlin.test.assertFailsWith
 
 /**
  * H2 runtime policy for the generation queue: pause/resume, the per-source claim
@@ -35,6 +40,8 @@ class GenerationQueuePolicyTests(
     @Autowired private val concepts: ConceptRepository,
     @Autowired private val curriculumMaps: CurriculumMapRepository,
     @Autowired private val moderationPolicy: ModerationPolicyService,
+    @Autowired private val budgets: GenerationBudgetService,
+    @Autowired private val schools: SchoolRepository,
     @Autowired private val entityManager: EntityManager,
 ) {
 
@@ -159,5 +166,86 @@ class GenerationQueuePolicyTests(
         check(claimed.size == 1)
         check(claimed.single().id == user.id) { "the first claim must be the USER job" }
         check(claimed.single().source == GenerationJobSource.USER)
+    }
+
+    @Test
+    fun `a new enqueue within the platform budget succeeds and the next is rejected without a row`() {
+        // Relative to today's usage so the assertion is independent of any committed rows.
+        val used = budgets.platformUsedToday()
+        moderationPolicy.setGenerationDailyJobBudget(used.toInt() + 2)
+
+        val first = jobService.enqueue(request("ke:cbc:grade4:mat-num-frac:budget-platform-1"))
+        val second = jobService.enqueue(request("ke:cbc:grade4:mat-num-frac:budget-platform-2"))
+        check(first.id != second.id)
+        check(generationJobs.count() == used + 2)
+
+        val blocked = assertFailsWith<ApiException> {
+            jobService.enqueue(request("ke:cbc:grade4:mat-num-frac:budget-platform-3"))
+        }
+        check(blocked.code == ApiErrorCode.TOO_MANY_REQUESTS)
+        check(blocked.message.contains("platform budget")) { "message must name the platform budget" }
+        check(blocked.message.contains("UTC day")) { "message must name the window" }
+        check(generationJobs.count() == used + 2) { "an over-budget enqueue must not write a row" }
+        check(
+            generationJobs.findAllByGenerationKeyOrderByCreatedAtAsc("ke:cbc:grade4:mat-num-frac:budget-platform-3").isEmpty()
+        )
+    }
+
+    @Test
+    fun `the school budget applies only to that school and a null-school job counts platform only`() {
+        val schoolA = schools.save(SchoolEntity().apply { name = "H3 Budget School A" }).id
+        val schoolB = schools.save(SchoolEntity().apply { name = "H3 Budget School B" }).id
+        moderationPolicy.setGenerationDailyJobBudget((budgets.platformUsedToday() + 20).toInt())
+        moderationPolicy.setGenerationDailySchoolJobBudget(1)
+
+        val a1 = jobService.enqueue(
+            request("ke:cbc:grade4:mat-num-frac:budget-school-a1"),
+            GenerationJobSource.USER,
+            schoolA,
+        )
+        check(a1.schoolId == schoolA)
+
+        val blocked = assertFailsWith<ApiException> {
+            jobService.enqueue(
+                request("ke:cbc:grade4:mat-num-frac:budget-school-a2"),
+                GenerationJobSource.USER,
+                schoolA,
+            )
+        }
+        check(blocked.code == ApiErrorCode.TOO_MANY_REQUESTS)
+        check(blocked.message.contains("school " + schoolA)) { "message must name the school" }
+        check(blocked.message.contains("UTC day")) { "message must name the window" }
+
+        // A second school has its own budget and is not affected by school A.
+        val b1 = jobService.enqueue(
+            request("ke:cbc:grade4:mat-num-frac:budget-school-b1"),
+            GenerationJobSource.USER,
+            schoolB,
+        )
+        check(b1.schoolId == schoolB)
+
+        // Platform batch work carries no school and is charged to the platform budget only.
+        val platform = jobService.enqueue(
+            request("ke:cbc:grade4:mat-num-frac:budget-null-school"),
+            GenerationJobSource.BATCH,
+        )
+        check(platform.schoolId == null)
+
+        check(
+            generationJobs.findAllByGenerationKeyOrderByCreatedAtAsc("ke:cbc:grade4:mat-num-frac:budget-school-a2").isEmpty()
+        )
+    }
+
+    @Test
+    fun `re-enqueuing an existing generation key is allowed at an exhausted budget and adds no row`() {
+        val key = "ke:cbc:grade4:mat-num-frac:budget-idempotent"
+        val job = jobService.enqueue(request(key))
+        val used = budgets.platformUsedToday()
+        moderationPolicy.setGenerationDailyJobBudget(used.toInt()) // now exhausted
+
+        val again = jobService.enqueue(request(key))
+
+        check(again.id == job.id) { "re-enqueue must reuse the existing row" }
+        check(generationJobs.count() == used) { "re-enqueue must not create a new row" }
     }
 }

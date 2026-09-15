@@ -47,6 +47,18 @@ class ContentQueueMetricsTests(
         }
     }
 
+    @Test
+    fun `budget used gauge is registered for the platform scope`() {
+        val meter = requireNotNull(
+            registry.find(ContentQueueMetrics.METRIC_BUDGET_USED)
+                .tag(ContentQueueMetrics.TAG_SCOPE, ContentQueueMetrics.SCOPE_PLATFORM)
+                .gauge()
+        ) { "missing platform budget-used gauge" }
+        val before = meter.value()
+        generationJobs.save(job("QUEUED"))
+        check(meter.value() == before + 1.0) { "budget-used gauge did not track a today job" }
+    }
+
     private fun gauge(status: String): Double =
         requireNotNull(registry.find(ContentQueueMetrics.METRIC_QUEUE_DEPTH).tag("status", status).gauge()).value()
 

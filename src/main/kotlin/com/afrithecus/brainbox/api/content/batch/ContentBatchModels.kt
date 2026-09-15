@@ -54,6 +54,16 @@ data class ContentBatchSummary(
     val jobsAlreadyPresent: Int,
     /** True when more topics matched than the limit allowed. */
     val truncated: Boolean,
+    /**
+     * H3 backpressure: true when the daily generation budget stopped this run
+     * early. The jobs already enqueued are kept; the endpoint still returns 200.
+     */
+    val budgetStopped: Boolean = false,
+    /**
+     * Topic x task-type slots this call did not enqueue because the budget stopped
+     * it (0 when the run completed). Does not include candidates hidden by [truncated].
+     */
+    val remainingCandidates: Int = 0,
 )
 
 /** Candidate count for the operator pre-flight call. */
