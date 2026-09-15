@@ -306,6 +306,7 @@ class GenerationJobControllerTests(
     @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val users: UserRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
+    @Autowired private val generationJobs: GenerationJobRepository,
 ) {
 
     @Test
@@ -328,6 +329,12 @@ class GenerationJobControllerTests(
         check(submitted.unitId == null)
         check(submitted.runId == null)
         check(submitted.generationKey == "ke:cbc:grade4:mat-num-frac:lesson:http")
+
+        // H2: the teacher submit path classifies its work as USER (interactive).
+        val stored = generationJobs
+            .findAllByGenerationKeyOrderByCreatedAtAsc("ke:cbc:grade4:mat-num-frac:lesson:http")
+            .single()
+        check(stored.source == "USER")
 
         val polled = read(
             mockMvc.perform(

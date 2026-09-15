@@ -35,8 +35,16 @@ class GenerationJobService(
      * Idempotent enqueue for a generation key: the newest existing row is reused,
      * a SUCCEEDED row is left untouched, and every other row is reset to QUEUED
      * with a fresh attempt budget and the full request payload.
+     *
+     * H2: the job records [source] (default [GenerationJobSource.USER]). An
+     * existing row is never downgraded to a lower-priority source, so a batch
+     * re-enqueue cannot turn a queued interactive request into BATCH work.
      */
-    fun enqueue(request: GenerationRequest): GenerationJobEntity {
+    fun enqueue(
+        request: GenerationRequest,
+        source: String = GenerationJobSource.USER,
+    ): GenerationJobEntity {
+        val requestedSource = GenerationJobSource.normalize(source)
         val existing = generationJobs
             .findAllByGenerationKeyOrderByCreatedAtAsc(request.generationKey)
             .lastOrNull()
@@ -48,6 +56,7 @@ class GenerationJobService(
         job.conceptId = conceptId(request.conceptCode)
         job.gradeLevel = request.gradeLevel
         job.status = STATUS_QUEUED
+        job.source = effectiveSource(existing?.source, requestedSource)
         job.attempts = 0
         job.nextAttemptAt = null
         job.lastError = null
@@ -55,6 +64,12 @@ class GenerationJobService(
         job.requestPayload = mapper.writeValueAsString(request)
         return generationJobs.save(job)
     }
+
+    /** Keeps the higher-priority source when a key already exists. */
+    private fun effectiveSource(existing: String?, requested: String): String =
+        if (existing == null) requested
+        else if (GenerationJobSource.priority(requested) < GenerationJobSource.priority(existing)) requested
+        else existing
 
     /** Looks up one job for the poll surface; null when it does not exist. */
     fun find(jobId: UUID): GenerationJobEntity? = generationJobs.findById(jobId).orElse(null)
@@ -66,14 +81,18 @@ class GenerationJobService(
     }
 
     /**
-     * Claims up to [batchSize] eligible jobs in one transaction. Each row flushes
-     * on its own so an optimistic-lock conflict (another worker took it) is caught
-     * per row and does not poison the rest of the batch.
+     * Claims up to [batchSize] eligible jobs in one transaction. Only jobs whose
+     * [sources] are currently enabled are eligible; within them USER is claimed
+     * ahead of BATCH/PROACTIVE. Each row flushes on its own so an optimistic-lock
+     * conflict (another worker took it) is caught per row and does not poison the
+     * rest of the batch.
      */
     @Transactional
-    fun claim(batchSize: Int): List<GenerationJobEntity> {
+    fun claim(batchSize: Int, sources: Collection<String> = GenerationJobSource.ALL): List<GenerationJobEntity> {
         if (batchSize <= 0) return emptyList()
-        val claimable = generationJobs.findClaimable(clock.instant(), PageRequest.of(0, batchSize))
+        val enabled = sources.map { GenerationJobSource.normalize(it) }.distinct()
+        if (enabled.isEmpty()) return emptyList()
+        val claimable = generationJobs.findClaimable(clock.instant(), enabled, PageRequest.of(0, batchSize))
         val claimed = mutableListOf<GenerationJobEntity>()
         for (job in claimable) {
             try {

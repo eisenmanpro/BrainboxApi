@@ -30,6 +30,17 @@ import tools.jackson.databind.ObjectMapper
  *   dropped/blank answer or a missing stored key) is deleted from the unit and the
  *   surviving keys are compared at 1.0; when false, the old whole-unit ratio behaviour
  *   applies and nothing is deleted.
+ *
+ * H2 operational keys (same table, same class - deliberately not renamed). They exist so
+ * an operator can pause or narrow autonomous generation at runtime instead of
+ * redeploying; both fall back to the `app.content.worker` defaults when absent or
+ * malformed:
+ *
+ * - `content_worker_paused` (boolean, default false): when true the worker claims
+ *   nothing, so user-triggered and autonomous generation both stop.
+ * - `content_worker_sources` (JSON array of strings, default every source): the job
+ *   sources the worker may claim, for example `["USER"]` to keep user requests draining
+ *   while batch/proactive material generation pauses. An empty array claims nothing.
  */
 @Service
 class ModerationPolicyService(
@@ -73,6 +84,52 @@ class ModerationPolicyService(
     fun answerKeyDropDisagreements(): Boolean =
         readBoolean(KEY_ANSWER_KEY_DROP_DISAGREEMENTS, DEFAULT_ANSWER_KEY_DROP_DISAGREEMENTS)
 
+    /**
+     * H2 operational policy: when true the generation worker claims nothing, which
+     * pauses autonomous (BATCH/PROACTIVE) and user-triggered work without a
+     * redeploy. This is one of the operational keys stored in the same
+     * `moderation_policies` table as the moderation keys; the class is not renamed.
+     * An absent/malformed row falls back to [fallback] (the
+     * `app.content.worker.paused` default).
+     */
+    fun contentWorkerPaused(fallback: Boolean = false): Boolean =
+        readBoolean(KEY_CONTENT_WORKER_PAUSED, fallback)
+
+    /**
+     * H2 operational policy: the job sources the worker may claim, as a JSON array
+     * of strings (for example `["USER","BATCH"]`). An absent, non-array or
+     * all-unknown value falls back to [fallback] (the
+     * `app.content.worker.sources` default); an explicit empty array means
+     * "claim no source". Unknown names are dropped so a stale console write can
+     * never enable an undefined source.
+     */
+    fun contentWorkerSources(fallback: List<String>): List<String> {
+        val json = raw(KEY_CONTENT_WORKER_SOURCES) ?: return fallback
+        return runCatching {
+            val node = mapper.readTree(json)
+            if (!node.isArray) return fallback
+            if (node.size() == 0) return emptyList()
+            val names = (0 until node.size())
+                .mapNotNull { index -> runCatching { node.get(index).asString() }.getOrNull() }
+                .map { it.trim().uppercase() }
+                .filter { it.isNotEmpty() }
+            val known = names.filter { GenerationJobSource.isKnown(it) }.distinct()
+            if (known.isEmpty()) fallback else known
+        }.getOrElse { fallback }
+    }
+
+    /** Console write: pauses or resumes the generation worker. */
+    @Transactional
+    fun setContentWorkerPaused(paused: Boolean) {
+        set(KEY_CONTENT_WORKER_PAUSED, mapper.writeValueAsString(paused))
+    }
+
+    /** Console write: sets the sources the generation worker may claim. */
+    @Transactional
+    fun setContentWorkerSources(sources: List<String>) {
+        set(KEY_CONTENT_WORKER_SOURCES, mapper.writeValueAsString(sources))
+    }
+
     /** Console write: sets one policy override to a JSON value. */
     @Transactional
     fun set(key: String, json: String) {
@@ -110,6 +167,10 @@ class ModerationPolicyService(
         const val KEY_AUTO_APPROVE_MIN_CRITIC_CONFIDENCE = "auto_approve_min_critic_confidence"
         const val KEY_ANSWER_KEY_MIN_AGREEMENT = "answer_key_min_agreement"
         const val KEY_ANSWER_KEY_DROP_DISAGREEMENTS = "answer_key_drop_disagreements"
+
+        /** H2 operational keys; defaults live in AppContentProperties.worker. */
+        const val KEY_CONTENT_WORKER_PAUSED = "content_worker_paused"
+        const val KEY_CONTENT_WORKER_SOURCES = "content_worker_sources"
         const val DEFAULT_QUORUM_REQUIRED = 2
         const val DEFAULT_AUTO_APPROVE_ENABLED = true
         const val DEFAULT_AUTO_APPROVE_MIN_VALIDATOR_SCORE = 1.0

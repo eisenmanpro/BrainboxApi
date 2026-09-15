@@ -67,7 +67,7 @@ class ContentRouter(
         contentUnits.findByGenerationKey(request.generationKey)?.let { return it }
 
         val job = generationJobs.save(
-            jobService.enqueue(request).apply {
+            jobService.enqueue(request, GenerationJobSource.USER).apply {
                 status = "RUNNING"
                 attempts = attempts + 1
             }

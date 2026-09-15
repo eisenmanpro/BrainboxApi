@@ -38,6 +38,8 @@ class GenerationJobWorker(
     private val router: ContentRouter,
     private val projection: ContentProjectionService,
     private val unitQuestions: ContentUnitQuestionRepository,
+    /** H2 runtime policy: pause and source filter, overridable without a redeploy. */
+    private val moderationPolicy: ModerationPolicyService,
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -45,9 +47,15 @@ class GenerationJobWorker(
     @Scheduled(fixedDelayString = "\${app.content.worker.poll-interval-ms:15000}")
     fun poll() {
         if (!properties.drainsJobs) return
+        // H2: pausing is a runtime policy decision. When paused the poller does
+        // nothing at all (no reclaim, no claim), so queued work is untouched and
+        // resumes exactly where it left off once the policy is cleared.
+        if (moderationPolicy.contentWorkerPaused(properties.worker.paused)) return
+        val sources = moderationPolicy.contentWorkerSources(properties.worker.sources)
+        if (sources.isEmpty()) return
         try {
             service.reclaimStale(properties.worker.staleRunSeconds)
-            for (job in service.claim(properties.worker.batchSize)) {
+            for (job in service.claim(properties.worker.batchSize, sources)) {
                 try {
                     // Projecting is what makes a generated unit real: a clean unit is
                     // auto-approved and published here, anything that fails a gate is

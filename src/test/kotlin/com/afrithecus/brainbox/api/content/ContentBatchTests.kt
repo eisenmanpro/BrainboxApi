@@ -123,10 +123,12 @@ class ContentBatchServiceTests(
         check(notes.gradeLevel == "Grade 4")
         check(notes.status == "QUEUED")
         check(notes.attempts == 0)
+        check(notes.source == "BATCH")
         check(notes.requestPayload!!.contains("Fractions"))
 
         val quiz = generationJobs.findAllByGenerationKeyOrderByCreatedAtAsc("ke:cbc:grade4:mat-top-01:quiz:en:v1").single()
         check(quiz.taskType == "QUIZ")
+        check(quiz.source == "BATCH")
     }
 
     @Test

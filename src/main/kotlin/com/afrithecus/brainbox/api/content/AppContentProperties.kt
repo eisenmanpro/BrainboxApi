@@ -32,6 +32,21 @@ data class AppContentProperties(
         val staleRunSeconds: Long = 900,
         val pollIntervalMs: Long = 15000,
         val retryBackoffSeconds: Long = 60,
+        /**
+         * H2 static default: when true the worker claims nothing, so autonomous
+         * generation pauses without a redeploy. The runtime override is the
+         * `content_worker_paused` policy key (see
+         * [ModerationPolicyService.contentWorkerPaused]); this value is the
+         * fallback when that key is absent or malformed.
+         */
+        val paused: Boolean = false,
+        /**
+         * H2 static default: which job sources the worker may claim. The runtime
+         * override is the `content_worker_sources` policy key (a JSON array of
+         * strings; see [ModerationPolicyService.contentWorkerSources]); this value
+         * is the fallback when that key is absent or malformed.
+         */
+        val sources: List<String> = GenerationJobSource.ALL,
     )
 
     /**

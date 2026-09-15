@@ -2,6 +2,7 @@ package com.afrithecus.brainbox.api.content.batch
 
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.content.GenerationJobService
+import com.afrithecus.brainbox.api.content.GenerationJobSource
 import com.afrithecus.brainbox.api.content.ai.GenerationRequest
 import com.afrithecus.brainbox.api.content.entity.ConceptEntity
 import com.afrithecus.brainbox.api.content.repository.ConceptRepository
@@ -71,7 +72,7 @@ class ContentBatchService(
                 val existing = generationJobs
                     .findAllByGenerationKeyOrderByCreatedAtAsc(generationRequest.generationKey)
                     .isNotEmpty()
-                jobService.enqueue(generationRequest)
+                jobService.enqueue(generationRequest, GenerationJobSource.BATCH)
                 if (existing) alreadyPresent++ else enqueued++
             }
         }

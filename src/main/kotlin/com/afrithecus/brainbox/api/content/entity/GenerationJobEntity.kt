@@ -27,6 +27,14 @@ class GenerationJobEntity : BaseEntity() {
     @Column(nullable = false, length = 16)
     var status: String = "QUEUED"
 
+    /**
+     * H2 origin classification (see [com.afrithecus.brainbox.api.content.GenerationJobSource]):
+     * USER (interactive), BATCH (Tier 1 producer) or PROACTIVE (future agent).
+     * The worker filters and orders on this column.
+     */
+    @Column(nullable = false, length = 16)
+    var source: String = "USER"
+
     @Column(nullable = false)
     var attempts: Int = 0
 

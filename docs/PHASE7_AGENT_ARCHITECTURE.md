@@ -132,6 +132,61 @@ pre-generation batch windows large enough to need dedicated nodes.
 that serves learners is the app plus its worker — not a developer harness, and not an external
 agent platform that the content standard, capture and licensing would depend on.
 
+### 2.1.2 Generation source policy - pause, source filter and priority (H2)
+
+The durable queue carries every kind of generation work, but not all of it is
+equal. H2 records **where a job came from** and makes autonomous generation a
+runtime policy decision instead of an all-or-nothing drain:
+
+- **Source classification.** Every `generation_jobs` row carries a `source` (V70,
+  `CHECK (source IN ('USER','BATCH','PROACTIVE'))`):
+  - `USER` - a teacher/student request through `POST /teacher/content/generate`
+    or `ContentRouter.resolve`. Interactive work.
+  - `BATCH` - the 7.5e Tier 1 producer (`ContentBatchService`): notes and learning
+    material generated ahead of demand.
+  - `PROACTIVE` - reserved for the future autonomous agent that pre-generates
+    without a user request.
+  Existing rows default to `USER`, so behaviour is unchanged until a producer
+  records a different source. `GenerationJobService.enqueue(request, source)`
+  defaults to `USER`; a batch re-enqueue never downgrades an existing
+  higher-priority (for example `USER`) row.
+- **Runtime pause and source filter.** The worker reads two operational policy
+  keys from the same `moderation_policies` table as the moderation keys (the
+  class is deliberately not renamed):
+  - `content_worker_paused` (boolean) - when true the poller returns immediately:
+    no claim and no stale-run reclaim, so queued work is untouched and resumes
+    where it left off when cleared.
+  - `content_worker_sources` (JSON array of strings, for example `["USER"]`) -
+    the worker claims only jobs whose source is in the array; an explicit empty
+    array claims nothing.
+  Both fall back to the static `app.content.worker.paused` / `app.content.worker.sources`
+  defaults when absent or malformed, so a bad console write can never break the
+  queue. They are read per poll, so a change takes effect on the next tick with no
+  redeploy.
+- **Priority.** Within the enabled sources the claim query orders
+  `CASE WHEN source='USER' THEN 0 WHEN source='BATCH' THEN 1 ELSE 2 END, created_at`,
+  so an interactive request is never stuck behind a seed batch. The existing
+  optimistic-claim and stale-run reclaim behaviour is unchanged.
+- **Admin surface (ADMIN only).** `GET /admin/content/queue` returns the live
+  policy plus queue depth overall and per source; `POST /admin/content/queue/pause`
+  and `/resume` flip `content_worker_paused`; `PUT /admin/content/queue/sources`
+  replaces the enabled sources and rejects an unknown name (400). Each write
+  returns the new summary.
+
+**Launch runbook - pause autonomous generation without stopping user requests.**
+When a launch or an incident needs the worker to stop producing seed material
+while interactive requests keep working, in order:
+
+1. `GET /admin/content/queue` to read the current policy and depth.
+2. `PUT /admin/content/queue/sources` with `{"sources":["USER"]}`. From the next
+   poll the worker drains only user-submitted jobs; BATCH and PROACTIVE jobs stay
+   QUEUED without spending attempts or provider calls.
+3. If all generation must stop (for example a provider outage), use
+   `POST /admin/content/queue/pause` instead; no job is claimed or lost.
+4. Resume with `POST /admin/content/queue/resume` or by restoring the full source
+   set `{"sources":["USER","BATCH","PROACTIVE"]}`. Depth returns to draining in
+   priority order.
+
 ### 2.2 Prompt library (Library 1)
 
 Prompts are **versioned data**, keyed by `(taskType, subject, gradeBand, standardVersion)`, not

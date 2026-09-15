@@ -3,6 +3,7 @@ package com.afrithecus.brainbox.api.content.web
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.content.GenerationJobService
+import com.afrithecus.brainbox.api.content.GenerationJobSource
 import com.afrithecus.brainbox.api.content.ai.GenerationRequest
 import com.afrithecus.brainbox.api.content.entity.GenerationJobEntity
 import com.afrithecus.brainbox.api.content.repository.ContentUnitRepository
@@ -39,7 +40,7 @@ class GenerationJobController(
         @RequestBody request: GenerateContentRequest,
     ): GenerationJobPayload {
         actor(currentUser)
-        val job = service.enqueue(request.toGenerationRequest())
+        val job = service.enqueue(request.toGenerationRequest(), GenerationJobSource.USER)
         return payload(job)
     }
 

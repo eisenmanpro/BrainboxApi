@@ -570,6 +570,27 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       (tag `provider`), `brainbox.content.provider.errors` (tags `provider`, `reason`),
       `brainbox.content.tokens` (tag `type`) and `brainbox.content.autoapprove`
       (tag `result`, plus `reason` on exceptions).
+- [x] H2 hardening - generation job source, runtime pause and user priority. Each
+      `generation_jobs` row records its `source` (`USER` interactive, `BATCH` the
+      7.5e Tier 1 producer, `PROACTIVE` the future agent) via V70 with a claim
+      index; the teacher submit path and `ContentRouter.resolve` enqueue `USER`,
+      `ContentBatchService` enqueues `BATCH`, and a re-enqueue never downgrades an
+      existing higher-priority row. The worker reads two operational policy keys
+      from the same `moderation_policies` table as the moderation keys -
+      `content_worker_paused` (boolean) and `content_worker_sources` (JSON array
+      of strings) - each falling back to the `app.content.worker.paused` /
+      `app.content.worker.sources` defaults when absent or malformed, and claims
+      only enabled sources in the order `USER` then `BATCH` then `PROACTIVE`
+      (`ORDER BY CASE ... , created_at`) so an interactive request is never stuck
+      behind a seed batch. `GET /admin/content/queue` (ADMIN only) reports the live
+      policy plus depth by status and source; `POST /admin/content/queue/pause`,
+      `POST /admin/content/queue/resume` and `PUT /admin/content/queue/sources`
+      set the policy and return the new summary, rejecting an unknown source with
+      400. This lets a launch pause autonomous material generation without a
+      redeploy while user-triggered generation keeps working.
+- [ ] H3 hardening - quotas and backpressure: per-tenant/per-provider generation
+      quotas and a bounded queue admission policy so a burst cannot starve the
+      request path.
 - [x] Conflict resolution, retry and resilience: JPA optimistic-lock failures map to a counted
       `409` instead of a `500`; a bounded exponential-backoff `Retry` (no extra dependency)
       wraps the FCM token exchange and transient sends; the idempotency filter, rate limiter,
