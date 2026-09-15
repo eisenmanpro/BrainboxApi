@@ -747,7 +747,16 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       `StructureValidator` emits the final-step warning only for a non-assessment unit, so a quiz's
       questions need not be attached to a step. `STRUCTURE_NO_QUESTIONS` and the lesson
       minimum-step rule are unchanged; no internal retry was added.
-- [ ] 7.6 breadth: run the 7.5e producer at full Tier 1 breadth, then practice papers, study guides and the remaining subjects.
+- [ ] 7.6 breadth: run the 7.5e producer at full Tier 1 breadth (the production seed run) and the remaining subjects.
+- [x] 7.6a generated practice papers and study guides: `ContentBatchService` now accepts the subject x
+      grade shelf task types `PRACTICE_PAPER` and `STUDY_GUIDE` and enqueues one or two original papers
+      plus one guide per subject-grade with deterministic keys
+      (`ke:cbc:{grade}:{subject}:practice-paper:{n}:en:v1`,
+      `ke:cbc:{grade}:{subject}:study-guide:en:v1`). A `PRACTICE_PAPER` is an assessment (question floor,
+      independent answer-key verification, marking scheme kept) that projects into `exams`/`exam_questions`
+      and is served by `GET /practice-papers/{examId}/content`; a `STUDY_GUIDE` projects into a
+      `learning_post` whose blocks are its steps. Both are generated originals and never reproduce or
+      attribute a KNEC/KICD paper. The full-breadth production seed run remains open.
 - [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences)
 - [ ] Agent tools: DB metric queries, internet search, content validators
 - [ ] LLM provider routing by cost/latency; per-generation token tracking (DeepSeek + others)
@@ -758,8 +767,8 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       `GET /materials/readable/{id}` now return generated, auto-approved content end to end
       (`GeneratedContentServingTests`; the post/file id is the content-unit id, quiz metadata
       carries the client `questions[].correct` index, and a gated unit still 404s).
-      `GET /practice-papers/{examId}/content` is verified against an admin-created paper only;
-      generated practice papers stay in 7.6.
+      `GET /practice-papers/{examId}/content` is verified against both an admin-created paper and a
+      generated `PRACTICE_PAPER` projected by the 7.6a pipeline.
 - [ ] Budget/storage story: generate-on-demand + cache instead of PDF storage
 
 ---

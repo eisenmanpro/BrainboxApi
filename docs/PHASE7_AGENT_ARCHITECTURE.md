@@ -81,7 +81,13 @@ path: it never calls the provider and never writes a capture or client-facing ta
 seeded Tier 0 topics and enqueues deterministic `GenerationRequest`s through the durable
 `generation_jobs` queue using the same idempotent per-key contract, so everything it submits runs the
 router → worker → projection/auto-approval path and is captured and gated exactly like on-demand
-content. A batch run at breadth therefore adds no new bypass; it only fills the queue.
+content. A batch run at breadth therefore adds no new bypass; it only fills the queue. Phase 7.6a extends the producer with the
+subject x grade shelf task types `PRACTICE_PAPER` and `STUDY_GUIDE`: a practice paper is an
+assessment and projects into `exams`/`exam_questions`, served by the existing
+`GET /practice-papers/{examId}/content` with the marking scheme kept; a study guide is a readable and
+projects into a `learning_post` whose blocks are its steps. Both run the same router -> worker ->
+validator/safety -> auto-approval path; the producer still never calls the provider or writes a
+client table.
 
 ### 2.1.1 Task-loop placement — the three options
 

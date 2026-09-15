@@ -212,13 +212,18 @@ class DeepSeekContentGenerationProvider(
             - For MULTIPLE_CHOICE and TRUE_FALSE the "correctAnswer" MUST be copied
               exactly from one of the strings in that question's "options"; never a
               letter, a number or a paraphrase.
-            - For a QUIZ task the response MUST contain at least 10 and at most 12
-              questions, so that dropping one or two disputed answers still leaves
-              at least 8.
-            - For a NOTES or LESSON task (any non-assessment task) the response MUST
-              contain between 3 and 5 nested check questions interleaved with the
-              steps. Attach each check to the step it checks ("stepIndex") and give
-              it a non-null "correctAnswer", so a lesson is not a wall of prose.
+            - For a QUIZ or PRACTICE_PAPER task the response MUST contain at least
+              10 and at most 12 questions, so that dropping one or two disputed
+              answers still leaves at least 8.
+            - A PRACTICE_PAPER is an original BrainBox paper covering the whole
+              subject-grade band: write new questions only and never reproduce,
+              quote or attribute a KNEC or KICD examination paper.
+            - For a NOTES, LESSON or STUDY_GUIDE task (any non-assessment task) the
+              response MUST contain between 3 and 5 nested check questions
+              interleaved with the steps. Attach each check to the step it checks
+              ("stepIndex") and give it a non-null "correctAnswer", so a lesson is
+              not a wall of prose. A STUDY_GUIDE covers the whole subject-grade
+              band, not a single topic.
             Never include markdown fences or commentary.
         """.trimIndent()
         val VERIFY_SYSTEM_PROMPT = """

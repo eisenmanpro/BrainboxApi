@@ -11,6 +11,14 @@ import com.afrithecus.brainbox.api.content.repository.ContentUnitStepRepository
 import com.afrithecus.brainbox.api.content.repository.CurriculumMapRepository
 import com.afrithecus.brainbox.api.content.validation.ContentValidationService
 import com.afrithecus.brainbox.api.exams.QuestionCodec
+import com.afrithecus.brainbox.api.exams.entity.ExamEntity
+import com.afrithecus.brainbox.api.exams.entity.ExamQuestionEntity
+import com.afrithecus.brainbox.api.exams.model.ExamScope
+import com.afrithecus.brainbox.api.exams.model.ExamStatus
+import com.afrithecus.brainbox.api.exams.model.ExamType
+import com.afrithecus.brainbox.api.exams.model.QuestionType
+import com.afrithecus.brainbox.api.exams.repository.ExamQuestionRepository
+import com.afrithecus.brainbox.api.exams.repository.ExamRepository
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
@@ -28,14 +36,17 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
 import java.nio.charset.StandardCharsets
+import java.time.ZoneOffset
 import java.util.UUID
 
 /** What a [ContentProjectionService.project] call wrote, for the caller to route on. */
 data class ProjectionResult(
-    /** POST for a book-like unit, FILE for a chunk. */
+    /** POST for a book-like unit, FILE for a chunk, EXAM for a practice paper. */
     val kind: String,
     val postId: UUID? = null,
     val fileId: UUID? = null,
+    /** Practice-paper exam id (same as the content unit id); null for other kinds. */
+    val examId: UUID? = null,
 )
 
 /**
@@ -58,6 +69,8 @@ class ContentProjectionService(
     private val posts: LearningPostRepository,
     private val contents: LearningContentRepository,
     private val readables: ReadableFileRepository,
+    private val exams: ExamRepository,
+    private val examQuestions: ExamQuestionRepository,
     private val users: UserRepository,
     private val codec: QuestionCodec,
     private val mapper: ObjectMapper,
@@ -75,8 +88,10 @@ class ContentProjectionService(
         val concept = unit.conceptId?.let { concepts.findById(it).orElse(null) }
         val reviewed = unit.reviewState == REVIEWED
         return when (unit.taskType.trim().uppercase()) {
-            "NOTES", "BOOK", "QUIZ", "FLASHCARDS", "LESSON" -> projectBook(unit, concept?.name, reviewed)
+            "NOTES", "BOOK", "QUIZ", "FLASHCARDS", "LESSON", "STUDY_GUIDE" ->
+                projectBook(unit, concept?.name, reviewed)
             "CHUNK" -> projectChunk(unit, concept?.name, reviewed)
+            "PRACTICE_PAPER" -> projectPracticePaper(unit, concept?.name, reviewed)
             else -> throw invalidArgument("task type is not projectable: " + unit.taskType)
         }
     }
@@ -164,6 +179,81 @@ class ContentProjectionService(
         return ProjectionResult(kind = "FILE", fileId = unit.id)
     }
 
+    // ---------------------------------------------------- practice paper path
+
+    /**
+     * Phase 7.6a: a PRACTICE_PAPER unit becomes one exam row plus its questions, so
+     * the existing `GET /practice-papers/{examId}/content` read serves it with the
+     * marking scheme intact. The exam id is the content unit id, and re-projecting
+     * deletes and rewrites the questions, so a replay never duplicates either.
+     *
+     * A generated paper is marked as ours twice: `created_by` is the stable system
+     * author (never a real user) and `client_id` carries a `gen:` generation-key
+     * code. The year is the unit's own generation year, never a real past paper
+     * year, and the title never claims a national paper.
+     */
+    private fun projectPracticePaper(
+        unit: ContentUnitEntity,
+        conceptName: String?,
+        reviewed: Boolean,
+    ): ProjectionResult {
+        val questions = unitQuestions.findAllByUnitIdOrderByOrderIndexAsc(unit.id)
+        val exam = exams.findById(unit.id).orElse(null) ?: ExamEntity().apply { id = unit.id }
+        exam.title = unit.title?.takeIf { it.isNotBlank() }
+            ?: conceptName
+            ?: (unit.gradeLevel + " " + unit.subject + " Practice Paper")
+        exam.subject = unit.subject
+        exam.examType = ExamType.PRACTICE_PAPER
+        exam.scope = ExamScope.GLOBAL
+        exam.schoolId = null
+        exam.durationMinutes = practicePaperMinutes(questions.size)
+        exam.questionCount = questions.size
+        exam.difficulty = averageDifficulty(questions)
+        exam.status = if (reviewed) ExamStatus.PUBLISHED else ExamStatus.DRAFT
+        exam.examYear = generatedYear(unit)
+        exam.isMcp = false
+        exam.coverImageUrl = null
+        exam.createdBy = systemAuthorId()
+        exam.clientId = generatedClientId(unit.generationKey)
+        exam.classId = null
+        exam.gradeLevel = parseGrade(unit.gradeLevel)
+        exam.totalPoints = questions.sumOf { it.points }
+        exam.term = null
+        exam.openAt = null
+        exam.closeAt = null
+        exams.save(exam)
+
+        // Replace, don't append: the same unit id must never accumulate questions.
+        val previous = examQuestions.findAllByExamIdOrderByOrderIndexAsc(unit.id)
+        if (previous.isNotEmpty()) examQuestions.deleteAll(previous)
+
+        questions.forEach { question ->
+            examQuestions.save(
+                ExamQuestionEntity().apply {
+                    examId = unit.id
+                    text = question.text
+                    qType = examQuestionType(question.qType)
+                    options = question.options
+                    correctAnswer = question.correctAnswer
+                    explanation = question.explanation
+                    points = question.points
+                    difficulty = question.difficulty.coerceIn(1, 5)
+                    matchingPairs = question.matchingPairs
+                    topic = conceptName
+                    subtopic = null
+                    orderIndex = question.orderIndex
+                    clientId = null
+                    sectionId = null
+                    cbcStrandTag = null
+                    isKeyQuestion = false
+                    requiresExplanation = false
+                    isFromBank = false
+                }
+            )
+        }
+        return ProjectionResult(kind = "EXAM", examId = unit.id)
+    }
+
     // ------------------------------------------------------------ internals
 
     private fun strandName(conceptId: UUID?): String? {
@@ -171,6 +261,37 @@ class ContentProjectionService(
         return curriculumMaps
             .findFirstByConceptIdAndCountryCodeAndCurriculumOrderBySortOrderAsc(conceptId, "KE", "CBC")
             ?.strandName
+    }
+
+    /** A sensible paper duration in minutes: three minutes per question, at least 30. */
+    private fun practicePaperMinutes(questionCount: Int): Int =
+        maxOf(MIN_PAPER_MINUTES, questionCount * MINUTES_PER_QUESTION)
+
+    /** The paper difficulty is the rounded mean of its question difficulties. */
+    private fun averageDifficulty(questions: List<ContentUnitQuestionEntity>): Int {
+        if (questions.isEmpty()) return DEFAULT_DIFFICULTY
+        return (questions.sumOf { it.difficulty }.toDouble() / questions.size)
+            .toInt()
+            .coerceIn(MIN_DIFFICULTY, MAX_DIFFICULTY)
+    }
+
+    /** The generated year is the unit's own year, never a real national-paper year. */
+    private fun generatedYear(unit: ContentUnitEntity): Int =
+        unit.createdAt.atZone(ZoneOffset.UTC).year
+
+    /** A `gen:` provenance code from the deterministic generation key, capped to the column. */
+    private fun generatedClientId(generationKey: String): String =
+        (GENERATED_CLIENT_PREFIX + generationKey).take(MAX_CLIENT_ID_CHARS)
+
+    /** The numeric grade ("Grade 4" -> 4); null when the unit has no parseable grade. */
+    private fun parseGrade(gradeLevel: String): Int? =
+        Regex("\\d+").find(gradeLevel)?.value?.toIntOrNull()
+
+    /** Maps the provider's question type onto the exams enum ("MULTIPLE_CHOICE" -> MCQ). */
+    private fun examQuestionType(raw: String): QuestionType {
+        val normalized = raw.trim().uppercase().replace(' ', '_').replace('-', '_')
+        if (normalized == "MULTIPLE_CHOICE") return QuestionType.MCQ
+        return runCatching { QuestionType.valueOf(normalized) }.getOrDefault(QuestionType.MCQ)
     }
 
     /**
@@ -250,5 +371,14 @@ class ContentProjectionService(
         const val DRAFT = "DRAFT"
         const val SYSTEM_AUTHOR_NAME = "BrainBox Study Team"
         val SYSTEM_AUTHOR_ID: UUID = UUID.fromString("00000000-0000-0000-0000-0000000000A1")
+
+        /** Practice-paper projection shaping. */
+        const val MIN_PAPER_MINUTES = 30
+        const val MINUTES_PER_QUESTION = 3
+        const val MIN_DIFFICULTY = 1
+        const val MAX_DIFFICULTY = 5
+        const val DEFAULT_DIFFICULTY = 3
+        const val MAX_CLIENT_ID_CHARS = 80
+        const val GENERATED_CLIENT_PREFIX = "gen:"
     }
 }

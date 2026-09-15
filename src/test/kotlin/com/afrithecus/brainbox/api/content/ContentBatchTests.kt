@@ -158,6 +158,70 @@ class ContentBatchServiceTests(
     }
 
     @Test
+    fun `the producer enqueues a practice paper and a study guide per subject and grade with stable keys`() {
+        val request = ContentBatchRequest(
+            gradeLevel = "Grade 4",
+            subject = "Mathematics",
+            taskTypes = listOf("PRACTICE_PAPER", "STUDY_GUIDE"),
+            limit = 50,
+        )
+        val summary = service.enqueueBatch(request)
+
+        val paperKey = service.practicePaperKey("Grade 4", "Mathematics", 1, "en", "v1")
+        val guideKey = service.studyGuideKey("Grade 4", "Mathematics", "en", "v1")
+        check(paperKey == "ke:cbc:grade4:mathematics:practice-paper:1:en:v1")
+        check(guideKey == "ke:cbc:grade4:mathematics:study-guide:en:v1")
+        check(summary.jobsEnqueued == 2)
+        check(summary.shelfJobsEnqueued == 2)
+
+        val paper = generationJobs.findAllByGenerationKeyOrderByCreatedAtAsc(paperKey).single()
+        check(paper.taskType == "PRACTICE_PAPER")
+        check(paper.gradeLevel == "Grade 4")
+        check(paper.source == "BATCH")
+        check(paper.requestPayload!!.contains("Practice Paper"))
+
+        val guide = generationJobs.findAllByGenerationKeyOrderByCreatedAtAsc(guideKey).single()
+        check(guide.taskType == "STUDY_GUIDE")
+        check(guide.requestPayload!!.contains("Study Guide"))
+
+        // Re-running reuses both keys and enqueues nothing new.
+        val again = service.enqueueBatch(request)
+        check(again.jobsEnqueued == 0)
+        check(again.jobsAlreadyPresent == 2)
+        check(again.shelfJobsAlreadyPresent == 2)
+        check(generationJobs.findAllByGenerationKeyOrderByCreatedAtAsc(paperKey).size == 1)
+        check(generationJobs.findAllByGenerationKeyOrderByCreatedAtAsc(guideKey).size == 1)
+    }
+
+    @Test
+    fun `the producer can enqueue two practice papers for one shelf`() {
+        val summary = service.enqueueBatch(
+            ContentBatchRequest(
+                gradeLevel = "Grade 4",
+                subject = "Mathematics",
+                taskTypes = listOf("PRACTICE_PAPER"),
+                practicePapers = 2,
+                limit = 50,
+            )
+        )
+        check(summary.jobsEnqueued == 2)
+        check(
+            service.practicePaperKey("Grade 4", "Mathematics", 2, "en", "v1") ==
+                "ke:cbc:grade4:mathematics:practice-paper:2:en:v1"
+        )
+        check(
+            generationJobs.findAllByGenerationKeyOrderByCreatedAtAsc(
+                "ke:cbc:grade4:mathematics:practice-paper:1:en:v1"
+            ).size == 1
+        )
+        check(
+            generationJobs.findAllByGenerationKeyOrderByCreatedAtAsc(
+                "ke:cbc:grade4:mathematics:practice-paper:2:en:v1"
+            ).size == 1
+        )
+    }
+
+    @Test
     fun `the limit truncates candidates and reports the full matched count`() {
         val summary = service.enqueueBatch(
             ContentBatchRequest(

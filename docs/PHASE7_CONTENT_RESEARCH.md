@@ -173,9 +173,12 @@ durable queue through the fake router, the validator/safety gates, auto-approval
 come back in `orderIndex` order with the QUIZ block) and `GET /materials/readable/{id}`
 (the generated chunk's inline `body`). Projected quiz metadata now carries the client's
 `questions[].correct` 0-based option index while the learner read still strips every key,
-and an unreviewed/gated unit still returns 404 on both reads. The remaining Phase 7 serving
-gap is generated **practice papers** (7.6): `GET /practice-papers/{examId}/content` is verified only
-against an admin-created paper because the batch producer does not emit practice papers yet.
+and an unreviewed/gated unit still returns 404 on both reads. Generated **practice papers** and
+**study guides** are delivered in 7.6a: a generated PRACTICE_PAPER unit projects into an exam of type
+PRACTICE_PAPER and is served by `GET /practice-papers/{examId}/content` with its marking scheme
+intact (keys kept, unlike a hub quiz), and a STUDY_GUIDE unit projects into a learning post whose
+blocks are its steps. Both are verified end to end in the serving tests against the same fake
+provider. What remains for Phase 7 is the full-breadth production seed run, not new serving plumbing.
 
 ### 1.6 Delivery contract blockers (fix before generating anything)
 
@@ -270,6 +273,18 @@ there is nothing to render them into; BOOK-like extras and the per-subject×grad
 study guides stay in 7.6. Nothing the producer enqueues bypasses the router, the worker, the
 safety/validator gates or the 7.5c auto-approval bar, so a clean unit publishes and anything flagged
 waits in the human exception queue.
+
+**Tier 1 status — practice papers and study guides delivered (7.6a).** The producer now also accepts
+the subject×grade shelf task types `PRACTICE_PAPER` and `STUDY_GUIDE`. A batch can enqueue one or two
+practice papers and one study guide per subject-grade with deterministic keys
+(`ke:cbc:{grade}:{subject}:practice-paper:{n}:en:v1` and `ke:cbc:{grade}:{subject}:study-guide:en:v1`).
+A `PRACTICE_PAPER` is an assessment (question floor, independent answer-key verification, marking
+scheme kept) and projects into the `exams`/`exam_questions` tables, so the existing
+`GET /practice-papers/{examId}/content` read serves it; a `STUDY_GUIDE` is a readable lesson and
+projects into a `learning_post` whose blocks are its steps. Both are generated BrainBox originals and
+never reproduce or attribute a KNEC/KICD paper. Flashcards remain deferred, and what remains is
+running the full-breadth Tier 1 seed across every subject-grade (the production seed run), not new
+content kinds or serving plumbing.
 
 **Tier 2 — on-demand generation + cache.** The `ARCHITECTURE.md` §13 flow: router checks the
 cache, generates on miss, moderates, stores, serves. Idempotent per `(type, subject, grade,

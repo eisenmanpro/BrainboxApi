@@ -10,6 +10,9 @@ import com.afrithecus.brainbox.api.content.entity.CurriculumMapEntity
 import com.afrithecus.brainbox.api.content.repository.ConceptRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitRepository
 import com.afrithecus.brainbox.api.content.repository.CurriculumMapRepository
+import com.afrithecus.brainbox.api.exams.model.ExamStatus
+import com.afrithecus.brainbox.api.exams.model.ExamType
+import com.afrithecus.brainbox.api.exams.repository.ExamRepository
 import com.afrithecus.brainbox.api.exams.web.CreateExamQuestionRequest
 import com.afrithecus.brainbox.api.exams.web.CreateExamRequest
 import com.afrithecus.brainbox.api.exams.web.ExamContentPayload
@@ -71,6 +74,7 @@ class GeneratedContentServingTests(
     @Autowired private val posts: LearningPostRepository,
     @Autowired private val readables: ReadableFileRepository,
     @Autowired private val users: UserRepository,
+    @Autowired private val examRepository: ExamRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
     @Autowired private val entityManager: EntityManager,
 ) {
@@ -232,6 +236,100 @@ class GeneratedContentServingTests(
         check(content.cover.subject == "Mathematics")
         check(content.sections.single().questions.single().text == "2 + 2?")
         check(content.markingScheme.questionAnswers.isNotEmpty())
+    }
+
+    @Test
+    fun `generated practice paper is served to a learner with its marking scheme`() {
+        fake.clean = true
+        val summary = batch.enqueueBatch(
+            ContentBatchRequest(
+                gradeLevel = "Grade 4",
+                subject = "Mathematics",
+                taskTypes = listOf("PRACTICE_PAPER"),
+                limit = 1,
+            )
+        )
+        check(summary.jobsEnqueued == 1)
+        check(summary.shelfJobsEnqueued == 1)
+
+        worker.poll()
+        flushAndClear()
+
+        val key = batch.practicePaperKey("Grade 4", "Mathematics", 1, "en", "v1")
+        val unit = requireNotNull(contentUnits.findByGenerationKey(key))
+        check(unit.reviewState == "REVIEWED") { "a clean practice paper must auto-approve" }
+
+        // The projection wrote a real exam row of the practice-paper type.
+        val exam = examRepository.findById(unit.id).orElseThrow()
+        check(exam.examType == ExamType.PRACTICE_PAPER)
+        check(exam.status == ExamStatus.PUBLISHED)
+        check(exam.questionCount == 8)
+
+        val response = mockMvc.perform(
+            get("/practice-papers/" + unit.id + "/content").header("Authorization", auth(learnerToken()))
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+
+        val content = objectMapper.readValue(response, ExamContentPayload::class.java)
+        check(content.examId == unit.id.toString())
+        check(content.cover.subject == "Mathematics")
+        check(content.cover.year == exam.examYear)
+        check(content.cover.questionCount == 8)
+        check(content.sections.single().questions.size == 8)
+        check(content.sections.single().questions.first().correctAnswer == "A")
+        check(content.markingScheme.questionAnswers.values.all { it == "A" })
+        check(content.markingScheme.totalMarks == 16)
+    }
+
+    @Test
+    fun `unreviewed generated practice paper stays hidden from learners`() {
+        // The non-clean fake result has only two questions, below the assessment
+        // floor, so the auto-approval gate refuses it and projection writes a DRAFT.
+        fake.clean = false
+        batch.enqueueBatch(
+            ContentBatchRequest(
+                gradeLevel = "Grade 4",
+                subject = "Mathematics",
+                taskTypes = listOf("PRACTICE_PAPER"),
+                limit = 1,
+            )
+        )
+        worker.poll()
+        flushAndClear()
+
+        val key = batch.practicePaperKey("Grade 4", "Mathematics", 1, "en", "v1")
+        val unit = requireNotNull(contentUnits.findByGenerationKey(key))
+        check(unit.reviewState == "UNREVIEWED") { "a gated practice paper must not be auto-approved" }
+        check(examRepository.findById(unit.id).orElseThrow().status == ExamStatus.DRAFT)
+
+        mockMvc.perform(
+            get("/practice-papers/" + unit.id + "/content").header("Authorization", auth(learnerToken()))
+        ).andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `generated study guide reaches the learner as learning-post steps`() {
+        fake.clean = true
+        val summary = batch.enqueueBatch(
+            ContentBatchRequest(
+                gradeLevel = "Grade 4",
+                subject = "Mathematics",
+                taskTypes = listOf("STUDY_GUIDE"),
+                limit = 1,
+            )
+        )
+        check(summary.jobsEnqueued == 1)
+
+        worker.poll()
+        flushAndClear()
+
+        val key = batch.studyGuideKey("Grade 4", "Mathematics", "en", "v1")
+        val unit = requireNotNull(contentUnits.findByGenerationKey(key))
+        check(unit.reviewState == "REVIEWED") { "a clean study guide must auto-approve" }
+
+        val notes = learnerBlocks(learnerToken(), unit.id.toString()).filter { it.type == "NOTES" }
+        check(notes.size == 3) { "expected the guide's three steps as NOTES blocks, got " + notes.size }
+        check(notes.map { it.orderIndex } == listOf(0, 1, 2))
+        check(notes.first().content!!.contains("First step body"))
     }
 
     // ------------------------------------------------------------ helpers

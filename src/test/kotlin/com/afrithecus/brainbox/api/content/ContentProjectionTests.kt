@@ -12,6 +12,12 @@ import com.afrithecus.brainbox.api.content.repository.ContentUnitQuestionReposit
 import com.afrithecus.brainbox.api.content.repository.ContentUnitRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitStepRepository
 import com.afrithecus.brainbox.api.content.repository.CurriculumMapRepository
+import com.afrithecus.brainbox.api.exams.PracticePaperService
+import com.afrithecus.brainbox.api.exams.model.ExamStatus
+import com.afrithecus.brainbox.api.exams.model.ExamType
+import com.afrithecus.brainbox.api.exams.model.QuestionType
+import com.afrithecus.brainbox.api.exams.repository.ExamQuestionRepository
+import com.afrithecus.brainbox.api.exams.repository.ExamRepository
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
@@ -28,6 +34,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.transaction.annotation.Transactional
 import java.nio.charset.StandardCharsets
+import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.test.assertFailsWith
 
@@ -54,6 +61,9 @@ class ContentProjectionTests(
     @Autowired private val contents: LearningContentRepository,
     @Autowired private val readables: ReadableFileRepository,
     @Autowired private val users: UserRepository,
+    @Autowired private val examRepository: ExamRepository,
+    @Autowired private val examQuestions: ExamQuestionRepository,
+    @Autowired private val practicePaperService: PracticePaperService,
 ) {
 
     @Test
@@ -180,6 +190,113 @@ class ContentProjectionTests(
         check(!readables.findById(chunk.id).orElseThrow().isActive)
     }
 
+    @Test
+    fun practicePaperUnitProjectsToExamAndReprojectsIdempotently() {
+        val concept = seedConcept()
+        seedCurriculum(concept)
+        val unit = seedUnit(
+            concept,
+            taskType = "PRACTICE_PAPER",
+            reviewState = "REVIEWED",
+            title = "Grade 4 Mathematics Practice Paper 1",
+        )
+        seedPracticeQuestion(unit, 0, "What is 2 + 2?", listOf("3", "4"), "4")
+        seedPracticeQuestion(unit, 1, "What is 3 + 3?", listOf("5", "6"), "6")
+
+        val result = projection.project(unit.id)
+        check(result.kind == "EXAM")
+        check(result.examId == unit.id)
+        check(result.postId == null)
+        check(result.fileId == null)
+
+        val exam = examRepository.findById(unit.id).orElseThrow()
+        check(exam.examType == ExamType.PRACTICE_PAPER)
+        check(exam.subject == "Mathematics")
+        check(exam.gradeLevel == 4)
+        check(exam.questionCount == 2)
+        check(exam.totalPoints == 4)
+        check(exam.status == ExamStatus.PUBLISHED)
+        check(exam.durationMinutes >= 30)
+        check(exam.examYear == unit.createdAt.atZone(ZoneOffset.UTC).year)
+        check(exam.clientId!!.startsWith("gen:")) { "a generated paper must be marked as ours" }
+
+        val questions = examQuestions.findAllByExamIdOrderByOrderIndexAsc(unit.id)
+        check(questions.size == 2)
+        check(questions[0].qType == QuestionType.MCQ)
+        check(questions[0].options!!.contains("4"))
+        check(questions[0].correctAnswer == "4")
+        check(questions[0].points == 2)
+        check(questions[1].correctAnswer == "6")
+
+        // The existing learner read serves the projected paper with its marking scheme.
+        val learner = learner()
+        val content = practicePaperService.content(learner.id, unit.id.toString())
+        check(content.examId == unit.id.toString())
+        check(content.cover.subject == "Mathematics")
+        check(content.cover.year == exam.examYear)
+        check(content.sections.single().questions.size == 2)
+        check(content.sections.single().questions.first().correctAnswer == "4")
+        check(content.markingScheme.totalMarks == 4)
+        check(content.markingScheme.questionAnswers.size == 2)
+
+        // Reproject: same exam row, questions replaced rather than duplicated.
+        projection.project(unit.id)
+        check(examRepository.findById(unit.id).orElseThrow().id == unit.id)
+        val reprojected = examQuestions.findAllByExamIdOrderByOrderIndexAsc(unit.id)
+        check(reprojected.size == 2)
+        check(reprojected.map { it.correctAnswer } == listOf("4", "6"))
+    }
+
+    @Test
+    fun unreviewedPracticePaperProjectsHidden() {
+        // Phase 7.5c auto-approval is on by default; disable it so this test proves an
+        // unreviewed paper stays hidden for the reason under test.
+        policy.set("auto_approve_enabled", "false")
+        val concept = seedConcept()
+        seedCurriculum(concept)
+        val unit = seedUnit(
+            concept,
+            taskType = "PRACTICE_PAPER",
+            reviewState = "UNREVIEWED",
+            title = "Draft Practice Paper",
+        )
+        seedPracticeQuestion(unit, 0, "What is 2 + 2?", listOf("3", "4"), "4")
+
+        val result = projection.project(unit.id)
+        check(result.kind == "EXAM")
+        val exam = examRepository.findById(unit.id).orElseThrow()
+        check(exam.status == ExamStatus.DRAFT)
+        check(examRepository.findAllByStatus(ExamStatus.PUBLISHED).none { it.id == unit.id })
+    }
+
+    @Test
+    fun studyGuideUnitProjectsToLearningPostSteps() {
+        val concept = seedConcept()
+        seedCurriculum(concept)
+        val unit = seedUnit(
+            concept,
+            taskType = "STUDY_GUIDE",
+            reviewState = "REVIEWED",
+            title = "Grade 4 Mathematics Study Guide",
+        )
+        seedStep(unit, 0, "Numbers", "Body zero")
+        seedStep(unit, 1, "Fractions", "Body one")
+        seedStep(unit, 2, "Decimals", "Body two")
+
+        val result = projection.project(unit.id)
+        check(result.kind == "POST")
+        check(result.postId == unit.id)
+
+        val stored = contents.findAllByPostIdOrderByOrderIndexAsc(unit.id)
+        check(stored.size == 3)
+        check(stored.all { it.contentType == ContentType.NOTES })
+        check(stored.map { it.title } == listOf("Numbers", "Fractions", "Decimals"))
+        check(stored.map { it.content } == listOf("Body zero", "Body one", "Body two"))
+        val post = posts.findById(unit.id).orElseThrow()
+        check(post.title == "Grade 4 Mathematics Study Guide")
+        check(post.isPublished)
+    }
+
     private fun seedConcept(): ConceptEntity =
         concepts.save(
             ConceptEntity().apply {
@@ -233,6 +350,28 @@ class ContentProjectionTests(
                 this.orderIndex = orderIndex
                 this.title = title
                 this.body = body
+            }
+        )
+    }
+
+    private fun seedPracticeQuestion(
+        unit: ContentUnitEntity,
+        orderIndex: Int,
+        text: String,
+        options: List<String>,
+        answer: String,
+    ) {
+        unitQuestions.save(
+            ContentUnitQuestionEntity().apply {
+                unitId = unit.id
+                this.orderIndex = orderIndex
+                qType = "MULTIPLE_CHOICE"
+                this.text = text
+                this.options = options.joinToString(prefix = "[\"", separator = "\",\"", postfix = "\"]")
+                correctAnswer = answer
+                explanation = "Because."
+                points = 2
+                difficulty = 3
             }
         )
     }

@@ -2,8 +2,9 @@ package com.afrithecus.brainbox.api.content.web
 
 import com.afrithecus.brainbox.api.content.batch.CONTENT_BATCH_DEFAULT_LANGUAGE
 import com.afrithecus.brainbox.api.content.batch.CONTENT_BATCH_DEFAULT_LIMIT
+import com.afrithecus.brainbox.api.content.batch.CONTENT_BATCH_DEFAULT_PRACTICE_PAPERS
 import com.afrithecus.brainbox.api.content.batch.CONTENT_BATCH_DEFAULT_STANDARD_VERSION
-import com.afrithecus.brainbox.api.content.batch.CONTENT_BATCH_TASK_TYPES
+import com.afrithecus.brainbox.api.content.batch.CONTENT_BATCH_DEFAULT_TASK_TYPES
 import com.afrithecus.brainbox.api.content.batch.ContentBatchCandidates
 import com.afrithecus.brainbox.api.content.batch.ContentBatchRequest
 import com.afrithecus.brainbox.api.content.batch.ContentBatchService
@@ -33,10 +34,11 @@ class ContentBatchController(private val service: ContentBatchService) {
             ContentBatchRequest(
                 gradeLevel = request.gradeLevel.orEmpty(),
                 subject = request.subject,
-                taskTypes = request.taskTypes ?: CONTENT_BATCH_TASK_TYPES,
+                taskTypes = request.taskTypes ?: CONTENT_BATCH_DEFAULT_TASK_TYPES,
                 language = request.language ?: CONTENT_BATCH_DEFAULT_LANGUAGE,
                 standardVersion = request.standardVersion ?: CONTENT_BATCH_DEFAULT_STANDARD_VERSION,
                 limit = request.limit ?: CONTENT_BATCH_DEFAULT_LIMIT,
+                practicePapers = request.practicePapers ?: CONTENT_BATCH_DEFAULT_PRACTICE_PAPERS,
             )
         )
 

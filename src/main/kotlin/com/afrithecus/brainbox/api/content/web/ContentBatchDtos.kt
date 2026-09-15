@@ -10,9 +10,11 @@ package com.afrithecus.brainbox.api.content.web
 data class BatchEnqueueRequest(
     val subject: String? = null,
     val gradeLevel: String? = null,
-    /** Defaults to [NOTES, QUIZ]; unknown types are rejected. */
+    /** Defaults to [NOTES, QUIZ]; PRACTICE_PAPER and STUDY_GUIDE are the 7.6a shelf types. */
     val taskTypes: List<String>? = null,
     val language: String? = null,
     val standardVersion: String? = null,
     val limit: Int? = null,
+    /** Practice papers per subject x grade shelf for a shelf run (default 1, max 2). */
+    val practicePapers: Int? = null,
 )

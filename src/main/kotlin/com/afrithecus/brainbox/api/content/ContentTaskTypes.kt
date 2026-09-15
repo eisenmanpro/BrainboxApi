@@ -6,14 +6,19 @@ package com.afrithecus.brainbox.api.content
  * drift into the assessment path (the structure validator held a questions-only quiz
  * to the three-step lesson bar). The task type decides which quality rules apply: an
  * assessment is measured by its questions, a lesson by its explained steps.
+ *
+ * Phase 7.6a adds the two generated content kinds: a PRACTICE_PAPER is an
+ * assessment (question floor, independent answer-key verification, marking scheme
+ * kept), and a STUDY_GUIDE is a readable lesson (step floor, nested questions
+ * optional). Both reuse the universal safety/validator gates unchanged.
  */
 object ContentTaskTypes {
 
     /** Task types where the question count is the product, not the lesson steps. */
-    val ASSESSMENT_TYPES = setOf("QUIZ", "EXAM", "ASSESSMENT")
+    val ASSESSMENT_TYPES = setOf("QUIZ", "EXAM", "ASSESSMENT", "PRACTICE_PAPER")
 
     /** Readable/lesson task types the BrainBox standard breaks into explained steps. */
-    val LESSON_TYPES = setOf("NOTES", "BOOK", "CHUNK", "LESSON")
+    val LESSON_TYPES = setOf("NOTES", "BOOK", "CHUNK", "LESSON", "STUDY_GUIDE")
 
     /** True when [taskType] is an assessment, case- and whitespace-insensitive. */
     fun isAssessment(taskType: String): Boolean = normalize(taskType) in ASSESSMENT_TYPES
