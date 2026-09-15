@@ -69,14 +69,14 @@ class AutoApprovalService(
             if (confidence < moderationPolicy.autoApproveMinCriticConfidence()) return false
             // The question-count floor is an assessment rule. A NOTES/readable unit with a
             // few nested checks is exactly the BrainBox standard, so it must not be held to 8.
-            if (isAssessment(unit.taskType) && questionCount < moderationPolicy.autoApproveMinQuestions()) {
+            if (ContentTaskTypes.isAssessment(unit.taskType) && questionCount < moderationPolicy.autoApproveMinQuestions()) {
                 return false
             }
             // Phase 7.5f hard gate: an assessment's keys are only as good as an
             // independent solve. Fail closed when there is no verification, and
             // require the agreement ratio to clear the policy bar (default 1.0,
             // every stored key agrees).
-            if (isAssessment(unit.taskType)) {
+            if (ContentTaskTypes.isAssessment(unit.taskType)) {
                 if (unit.answerKeyVerifiedAt == null) return false
                 val agreement = unit.answerKeyAgreement ?: return false
                 if (agreement < moderationPolicy.answerKeyMinAgreement()) return false
@@ -102,14 +102,8 @@ class AutoApprovalService(
         return true
     }
 
-    private fun isAssessment(taskType: String): Boolean =
-        taskType.trim().uppercase() in ASSESSMENT_TASK_TYPES
-
     private companion object {
         const val STATE_UNREVIEWED = "UNREVIEWED"
         const val STATE_REVIEWED = "REVIEWED"
-
-        /** Task types where the question count is the product, so the floor applies. */
-        val ASSESSMENT_TASK_TYPES = setOf("QUIZ", "EXAM", "ASSESSMENT")
     }
 }

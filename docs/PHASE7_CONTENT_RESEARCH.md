@@ -356,6 +356,20 @@ versioned table that content is tagged against.
   An assessment auto-approves only when every key agrees (policy `answer_key_min_agreement`,
   default 1.0); a disagreement, a dropped answer or an unavailable verifier fails closed into the
   human exception queue. Re-projection reuses the stored verification and spends no second call.
+- Assessment generation quality (implemented, 7.5g): measured on the live provider, five real
+  Grade 4 Mathematics `QUIZ` jobs all generated but none auto-approved - four were withheld with
+  `ANSWER_KEY_MISSING` because the model omitted `correctAnswer` on many questions, and one with
+  `STRUCTURE_STEPS_TOO_FEW` because the lesson rule ("at least three explained steps") was wrongly
+  applied to a questions-only quiz. Both were defects, not model limits. The structure rule is now
+  task-type aware: a titled lesson/readable unit (NOTES/BOOK/CHUNK, or anything that is not an
+  assessment) still needs three explained steps, while an assessment (QUIZ/EXAM/ASSESSMENT)
+  requires no minimum steps and may carry only questions; the no-questions warning and the
+  final-step warning are unchanged. The generation system prompt now makes the answer key
+  mandatory and self-consistent - every question object must carry a non-null `correctAnswer`,
+  multiple-choice/true-false keys must be copied exactly from one of the options, and a QUIZ must
+  return 8-12 questions - while the strict-JSON-only instruction is kept. There is no internal
+  retry: the deterministic validators remain the gate, so a still-imperfect response keeps
+  routing to the human exception queue.
 
 ---
 

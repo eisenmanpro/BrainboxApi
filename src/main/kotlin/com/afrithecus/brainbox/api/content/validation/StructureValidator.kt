@@ -1,8 +1,14 @@
 package com.afrithecus.brainbox.api.content.validation
 
+import com.afrithecus.brainbox.api.content.ContentTaskTypes
 import org.springframework.stereotype.Component
 
-/** Structure: a titled unit of at least three explained steps with a final check. */
+/**
+ * Structure: a titled unit. The minimum-step rule is a lesson rule - a lesson/readable
+ * unit must break the explanation into at least three steps, while an assessment
+ * (QUIZ/EXAM/ASSESSMENT) is measured by its questions and may legitimately have zero
+ * lesson steps. Every step that does exist must still carry a non-blank body.
+ */
 @Component
 class StructureValidator : ContentValidator {
 
@@ -17,7 +23,8 @@ class StructureValidator : ContentValidator {
             )
         }
 
-        if (ctx.steps.size < MIN_STEPS) {
+        // A quiz is not a lesson: only a non-assessment unit keeps the three-step bar.
+        if (!ContentTaskTypes.isAssessment(ctx.unit.taskType) && ctx.steps.size < MIN_STEPS) {
             findings += ValidationFinding(
                 FindingSeverity.BLOCKER,
                 "STRUCTURE_STEPS_TOO_FEW",
@@ -37,7 +44,7 @@ class StructureValidator : ContentValidator {
             findings += ValidationFinding(
                 FindingSeverity.WARNING, "STRUCTURE_NO_QUESTIONS", "the unit has no questions"
             )
-        } else {
+        } else if (ctx.steps.isNotEmpty()) {
             val finalStep = ctx.steps.maxByOrNull { it.orderIndex }
             if (finalStep != null && ctx.questions.none { it.stepId == finalStep.id }) {
                 findings += ValidationFinding(
@@ -52,7 +59,7 @@ class StructureValidator : ContentValidator {
     }
 
     companion object {
-        /** The BrainBox standard needs a broken-down explanation, not one paragraph. */
+        /** The BrainBox lesson standard needs a broken-down explanation, not one paragraph. */
         const val MIN_STEPS = 3
     }
 }

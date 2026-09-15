@@ -204,10 +204,15 @@ version and aggregates their findings into a `ValidationReport`:
 - `BLOCKER` forces the score to 0.0 and sets `blockers = true`; otherwise the score is
   `1.0 - sum(penalty)` (BLOCKER 1.0, WARNING 0.1, INFO 0.02), clamped to 0..1. A blocked item can
   therefore never clear an auto-approval threshold.
-- Structure requires a title and at least three explained steps; questions require a prompt and,
-  for multiple choice, at least two distinct options; the answer-key check requires a key that
-  matches exactly one option; curriculum requires a resolved concept and a mapping; language
-  requires a language tag and teachable text.
+- Structure is task-type aware (7.5g): every unit requires a title and every step that exists
+  requires a non-blank body, but the three-explained-steps minimum is a lesson rule. A lesson or
+  readable unit (NOTES/BOOK/CHUNK, and anything that is not an assessment) still needs at least
+  three steps; an assessment (`QUIZ`/`EXAM`/`ASSESSMENT`) is measured by its questions, so a quiz
+  is not a lesson and may carry zero lesson steps and only questions. A unit with no questions still
+  gets the `STRUCTURE_NO_QUESTIONS` warning, and the final-step question warning only applies when
+  steps exist. Questions require a prompt and, for multiple choice, at least two distinct options;
+  the answer-key check requires a key that matches exactly one option; curriculum requires a
+  resolved concept and a mapping; language requires a language tag and teachable text.
 
 **Safety is the first hard gate (delivered, 7.5d).** Before any quality signal is trusted, every
 unit passes `SafetyValidator` (name `safety`), a **deterministic, non-LLM** filter that scans the

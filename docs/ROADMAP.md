@@ -652,6 +652,16 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       instead of shipping; re-projection reuses the stored result and does not re-run the model.
       Comparison is forgiving but safe: case/whitespace/surrounding punctuation are normalised, and
       a multiple-choice option letter or 1-based number is resolved to the option text first.
+- [x] 7.5g assessment generation quality and task-type-aware structure: one shared
+      `ContentTaskTypes` vocabulary (ASSESSMENT_TYPES = QUIZ/EXAM/ASSESSMENT) replaces the private
+      copies, and `StructureValidator` now applies the three-explained-steps minimum only to a
+      lesson/readable unit (anything not an assessment), so a quiz may be questions-only while a
+      lesson with two steps is still blocked; the DeepSeek system prompt now mandates a non-null
+      `correctAnswer` on every question, copied exactly from an option for multiple-choice and
+      true/false, and an 8-12 question QUIZ, keeping strict-JSON-only. Measured on five live Grade
+      4 Mathematics QUIZ jobs, 0/5 auto-approved (4x `ANSWER_KEY_MISSING`, 1x
+      `STRUCTURE_STEPS_TOO_FEW`); the deterministic validators remain the gate and no internal
+      retry was added, so an imperfect response still routes to the human exception queue.
 - [ ] 7.6 breadth: run the 7.5e producer at full Tier 1 breadth, then past papers, study guides and the remaining subjects.
 - [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences)
 - [ ] Agent tools: DB metric queries, internet search, content validators

@@ -90,6 +90,52 @@ class ContentValidationTests(
     }
 
     @Test
+    fun `structure validator allows a quiz with zero steps and only questions`() {
+        val concept = concepts.save(concept())
+        curriculumMaps.save(
+            CurriculumMapEntity().apply {
+                conceptId = concept.id
+                countryCode = "KE"
+                curriculum = "CBC"
+                gradeLevel = "Grade 4"
+            }
+        )
+        val unit = contentUnits.save(
+            unit(title = "Fractions quiz", conceptId = concept.id).apply { this.taskType = "QUIZ" }
+        )
+        repeat(8) { index ->
+            seedQuestion(
+                unitId = unit.id,
+                stepId = null,
+                orderIndex = index,
+                qType = "MCQ",
+                text = "Question " + index + "?",
+                options = listOf("A", "B", "C", "D"),
+                answer = "A",
+            )
+        }
+
+        val report = validation.validate("UNIT", unit.id)
+        check(report.hasBlocker("STRUCTURE_STEPS_TOO_FEW").not()) {
+            "a quiz with questions and no lesson steps must not hit the lesson step floor"
+        }
+        check(report.blockers.not()) { "expected a clean questions-only quiz, got " + report.findings }
+        check(report.score == 1.0)
+    }
+
+    @Test
+    fun `structure validator still blocks a notes unit with only two steps`() {
+        val unit = contentUnits.save(unit(title = "Two-step notes"))
+        seedStep(unit.id, 0)
+        seedStep(unit.id, 1)
+
+        val report = validation.validate("UNIT", unit.id)
+        check(report.hasBlocker("STRUCTURE_STEPS_TOO_FEW")) {
+            "a notes unit with two steps must still be blocked"
+        }
+    }
+
+    @Test
     fun `question validator blocks a single-option multiple choice question`() {
         val unit = seedValidUnit()
         seedQuestion(unit.id, null, 9, "MCQ", "Pick one", listOf("A"), "A")

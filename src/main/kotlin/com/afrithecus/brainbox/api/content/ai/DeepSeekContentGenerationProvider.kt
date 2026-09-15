@@ -196,7 +196,7 @@ class DeepSeekContentGenerationProvider(
                 "type": "MULTIPLE_CHOICE"|"TRUE_FALSE"|"SHORT_ANSWER"|"MATCHING"|"ESSAY",
                 "text": string,
                 "options": [string]|null,
-                "correctAnswer": string|null,
+                "correctAnswer": string,
                 "explanation": string|null,
                 "points": int,
                 "difficulty": int,
@@ -206,6 +206,14 @@ class DeepSeekContentGenerationProvider(
               "sourceUrls": [string],
               "license": string|null
             }
+            Answer-key rules (mandatory):
+            - Every question object MUST include a non-null "correctAnswer". A
+              missing or null key makes the whole response invalid.
+            - For MULTIPLE_CHOICE and TRUE_FALSE the "correctAnswer" MUST be copied
+              exactly from one of the strings in that question's "options"; never a
+              letter, a number or a paraphrase.
+            - For a QUIZ task the response MUST contain at least 8 and at most 12
+              questions.
             Never include markdown fences or commentary.
         """.trimIndent()
         val VERIFY_SYSTEM_PROMPT = """
