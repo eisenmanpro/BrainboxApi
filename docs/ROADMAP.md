@@ -551,7 +551,17 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - [ ] M-Pesa production integration (idempotent STK push + callbacks, state transitions)
 - [x] FCM push notifications + deep links (LC-1, `04f0bff`): device registration plus an HTTP
       v1 sender wired into every server notification, disabled until `app.push.fcm` is set.
-- [ ] Media/file upload (presigned S3/MinIO) + file security (scan URLs, size/type policy)
+- [ ] Media/file upload (presigned S3/MinIO) + file security (scan URLs, size/type policy).
+      **File security done (this pass):** the stored and served type is detected from the file's
+      leading bytes (`MediaContentTypes`), never from the client-declared multipart type or the
+      client filename, so an HTML/script payload cannot be smuggled in as an image or under an
+      attacker-chosen extension; every upload path is size-capped (`app.media.max-upload-bytes`,
+      25 MB default, plus the 10 MB homework/document caps) and an oversized multipart is a 400
+      rather than a 500; unknown binary formats fail closed; and the public `/media/**` download is
+      hardened with `X-Content-Type-Options: nosniff`,
+      `Content-Security-Policy: default-src 'none'; sandbox`, `Referrer-Policy: no-referrer`, a
+      forced `Content-Disposition: attachment` for non-media, and `private` caching. Presigned
+      S3/MinIO upload and a malware/URL scanner remain for the deployment.
 - [ ] Redis: JWT revocation, rate-limit counters, live-class counters.
       **Partial without Redis:** access-token revocation is now enforced by checking the
       session row in `AuthTokenFilter`, so logout / password change / deactivation take effect

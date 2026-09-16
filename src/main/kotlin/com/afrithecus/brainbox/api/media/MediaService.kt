@@ -14,79 +14,52 @@ import java.nio.file.Paths
 import java.util.UUID
 
 /**
- * Local-disk media storage for uploads (CBC projects, homework attachments).
- * Returns an absolute URL built from the current request so clients can fetch it
- * directly. S3/MinIO presigned uploads replace this in Phase 6.
+ * Local-disk media storage for uploads (CBC projects, homework attachments,
+ * class-chat files). Returns an absolute URL built from the current request so
+ * clients can fetch it directly. S3/MinIO presigned uploads replace the storage
+ * layer in Phase 6; the security policy below is storage-agnostic.
+ *
+ * Security (this pass): the true format is detected from the file's leading bytes
+ * and the client-declared multipart content type is never trusted for the stored
+ * type or extension, so an HTML/script payload cannot be smuggled in as an image or
+ * under an attacker-chosen extension. Every upload is size-capped, unknown binary
+ * formats fail closed, and the serving controller adds the anti-sniffing headers.
  */
 @Service
 class MediaService(
     @Value("\${app.media.local-dir:./data/media}") private val localDir: String,
+    @Value("\${app.media.max-upload-bytes:26214400}") private val maxUploadBytes: Long,
 ) {
 
     private val root: Path = Paths.get(localDir).toAbsolutePath().normalize()
 
     /**
      * Stores an upload and returns its absolute URL. Images/videos are always
-     * accepted; [allowDocuments] additionally permits PDFs, audio and plain text
-     * for class-chat attachments.
+     * accepted; [allowDocuments] additionally permits PDFs, EPUBs, plain text and
+     * audio for class-chat attachments.
      */
-    fun store(file: MultipartFile, allowDocuments: Boolean = false): MediaUploadResponsePayload {
-        if (file.isEmpty) throw invalidArgument("An upload file is required")
-        val contentType = file.contentType ?: ""
-        val isImage = contentType.startsWith("image/")
-        val isVideo = contentType.startsWith("video/")
-        val isDocument = allowDocuments && (
-            contentType == "application/pdf" ||
-                contentType == "application/epub+zip" ||
-                contentType.startsWith("audio/") ||
-                contentType == "text/plain" ||
-                contentType == "application/msword" ||
-                contentType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            )
-        if (!isImage && !isVideo && !isDocument) throw invalidArgument("Unsupported upload type")
-        Files.createDirectories(root)
-        val filename = UUID.randomUUID().toString() + extensionFor(file.originalFilename, contentType)
-        file.transferTo(root.resolve(filename).toFile())
-        val url = ServletUriComponentsBuilder.fromCurrentContextPath().path("/media/").path(filename).toUriString()
-        return MediaUploadResponsePayload(
-            url = url,
-            mediaType = when {
-                isVideo -> "VIDEO"
-                isImage -> "IMAGE"
-                else -> "FILE"
-            },
+    fun store(file: MultipartFile, allowDocuments: Boolean = false): MediaUploadResponsePayload =
+        storeChecked(
+            file = file,
+            maxBytes = maxUploadBytes,
+            allowed = { kind -> kind.isImage || kind.isVideo || (allowDocuments && (kind.isDocument || kind.isAudio)) },
         )
-    }
 
     /**
      * Homework submission attachments: 10 MB max, PDF/DOC/DOCX/JPEG/PNG/plain text
      * (docs/ongoing/api_homework_changes.md, attachment guard).
      */
-    fun storeHomeworkAttachment(file: MultipartFile): MediaUploadResponsePayload {
-        if (file.isEmpty) throw invalidArgument("An upload file is required")
-        if (file.size > HOMEWORK_ATTACHMENT_MAX_BYTES) throw invalidArgument("Attachment must be 10 MB or smaller")
-        val contentType = file.contentType ?: ""
-        val allowed = contentType == "application/pdf" ||
-            contentType == "application/msword" ||
-            contentType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-            contentType == "text/plain" ||
-            contentType == "image/jpeg" ||
-            contentType == "image/png"
-        if (!allowed) throw invalidArgument("Unsupported attachment type")
-        return store(file, allowDocuments = true)
-    }
+    fun storeHomeworkAttachment(file: MultipartFile): MediaUploadResponsePayload =
+        storeChecked(file, HOMEWORK_ATTACHMENT_MAX_BYTES) { it in HOMEWORK_ATTACHMENT_KINDS }
 
     /** Teacher documents: 10 MB max, PDF/EPUB/plain text. */
-    fun storeDocument(file: MultipartFile): MediaUploadResponsePayload {
-        if (file.isEmpty) throw invalidArgument("An upload file is required")
-        if (file.size > DOCUMENT_MAX_BYTES) throw invalidArgument("Document must be 10 MB or smaller")
-        val contentType = file.contentType ?: ""
-        val allowed = contentType == "application/pdf" || contentType == "application/epub+zip" || contentType == "text/plain"
-        if (!allowed) throw invalidArgument("Unsupported document type")
-        return store(file, allowDocuments = true)
-    }
+    fun storeDocument(file: MultipartFile): MediaUploadResponsePayload =
+        storeChecked(file, DOCUMENT_MAX_BYTES) { it in DOCUMENT_KINDS }
 
-    /** Deletes a stored file by URL or filename; repeat-safe. */
+    /**
+     * Deletes a stored file by URL or filename; repeat-safe. The filename must match
+     * the stored shape and stay inside the media root.
+     */
     fun delete(urlOrFilename: String) {
         val filename = urlOrFilename.substringAfterLast('/').trim()
         if (!FILENAME_REGEX.matches(filename)) return
@@ -103,6 +76,10 @@ class MediaService(
         return MediaUploadResponsePayload(url = url, mediaType = "FILE")
     }
 
+    /**
+     * Loads a stored file. The filename is constrained to the stored shape (a UUID
+     * plus a short extension) and the resolved path must stay inside the media root.
+     */
     fun load(filenameRaw: String): Pair<Resource, String> {
         val filename = filenameRaw.trim()
         if (!FILENAME_REGEX.matches(filename)) throw notFound("Media not found")
@@ -111,35 +88,59 @@ class MediaService(
         return FileSystemResource(path) to contentTypeFor(filename)
     }
 
-    private fun extensionFor(original: String?, contentType: String): String {
-        val fromName = original?.substringAfterLast('.', "")?.lowercase()?.takeIf { it.length in 1..5 && it.all(Char::isLetterOrDigit) }
-        if (fromName != null) return "." + fromName
-        return when (contentType) {
-            "image/png" -> ".png"
-            "image/jpeg" -> ".jpg"
-            "image/webp" -> ".webp"
-            "image/gif" -> ".gif"
-            "video/mp4" -> ".mp4"
-            "video/quicktime" -> ".mov"
-            else -> ""
+    /**
+     * The shared upload path: size-cap, detect the real format, apply the caller's
+     * allow-list, then write under a server-derived name. The extension always comes
+     * from the detected format, never from the client filename.
+     */
+    private fun storeChecked(
+        file: MultipartFile,
+        maxBytes: Long,
+        allowed: (MediaKind) -> Boolean,
+    ): MediaUploadResponsePayload {
+        if (file.isEmpty) throw invalidArgument("An upload file is required")
+        val bytes = file.bytes
+        if (bytes.isEmpty()) throw invalidArgument("An upload file is required")
+        if (bytes.size.toLong() > maxBytes) {
+            throw invalidArgument("File must be " + (maxBytes / BYTES_PER_MB) + " MB or smaller")
         }
+        val kind = MediaContentTypes.detect(bytes) ?: throw invalidArgument("Unsupported or unrecognised file type")
+        if (!allowed(kind)) throw invalidArgument("Unsupported file type")
+        Files.createDirectories(root)
+        val filename = UUID.randomUUID().toString() + "." + kind.extension
+        Files.write(root.resolve(filename), bytes)
+        val url = ServletUriComponentsBuilder.fromCurrentContextPath().path("/media/").path(filename).toUriString()
+        return MediaUploadResponsePayload(
+            url = url,
+            mediaType = when {
+                kind.isVideo -> "VIDEO"
+                kind.isImage -> "IMAGE"
+                else -> "FILE"
+            },
+        )
     }
 
-    private fun contentTypeFor(filename: String): String = when (filename.substringAfterLast('.', "").lowercase()) {
-        "png" -> "image/png"
-        "jpg", "jpeg" -> "image/jpeg"
-        "webp" -> "image/webp"
-        "gif" -> "image/gif"
-        "mp4" -> "video/mp4"
-        "mov" -> "video/quicktime"
-        "webm" -> "video/webm"
-        "pdf" -> "application/pdf"
-        else -> "application/octet-stream"
+    private fun contentTypeFor(filename: String): String {
+        val extension = filename.substringAfterLast('.', "").lowercase()
+        return MediaKind.entries.firstOrNull { it.extension == extension }?.contentType ?: "application/octet-stream"
     }
 
     private companion object {
+        const val BYTES_PER_MB = 1024L * 1024L
         const val HOMEWORK_ATTACHMENT_MAX_BYTES = 10L * 1024 * 1024
         const val DOCUMENT_MAX_BYTES = 10L * 1024 * 1024
-        val FILENAME_REGEX = Regex("^[A-Za-z0-9-]{1,64}\\.[A-Za-z0-9]{1,5}$")
+
+        val HOMEWORK_ATTACHMENT_KINDS = setOf(
+            MediaKind.PDF,
+            MediaKind.DOC,
+            MediaKind.DOCX,
+            MediaKind.TEXT,
+            MediaKind.JPEG,
+            MediaKind.PNG,
+        )
+        val DOCUMENT_KINDS = setOf(MediaKind.PDF, MediaKind.EPUB, MediaKind.TEXT)
+
+        /** A UUID plus the detected extension; the only filenames the server ever writes. */
+        val FILENAME_REGEX = Regex("""^[A-Za-z0-9-]{1,64}\.[A-Za-z0-9]{1,5}$""")
     }
 }

@@ -14,6 +14,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import org.springframework.web.multipart.MaxUploadSizeExceededException
 import org.springframework.web.servlet.resource.NoResourceFoundException
 
 /**
@@ -51,6 +52,14 @@ class GlobalExceptionHandler(private val meterRegistry: MeterRegistry) {
     @ExceptionHandler(NoResourceFoundException::class)
     fun handleNoResource(ex: NoResourceFoundException, request: HttpServletRequest): ResponseEntity<ApiError> =
         respond(ApiErrorCode.NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found", null, request)
+
+    /**
+     * Spring rejects an oversized multipart before the controller runs; without
+     * this it would surface as a 500. It is a client-side size violation, so 400.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException::class)
+    fun handleMaxUpload(ex: MaxUploadSizeExceededException, request: HttpServletRequest): ResponseEntity<ApiError> =
+        respond(ApiErrorCode.INVALID_ARGUMENT, HttpStatus.BAD_REQUEST, "Upload exceeds the maximum allowed size", null, request)
 
     @ExceptionHandler(AccessDeniedException::class)
     fun handleAccessDenied(ex: AccessDeniedException, request: HttpServletRequest): ResponseEntity<ApiError> =

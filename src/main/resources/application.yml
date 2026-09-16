@@ -60,6 +60,9 @@ app:
   media:
     # Local disk storage for uploaded project media until S3/MinIO (Phase 6).
     local-dir: ${MEDIA_DIR:./data/media}
+    # Hard cap for the general image/video/attachment upload path. The format is
+    # still detected from the bytes; a file above this is a 400 before storage.
+    max-upload-bytes: ${MEDIA_MAX_UPLOAD_BYTES:26214400}
   auth:
     password-reset:
       # Development only: log the reset code (no SMS/email provider is wired).
