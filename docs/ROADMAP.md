@@ -604,6 +604,23 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       caps plus today's platform usage and sets them, and
       `brainbox.content.budget.used{scope=platform}` gauges usage beside queue depth.
       Per-provider quotas and a Redis-backed multi-node budget remain future work.
+- [x] H4 hardening - bounded in-JVM worker concurrency for batch windows.
+      `app.content.worker.concurrency` (default 1, so the original sequential pass is
+      unchanged) sizes one `ThreadPoolTaskExecutor` bean, created once and closed with
+      the context (30s graceful drain); no pool is created per poll. The poller still
+      reclaims stale RUNNING rows and claims up to `batch-size` eligible QUEUED jobs
+      with the H2 pause/source/USER-first semantics untouched, then processes the
+      claimed batch through the pool and waits for every job before returning, so the
+      fixed-delay schedule cannot overlap its own passes. Each job keeps its own
+      try/catch routing to `GenerationJobService.fail`, so one failure cannot stop the
+      batch. Multiple worker instances were already safe via the optimistic claim
+      (RUNNING is set before processing); scaling a batch window is therefore a
+      deployment decision, not a queue change. The shared caps are the provider
+      sustained request rate and the database connection pool: keep
+      `concurrency x worker-instances` below the Hikari pool size and at or under the
+      provider rate. Recommended single-instance start: `concurrency: 4` with
+      `batch-size` at least `concurrency`. The full-breadth 7.6 production seed run
+      remains open.
 - [x] Conflict resolution, retry and resilience: JPA optimistic-lock failures map to a counted
       `409` instead of a `500`; a bounded exponential-backoff `Retry` (no extra dependency)
       wraps the FCM token exchange and transient sends; the idempotency filter, rate limiter,

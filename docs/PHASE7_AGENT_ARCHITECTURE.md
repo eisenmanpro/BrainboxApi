@@ -215,6 +215,47 @@ while interactive requests keep working, in order:
    set `{"sources":["USER","BATCH","PROACTIVE"]}`. Depth returns to draining in
    priority order.
 
+### 2.1.3 Bounded in-JVM concurrency (H4)
+
+The 7.5a worker claimed a batch and ran it strictly sequentially, so one poller used
+at most one provider call at a time and a full seed run was an overnight job. H4 adds
+bounded in-JVM concurrency without changing the queue contract:
+
+- **Claim is still the admission point.** The poller reclaims stale RUNNING rows and
+  claims up to `app.content.worker.batch-size` eligible QUEUED rows, marking each
+  RUNNING through the optimistic update on the entity version. Selection is
+  unchanged: paused short-circuits, the source filter applies, and USER is claimed
+  ahead of BATCH/PROACTIVE. Concurrency only parallelises the *processing* of the
+  claimed set, never the claim order.
+- **One fixed pool per JVM.** `app.content.worker.concurrency` (default 1) sizes a
+  single `ThreadPoolTaskExecutor` bean (`ContentWorkerExecutorConfig`), created once
+  and closed with the context, which waits up to 30s for in-flight jobs on graceful
+  shutdown; no pool is created per poll. At the default concurrency of 1 the batch
+  runs inline on the poller thread, so today's single-transaction behaviour is
+  unchanged.
+- **The pass stays bounded.** The poller submits the claimed batch and waits for
+  every task before returning, so the fixed-delay schedule cannot overlap its own
+  passes. Each job keeps its own try/catch and routes a failure to
+  `GenerationJobService.fail`, so one failed job never stops the batch.
+- **Multiple worker instances are already safe.** This is unchanged from 7.5a: the
+  optimistic claim means two workers cannot take the same row, and a crashed
+  worker's RUNNING row is reclaimed once stale. Adding instances is a deployment
+  decision, not a queue change.
+- **Recommended configuration and shared limits.** Start a single worker at
+  `concurrency: 4` with `batch-size` at least `concurrency`. The two shared caps are
+  the model provider (its sustained request rate and quota) and the database
+  connection pool: keep `concurrency x worker-instances` comfortably below the pool
+  size (the Hikari default is 10 and the API request path shares it) and at or under
+  the provider sustained rate. Raise instances before per-instance concurrency when
+  the provider is the limit.
+
+Thread safety: the router and the projection service hold no in-memory mutable state
+and are safe to call from several worker threads; each job carries its own entity
+instances. One residual risk is `ContentProjectionService.systemAuthorId()`, a
+check-then-insert of a fixed author id that can race on the very first projection of
+a fresh database; a first sequential poll normally creates the row before a
+concurrent batch runs.
+
 ### 2.2 Prompt library (Library 1)
 
 Prompts are **versioned data**, keyed by `(taskType, subject, gradeBand, standardVersion)`, not

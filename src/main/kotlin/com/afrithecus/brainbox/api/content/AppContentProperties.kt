@@ -28,6 +28,21 @@ data class AppContentProperties(
 
     data class Worker(
         val batchSize: Int = 5,
+        /**
+         * H4: maximum number of claimed jobs processed in parallel inside this JVM.
+         * Default 1 reproduces the phase 7.5a sequential pass exactly. A value above
+         * 1 hands the claimed batch to a fixed executor of this size and the poller
+         * waits for the whole batch before returning, so the fixed-delay schedule
+         * stays bounded and passes cannot pile up.
+         *
+         * The shared limits are the model provider (its sustained request rate and
+         * quota) and the database connection pool. Keep
+         * concurrency x worker-instances below the pool size and at or under the
+         * provider's sustained rate. A sensible single-instance start is 4, with
+         * batch-size at least concurrency; multiple worker instances are already
+         * safe because a claim is an optimistic update on the entity version.
+         */
+        val concurrency: Int = 1,
         val maxAttempts: Int = 5,
         val staleRunSeconds: Long = 900,
         val pollIntervalMs: Long = 15000,

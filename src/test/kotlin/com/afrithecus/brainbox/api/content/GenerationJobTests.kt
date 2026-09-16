@@ -210,6 +210,29 @@ class GenerationJobWorkerTests(
     }
 
     @Test
+    fun `concurrency 1 drains a multi-job batch and a failure does not stop it`() {
+        val keys = (1..3).map { "ke:cbc:grade4:mat-num-frac:lesson:h4-seq-" + it }
+        val jobs = keys.map { jobService.enqueue(request(it)) }
+
+        // One-shot failure: exactly one job consumes it and is rescheduled, the
+        // other two still complete, proving the per-job try/catch still isolates.
+        fake.failNext = "model exploded"
+        worker.poll()
+
+        entityManager.flush()
+        entityManager.clear()
+
+        check(fake.requests.size == 3) { "the whole claimed batch must be attempted" }
+        val reloaded = jobs.map { generationJobs.findById(it.id).orElseThrow() }
+        check(reloaded.count { it.status == "SUCCEEDED" } == 2)
+        val rescheduled = reloaded.single { it.status == "QUEUED" }
+        check(rescheduled.attempts == 1)
+        check(rescheduled.lastError!!.contains("model exploded"))
+        check(reloaded.filter { it.status == "SUCCEEDED" }.all { it.attempts == 1 })
+        check(keys.count { contentUnits.findByGenerationKey(it) != null } == 2)
+    }
+
+    @Test
     fun `clean generated unit auto-approves and becomes learner-visible through the worker`() {
         fake.clean = true
         val key = "ke:cbc:grade4:mat-num-frac:lesson:clean-auto-approve"
