@@ -491,26 +491,33 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       switches, grade weighting, subjects/TSC/grade) and GET/PUT /teacher/profile (the account
       shape with teacher code, classes, subjects and verification state), self-scoped.
 
-### Phase 4 — Traditional Exam Engine  (goal 4; docs 02 §6, 10)
+### Phase 4 — Traditional Exam Engine  (goal 4; docs 02 §6, 10) — COMPLETE
 
-> **Paused for the client backlog.** The main plan is held here while the client works through
-> `BrainBox/docs/ongoing/client_backlog.md`. Resume at this phase once those items land and the
-> paired backend patches listed in that doc's §13 are applied. (The exam engine itself shipped in
-> V29; the return is to the main plan, not to re-do Phase 4.)
->
-> §13 status: REC-1 (V55), TT-1, LC-2, ANN-1 (`0880946`), the reports renderer decision
-> (PDF-1 Option A, server-only, plus the blank-template endpoint, `e1a1958`), the ADM-1 backup
-> export schema (`99072a7`), the learner-facing reports + detailed CBC specs (`1596e84`) and the
-> TT-3/CONF-1/GB-1 backend defaults (`62b465f`) are done. Parent absence/present alerts are decided
-> (server push + local alert) and emitted server-side (`5227cde`); LC-1 is now implemented end to
-> end (`04f0bff`) — device registration plus the FCM sender, disabled until `app.push.fcm`
-> credentials are configured. PAY-1/MED-1 wait on the Phase 6 direction. What remains is
-> client/product work, not backend.
-- [ ] Exam lifecycle: PENDING → IN_PROGRESS → CONFIRMED → PRE_FINAL → FINALIZED → PUBLISHED guards
-- [ ] Subject config/components; mark entry; confirmation; finalization; publication
-- [ ] Edit requests: batch per-student processing; coordinator self-approval rejection
-- [ ] Analytics & rankings (server-computed), trends, grade distributions
-- [ ] Grading config; coordinator panels & subject config; teacher analytics
+> The engine shipped in V29 and the client-id bridge in V58; the pause was for the client backlog
+> (`BrainBox/docs/ongoing/client_backlog.md`), whose §13 backend patches are all done (REC-1 V55,
+> TT-1, LC-2, ANN-1 `0880946`, the reports renderer decision PDF-1 Option A plus the blank-template
+> endpoint `e1a1958`, the ADM-1 backup export schema `99072a7`, the learner-facing reports +
+> detailed CBC specs `1596e84`, the TT-3/CONF-1/GB-1 backend defaults `62b465f`, the parent
+> absence/present alerts `5227cde` and LC-1 `04f0bff`). The checklist below was then audited against
+> spec 10 Appendix A; the remaining server-obligation gaps were closed in this pass — strict
+> lifecycle transitions, the edit-request guards and the own-class mark rule.
+- [x] Exam lifecycle: PENDING → IN_PROGRESS → CONFIRMED → PRE_FINAL → FINALIZED → PUBLISHED guards.
+      `POST /traditional/exams/{id}/status/{status}` now moves one guarded step at a time and routes
+      CONFIRMED/PRE_FINAL/FINALIZED/PUBLISHED through their own precondition checks, so a skipped or
+      backward step is a 409 and an already-applied step is an idempotent no-op for the offline outbox.
+- [x] Subject config/components; mark entry; confirmation; finalization; publication (V29/V58).
+      The server-side own-class rule (spec 10 Appendix A) is now enforced on mark entry: a teacher who
+      owns the student's active class cannot enter that class's marks.
+- [x] Edit requests: batch per-student processing (one row per student, processed independently);
+      coordinator self-approval rejection (V29). `requestEdit` now also enforces the spec 10 §5.3
+      guards server-side — role (C/TEACHER, GRADE_COORDINATOR or ICT_ADMIN only), a FINALIZED exam,
+      an in-range new score and a requester who teaches the student — and a decision is terminal
+      (replay is an idempotent no-op, a reversal is a 409).
+- [x] Analytics & rankings (server-computed), trends, grade distributions (V29/V58). The server
+      computes the per-exam analytics, the grade-wide and per-class rankings and the grade
+      distribution; the client trends screen aggregates those per-exam series locally (no dedicated
+      trends endpoint in the current contract).
+- [x] Grading config; coordinator panels & subject config; teacher analytics (V29/V58).
 
 ### Phase 5 — Admin & School Management  (goal 5; doc 08) — COMPLETE
 - [x] Admin identity + approvals: user list/detail/patch/deactivate, reset-password,

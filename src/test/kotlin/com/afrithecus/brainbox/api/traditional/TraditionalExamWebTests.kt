@@ -1,6 +1,10 @@
 package com.afrithecus.brainbox.api.traditional
 
 import com.afrithecus.brainbox.api.auth.web.AuthResponse
+import com.afrithecus.brainbox.api.classes.entity.ClassMembershipEntity
+import com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity
+import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
+import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
@@ -58,6 +62,8 @@ class TraditionalExamWebTests(
     @Autowired private val userRepository: UserRepository,
     @Autowired private val schoolRepository: SchoolRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
+    @Autowired private val teacherClassRepository: TeacherClassRepository,
+    @Autowired private val classMembershipRepository: ClassMembershipRepository,
 ) {
 
     private lateinit var schoolId: UUID
@@ -105,6 +111,20 @@ class TraditionalExamWebTests(
     }
 
     private fun auth(token: String) = "Bearer " + token
+
+    /** A fresh (no client id) edit request; the server adopts the caller as the requester. */
+    private fun editRequest(examId: String, studentId: UUID, subjectId: String, oldScore: Int, newScore: Int): EditRequestDto =
+        EditRequestDto(
+            id = "",
+            examId = examId,
+            teacherId = "",
+            studentId = studentId.toString(),
+            subjectId = subjectId,
+            oldScore = oldScore,
+            newScore = newScore,
+            reason = "capture typo",
+            createdAt = 0,
+        )
 
     private fun createExam(token: String, gradeLevel: String, subjects: List<SubjectConfigDto>, year: Int = 2026): TraditionalExamDto {
         val body = objectMapper.writeValueAsString(
@@ -386,6 +406,21 @@ class TraditionalExamWebTests(
         check(regenerated.size == 3 && regenerated.map { it.examId }.toSet() == generated.map { it.examId }.toSet())
 
         val examId = generated[0].examId
+        // Edit requests are only valid once the exam is finalized.
+        mockMvc.perform(
+            post("/traditional/exams/${examId}/marks").header("Authorization", auth(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(MarkEntryDto(student.id.toString(), "MAT", 50))))
+        ).andExpect(status().isOk)
+        mockMvc.perform(
+            post("/traditional/exams/${examId}/confirm").param("grade", "Grade 6").header("Authorization", auth(token))
+        ).andExpect(status().isNoContent)
+        mockMvc.perform(
+            post("/traditional/exams/${examId}/pre-final").header("Authorization", auth(token))
+        ).andExpect(status().isOk)
+        mockMvc.perform(
+            post("/traditional/exams/${examId}/finalize").header("Authorization", auth(token))
+        ).andExpect(status().isOk)
         val request = EditRequestDto(
             id = "", examId = examId, teacherId = coordinator.id.toString(), studentId = student.id.toString(),
             subjectId = "MAT", oldScore = 50, newScore = 60, reason = "capture typo", createdAt = 0,
@@ -490,7 +525,7 @@ class TraditionalExamWebTests(
     @Test
     fun `client supplied edit request id is adopted for later approval`() {
         val coordinator = user(Role.TEACHER, "Coordinator Edit", "0700000500", grade = "Grade 8", subRole = SubRole.GRADE_COORDINATOR)
-        val teacher = user(Role.TEACHER, "Teacher Edit", "0700000501", grade = "Grade 8")
+        val teacher = user(Role.TEACHER, "Teacher Edit", "0700000501", grade = "Grade 8", subRole = SubRole.CTEACHER)
         val student = user(Role.STUDENT, "Student Edit", "0700000502", grade = "Grade 8")
         val coordinatorToken = token(coordinator)
         val teacherToken = token(teacher)
@@ -500,6 +535,16 @@ class TraditionalExamWebTests(
             post("/traditional/exams/${exam.examId}/marks").header("Authorization", auth(teacherToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(listOf(MarkEntryDto(student.id.toString(), "MAT", 50))))
+        ).andExpect(status().isOk)
+        // Edit requests are only valid on a finalized exam; lock the marks first.
+        mockMvc.perform(
+            post("/traditional/exams/${exam.examId}/confirm").param("grade", "Grade 8").header("Authorization", auth(teacherToken))
+        ).andExpect(status().isNoContent)
+        mockMvc.perform(
+            post("/traditional/exams/${exam.examId}/pre-final").header("Authorization", auth(coordinatorToken))
+        ).andExpect(status().isOk)
+        mockMvc.perform(
+            post("/traditional/exams/${exam.examId}/finalize").header("Authorization", auth(coordinatorToken))
         ).andExpect(status().isOk)
 
         val requestId = UUID.randomUUID().toString()
@@ -545,5 +590,129 @@ class TraditionalExamWebTests(
         mockMvc.perform(
             post("/traditional/exams/${exam.examId}/confirm").param("grade", "Grade 4").header("Authorization", auth(token))
         ).andExpect(status().isNoContent)
+    }
+
+    @Test
+    fun `lifecycle only advances one guarded step at a time`() {
+        val coordinator = user(Role.TEACHER, "Coordinator Lifecycle", "0700000700", grade = "Grade 4", subRole = SubRole.GRADE_COORDINATOR)
+        val token = token(coordinator)
+        val exam = createExam(token, "Grade 4", listOf(SubjectConfigDto("MAT", "Mathematics", 100, TraditionalSubjectType.SINGLE)))
+
+        // A single status write cannot skip the confirmation/finalization gates.
+        mockMvc.perform(post("/traditional/exams/${exam.examId}/status/FINALIZED").header("Authorization", auth(token)))
+            .andExpect(status().isConflict)
+        mockMvc.perform(post("/traditional/exams/${exam.examId}/status/PUBLISHED").header("Authorization", auth(token)))
+            .andExpect(status().isConflict)
+        mockMvc.perform(post("/traditional/exams/${exam.examId}/status/CONFIRMED").header("Authorization", auth(token)))
+            .andExpect(status().isConflict)
+        mockMvc.perform(post("/traditional/exams/${exam.examId}/status/PENDING").header("Authorization", auth(token)))
+            .andExpect(status().isConflict)
+
+        // PENDING -> IN_PROGRESS is the one allowed forward step, and is replay-safe.
+        mockMvc.perform(post("/traditional/exams/${exam.examId}/status/IN_PROGRESS").header("Authorization", auth(token)))
+            .andExpect(status().isOk)
+        mockMvc.perform(post("/traditional/exams/${exam.examId}/status/IN_PROGRESS").header("Authorization", auth(token)))
+            .andExpect(status().isOk)
+    }
+
+    @Test
+    fun `edit request guards require a finalized exam, a permitted sub-role and an in-range score`() {
+        val coordinator = user(Role.TEACHER, "Coordinator Guards", "0700000800", grade = "Grade 5", subRole = SubRole.GRADE_COORDINATOR)
+        val approver = user(Role.TEACHER, "Coordinator Approver", "0700000803", grade = "Grade 5", subRole = SubRole.GRADE_COORDINATOR)
+        val plainTeacher = user(Role.TEACHER, "Plain Teacher", "0700000801", grade = "Grade 5")
+        val student = user(Role.STUDENT, "Student Guards", "0700000802", grade = "Grade 5")
+        val token = token(coordinator)
+
+        val exam = createExam(token, "Grade 5", listOf(SubjectConfigDto("MAT", "Mathematics", 100, TraditionalSubjectType.SINGLE)))
+        // Not finalized: the request is refused.
+        mockMvc.perform(
+            post("/traditional/exams/${exam.examId}/edit-requests").header("Authorization", auth(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(editRequest(exam.examId, student.id, "MAT", 50, 60)))
+        ).andExpect(status().isConflict)
+
+        // Lock the exam.
+        mockMvc.perform(
+            post("/traditional/exams/${exam.examId}/marks").header("Authorization", auth(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(MarkEntryDto(student.id.toString(), "MAT", 50))))
+        ).andExpect(status().isOk)
+        mockMvc.perform(
+            post("/traditional/exams/${exam.examId}/confirm").param("grade", "Grade 5").header("Authorization", auth(token))
+        ).andExpect(status().isNoContent)
+        mockMvc.perform(post("/traditional/exams/${exam.examId}/pre-final").header("Authorization", auth(token)))
+            .andExpect(status().isOk)
+        mockMvc.perform(post("/traditional/exams/${exam.examId}/finalize").header("Authorization", auth(token)))
+            .andExpect(status().isOk)
+
+        // An out-of-range new score is rejected.
+        mockMvc.perform(
+            post("/traditional/exams/${exam.examId}/edit-requests").header("Authorization", auth(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(editRequest(exam.examId, student.id, "MAT", 50, 500)))
+        ).andExpect(status().isBadRequest)
+
+        // A plain teacher without a permitted sub-role cannot request at all.
+        mockMvc.perform(
+            post("/traditional/exams/${exam.examId}/edit-requests").header("Authorization", auth(token(plainTeacher)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(editRequest(exam.examId, student.id, "MAT", 50, 60)))
+        ).andExpect(status().isForbidden)
+
+        // A valid coordinator request is created and can be decided exactly once.
+        val created = objectMapper.readValue(
+            mockMvc.perform(
+                post("/traditional/exams/${exam.examId}/edit-requests").header("Authorization", auth(token))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(editRequest(exam.examId, student.id, "MAT", 50, 60)))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            EditRequestDto::class.java,
+        )
+        check(created.status == TraditionalEditStatus.PENDING)
+        mockMvc.perform(post("/traditional/edit-requests/${created.id}/approve").header("Authorization", auth(token(approver))))
+            .andExpect(status().isOk)
+        // Replay is idempotent, but a decision cannot be reversed.
+        mockMvc.perform(post("/traditional/edit-requests/${created.id}/approve").header("Authorization", auth(token(approver))))
+            .andExpect(status().isOk)
+        mockMvc.perform(post("/traditional/edit-requests/${created.id}/deny").header("Authorization", auth(token(approver))))
+            .andExpect(status().isConflict)
+    }
+
+    @Test
+    fun `own-class rule blocks a class teacher from entering marks for their own class`() {
+        val teacher = user(Role.TEACHER, "Class Teacher", "0700000900", grade = "Grade 3", subRole = SubRole.CTEACHER)
+        val coordinator = user(Role.TEACHER, "Coordinator Own", "0700000901", grade = "Grade 3", subRole = SubRole.GRADE_COORDINATOR)
+        val ownStudent = user(Role.STUDENT, "Own Class Student", "0700000902", grade = "Grade 3")
+        val otherStudent = user(Role.STUDENT, "Other Class Student", "0700000903", grade = "Grade 3")
+        val teacherToken = token(teacher)
+        val coordinatorToken = token(coordinator)
+
+        val ownedClass = TeacherClassEntity().apply {
+            teacherUserId = teacher.id
+            schoolId = schoolId
+            name = "Grade 3A"
+            gradeLevel = "Grade 3"
+            subject = "Mathematics"
+            isActive = true
+        }
+        teacherClassRepository.save(ownedClass)
+        classMembershipRepository.save(ClassMembershipEntity().apply {
+            classId = ownedClass.id
+            studentId = ownStudent.id
+        })
+
+        val exam = createExam(coordinatorToken, "Grade 3", listOf(SubjectConfigDto("MAT", "Mathematics", 100, TraditionalSubjectType.SINGLE)))
+        // The class teacher owns Grade 3A, so entering a mark for a member is refused.
+        mockMvc.perform(
+            post("/traditional/exams/${exam.examId}/marks").header("Authorization", auth(teacherToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(MarkEntryDto(ownStudent.id.toString(), "MAT", 70))))
+        ).andExpect(status().isForbidden)
+        // A student outside the owned class is still markable.
+        mockMvc.perform(
+            post("/traditional/exams/${exam.examId}/marks").header("Authorization", auth(teacherToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(MarkEntryDto(otherStudent.id.toString(), "MAT", 70))))
+        ).andExpect(status().isOk)
     }
 }

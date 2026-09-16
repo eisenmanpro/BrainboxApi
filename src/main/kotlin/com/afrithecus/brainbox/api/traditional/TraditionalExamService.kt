@@ -217,11 +217,38 @@ class TraditionalExamService(
         requireCoordinator(current)
         val exam = exam(current, examIdRaw)
         val target = enumOr(TraditionalExamStatus.entries, statusRaw, "exam status")
-        if (target == TraditionalExamStatus.PUBLISHED) return publish(current, examIdRaw, current.userId.toString())
-        ensureTransitionAllowed(exam, target)
-        exam.status = target
-        examRepository.save(exam)
-        return examDto(exam)
+        // The lifecycle moves one guarded step at a time (spec 10 section 1.1). Terminal
+        // steps route through their own method so the confirmation/finalization
+        // preconditions cannot be skipped by a single status write, and every replay of
+        // an already-applied step is an idempotent no-op for the offline outbox.
+        return when (target) {
+            TraditionalExamStatus.PUBLISHED -> publish(current, examIdRaw, current.userId.toString())
+            TraditionalExamStatus.FINALIZED -> finalize(current, examIdRaw, current.userId.toString(), null)
+            TraditionalExamStatus.PRE_FINAL -> advanceToPreFinal(current, examIdRaw)
+            TraditionalExamStatus.CONFIRMED -> {
+                if (orderAtLeast(exam, TraditionalExamStatus.CONFIRMED)) return examDto(exam)
+                if (exam.status != TraditionalExamStatus.IN_PROGRESS) {
+                    throw conflict("Exam must be IN_PROGRESS before it can be CONFIRMED")
+                }
+                val tally = confirmationTally(exam.id)
+                if (tally.total == 0 || tally.confirmed != tally.total) {
+                    throw conflict("All teachers must confirm before the exam is CONFIRMED")
+                }
+                exam.status = target
+                examRepository.save(exam)
+                examDto(exam)
+            }
+            TraditionalExamStatus.IN_PROGRESS -> {
+                if (exam.status == TraditionalExamStatus.IN_PROGRESS) return examDto(exam)
+                if (exam.status != TraditionalExamStatus.PENDING) {
+                    throw conflict("Only a PENDING exam can be opened for marking")
+                }
+                exam.status = target
+                examRepository.save(exam)
+                examDto(exam)
+            }
+            TraditionalExamStatus.PENDING -> throw conflict("Cannot move exam backwards to PENDING")
+        }
     }
 
     @Transactional(readOnly = true)
@@ -372,10 +399,21 @@ class TraditionalExamService(
         val editable = exam.status == TraditionalExamStatus.PENDING ||
             exam.status == TraditionalExamStatus.IN_PROGRESS ||
             exam.status == TraditionalExamStatus.CONFIRMED
+        val ownClass = if (operator.role == Role.TEACHER) teacherClassTag(operator.id) else null
         val saved = mutableListOf<TraditionalMarkEntity>()
         for (entry in entries) {
             val subject = subjects[entry.subjectId] ?: throw invalidArgument("Unknown subject " + entry.subjectId)
-            if (!editable && !hasEditPermission(exam.id, parseUuid(entry.studentId, "student id"), operator.id)) {
+            val studentId = parseUuid(entry.studentId, "student id")
+            // Spec 10 Appendix A own-class rule: a teacher cannot enter marks for the
+            // class they own. The client enforces the same rule (validateTeacherAccess);
+            // this is the server-authoritative copy for a client that skipped it.
+            if (ownClass != null) {
+                val student = userRepository.findById(studentId).orElse(null)
+                if (student != null && classTagOf(student, exam) == ownClass) {
+                    throw ApiException(ApiErrorCode.FORBIDDEN, "You cannot enter marks for your own class")
+                }
+            }
+            if (!editable && !hasEditPermission(exam.id, studentId, operator.id)) {
                 throw conflict("Exam marks are locked; an approved edit permission is required")
             }
             if (entry.rawScore < 0 || entry.rawScore > subject.maxScore) {
@@ -394,7 +432,6 @@ class TraditionalExamService(
                 }
                 if (sum != entry.rawScore) throw invalidArgument("Component scores must sum to " + entry.rawScore)
             }
-            val studentId = parseUuid(entry.studentId, "student id")
             val row = markRepository.findByExamIdAndStudentIdAndSubjectId(exam.id, studentId, entry.subjectId)
                 ?: TraditionalMarkEntity().apply {
                     this.examId = exam.id
@@ -454,8 +491,11 @@ class TraditionalExamService(
             }
             markRepository.saveAll(gradeMarks)
         }
-        val all = confirmationRepository.findAllByExamId(exam.id)
-        if (exam.status == TraditionalExamStatus.IN_PROGRESS && all.isNotEmpty() && all.all { it.confirmedAt != null }) {
+        // Promote only once every teacher of record has confirmed, not merely every
+        // existing confirmation row: a teacher who entered marks but has not confirmed
+        // must keep the exam open (the client gates on totalTeachers == confirmedCount).
+        val tally = confirmationTally(exam.id)
+        if (exam.status == TraditionalExamStatus.IN_PROGRESS && tally.total > 0 && tally.confirmed == tally.total) {
             exam.status = TraditionalExamStatus.CONFIRMED
             examRepository.save(exam)
         }
@@ -607,23 +647,37 @@ class TraditionalExamService(
 
     @Transactional
     fun requestEdit(current: CurrentUser, examIdRaw: String, request: EditRequestDto): EditRequestDto {
-        requireStaffWriter(current)
+        requireEditRequester(current)
         val exam = exam(current, examIdRaw)
-        if (request.reason.isBlank()) throw invalidArgument("An edit reason is required")
         // The client generates the request id locally and later approves/denies by it
         // (the response is best-effort); adopt it so those calls resolve, and replay
-        // of the same request is idempotent.
+        // of the same request is idempotent. The replay lookup runs before the guards
+        // so a retried request that already landed is echoed even if the exam moved on.
         val requestedId = parseUuidOrNull(request.id)
         if (requestedId != null) {
             editRequestRepository.findById(requestedId).orElse(null)?.let { existing ->
                 return editRequestDto(existing, publicExamId(existing.examId))
             }
         }
+        // Guards the client also enforces locally (spec 10 section 5.3 / Appendix A).
+        // The server is the authority for an offline client that skipped them.
+        if (exam.status != TraditionalExamStatus.FINALIZED) {
+            throw conflict("Edit requests are only allowed on a finalized exam")
+        }
+        if (request.reason.isBlank()) throw invalidArgument("An edit reason is required")
+        val subject = subjectRepository.findAllByExamIdOrderByOrderIndexAsc(exam.id)
+            .firstOrNull { it.subjectId == request.subjectId }
+            ?: throw invalidArgument("Unknown subject " + request.subjectId)
+        if (request.newScore < 0 || request.newScore > subject.maxScore) {
+            throw invalidArgument("The new score for " + request.subjectId + " must be between 0 and " + subject.maxScore)
+        }
+        val studentId = parseUuid(request.studentId, "student id")
+        verifyEditRequesterTeaches(current, exam, studentId)
         val row = TraditionalEditRequestEntity().apply {
             if (requestedId != null) id = requestedId
             this.examId = exam.id
             requesterId = current.userId
-            studentId = parseUuid(request.studentId, "student id")
+            this.studentId = studentId
             subjectId = request.subjectId
             oldScore = request.oldScore
             newScore = request.newScore
@@ -639,6 +693,9 @@ class TraditionalExamService(
         requireCoordinator(current)
         val row = editRequest(requestIdRaw)
         if (row.requesterId == current.userId) throw ApiException(ApiErrorCode.FORBIDDEN, "A coordinator cannot approve their own request")
+        // Offline replay: re-sending an applied approval is an idempotent no-op.
+        if (row.status == TraditionalEditStatus.APPROVED) return editRequestDto(row, publicExamId(row.examId))
+        if (row.status == TraditionalEditStatus.DENIED) throw conflict("This edit request was already denied")
         row.status = TraditionalEditStatus.APPROVED
         row.reviewedBy = coordinatorId?.let { parseUuidOrNull(it) } ?: current.userId
         row.reviewedAt = clock.instant()
@@ -652,6 +709,9 @@ class TraditionalExamService(
     fun denyEditRequest(current: CurrentUser, requestIdRaw: String, coordinatorId: String?, reason: String?): EditRequestDto {
         requireCoordinator(current)
         val row = editRequest(requestIdRaw)
+        // Offline replay: re-sending an applied denial is an idempotent no-op.
+        if (row.status == TraditionalEditStatus.DENIED) return editRequestDto(row, publicExamId(row.examId))
+        if (row.status == TraditionalEditStatus.APPROVED) throw conflict("This edit request was already approved")
         row.status = TraditionalEditStatus.DENIED
         row.reviewedBy = coordinatorId?.let { parseUuidOrNull(it) } ?: current.userId
         row.reviewedAt = clock.instant()
@@ -1198,6 +1258,35 @@ class TraditionalExamService(
         throw ApiException(ApiErrorCode.FORBIDDEN, "Coordinator access required")
     }
 
+    /**
+     * Only C/TEACHER, GRADE_COORDINATOR and ICT_ADMIN may raise an edit request
+     * (spec 10 section 5.3 guard 1 / Appendix A); a plain (sub-role-less) teacher may
+     * not. A platform admin is accepted as the tenant-level override.
+     */
+    private fun requireEditRequester(current: CurrentUser) {
+        if (current.role == Role.ADMIN) return
+        if (current.role == Role.TEACHER &&
+            (current.subRole == SubRole.CTEACHER || current.subRole == SubRole.GRADE_COORDINATOR || current.subRole == SubRole.ICT_ADMIN)
+        ) return
+        throw ApiException(ApiErrorCode.FORBIDDEN, "Only C/Teachers and coordinators can request a score edit")
+    }
+
+    /**
+     * The requester must actually teach the affected student: a coordinator is exempt,
+     * otherwise the teacher must have entered at least one mark in this exam or own an
+     * active class matching the student's class (spec 10 Appendix A).
+     */
+    private fun verifyEditRequesterTeaches(current: CurrentUser, exam: TraditionalExamEntity, studentId: UUID) {
+        if (current.role != Role.TEACHER) return
+        if (current.subRole == SubRole.GRADE_COORDINATOR || current.subRole == SubRole.ICT_ADMIN) return
+        if (markRepository.existsByExamIdAndEnteredBy(exam.id, current.userId)) return
+        val student = userRepository.findById(studentId).orElse(null) ?: throw notFound("Student not found")
+        val classTag = classTagOf(student, exam)
+        if (teacherClassTag(current.userId) != classTag) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "You do not teach this student's class")
+        }
+    }
+
     private fun notify(
         userId: UUID,
         title: String,
@@ -1274,6 +1363,10 @@ class TraditionalExamService(
         val order = TraditionalExamStatus.entries
         if (order.indexOf(target) < order.indexOf(exam.status)) throw conflict("Cannot move exam backwards to " + target)
     }
+
+    /** True when the exam has already reached [status] in the lifecycle order. */
+    private fun orderAtLeast(exam: TraditionalExamEntity, status: TraditionalExamStatus): Boolean =
+        TraditionalExamStatus.entries.indexOf(exam.status) >= TraditionalExamStatus.entries.indexOf(status)
 
     private fun enumOr(values: List<TraditionalExamStatus>, raw: String, label: String): TraditionalExamStatus =
         values.firstOrNull { it.name.equals(raw.trim(), ignoreCase = true) }

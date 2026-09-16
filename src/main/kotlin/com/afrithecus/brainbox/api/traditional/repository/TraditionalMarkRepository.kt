@@ -19,4 +19,6 @@ interface TraditionalMarkRepository : JpaRepository<TraditionalMarkEntity, UUID>
     fun findByExamIdAndStudentIdAndSubjectId(examId: UUID, studentId: UUID, subjectId: String): TraditionalMarkEntity?
 
     fun countByExamId(examId: UUID): Long
+
+    fun existsByExamIdAndEnteredBy(examId: UUID, enteredBy: UUID): Boolean
 }
