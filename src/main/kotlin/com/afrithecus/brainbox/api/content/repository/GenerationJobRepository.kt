@@ -27,6 +27,12 @@ interface GenerationJobSchoolCount {
     val total: Long
 }
 
+/** One source -> count row for the O1 failed-jobs rollup. */
+interface GenerationJobSourceCount {
+    val source: String
+    val total: Long
+}
+
 interface GenerationJobRepository : JpaRepository<GenerationJobEntity, UUID> {
 
     fun findAllByStatusOrderByCreatedAtAsc(status: String): List<GenerationJobEntity>
@@ -80,6 +86,20 @@ interface GenerationJobRepository : JpaRepository<GenerationJobEntity, UUID> {
         @Param("sources") sources: Collection<String>,
         pageable: Pageable,
     ): List<GenerationJobEntity>
+
+    /** O1 rollup: jobs that ended FAILED in [from, to), grouped by source. */
+    @Query(
+        "SELECT j.source AS source, COUNT(j) AS total FROM GenerationJobEntity j " +
+            "WHERE j.status = 'FAILED' AND j.updatedAt >= :from AND j.updatedAt < :to GROUP BY j.source"
+    )
+    fun countFailedBySourceInWindow(
+        @Param("from") from: Instant,
+        @Param("to") to: Instant,
+    ): List<GenerationJobSourceCount>
+
+    /** O1 summary: the created-at of the oldest still-QUEUED job, or null when none. */
+    @Query("SELECT MIN(j.createdAt) FROM GenerationJobEntity j WHERE j.status = 'QUEUED'")
+    fun oldestQueuedAt(): Instant?
 
     /** Phase 7.5a stale-run reclaim: RUNNING jobs untouched since the cutoff. */
     @Query("SELECT j FROM GenerationJobEntity j WHERE j.status = 'RUNNING' AND j.updatedAt <= :cutoff")

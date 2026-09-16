@@ -545,6 +545,42 @@ matching `If-None-Match` gets `304 Not Modified`. The pipeline also exposes real
 metrics on the existing `MeterRegistry` for queue depth, provider latency and errors, token
 spend and the auto-approval rate (see ROADMAP Phase 6 H1).
 
+### 2.11 Operations backend (O1) - no external observability dependency
+
+Brainbox deploys in Kenyan data centres for data sovereignty, so it does **not** use
+Prometheus, Grafana or any SaaS observability service, and O1 adds no dependency:
+Micrometer and actuator are already inside the app. The backend owns its history in
+its own database and exposes an admin ops API that a future, separate internal
+operations frontend (the team console in §5) consumes; there is no learner- or
+teacher-facing change.
+
+- **Live values stay on actuator/Micrometer.** The existing meters
+  (`brainbox.content.queue.depth`, `brainbox.content.generation.latency`,
+  `brainbox.content.provider.errors`, `brainbox.content.tokens`,
+  `brainbox.content.autoapprove`, `brainbox.content.budget.used`) remain the
+  real-time view for a scrape or a dashboard.
+- **History lives in `ops_metric_rollup` (V73).** A scheduled job (hourly by
+  default, configurable) aggregates the facts the pipeline already stores for the
+  previous complete hour: published and auto-approved units, failed jobs by source,
+  provider latency/errors/tokens/cost from `model_calls`, and a shelf-coverage
+  snapshot. One row per `(bucket_start, metric, dimension)` makes recomputation
+  idempotent - an hour is replaced, never duplicated - and a configurable purge
+  keeps the same 90-day window as the audit log. Cost is summed from the stored
+  `model_calls.cost_micros`, which the router writes from the single shared
+  `ContentPricing` constants, so the price is never duplicated.
+- **The admin ops API is the contract.** `GET /admin/ops/summary` (live queue,
+  coverage, budget, cost and the latest rolled-up auto-approval reason mix),
+  `GET /admin/ops/coverage` (per subject x grade), `GET /admin/ops/timeseries`
+  (bounded rollup points for charts) and `GET /admin/ops/audit` (the sampled
+  machine approvals). All are ADMIN-only, flat and cheap, with coarse dimensions
+  and no per-topic cardinality in the stored metrics.
+- **Sampled audit of machine approvals.** The policy key
+  `auto_approve_audit_sample_percent` (double, default 2.0; 0 disables) flags a
+  deterministic percentage of auto-approved units via a stable hash of the content
+  id, so the same unit is always in or out of the sample. Reviewers spot-check the
+  flagged units from `GET /admin/ops/audit`; a human REJECT of an already
+  published approval re-projects the unit hidden, so it stops serving to learners.
+
 ---
 
 ## 3. End-to-end flows

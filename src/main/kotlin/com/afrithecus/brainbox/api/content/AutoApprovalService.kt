@@ -108,6 +108,9 @@ class AutoApprovalService(
         outcome.reviewerId = null
         outcome.quorumRequired = moderationPolicy.quorumRequired()
         outcome.decidedAt = Instant.now()
+        // O1 sampled audit: a stable content-id hash picks the sample, so the same
+        // unit is always flagged or not, and the decision is reproducible across calls.
+        outcome.auditSample = AuditSampling.isSampled(contentId, moderationPolicy.autoApproveAuditSamplePercent())
         outcomes.save(outcome)
         metrics.recordAutoApproved()
         return true

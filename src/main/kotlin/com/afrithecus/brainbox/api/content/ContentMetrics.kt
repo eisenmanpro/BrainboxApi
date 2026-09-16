@@ -93,17 +93,25 @@ class ContentMetrics(private val registry: MeterRegistry) {
  */
 object ProviderErrorReasons {
 
-    fun reasonFor(failure: Throwable): String {
-        val message = failure.message.orEmpty().lowercase()
+    fun reasonFor(failure: Throwable): String =
+        reasonForMessage(failure.message, failure is HttpTimeoutException || failure is TimeoutException)
+
+    /**
+     * The same coarse classifier over a stored `model_calls.error` message, so the
+     * O1 rollup reuses the exact vocabulary the live counter records. [isTimeoutType]
+     * lets the caller preserve the exception-type signal when only a message is
+     * available it is false for a persisted string.
+     */
+    fun reasonForMessage(message: String?, isTimeoutType: Boolean = false): String {
+        val text = message.orEmpty().lowercase()
         return when {
-            failure is HttpTimeoutException ||
-                failure is TimeoutException ||
-                message.contains("timed out") ||
-                message.contains("timeout") -> ContentMetrics.REASON_TIMEOUT
+            isTimeoutType ||
+                text.contains("timed out") ||
+                text.contains("timeout") -> ContentMetrics.REASON_TIMEOUT
 
-            message.contains("malformed") || message.contains("parse") -> ContentMetrics.REASON_PARSE
+            text.contains("malformed") || text.contains("parse") -> ContentMetrics.REASON_PARSE
 
-            message.contains("returned") || message.contains("status") -> ContentMetrics.REASON_STATUS
+            text.contains("returned") || text.contains("status") -> ContentMetrics.REASON_STATUS
 
             else -> ContentMetrics.REASON_OTHER
         }

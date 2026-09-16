@@ -29,10 +29,13 @@ import java.util.UUID
  * the version to REJECTED immediately. Weighted approvals are captured for the
  * policy/analytics layer; the distinct-human cap applies regardless.
  *
- * Phase 7.5c: when a UNIT resolves to REVIEWED, the resolved unit is re-projected so
- * the human approval flips it learner-visible even if an earlier gate projected it
- * hidden. Machine-first approval skips non-UNREVIEWED units, so the human decision and
- * its reviewer attribution are never overwritten.
+ * Phase 7.5c: when a UNIT resolves, the resolved unit is re-projected so the human
+ * decision actually reaches the learner reads: a REVIEWED unit flips learner-visible
+ * and a REJECTED unit is re-projected hidden. This matters most for a sampled
+ * auto-approval (O1) that a human then rejects: without the REJECTED re-projection
+ * the previously published post/exam would stay visible. Machine-first approval skips
+ * non-UNREVIEWED units, so the human decision and its reviewer attribution are never
+ * overwritten.
  */
 @Service
 class ReviewService(
@@ -158,11 +161,13 @@ class ReviewService(
                 unit.reviewState = state
                 contentUnits.save(unit)
             }
-            // A human approval must actually flip the unit learner-visible: a unit that
-            // failed a gate was projected hidden, so re-project the resolved REVIEWED
-            // unit. Machine approval skips non-UNREVIEWED units, so this re-projection
-            // cannot overwrite the human attribution above.
-            if (state == STATE_REVIEWED) contentProjection.project(contentId)
+            // A human decision must actually reach the learner reads. A unit that
+            // failed a gate was projected hidden, so re-project a resolved REVIEWED
+            // unit visible; a REJECTED unit (for example a sampled auto-approval a
+            // human then rejects) must likewise be re-projected hidden so it stops
+            // serving. Machine approval skips non-UNREVIEWED units, so this
+            // re-projection cannot overwrite the human attribution above.
+            if (isResolved(state)) contentProjection.project(contentId)
         }
 
         updateTrust(all, state, previousState, created, actorId, actorIsStaff)

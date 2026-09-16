@@ -25,6 +25,11 @@ spring:
     clean-disabled: false
 
 app:
+  # O1 rollup scheduling is off in tests; the O1 tests drive OpsRollupService
+  # directly so the hourly job cannot race them.
+  ops:
+    rollup:
+      enabled: false
   content:
     # No background generation poller during tests; the worker tests set
     # app.content.run-mode=both explicitly so they can drive poll() themselves.

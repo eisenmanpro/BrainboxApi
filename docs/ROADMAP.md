@@ -621,6 +621,21 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       provider rate. Recommended single-instance start: `concurrency: 4` with
       `batch-size` at least `concurrency`. The full-breadth 7.6 production seed run
       remains open.
+- [x] O1 hardening - operations backend for content and cost observability with no external
+      dependency. The backend owns its operational history in `ops_metric_rollup` (V73): a
+      scheduled job (hourly by default) aggregates the pipeline facts for the previous complete
+      hour - published and auto-approved units, failed jobs by source, provider
+      latency/errors/tokens/cost from `model_calls` and a shelf-coverage snapshot - into one row
+      per (bucket_start, metric, dimension), so recomputing an hour replaces it, and a configurable
+      90-day purge mirrors the audit-log window. Cost is the stored `model_calls.cost_micros`
+      written by the router from the single shared `ContentPricing` constants. The ADMIN-only
+      `GET /admin/ops/summary|/coverage|/timeseries|/audit` API is the contract for a future
+      separate internal ops frontend (frontend-free in this slice) while live values stay on
+      Micrometer/actuator; no Prometheus, Grafana, SaaS or new dependency. Machine approvals are
+      sampled for human spot-checking via the `auto_approve_audit_sample_percent` policy (double,
+      default 2.0; 0 disables) using a stable content-id hash, and a human REJECT of an already
+      published approval re-projects the unit hidden. **Planned:** the internal ops frontend itself
+      (a separate future app that consumes this API).
 - [x] Conflict resolution, retry and resilience: JPA optimistic-lock failures map to a counted
       `409` instead of a `500`; a bounded exponential-backoff `Retry` (no extra dependency)
       wraps the FCM token exchange and transient sends; the idempotency filter, rate limiter,

@@ -30,6 +30,10 @@ import tools.jackson.databind.ObjectMapper
  *   dropped/blank answer or a missing stored key) is deleted from the unit and the
  *   surviving keys are compared at 1.0; when false, the old whole-unit ratio behaviour
  *   applies and nothing is deleted.
+ * - `auto_approve_audit_sample_percent` (double, default 2.0): the deterministic
+ *   percentage of machine approvals flagged for human spot-checking (O1). A stable
+ *   hash of the content id decides the flag, so the sample is reproducible; 0
+ *   disables sampling.
  *
  * H2 operational keys (same table, same class - deliberately not renamed). They exist so
  * an operator can pause or narrow autonomous generation at runtime instead of
@@ -92,6 +96,21 @@ class ModerationPolicyService(
      */
     fun answerKeyDropDisagreements(): Boolean =
         readBoolean(KEY_ANSWER_KEY_DROP_DISAGREEMENTS, DEFAULT_ANSWER_KEY_DROP_DISAGREEMENTS)
+
+    /**
+     * O1: the deterministic percentage of machine approvals to flag for human
+     * spot-checking. Defaults to [AuditSampling.DEFAULT_PERCENT]; 0 disables the
+     * sample. Values outside 0..100 are clamped by [AuditSampling.isSampled].
+     */
+    fun autoApproveAuditSamplePercent(): Double =
+        readDouble(KEY_AUTO_APPROVE_AUDIT_SAMPLE_PERCENT, AuditSampling.DEFAULT_PERCENT)
+
+    /** Console write: sets the sampled-audit percentage; a negative value is rejected. */
+    @Transactional
+    fun setAutoApproveAuditSamplePercent(percent: Double) {
+        if (percent < 0.0) throw invalidArgument("autoApproveAuditSamplePercent must be zero or positive")
+        set(KEY_AUTO_APPROVE_AUDIT_SAMPLE_PERCENT, mapper.writeValueAsString(percent))
+    }
 
     /**
      * H2 operational policy: when true the generation worker claims nothing, which
@@ -208,6 +227,7 @@ class ModerationPolicyService(
         const val KEY_AUTO_APPROVE_MIN_CRITIC_CONFIDENCE = "auto_approve_min_critic_confidence"
         const val KEY_ANSWER_KEY_MIN_AGREEMENT = "answer_key_min_agreement"
         const val KEY_ANSWER_KEY_DROP_DISAGREEMENTS = "answer_key_drop_disagreements"
+        const val KEY_AUTO_APPROVE_AUDIT_SAMPLE_PERCENT = "auto_approve_audit_sample_percent"
 
         /** H2 operational keys; defaults live in AppContentProperties.worker. */
         const val KEY_CONTENT_WORKER_PAUSED = "content_worker_paused"

@@ -99,6 +99,15 @@ app:
       # normal generation model; point DEEPSEEK_VERIFY_MODEL at a second model to
       # make the verification call a genuinely independent second opinion.
       verify-model: ${DEEPSEEK_VERIFY_MODEL:}
+  # O1 operations backend. The rollup job aggregates the previous complete hour
+  # into ops_metric_rollup (our own database); no external observability service.
+  # Retention mirrors the 90-day audit-log window.
+  ops:
+    rollup:
+      enabled: ${OPS_ROLLUP_ENABLED:true}
+      interval-ms: ${OPS_ROLLUP_INTERVAL_MS:3600000}
+      initial-delay-ms: ${OPS_ROLLUP_INITIAL_DELAY_MS:300000}
+      retention-days: ${OPS_ROLLUP_RETENTION_DAYS:90}
   content:
     # Phase 7.5a durable generation queue. api = this JVM enqueues only and a
     # separate worker drains; worker = drain only; both = enqueue and drain in

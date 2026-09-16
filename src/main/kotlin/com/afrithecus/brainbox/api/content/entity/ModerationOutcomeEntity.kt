@@ -54,4 +54,13 @@ class ModerationOutcomeEntity : BaseEntity() {
     /** The validator confidence score that drove an auto-approval (0..1). */
     @Column(name = "confidence_score")
     var confidenceScore: Double? = null
+
+    /**
+     * O1 sampled audit: true when this auto-approval was deterministically picked
+     * for human spot-checking (see AutoApprovalService and AuditSampling). False
+     * for every human decision, so a sampled unit that a human then rejects leaves
+     * the machine-audit listing.
+     */
+    @Column(name = "audit_sample", nullable = false)
+    var auditSample: Boolean = false
 }

@@ -179,7 +179,7 @@ class ContentRouter(
                 model = result.model
                 promptTokens = result.promptTokens
                 completionTokens = result.completionTokens
-                costMicros = costMicros(result.promptTokens, result.completionTokens)
+                costMicros = ContentPricing.costMicros(result.promptTokens, result.completionTokens)
                 this.latencyMs = latencyMs
                 success = true
             }
@@ -366,7 +366,7 @@ class ContentRouter(
                 model = result.model
                 promptTokens = result.promptTokens
                 completionTokens = result.completionTokens
-                costMicros = costMicros(result.promptTokens, result.completionTokens)
+                costMicros = ContentPricing.costMicros(result.promptTokens, result.completionTokens)
                 this.latencyMs = latencyMs
                 success = true
             }
@@ -441,20 +441,10 @@ class ContentRouter(
 
     private fun elapsedMillis(startedAt: Long): Long = (System.nanoTime() - startedAt) / 1_000_000L
 
-    /**
-     * DeepSeek public list price, micros per million tokens (v3.2: ~$0.27 in /
-     * ~$1.10 out). Stored as micros so cost is integer and currency-agnostic.
-     */
-    private fun costMicros(promptTokens: Int, completionTokens: Int): Long =
-        (promptTokens.toLong() * PROMPT_MICROS_PER_MILLION + completionTokens.toLong() * COMPLETION_MICROS_PER_MILLION) /
-            1_000_000L
-
     private data class RunOutcome(val unit: ContentUnitEntity, val runId: UUID)
 
     private companion object {
         const val MAX_ERROR_CHARS = 2000
-        const val PROMPT_MICROS_PER_MILLION = 270_000L
-        const val COMPLETION_MICROS_PER_MILLION = 1_100_000L
 
         /** Prompt-version marker that distinguishes a verification agent_run. */
         const val ANSWER_VERIFY_PROMPT_VERSION = "answer-verify-v1"
