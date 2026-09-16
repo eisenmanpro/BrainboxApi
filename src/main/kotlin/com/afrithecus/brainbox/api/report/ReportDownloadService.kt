@@ -1,8 +1,9 @@
 package com.afrithecus.brainbox.api.report
 
-import com.afrithecus.brainbox.api.common.error.invalidArgument
+import com.afrithecus.brainbox.api.common.error.ApiErrorCode
+import com.afrithecus.brainbox.api.common.error.ApiException
+import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.report.repository.ReportDownloadRepository
-import com.afrithecus.brainbox.api.report.repository.ReportJobRepository
 import com.afrithecus.brainbox.api.report.entity.ReportDownloadEntity
 import com.afrithecus.brainbox.api.report.web.ReportQuotaPayload
 import org.springframework.beans.factory.annotation.Value
@@ -27,8 +28,8 @@ import javax.crypto.spec.SecretKeySpec
 @Service
 class ReportDownloadService(
     private val properties: ReportProperties,
-    private val jobRepository: ReportJobRepository,
     private val downloadRepository: ReportDownloadRepository,
+    private val userRepository: UserRepository,
     private val clock: Clock,
     @Value("\${app.school-zone:Africa/Nairobi}") private val schoolZone: String,
 ) {
@@ -71,9 +72,23 @@ class ReportDownloadService(
         )
     }
 
+    /**
+     * Atomically consumes one export from [ownerId]'s weekly quota and records the
+     * download, returning the remaining count. The owner's row is locked for the
+     * transaction so two concurrent downloads (same node or different instances)
+     * cannot both pass the cap; without it the count and the insert race and the
+     * quota can be overshot. Throws [ApiErrorCode.TOO_MANY_REQUESTS] when exhausted.
+     */
     @Transactional
-    fun record(ownerId: UUID, jobId: UUID) {
-        jobRepository.findById(jobId).orElse(null) ?: throw invalidArgument("Report job not found")
+    fun reserve(ownerId: UUID, jobId: UUID): Int {
+        userRepository.findByIdForUpdate(ownerId)
+            ?: throw ApiException(ApiErrorCode.SERVICE_UNAVAILABLE, "Report owner no longer exists")
+        val used = downloadRepository
+            .countByOwnerIdAndDownloadedAtGreaterThanEqual(ownerId, weekStart())
+            .toInt()
+        if (used >= properties.weeklyQuota) {
+            throw ApiException(ApiErrorCode.TOO_MANY_REQUESTS, "Weekly report export limit reached")
+        }
         downloadRepository.save(
             ReportDownloadEntity().apply {
                 this.ownerId = ownerId
@@ -81,6 +96,7 @@ class ReportDownloadService(
                 downloadedAt = clock.instant()
             }
         )
+        return (properties.weeklyQuota - used - 1).coerceAtLeast(0)
     }
 
     private fun weekStart(): java.time.Instant {

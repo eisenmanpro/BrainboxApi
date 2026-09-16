@@ -2,14 +2,25 @@ package com.afrithecus.brainbox.api.identity.repository
 
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
+import jakarta.persistence.LockModeType
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import java.util.UUID
 
 interface UserRepository : JpaRepository<UserEntity, UUID> {
+
+    /**
+     * Locks the user's row for the duration of the transaction. Used to serialize
+     * an owner's report-download quota check-and-insert across concurrent requests
+     * and across API instances.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM UserEntity u WHERE u.id = :id")
+    fun findByIdForUpdate(@Param("id") id: UUID): UserEntity?
 
     /** Admin listing with optional role/school/active filters and free-text search. */
     @Query(

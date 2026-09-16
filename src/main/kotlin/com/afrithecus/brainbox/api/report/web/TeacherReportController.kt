@@ -130,17 +130,16 @@ class TeacherReportController(
         val job = jobs.findById(id).orElse(null) ?: throw notFound("Report not found")
         val storageName = job.storageName
         if (job.status != "READY" || storageName == null) throw notFound("Report file is not ready")
-        val quota = downloads.quota(job.ownerId)
-        if (quota.remaining <= 0) {
-            throw ApiException(ApiErrorCode.TOO_MANY_REQUESTS, "Weekly report export limit reached")
-        }
         val bytes = storage.read(storageName) ?: throw notFound("Report file is not available")
-        downloads.record(job.ownerId, id)
+        // Reserve the quota slot only once the file is known to exist, and atomically:
+        // a missing file must not consume an export, and two concurrent downloads
+        // must not both pass the weekly cap.
+        val remaining = downloads.reserve(job.ownerId, id)
         val fileName = (job.fileName ?: (id.toString() + ".pdf")).replace("\"", "")
         return ResponseEntity.ok()
             .header(HttpHeaders.CONTENT_TYPE, "application/pdf")
             .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
-            .header("X-Reports-Quota-Remaining", (quota.remaining - 1).coerceAtLeast(0).toString())
+            .header("X-Reports-Quota-Remaining", remaining.toString())
             .body(bytes)
     }
 
