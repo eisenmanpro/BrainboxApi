@@ -23,6 +23,12 @@ interface UnitTaskCount {
     val total: Long
 }
 
+/** One (auto_approve_blocked_reason -> unreviewed unit count) row for the O1 exception mix. */
+interface AutoApproveBlockedReasonCount {
+    val reason: String
+    val total: Long
+}
+
 interface ContentUnitRepository : JpaRepository<ContentUnitEntity, UUID> {
 
     fun findByGenerationKey(generationKey: String): ContentUnitEntity?
@@ -57,6 +63,20 @@ interface ContentUnitRepository : JpaRepository<ContentUnitEntity, UUID> {
         from: Instant,
         to: Instant,
     ): Long
+
+    /**
+     * O1 exception mix: the number of still-UNREVIEWED units per persisted machine
+     * refusal reason. This reads the durable fact on content_units, so the rollup is
+     * database-derived and survives a restart; a null reason (never refused, or a
+     * human decision) is excluded.
+     */
+    @Query(
+        "SELECT u.autoApproveBlockedReason AS reason, COUNT(u) AS total " +
+            "FROM ContentUnitEntity u " +
+            "WHERE u.reviewState = 'UNREVIEWED' AND u.autoApproveBlockedReason IS NOT NULL " +
+            "GROUP BY u.autoApproveBlockedReason"
+    )
+    fun countUnreviewedByAutoApproveBlockedReason(): List<AutoApproveBlockedReasonCount>
 
     /**
      * O1 coverage: every leaf topic (a concept with a parent and no children) with

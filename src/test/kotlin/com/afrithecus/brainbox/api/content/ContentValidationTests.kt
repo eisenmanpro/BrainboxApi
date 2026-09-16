@@ -418,7 +418,126 @@ class ContentValidationTests(
         check(resolved.confidenceScore == null)
     }
 
+    // ------------------------------------------- O1 persisted auto-approval reason
+
+    @Test
+    fun `a validator blocker persists its first blocker finding code`() {
+        val unit = contentUnits.save(unit(title = null))
+        val expected = validation.validate("UNIT", unit.id).findings
+            .first { it.severity == FindingSeverity.BLOCKER }.code
+
+        check(autoApproval.maybeAutoApprove("UNIT", unit.id).not())
+
+        check(storedReason(unit.id) == expected) { "expected the first blocker code " + expected }
+    }
+
+    @Test
+    fun `a score below the validator minimum persists the first finding code`() {
+        val unit = seedValidUnit()
+        questions.findAllByUnitIdOrderByOrderIndexAsc(unit.id).forEach { questions.delete(it) }
+        entityManager.flush()
+        val expected = validation.validate("UNIT", unit.id).findings.first().code
+
+        check(autoApproval.maybeAutoApprove("UNIT", unit.id).not())
+
+        check(storedReason(unit.id) == expected) { "expected the first finding code " + expected }
+    }
+
+    @Test
+    fun `an assessment below the question floor persists its gate code`() {
+        val unit = seedAutoApprovableUnit(questionCount = 7, taskType = "QUIZ")
+
+        check(autoApproval.maybeAutoApprove("UNIT", unit.id).not())
+
+        check(storedReason(unit.id) == "ASSESSMENT_QUESTION_FLOOR")
+    }
+
+    @Test
+    fun `a null confidence persists the missing-confidence gate code`() {
+        val unit = seedAutoApprovableUnit(confidence = null)
+
+        check(autoApproval.maybeAutoApprove("UNIT", unit.id).not())
+
+        check(storedReason(unit.id) == "CONFIDENCE_MISSING")
+    }
+
+    @Test
+    fun `a low confidence persists the low-confidence gate code`() {
+        val unit = seedAutoApprovableUnit(confidence = 0.5)
+
+        check(autoApproval.maybeAutoApprove("UNIT", unit.id).not())
+
+        check(storedReason(unit.id) == "CONFIDENCE_LOW")
+    }
+
+    @Test
+    fun `an unverified assessment persists the unverified gate code`() {
+        val unit = seedAutoApprovableUnit(questionCount = 8, taskType = "QUIZ")
+
+        check(autoApproval.maybeAutoApprove("UNIT", unit.id).not())
+
+        check(storedReason(unit.id) == "ANSWER_KEY_UNVERIFIED")
+    }
+
+    @Test
+    fun `an answer-key disagreement persists the disagreement gate code`() {
+        val unit = seedAutoApprovableUnit(questionCount = 8, taskType = "QUIZ").apply {
+            answerKeyVerifiedAt = Instant.now()
+            answerKeyAgreement = 0.5
+        }
+        contentUnits.save(unit)
+
+        check(autoApproval.maybeAutoApprove("UNIT", unit.id).not())
+
+        check(storedReason(unit.id) == "ANSWER_KEY_DISAGREEMENT")
+    }
+
+    @Test
+    fun `a disabled policy persists the disabled gate code`() {
+        policy.set("auto_approve_enabled", "false")
+        val unit = seedAutoApprovableUnit()
+
+        check(autoApproval.maybeAutoApprove("UNIT", unit.id).not())
+
+        check(storedReason(unit.id) == "DISABLED")
+    }
+
+    @Test
+    fun `a successful auto-approval clears a previously persisted reason`() {
+        val unit = seedAutoApprovableUnit().apply { autoApproveBlockedReason = "STALE_REASON" }
+        contentUnits.save(unit)
+
+        check(autoApproval.maybeAutoApprove("UNIT", unit.id))
+
+        check(storedReason(unit.id) == null) { "a machine approval is no longer an exception" }
+        check(contentUnits.findById(unit.id).orElseThrow().reviewState == "REVIEWED")
+    }
+
+    @Test
+    fun `a repeated refusal does not change the row updatedAt or version`() {
+        val unit = contentUnits.save(unit(title = null))
+        check(autoApproval.maybeAutoApprove("UNIT", unit.id).not())
+        entityManager.flush()
+        entityManager.clear()
+        val first = contentUnits.findById(unit.id).orElseThrow()
+
+        check(autoApproval.maybeAutoApprove("UNIT", unit.id).not())
+        entityManager.flush()
+        entityManager.clear()
+        val second = contentUnits.findById(unit.id).orElseThrow()
+
+        check(second.autoApproveBlockedReason == first.autoApproveBlockedReason)
+        check(second.version == first.version) { "a repeated refusal must not bump the version" }
+        check(second.updatedAt == first.updatedAt) { "a repeated refusal must not churn updated_at" }
+    }
+
     // ---------------------------------------------------------------- fixtures
+
+    private fun storedReason(unitId: UUID): String? {
+        entityManager.flush()
+        entityManager.clear()
+        return contentUnits.findById(unitId).orElseThrow().autoApproveBlockedReason
+    }
 
     private fun seedValidUnit(): ContentUnitEntity {
         val concept = concepts.save(concept())

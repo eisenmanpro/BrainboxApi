@@ -634,7 +634,10 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       Micrometer/actuator; no Prometheus, Grafana, SaaS or new dependency. Machine approvals are
       sampled for human spot-checking via the `auto_approve_audit_sample_percent` policy (double,
       default 2.0; 0 disables) using a stable content-id hash, and a human REJECT of an already
-      published approval re-projects the unit hidden. **Planned:** the internal ops frontend itself
+      published approval re-projects the unit hidden. The auto-approval exception reason is now a
+      persisted fact on `content_units` (V74): the rollup derives its reason mix from the
+      still-UNREVIEWED units per reason, so the distribution is database-derived and restart-safe
+      (the earlier Micrometer snapshot-delta is gone). **Planned:** the internal ops frontend itself
       (a separate future app that consumes this API).
 - [x] Conflict resolution, retry and resilience: JPA optimistic-lock failures map to a counted
       `409` instead of a `500`; a bounded exponential-backoff `Retry` (no extra dependency)

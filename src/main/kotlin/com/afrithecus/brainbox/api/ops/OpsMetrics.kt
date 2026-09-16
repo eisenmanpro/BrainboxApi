@@ -18,15 +18,12 @@ object OpsMetrics {
     /** Units auto-approved by the machine in the bucket. */
     const val AUTO_APPROVED = "content.autoapproved"
 
-    /** Auto-approval gate exceptions in the bucket; dimension is the reason code. */
-    const val AUTOAPPROVE_EXCEPTIONS = "content.autoapprove.exceptions"
-
     /**
-     * Internal baseline: the cumulative Micrometer exception counter at the end
-     * of the bucket, stored so the next run can compute a per-hour delta. The
-     * dimension is the gate reason code.
+     * Auto-approval gate exceptions; dimension is the persisted reason code. This is
+     * a distribution snapshot of still-UNREVIEWED units per reason, not a per-hour
+     * delta, and it is recomputed from content_units so it is restart-safe.
      */
-    const val AUTOAPPROVE_SNAPSHOT = "content.autoapprove.snapshot"
+    const val AUTOAPPROVE_EXCEPTIONS = "content.autoapprove.exceptions"
 
     /** Generation jobs that ended FAILED in the bucket; dimension is the source. */
     const val JOBS_FAILED = "content.jobs.failed"

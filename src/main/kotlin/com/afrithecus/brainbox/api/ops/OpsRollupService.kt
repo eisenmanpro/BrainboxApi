@@ -1,13 +1,12 @@
 package com.afrithecus.brainbox.api.ops
 
-import com.afrithecus.brainbox.api.content.ContentMetrics
 import com.afrithecus.brainbox.api.content.ProviderErrorReasons
+import com.afrithecus.brainbox.api.content.repository.ContentUnitRepository
 import com.afrithecus.brainbox.api.content.repository.GenerationJobRepository
 import com.afrithecus.brainbox.api.content.repository.ModelCallRepository
 import com.afrithecus.brainbox.api.content.repository.ModerationOutcomeRepository
 import com.afrithecus.brainbox.api.ops.entity.OpsMetricRollupEntity
 import com.afrithecus.brainbox.api.ops.repository.OpsMetricRollupRepository
-import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
@@ -19,10 +18,15 @@ import java.time.temporal.ChronoUnit
  * O1 hourly rollup. Aggregates the facts the content pipeline already stores into
  * `ops_metric_rollup` for the previous complete hour: published and auto-approved
  * units, failed jobs by source, provider latency/errors/tokens/cost from
- * `model_calls`, and a shelf-coverage snapshot. Auto-approval gate exceptions only
- * exist as the live Micrometer counter, so they are snapshotted hourly and stored
- * as a per-hour delta; the cumulative snapshot is kept under an internal metric so
- * the next run can subtract it. No external observability dependency.
+ * `model_calls`, a shelf-coverage snapshot, and the auto-approval exception mix.
+ *
+ * The exception mix is a distribution snapshot read from the durable
+ * `content_units.auto_approve_blocked_reason`: the number of still-UNREVIEWED units
+ * per reason. It is database-derived and restart-safe - there is no in-process
+ * Micrometer counter and no per-hour delta to reconstruct, so the reason survives a
+ * restart and the first hour of a process is not zero. Recomputing an hour deletes
+ * and rewrites the exception rows for that bucket, so a reason that disappears is
+ * never left stale.
  *
  * Idempotent per (bucket_start, metric, dimension): each upsert replaces the one
  * row for that key, so recomputing an hour never duplicates.
@@ -33,8 +37,8 @@ class OpsRollupService(
     private val outcomes: ModerationOutcomeRepository,
     private val jobs: GenerationJobRepository,
     private val modelCalls: ModelCallRepository,
+    private val units: ContentUnitRepository,
     private val coverage: OpsCoverageService,
-    private val registry: MeterRegistry,
     private val properties: AppOpsProperties,
     private val clock: Clock,
 ) {
@@ -97,7 +101,7 @@ class OpsRollupService(
             shelf.rows.sumOf { it.studyGuidesPublished }.toDouble(),
         )
 
-        written += snapshotAutoApprovalExceptions(bucketStart)
+        written += rollupAutoApprovalExceptions(bucketStart)
         return written
     }
 
@@ -111,30 +115,17 @@ class OpsRollupService(
     fun purgeOldRollups(cutoff: Instant): Long = rollups.deleteByBucketStartBefore(cutoff)
 
     /**
-     * Reads the live Micrometer auto-approval exception counters and stores both
-     * the cumulative snapshot and the per-hour delta against the previous bucket.
-     * With no previous snapshot the delta is 0 rather than the whole process
-     * lifetime, so the first recorded hour never over-counts.
+     * Writes the exception mix for [bucketStart] from the persisted facts: the count
+     * of still-UNREVIEWED units per `auto_approve_blocked_reason`. This is a
+     * distribution snapshot, so it is recomputed in full each run and does not depend
+     * on any in-process counter; the previous rows for the bucket are replaced so a
+     * reason that no longer appears is not left stale.
      */
-    private fun snapshotAutoApprovalExceptions(bucketStart: Instant): Int {
-        val previous = bucketStart.minus(1, ChronoUnit.HOURS)
-        val byReason = LinkedHashMap<String, Double>()
-        registry.find(ContentMetrics.METRIC_AUTOAPPROVE)
-            .tag(ContentMetrics.TAG_RESULT, ContentMetrics.RESULT_EXCEPTION)
-            .counters()
-            .forEach { counter ->
-                val reason = counter.id.getTag(ContentMetrics.TAG_REASON) ?: "unknown"
-                byReason[reason] = (byReason[reason] ?: 0.0) + counter.count()
-            }
-
+    private fun rollupAutoApprovalExceptions(bucketStart: Instant): Int {
+        rollups.deleteByBucketStartAndMetric(bucketStart, OpsMetrics.AUTOAPPROVE_EXCEPTIONS)
         var written = 0
-        byReason.forEach { (reason, current) ->
-            val previousValue = rollups
-                .findByBucketStartAndMetricAndDimension(previous, OpsMetrics.AUTOAPPROVE_SNAPSHOT, reason)
-                ?.value
-            val delta = if (previousValue == null) 0.0 else (current - previousValue).coerceAtLeast(0.0)
-            written += upsert(bucketStart, OpsMetrics.AUTOAPPROVE_SNAPSHOT, reason, current)
-            written += upsert(bucketStart, OpsMetrics.AUTOAPPROVE_EXCEPTIONS, reason, delta)
+        units.countUnreviewedByAutoApproveBlockedReason().forEach { row ->
+            written += upsert(bucketStart, OpsMetrics.AUTOAPPROVE_EXCEPTIONS, row.reason, row.total.toDouble())
         }
         return written
     }

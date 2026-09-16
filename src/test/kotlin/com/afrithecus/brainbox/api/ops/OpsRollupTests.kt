@@ -1,12 +1,13 @@
 package com.afrithecus.brainbox.api.ops
 
-import com.afrithecus.brainbox.api.content.ContentMetrics
 import com.afrithecus.brainbox.api.content.ContentPricing
 import com.afrithecus.brainbox.api.content.entity.AgentRunEntity
+import com.afrithecus.brainbox.api.content.entity.ContentUnitEntity
 import com.afrithecus.brainbox.api.content.entity.GenerationJobEntity
 import com.afrithecus.brainbox.api.content.entity.ModelCallEntity
 import com.afrithecus.brainbox.api.content.entity.ModerationOutcomeEntity
 import com.afrithecus.brainbox.api.content.repository.AgentRunRepository
+import com.afrithecus.brainbox.api.content.repository.ContentUnitRepository
 import com.afrithecus.brainbox.api.content.repository.GenerationJobRepository
 import com.afrithecus.brainbox.api.content.repository.ModelCallRepository
 import com.afrithecus.brainbox.api.content.repository.ModerationOutcomeRepository
@@ -26,7 +27,9 @@ import kotlin.math.abs
  * O1 hourly rollup: the previous facts become one idempotent row per
  * (bucket, metric, dimension); the retention purge removes only rows past the
  * window. The scheduler is disabled in the test profile, so the service is driven
- * directly with an explicit bucket.
+ * directly with an explicit bucket. The auto-approval exception mix is read from the
+ * persisted content_units fact, so it is restart-safe and is not derived from an
+ * in-process Micrometer counter.
  */
 @SpringBootTest(properties = ["app.content.run-mode=api"])
 @ActiveProfiles("test")
@@ -38,7 +41,10 @@ class OpsRollupTests(
     @Autowired private val jobs: GenerationJobRepository,
     @Autowired private val modelCalls: ModelCallRepository,
     @Autowired private val agentRuns: AgentRunRepository,
-    @Autowired private val metrics: ContentMetrics,
+    @Autowired private val units: ContentUnitRepository,
+    @Autowired private val coverage: OpsCoverageService,
+    @Autowired private val properties: AppOpsProperties,
+    @Autowired private val admin: OpsAdminService,
     @Autowired private val clock: Clock,
 ) {
 
@@ -102,27 +108,70 @@ class OpsRollupTests(
     }
 
     @Test
-    fun `auto-approval exception counters become a per-hour delta from the stored snapshot`() {
+    fun `the exception mix is rolled up from the persisted facts and survives a restart`() {
         val bucket = clock.instant().truncatedTo(ChronoUnit.HOURS)
-        val previous = bucket.minus(1, ChronoUnit.HOURS)
-        val reason = "AUDIT_" + UUID.randomUUID().toString().replace("-", "").take(8)
+        val reasonA = "TEST_A_" + UUID.randomUUID().toString().replace("-", "").take(8)
+        val reasonB = "TEST_B_" + UUID.randomUUID().toString().replace("-", "").take(8)
 
-        // Two exceptions before the baseline snapshot, one after: the delta is one.
-        metrics.recordAutoApprovalException(reason)
-        metrics.recordAutoApprovalException(reason)
-        rollup.rollupHour(previous)
-        check(value(previous, OpsMetrics.AUTOAPPROVE_EXCEPTIONS, reason) == 0.0) {
-            "the first recorded hour has no baseline, so the delta is zero"
-        }
+        units.save(exceptionUnit(reasonA, "UNREVIEWED"))
+        units.save(exceptionUnit(reasonA, "UNREVIEWED"))
+        units.save(exceptionUnit(reasonB, "UNREVIEWED"))
+        // A resolved unit and a unit with no persisted reason must not enter the mix.
+        units.save(exceptionUnit(reasonA, "REVIEWED"))
+        units.save(exceptionUnit(null, "UNREVIEWED"))
 
-        metrics.recordAutoApprovalException(reason)
         rollup.rollupHour(bucket)
-        check(value(bucket, OpsMetrics.AUTOAPPROVE_EXCEPTIONS, reason) == 1.0) {
-            "expected one new exception in the bucket"
+
+        check(value(bucket, OpsMetrics.AUTOAPPROVE_EXCEPTIONS, reasonA) == 2.0) {
+            "expected the two UNREVIEWED units with reason A"
+        }
+        check(value(bucket, OpsMetrics.AUTOAPPROVE_EXCEPTIONS, reasonB) == 1.0)
+        check(
+            rollups.findByBucketStartAndMetricAndDimension(bucket, "content.autoapprove.snapshot", reasonA) == null
+        ) { "the counter-snapshot metric must no longer be written" }
+
+        // Simulated restart: a brand-new service instance reads the same durable fact
+        // and produces the same distribution. It holds no in-process counter, which is
+        // the property that makes the mix restart-safe.
+        val restarted = OpsRollupService(rollups, outcomes, jobs, modelCalls, units, coverage, properties, clock)
+        val nextBucket = bucket.plus(1, ChronoUnit.HOURS)
+        restarted.rollupHour(nextBucket)
+
+        check(value(nextBucket, OpsMetrics.AUTOAPPROVE_EXCEPTIONS, reasonA) == 2.0) {
+            "a fresh rollup instance must re-read the persisted reason from the database"
+        }
+        check(value(nextBucket, OpsMetrics.AUTOAPPROVE_EXCEPTIONS, reasonB) == 1.0)
+    }
+
+    @Test
+    fun `the ops summary returns the persisted exception reason mix`() {
+        val bucket = clock.instant().truncatedTo(ChronoUnit.HOURS)
+        val reason = "SUMMARY_" + UUID.randomUUID().toString().replace("-", "").take(8)
+        units.save(exceptionUnit(reason, "UNREVIEWED"))
+        units.save(exceptionUnit(reason, "UNREVIEWED"))
+
+        rollup.rollupHour(bucket)
+
+        check(admin.summary().autoApprovalReasonMix[reason] == 2L) {
+            "the summary must expose the database-derived reason mix"
         }
     }
 
     // ---------------------------------------------------------------- fixtures
+
+    private fun exceptionUnit(reason: String?, state: String): ContentUnitEntity =
+        ContentUnitEntity().apply {
+            generationKey = "test:rollup:unit:" + UUID.randomUUID()
+            taskType = "NOTES"
+            subject = "Mathematics"
+            gradeLevel = "Grade 4"
+            language = "en"
+            body = "Rollup body"
+            provenance = "GENERATED"
+            autoApproveBlockedReason = reason
+            reviewState = state
+            status = "DRAFT"
+        }
 
     private fun seedCall(
         provider: String,

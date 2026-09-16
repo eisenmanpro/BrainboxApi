@@ -558,7 +558,9 @@ teacher-facing change.
   (`brainbox.content.queue.depth`, `brainbox.content.generation.latency`,
   `brainbox.content.provider.errors`, `brainbox.content.tokens`,
   `brainbox.content.autoapprove`, `brainbox.content.budget.used`) remain the
-  real-time view for a scrape or a dashboard.
+  real-time view for a scrape or a dashboard. The exception *reason mix* is not read
+  from those counters: it is a persisted fact (below), so it does not read zero for
+  the first hour of a process and it survives a restart.
 - **History lives in `ops_metric_rollup` (V73).** A scheduled job (hourly by
   default, configurable) aggregates the facts the pipeline already stores for the
   previous complete hour: published and auto-approved units, failed jobs by source,
@@ -568,6 +570,15 @@ teacher-facing change.
   keeps the same 90-day window as the audit log. Cost is summed from the stored
   `model_calls.cost_micros`, which the router writes from the single shared
   `ContentPricing` constants, so the price is never duplicated.
+- **The exception reason is a persisted fact (V74).** When the machine refuses a
+  unit, `AutoApprovalService` writes the specific reason code to
+  `content_units.auto_approve_blocked_reason` (the first blocker finding, else the
+  first finding when the score is under the validator minimum, else a stable gate
+  code), and clears it on a successful auto-approval. The hourly rollup derives
+  `content.autoapprove.exceptions` as a distribution snapshot: the count of
+  still-`UNREVIEWED` units per reason, recomputed from the database. It is therefore
+  database-derived and restart-safe, and there is no Micrometer snapshot/delta
+  baseline to keep.
 - **The admin ops API is the contract.** `GET /admin/ops/summary` (live queue,
   coverage, budget, cost and the latest rolled-up auto-approval reason mix),
   `GET /admin/ops/coverage` (per subject x grade), `GET /admin/ops/timeseries`

@@ -89,6 +89,14 @@ class ContentUnitEntity : BaseEntity() {
     @Column(name = "answer_key_dropped_detail", columnDefinition = "text")
     var answerKeyDroppedDetail: String? = null
 
+    /**
+     * O1: the stable reason code for the most recent machine refusal, cleared to null
+     * when the unit auto-approves. A human decision does not need to clear it because
+     * the ops reason query is scoped to UNREVIEWED units.
+     */
+    @Column(name = "auto_approve_blocked_reason", length = 64)
+    var autoApproveBlockedReason: String? = null
+
     @Column(name = "review_state", nullable = false, length = 16)
     var reviewState: String = "UNREVIEWED"
 
