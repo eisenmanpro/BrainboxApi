@@ -25,8 +25,12 @@ data class GenerationResult(
     val questions: List<GeneratedQuestion> = emptyList(),
     val confidence: Double? = null,
     val model: String? = null,
+    /** The provider that served the call; set by the concrete provider. */
+    val provider: String? = null,
     val promptTokens: Int = 0,
     val completionTokens: Int = 0,
+    /** Priced cost of the call in micros; 0 when the provider has no price configured. */
+    val costMicros: Long = 0L,
     val sourceUrls: List<String> = emptyList(),
     val license: String? = null,
 )
@@ -72,8 +76,12 @@ data class VerificationQuestion(
 data class AnswerVerificationResult(
     val answers: List<VerificationAnswer> = emptyList(),
     val model: String? = null,
+    /** The provider that served the verification call; set by the concrete provider. */
+    val provider: String? = null,
     val promptTokens: Int = 0,
     val completionTokens: Int = 0,
+    /** Priced cost of the call in micros; 0 when the provider has no price configured. */
+    val costMicros: Long = 0L,
 )
 
 data class VerificationAnswer(

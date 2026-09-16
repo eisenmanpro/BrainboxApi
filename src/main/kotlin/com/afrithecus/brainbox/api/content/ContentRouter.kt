@@ -5,6 +5,7 @@ import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.content.ai.AnswerVerificationRequest
 import com.afrithecus.brainbox.api.content.ai.ContentGenerationProvider
 import com.afrithecus.brainbox.api.content.ai.GenerationRequest
+import com.afrithecus.brainbox.api.content.ai.ProviderCallException
 import com.afrithecus.brainbox.api.content.ai.VerificationAnswer
 import com.afrithecus.brainbox.api.content.ai.VerificationQuestion
 import com.afrithecus.brainbox.api.content.entity.AgentRunEntity
@@ -161,8 +162,9 @@ class ContentRouter(
         val result = try {
             provider.verifyAnswerKeys(request)
         } catch (failure: Exception) {
-            metrics.recordProviderError(provider.name, ProviderErrorReasons.reasonFor(failure))
-            recordFailedVerification(run, failure, startedAt)
+            recordFailedCall(run, failure, System.nanoTime() - startedAt, recordLatency = false)
+            run.status = "FAILED"
+            agentRuns.save(run)
             if (failure is ApiException) throw failure
             throw ApiException(
                 ApiErrorCode.SERVICE_UNAVAILABLE,
@@ -175,11 +177,12 @@ class ContentRouter(
         modelCalls.save(
             ModelCallEntity().apply {
                 agentRunId = run.id
-                provider = this@ContentRouter.provider.name
+                provider = result.provider ?: this@ContentRouter.provider.name
                 model = result.model
                 promptTokens = result.promptTokens
                 completionTokens = result.completionTokens
-                costMicros = ContentPricing.costMicros(result.promptTokens, result.completionTokens)
+                costMicros = result.costMicros.takeIf { it > 0L }
+                    ?: ContentPricing.costMicros(result.promptTokens, result.completionTokens)
                 this.latencyMs = latencyMs
                 success = true
             }
@@ -220,20 +223,37 @@ class ContentRouter(
         return agreement
     }
 
-    /** Captures a failed verification call on the same capture tables as generation. */
-    private fun recordFailedVerification(run: AgentRunEntity, failure: Exception, startedAt: Long) {
-        modelCalls.save(
-            ModelCallEntity().apply {
-                agentRunId = run.id
-                provider = this@ContentRouter.provider.name
-                this.latencyMs = elapsedMillis(startedAt)
-                success = false
-                error = failure.message?.take(MAX_ERROR_CHARS)
-            }
-        )
-        run.status = "FAILED"
-        agentRuns.save(run)
+    /**
+     * Records a failed provider interaction on the capture tables. A routed call
+     * carries one attempt per provider it tried, so each failed candidate gets its
+     * own model_call and error meter rather than collapsing to the router. A direct
+     * provider (tests, the disabled seam) has no attempt list and is captured once.
+     */
+    private fun recordFailedCall(run: AgentRunEntity, failure: Exception, totalNanos: Long, recordLatency: Boolean) {
+        for ((providerName, latencyMs, message) in failedAttempts(failure, totalNanos)) {
+            if (recordLatency) metrics.recordGenerationLatency(providerName, latencyMs * 1_000_000L)
+            metrics.recordProviderError(providerName, ProviderErrorReasons.reasonForMessage(message))
+            modelCalls.save(failedCall(run, providerName, latencyMs, message))
+        }
     }
+
+    /** The failed attempts of a routed call, or a single attempt for a direct provider. */
+    private fun failedAttempts(failure: Exception, totalNanos: Long): List<Triple<String, Long, String?>> {
+        val routed = failure as? ProviderCallException
+        if (routed != null && routed.attempts.isNotEmpty()) {
+            return routed.attempts.map { Triple(it.provider, it.latencyMs, it.error) }
+        }
+        return listOf(Triple(provider.name, totalNanos / 1_000_000L, failure.message))
+    }
+
+    private fun failedCall(run: AgentRunEntity, providerName: String, latencyMs: Long, message: String?): ModelCallEntity =
+        ModelCallEntity().apply {
+            agentRunId = run.id
+            provider = providerName
+            this.latencyMs = latencyMs
+            success = false
+            error = message?.take(MAX_ERROR_CHARS)
+        }
 
     /**
      * JSON audit of the dropped questions, one object per item:
@@ -329,18 +349,7 @@ class ContentRouter(
         val result = try {
             provider.generate(request)
         } catch (failure: Exception) {
-            val latencyNanos = System.nanoTime() - startedAt
-            metrics.recordGenerationLatency(providerName, latencyNanos)
-            metrics.recordProviderError(providerName, ProviderErrorReasons.reasonFor(failure))
-            modelCalls.save(
-                ModelCallEntity().apply {
-                    agentRunId = run.id
-                    provider = providerName
-                    this.latencyMs = latencyNanos / 1_000_000L
-                    success = false
-                    error = failure.message?.take(MAX_ERROR_CHARS)
-                }
-            )
+            recordFailedCall(run, failure, System.nanoTime() - startedAt, recordLatency = true)
             run.status = "FAILED"
             run.confidence = null
             agentRuns.save(run)
@@ -355,18 +364,22 @@ class ContentRouter(
             )
         }
         val latencyNanos = System.nanoTime() - startedAt
-        metrics.recordGenerationLatency(providerName, latencyNanos)
+        // Attribute the call to the provider that actually served it (a routed call
+        // may have failed over), so cost, latency and errors stay per-vendor.
+        val servedProvider = result.provider ?: providerName
+        metrics.recordGenerationLatency(servedProvider, latencyNanos)
         metrics.recordTokens(result.promptTokens, result.completionTokens)
         val latencyMs = latencyNanos / 1_000_000L
 
         modelCalls.save(
             ModelCallEntity().apply {
                 agentRunId = run.id
-                provider = providerName
+                provider = servedProvider
                 model = result.model
                 promptTokens = result.promptTokens
                 completionTokens = result.completionTokens
-                costMicros = ContentPricing.costMicros(result.promptTokens, result.completionTokens)
+                costMicros = result.costMicros.takeIf { it > 0L }
+                    ?: ContentPricing.costMicros(result.promptTokens, result.completionTokens)
                 this.latencyMs = latencyMs
                 success = true
             }

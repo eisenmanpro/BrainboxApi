@@ -118,3 +118,104 @@ data class OpsAuditPayload(
     val limit: Int,
     val items: List<OpsAuditItem>,
 )
+
+// ---------------------------------------------------------------------------
+// Per-job trace (GET /admin/ops/jobs/{jobId}/trace). One generation job stitched
+// through the capture rows: agent runs, provider calls, MCP tool calls, the
+// projected unit and the moderation outcome. This is the "observable job" read;
+// the summary/timeseries surfaces stay aggregate.
+// ---------------------------------------------------------------------------
+
+/** The durable job row, including its retry budget and terminal error. */
+data class OpsJobSummary(
+    val jobId: String,
+    val generationKey: String,
+    val taskType: String,
+    val conceptId: String?,
+    val gradeLevel: String,
+    val status: String,
+    val source: String,
+    val attempts: Int,
+    val maxAttempts: Int,
+    val schoolId: String?,
+    val runId: String?,
+    val lastError: String?,
+    val nextAttemptAt: Long?,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+/** One provider call: the priced, timed unit of cost the router captures. */
+data class OpsModelCallTrace(
+    val callId: String,
+    val provider: String,
+    val model: String?,
+    val promptTokens: Int,
+    val completionTokens: Int,
+    val costMicros: Long,
+    val latencyMs: Long,
+    val success: Boolean,
+    val error: String?,
+    val createdAt: Long,
+)
+
+/** One MCP tool invocation made while executing a run. */
+data class OpsToolCallTrace(
+    val callId: String,
+    val toolName: String,
+    val success: Boolean,
+    val latencyMs: Long,
+    val createdAt: Long,
+)
+
+/** One execution of the pipeline for a generation key (generation or verification). */
+data class OpsAgentRunTrace(
+    val runId: String,
+    val promptVersion: String?,
+    val status: String,
+    val model: String?,
+    val confidence: Double?,
+    val iterations: Int,
+    val createdAt: Long,
+    val modelCalls: List<OpsModelCallTrace>,
+    val toolCalls: List<OpsToolCallTrace>,
+)
+
+/** The projected content row for the key, with the answer-key/verification facts. */
+data class OpsUnitSummary(
+    val unitId: String,
+    val title: String?,
+    val subject: String,
+    val gradeLevel: String,
+    val taskType: String,
+    val reviewState: String,
+    val status: String,
+    val model: String?,
+    val tokens: Int,
+    val confidence: Double?,
+    val answerKeyAgreement: Double?,
+    val answerKeyVerifiedModel: String?,
+    val answerKeyDropped: Int,
+    val autoApproveBlockedReason: String?,
+    val createdAt: Long,
+)
+
+/** The latest moderation decision for the unit, when one exists. */
+data class OpsModerationSummary(
+    val state: String,
+    val autoApproved: Boolean,
+    val auditSample: Boolean,
+    val confidenceScore: Double?,
+    val approvals: Int,
+    val rejections: Int,
+    val reviewerId: String?,
+    val decidedAt: Long?,
+)
+
+/** Response of GET /admin/ops/jobs/{jobId}/trace. */
+data class OpsJobTrace(
+    val job: OpsJobSummary,
+    val runs: List<OpsAgentRunTrace>,
+    val unit: OpsUnitSummary?,
+    val moderation: OpsModerationSummary?,
+)

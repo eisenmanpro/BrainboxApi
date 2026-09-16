@@ -1,18 +1,32 @@
 package com.afrithecus.brainbox.api.ops
 
 import com.afrithecus.brainbox.api.common.error.invalidArgument
+import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.content.ContentQueueAdminService
 import com.afrithecus.brainbox.api.content.GenerationBudgetService
+import com.afrithecus.brainbox.api.content.entity.ContentUnitEntity
+import com.afrithecus.brainbox.api.content.entity.ModelCallEntity
+import com.afrithecus.brainbox.api.content.entity.ModerationOutcomeEntity
+import com.afrithecus.brainbox.api.content.entity.ToolCallEntity
+import com.afrithecus.brainbox.api.content.repository.AgentRunRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitRepository
 import com.afrithecus.brainbox.api.content.repository.GenerationJobRepository
 import com.afrithecus.brainbox.api.content.repository.ModelCallRepository
 import com.afrithecus.brainbox.api.content.repository.ModerationOutcomeRepository
+import com.afrithecus.brainbox.api.content.repository.ToolCallRepository
 import com.afrithecus.brainbox.api.ops.repository.OpsMetricRollupRepository
+import com.afrithecus.brainbox.api.ops.web.OpsAgentRunTrace
 import com.afrithecus.brainbox.api.ops.web.OpsAuditItem
 import com.afrithecus.brainbox.api.ops.web.OpsAuditPayload
+import com.afrithecus.brainbox.api.ops.web.OpsJobSummary
+import com.afrithecus.brainbox.api.ops.web.OpsJobTrace
+import com.afrithecus.brainbox.api.ops.web.OpsModelCallTrace
+import com.afrithecus.brainbox.api.ops.web.OpsModerationSummary
 import com.afrithecus.brainbox.api.ops.web.OpsSummary
 import com.afrithecus.brainbox.api.ops.web.OpsTimeseriesPayload
 import com.afrithecus.brainbox.api.ops.web.OpsTimeseriesPoint
+import com.afrithecus.brainbox.api.ops.web.OpsToolCallTrace
+import com.afrithecus.brainbox.api.ops.web.OpsUnitSummary
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -20,6 +34,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.UUID
 
 /**
  * O1 admin ops read model. This is the contract the future internal operations
@@ -33,6 +48,8 @@ class OpsAdminService(
     private val outcomes: ModerationOutcomeRepository,
     private val jobs: GenerationJobRepository,
     private val modelCalls: ModelCallRepository,
+    private val agentRuns: AgentRunRepository,
+    private val toolCalls: ToolCallRepository,
     private val units: ContentUnitRepository,
     private val coverageService: OpsCoverageService,
     private val queueAdmin: ContentQueueAdminService,
@@ -170,6 +187,114 @@ class OpsAdminService(
             }
         return OpsAuditPayload(limit = capped, items = items)
     }
+
+    /**
+     * The full observable trace of one generation job: its durable row, every
+     * agent run for the generation key (generation and the independent
+     * verification), each run's provider calls and MCP tool calls, and the
+     * projected unit with its moderation outcome. This is the per-job complement
+     * to the aggregate summary/timeseries.
+     */
+    @Transactional(readOnly = true)
+    fun jobTrace(jobIdRaw: String): OpsJobTrace {
+        val jobId = runCatching { UUID.fromString(jobIdRaw) }.getOrNull()
+            ?: throw invalidArgument("jobId is not a valid identifier")
+        val job = jobs.findById(jobId).orElse(null) ?: throw notFound("Generation job not found")
+
+        val runs = agentRuns.findAllByGenerationKeyOrderByCreatedAtDesc(job.generationKey)
+            .sortedBy { it.createdAt }
+            .map { run ->
+                OpsAgentRunTrace(
+                    runId = run.id.toString(),
+                    promptVersion = run.promptVersion,
+                    status = run.status,
+                    model = run.model,
+                    confidence = run.confidence,
+                    iterations = run.iterations,
+                    createdAt = run.createdAt.toEpochMilli(),
+                    modelCalls = modelCalls.findAllByAgentRunId(run.id).sortedBy { it.createdAt }.map(::modelCallTrace),
+                    toolCalls = toolCalls.findAllByAgentRunId(run.id).sortedBy { it.createdAt }.map(::toolCallTrace),
+                )
+            }
+
+        val unit = units.findByGenerationKey(job.generationKey)
+        val moderation = unit?.let {
+            outcomes.findFirstByContentTypeAndContentIdOrderByCreatedAtDesc(CONTENT_TYPE_UNIT, it.id)
+        }
+
+        return OpsJobTrace(
+            job = OpsJobSummary(
+                jobId = job.id.toString(),
+                generationKey = job.generationKey,
+                taskType = job.taskType,
+                conceptId = job.conceptId?.toString(),
+                gradeLevel = job.gradeLevel,
+                status = job.status,
+                source = job.source,
+                attempts = job.attempts,
+                maxAttempts = job.maxAttempts,
+                schoolId = job.schoolId?.toString(),
+                runId = job.runId?.toString(),
+                lastError = job.lastError,
+                nextAttemptAt = job.nextAttemptAt?.toEpochMilli(),
+                createdAt = job.createdAt.toEpochMilli(),
+                updatedAt = job.updatedAt.toEpochMilli(),
+            ),
+            runs = runs,
+            unit = unit?.let(::unitSummary),
+            moderation = moderation?.let(::moderationSummary),
+        )
+    }
+
+    private fun modelCallTrace(call: ModelCallEntity): OpsModelCallTrace = OpsModelCallTrace(
+        callId = call.id.toString(),
+        provider = call.provider,
+        model = call.model,
+        promptTokens = call.promptTokens,
+        completionTokens = call.completionTokens,
+        costMicros = call.costMicros,
+        latencyMs = call.latencyMs,
+        success = call.success,
+        error = call.error,
+        createdAt = call.createdAt.toEpochMilli(),
+    )
+
+    private fun toolCallTrace(call: ToolCallEntity): OpsToolCallTrace = OpsToolCallTrace(
+        callId = call.id.toString(),
+        toolName = call.toolName,
+        success = call.success,
+        latencyMs = call.latencyMs,
+        createdAt = call.createdAt.toEpochMilli(),
+    )
+
+    private fun unitSummary(unit: ContentUnitEntity): OpsUnitSummary = OpsUnitSummary(
+        unitId = unit.id.toString(),
+        title = unit.title,
+        subject = unit.subject,
+        gradeLevel = unit.gradeLevel,
+        taskType = unit.taskType,
+        reviewState = unit.reviewState,
+        status = unit.status,
+        model = unit.model,
+        tokens = unit.tokens,
+        confidence = unit.confidence,
+        answerKeyAgreement = unit.answerKeyAgreement,
+        answerKeyVerifiedModel = unit.answerKeyVerifiedModel,
+        answerKeyDropped = unit.answerKeyDropped,
+        autoApproveBlockedReason = unit.autoApproveBlockedReason,
+        createdAt = unit.createdAt.toEpochMilli(),
+    )
+
+    private fun moderationSummary(outcome: ModerationOutcomeEntity): OpsModerationSummary = OpsModerationSummary(
+        state = outcome.state,
+        autoApproved = outcome.autoApproved,
+        auditSample = outcome.auditSample,
+        confidenceScore = outcome.confidenceScore,
+        approvals = outcome.approvals,
+        rejections = outcome.rejections,
+        reviewerId = outcome.reviewerId?.toString(),
+        decidedAt = outcome.decidedAt?.toEpochMilli(),
+    )
 
     private fun startOfUtcDay(now: Instant): Instant =
         now.atZone(ZoneOffset.UTC).toLocalDate().atStartOfDay(ZoneOffset.UTC).toInstant()

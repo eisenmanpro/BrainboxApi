@@ -801,10 +801,29 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       attribute a KNEC/KICD paper. The full-breadth production seed run remains open.
 - [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences)
 - [ ] Agent tools: DB metric queries, internet search, content validators
-- [ ] LLM provider routing by cost/latency; per-generation token tracking (DeepSeek + others)
+- [x] LLM provider routing by cost/latency; per-generation token tracking (DeepSeek + others).
+      One generic `OpenAiCompatibleContentGenerationProvider` now backs both the DeepSeek endpoint
+      and a second generic OpenAI-compatible endpoint (`app.ai.openai`, off until
+      `OPENAI_ENABLED=true`), so a vendor is configuration rather than a class. The
+      `RoutingContentGenerationProvider` (`@Primary`) ranks the pool by `app.ai.routing.policy`
+      (`CHEAPEST` default, `FASTEST`, `CONFIGURED`) from each provider's configured price
+      (`ProviderCostProfile`) and an in-memory EWMA of observed latency, demotes a provider that
+      keeps failing behind the healthy ones for `cooldown-seconds`, and fails over to the next
+      candidate inside the call. The served provider reports itself on the result, so
+      `model_calls.provider`, its `cost_micros` (from that provider's own price), the latency
+      timer and the error counter stay per-vendor, and a total outage raises the ordered
+      per-provider attempt list so every failed candidate is still captured. Per-generation token
+      tracking was already stored on `model_calls`; this pass makes the provider selection real.
 - [ ] Moderator gate (AI + human-in-the-loop UI) — nothing ships unmoderated
 - [ ] Content JSON schema v1; answer-key stripping before student delivery; scope inheritance
-- [ ] Observable jobs: agent trace, provider, tokens, moderation outcome (audit trail)
+- [x] Observable jobs: agent trace, provider, tokens, moderation outcome (audit trail).
+      `agent_runs`, `model_calls` and `tool_calls` were already captured by the router and
+      `moderation_outcomes` held the decision; the missing read was per-job.
+      `GET /admin/ops/jobs/{jobId}/trace` (ADMIN) now stitches one job's timeline: the durable job
+      row with its retry state, every `agent_run` for the generation key (generation and the
+      independent verification), each run's priced/timed provider calls and MCP tool calls, and
+      the projected unit with its answer-key/verification fields and latest moderation outcome.
+      The aggregate `summary`/`timeseries`/`audit` surfaces are unchanged.
 - [x] Serve through existing client endpoints: `GET /learning/post/{id}/content` and
       `GET /materials/readable/{id}` now return generated, auto-approved content end to end
       (`GeneratedContentServingTests`; the post/file id is the content-unit id, quiz metadata

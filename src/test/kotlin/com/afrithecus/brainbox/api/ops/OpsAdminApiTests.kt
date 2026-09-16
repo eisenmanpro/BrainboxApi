@@ -22,6 +22,7 @@ import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.ops.entity.OpsMetricRollupEntity
 import com.afrithecus.brainbox.api.ops.repository.OpsMetricRollupRepository
 import com.afrithecus.brainbox.api.ops.web.OpsCoveragePayload
+import com.afrithecus.brainbox.api.ops.web.OpsJobTrace
 import com.afrithecus.brainbox.api.ops.web.OpsSummary
 import com.afrithecus.brainbox.api.ops.web.OpsTimeseriesPayload
 import org.junit.jupiter.api.Test
@@ -236,6 +237,90 @@ class OpsAdminApiTests(
     private fun uniqueSubject(): String = "Ops Subject " + UUID.randomUUID().toString().replace("-", "").take(6)
 
     private fun uniqueProvider(): String = "test-provider-" + UUID.randomUUID().toString().replace("-", "").take(8)
+
+    @Test
+    fun `the job trace stitches runs provider calls and the moderation outcome`() {
+        val admin = seed("0744630099", Role.ADMIN, "Ops Trace Admin")
+        val token = token(admin)
+        val subject = uniqueSubject()
+        val concept = leafConcept(subject, "Grade 4")
+
+        val generationKey = "test:ops:trace:" + UUID.randomUUID()
+        val jobRow = jobs.save(
+            GenerationJobEntity().apply {
+                this.generationKey = generationKey
+                taskType = "NOTES"
+                gradeLevel = "Grade 4"
+                status = "SUCCEEDED"
+                source = "USER"
+                conceptId = concept.id
+            }
+        )
+        val run = agentRuns.save(
+            AgentRunEntity().apply {
+                jobId = jobRow.id
+                this.generationKey = generationKey
+                promptVersion = "content-v1"
+                status = "SUCCEEDED"
+                model = "deepseek-chat"
+                confidence = 0.93
+            }
+        )
+        modelCalls.save(
+            ModelCallEntity().apply {
+                agentRunId = run.id
+                provider = "deepseek"
+                model = "deepseek-chat"
+                promptTokens = 1200
+                completionTokens = 400
+                costMicros = ContentPricing.costMicros(1200, 400)
+                latencyMs = 850
+                success = true
+            }
+        )
+        val unitRow = contentUnits.save(
+            unit("Ops trace notes", subject, "Grade 4", "REVIEWED").apply {
+                this.generationKey = generationKey
+                model = "deepseek-chat"
+                tokens = 1600
+                confidence = 0.93
+                answerKeyAgreement = 1.0
+                answerKeyVerifiedModel = "deepseek-reasoner"
+            }
+        )
+        outcomes.save(
+            ModerationOutcomeEntity().apply {
+                contentType = "UNIT"
+                contentId = unitRow.id
+                contentVersion = 1
+                state = "REVIEWED"
+                autoApproved = true
+                auditSample = true
+                confidenceScore = 0.93
+                decidedAt = clock.instant()
+            }
+        )
+
+        val trace = read(
+            mockMvc.perform(get("/admin/ops/jobs/" + jobRow.id + "/trace").header("Authorization", auth(token)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            OpsJobTrace::class.java,
+        )
+        check(trace.job.generationKey == generationKey)
+        check(trace.job.status == "SUCCEEDED" && trace.job.source == "USER")
+        check(trace.runs.size == 1)
+        val call = trace.runs.single().modelCalls.single()
+        check(call.provider == "deepseek" && call.model == "deepseek-chat")
+        check(call.costMicros == ContentPricing.costMicros(1200, 400))
+        check(trace.unit?.unitId == unitRow.id.toString())
+        check(trace.unit?.answerKeyVerifiedModel == "deepseek-reasoner")
+        check(trace.moderation?.autoApproved == true)
+        check(trace.moderation?.auditSample == true)
+
+        // An unknown job is a 404, not an empty trace.
+        mockMvc.perform(get("/admin/ops/jobs/" + UUID.randomUUID() + "/trace").header("Authorization", auth(token)))
+            .andExpect(status().isNotFound)
+    }
 
     private fun leafConcept(subject: String, grade: String): ConceptEntity {
         val parent = concepts.save(

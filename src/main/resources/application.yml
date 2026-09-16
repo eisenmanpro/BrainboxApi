@@ -87,10 +87,18 @@ app:
       channel-id: system_notifications_channel
   ai:
     # Phase 7.2 generation provider seam. Disabled by default so the API boots
-    # and serves the content cache without a model key. When enabled, the
-    # DeepSeek provider owns the chat-completions wire format; the Spring AI
-    # DeepSeek autoconfiguration above stays excluded.
+    # and serves the content cache without a model key. When enabled, DeepSeek is
+    # always in the pool and the generic OpenAI-compatible endpoint joins it when
+    # app.ai.openai.enabled is true. Both speak the same chat-completions wire
+    # format; the Spring AI DeepSeek autoconfiguration above stays excluded.
     enabled: ${AI_ENABLED:false}
+    routing:
+      # CHEAPEST (default) ranks by configured price then observed latency;
+      # FASTEST ranks by observed latency then price; CONFIGURED uses bean order.
+      # A provider that keeps failing is demoted for cooldown-seconds.
+      policy: ${AI_ROUTING_POLICY:CHEAPEST}
+      failure-threshold: ${AI_ROUTING_FAILURE_THRESHOLD:3}
+      cooldown-seconds: ${AI_ROUTING_COOLDOWN_SECONDS:120}
     deepseek:
       api-key: ${DEEPSEEK_API_KEY:}
       base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
@@ -99,6 +107,22 @@ app:
       # normal generation model; point DEEPSEEK_VERIFY_MODEL at a second model to
       # make the verification call a genuinely independent second opinion.
       verify-model: ${DEEPSEEK_VERIFY_MODEL:}
+      # Price in micros per million tokens, used to price model_calls and to rank
+      # the pool. Defaults are the DeepSeek public list price (v3.2).
+      prompt-micros-per-million: ${DEEPSEEK_PROMPT_MICROS_PER_MILLION:270000}
+      completion-micros-per-million: ${DEEPSEEK_COMPLETION_MICROS_PER_MILLION:1100000}
+    openai:
+      # Generic OpenAI-compatible endpoint (OpenAI, Azure-compatible gateways,
+      # vLLM, Groq, ...). Off until OPENAI_ENABLED=true; set the base URL, key,
+      # model and price for the target. A blank/zero price is "unknown" and never
+      # wins a cost comparison.
+      enabled: ${OPENAI_ENABLED:false}
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      model: ${OPENAI_MODEL:gpt-4o-mini}
+      verify-model: ${OPENAI_VERIFY_MODEL:}
+      prompt-micros-per-million: ${OPENAI_PROMPT_MICROS_PER_MILLION:0}
+      completion-micros-per-million: ${OPENAI_COMPLETION_MICROS_PER_MILLION:0}
   # O1 operations backend. The rollup job aggregates the previous complete hour
   # into ops_metric_rollup (our own database); no external observability service.
   # Retention mirrors the 90-day audit-log window.

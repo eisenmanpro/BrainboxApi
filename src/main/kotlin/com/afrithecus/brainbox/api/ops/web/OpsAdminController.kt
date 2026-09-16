@@ -3,6 +3,7 @@ package com.afrithecus.brainbox.api.ops.web
 import com.afrithecus.brainbox.api.ops.OpsAdminService
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
@@ -42,4 +43,12 @@ class OpsAdminController(private val service: OpsAdminService) {
     @GetMapping("/audit")
     fun audit(@RequestParam(required = false, defaultValue = "50") limit: Int): OpsAuditPayload =
         service.audit(limit)
+
+    /**
+     * The full observable trace of one generation job: its retry state, every
+     * agent run, the per-provider model calls and MCP tool calls, and the
+     * projected unit with its moderation outcome.
+     */
+    @GetMapping("/jobs/{jobId}/trace")
+    fun jobTrace(@PathVariable jobId: String): OpsJobTrace = service.jobTrace(jobId)
 }

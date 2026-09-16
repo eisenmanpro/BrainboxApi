@@ -14,6 +14,12 @@ interface ModerationOutcomeRepository : JpaRepository<ModerationOutcomeEntity, U
         contentVersion: Int,
     ): ModerationOutcomeEntity?
 
+    /** O1 job trace: the newest decision for one content row. */
+    fun findFirstByContentTypeAndContentIdOrderByCreatedAtDesc(
+        contentType: String,
+        contentId: UUID,
+    ): ModerationOutcomeEntity?
+
     /** O1 rollup: outcomes resolved to [state] in [from, to). */
     fun countByStateAndDecidedAtGreaterThanEqualAndDecidedAtLessThan(
         state: String,

@@ -2,16 +2,14 @@ package com.afrithecus.brainbox.api.content.ai
 
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
-import org.springframework.stereotype.Component
 
 /**
  * Default provider when `app.ai.enabled` is false (the default). It is not a
  * silent fake: any attempt to generate fails loudly with 503 so a deployment
- * without a model key never persists placeholder content.
+ * without a model key never persists placeholder content. Wired as a bean by
+ * [AiProviderConfig] rather than scanned, so the enabled and disabled beans can
+ * never both register.
  */
-@Component
-@ConditionalOnProperty(name = ["app.ai.enabled"], havingValue = "false", matchIfMissing = true)
 class DisabledContentGenerationProvider : ContentGenerationProvider {
 
     override val name: String = "disabled"
