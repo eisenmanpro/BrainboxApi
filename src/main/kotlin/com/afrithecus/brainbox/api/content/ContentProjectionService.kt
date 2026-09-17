@@ -107,8 +107,10 @@ class ContentProjectionService(
         post.topic = conceptName
         post.subtopic = null
         post.imageUrl = null
-        post.scope = LearningScope.GLOBAL
-        post.schoolId = null
+        // Phase 7.5 scope inheritance: the unit's scope and tenant reach the row the
+        // learner reads, so ContentScope.isVisible enforces it.
+        post.scope = unit.scope
+        post.schoolId = unit.schoolId
         post.gradeLevel = unit.gradeLevel
         post.teacherId = null
         post.cbcStrand = strandName(unit.conceptId)
@@ -171,7 +173,8 @@ class ContentProjectionService(
         file.pageCount = 0
         file.sizeBytes = (unit.body?.toByteArray(StandardCharsets.UTF_8)?.size ?: 0).toLong()
         file.body = unit.body
-        file.scope = LearningScope.GLOBAL
+        file.scope = unit.scope
+        file.schoolId = unit.schoolId
         file.gradeLevel = unit.gradeLevel
         file.isActive = reviewed
         file.createdBy = systemAuthorId()
@@ -204,8 +207,8 @@ class ContentProjectionService(
             ?: (unit.gradeLevel + " " + unit.subject + " Practice Paper")
         exam.subject = unit.subject
         exam.examType = ExamType.PRACTICE_PAPER
-        exam.scope = ExamScope.GLOBAL
-        exam.schoolId = null
+        exam.scope = ExamScope.valueOf(unit.scope.name)
+        exam.schoolId = unit.schoolId
         exam.durationMinutes = practicePaperMinutes(questions.size)
         exam.questionCount = questions.size
         exam.difficulty = averageDifficulty(questions)

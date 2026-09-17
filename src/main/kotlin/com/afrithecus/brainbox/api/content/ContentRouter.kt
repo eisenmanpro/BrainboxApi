@@ -23,6 +23,7 @@ import com.afrithecus.brainbox.api.content.repository.ContentUnitStepRepository
 import com.afrithecus.brainbox.api.content.repository.GenerationJobRepository
 import com.afrithecus.brainbox.api.content.repository.ModelCallRepository
 import com.afrithecus.brainbox.api.content.subject.SubjectAgentRegistry
+import com.afrithecus.brainbox.api.learning.model.LearningScope
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
@@ -515,6 +516,19 @@ class ContentRouter(
         result: GenerationResult,
     ) {
         unit.generationKey = request.generationKey
+        // Phase 7.5 scope inheritance: the request selects the scope, but a
+        // non-global scope needs the job's server-derived tenant, so an unscoped
+        // job falls back to GLOBAL rather than writing a school row with no school.
+        val requestedScope = runCatching {
+            LearningScope.valueOf((request.scope ?: "GLOBAL").trim().uppercase())
+        }.getOrDefault(LearningScope.GLOBAL)
+        val effectiveScope = if (requestedScope == LearningScope.GLOBAL || job.schoolId == null) {
+            LearningScope.GLOBAL
+        } else {
+            requestedScope
+        }
+        unit.scope = effectiveScope
+        unit.schoolId = if (effectiveScope == LearningScope.GLOBAL) null else job.schoolId
         unit.taskType = request.taskType
         // The provider returns teaching content, not a display title; derive the
         // title from the request so the structure validator can pass and the

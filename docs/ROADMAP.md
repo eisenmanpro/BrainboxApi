@@ -869,7 +869,16 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       is missing (`CRITIQUE_MISSING`) or low (`CRITIQUE_LOW`), so it lands in the human exception
       queue. A stored critique is reused, so re-projection spends no extra model call. Off by
       default. The dedicated moderator console UI remains (frontend).
-- [ ] Content JSON schema v1; answer-key stripping before student delivery; scope inheritance
+- [ ] Content JSON schema v1; answer-key stripping before student delivery; scope inheritance.
+      **Answer-key stripping is done** (`LearningService.stripKeys` removes
+      `correctAnswer`/`correct`/`explanation`/`matchingPairs` from learner payloads).
+      **Scope inheritance delivered (this pass):** `content_units` carries
+      `scope` (GLOBAL/SCHOOL/SCHOOL_GRADE_CLASS) and `school_id` (V77); the router stamps them
+      from the request scope and the job's server-derived tenant (a non-global scope with no tenant
+      falls back to GLOBAL), and the projection copies them onto `learning_posts`,
+      `readable_files` and `exams`, so the existing `ContentScope.isVisible` rule enforces
+      SCHOOL / SCHOOL_GRADE_CLASS visibility for generated content too. **Content JSON schema v1
+      remains.**
 - [x] Observable jobs: agent trace, provider, tokens, moderation outcome (audit trail).
       `agent_runs`, `model_calls` and `tool_calls` were already captured by the router and
       `moderation_outcomes` held the decision; the missing read was per-job.

@@ -1,8 +1,11 @@
 package com.afrithecus.brainbox.api.content.entity
 
 import com.afrithecus.brainbox.api.common.jpa.BaseEntity
+import com.afrithecus.brainbox.api.learning.model.LearningScope
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
 import jakarta.persistence.Table
 import java.time.Instant
 import java.util.UUID
@@ -96,6 +99,18 @@ class ContentUnitEntity : BaseEntity() {
      */
     @Column(name = "auto_approve_blocked_reason", length = 64)
     var autoApproveBlockedReason: String? = null
+
+    /**
+     * Phase 7.5 scope inheritance: GLOBAL reaches every learner; SCHOOL is limited
+     * to [schoolId] (and the unit's grade); SCHOOL_GRADE_CLASS is the most specific.
+     * The projection copies these onto the client-facing row.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 24)
+    var scope: LearningScope = LearningScope.GLOBAL
+
+    @Column(name = "school_id")
+    var schoolId: UUID? = null
 
     /** Phase 7.5 LLM critic score for the current content, 0..1; null = not critiqued. */
     @Column(name = "critique_score")

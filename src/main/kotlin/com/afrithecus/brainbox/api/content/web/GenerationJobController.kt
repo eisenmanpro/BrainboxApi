@@ -80,6 +80,7 @@ class GenerationJobController(
         standardVersion = required(standardVersion, "standardVersion"),
         difficulty = difficulty,
         notes = notes?.trim()?.takeIf { it.isNotEmpty() },
+        scope = scope?.trim()?.takeIf { it.isNotEmpty() },
     )
 
     private fun required(value: String?, name: String): String =

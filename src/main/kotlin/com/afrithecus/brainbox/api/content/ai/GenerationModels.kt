@@ -23,6 +23,11 @@ data class GenerationRequest(
      * so a provider only has to append it.
      */
     val persona: String? = null,
+    /**
+     * Phase 7.5 scope inheritance: GLOBAL (default), SCHOOL or SCHOOL_GRADE_CLASS.
+     * The router stamps it on the unit and the projection on the client row.
+     */
+    val scope: String? = null,
 )
 
 data class GenerationResult(

@@ -18,6 +18,8 @@ data class GenerateContentRequest(
     val conceptCode: String? = null,
     val difficulty: Int? = null,
     val notes: String? = null,
+    /** GLOBAL (default), SCHOOL or SCHOOL_GRADE_CLASS. */
+    val scope: String? = null,
 )
 
 /** One generation job as returned by the submit and poll endpoints. */
