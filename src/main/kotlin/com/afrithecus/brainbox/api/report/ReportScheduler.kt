@@ -36,12 +36,12 @@ class ReportScheduler(
 
     @Scheduled(initialDelay = 300_000, fixedDelay = 86_400_000)
     fun prune() {
-        val retention = Duration.ofDays(properties.retentionDays.toLong())
+        val cutoff = clock.instant().minus(Duration.ofDays(properties.retentionDays.toLong()))
         downloads.deleteByDownloadedAtBefore(clock.instant().minus(Duration.ofDays(DOWNLOAD_HISTORY_DAYS)))
-        // Expire job rows with their files, so a READY history entry cannot outlive
-        // the file it points at. Download rows cascade.
-        jobs.deleteByCreatedAtBefore(clock.instant().minus(retention))
-        storage.deleteOlderThan(retention.seconds)
+        // Expire each job's stored object with its row, so a READY history entry
+        // cannot outlive the file it points at. Download rows cascade.
+        jobs.findAllByCreatedAtBefore(cutoff).forEach { job -> job.storageName?.let(storage::delete) }
+        jobs.deleteByCreatedAtBefore(cutoff)
     }
 
     private companion object {

@@ -15,6 +15,8 @@ interface ReportJobRepository : JpaRepository<ReportJobEntity, UUID> {
      * rendered files are removed by the storage sweep, so an expired history entry
      * cannot outlive its file. Derived delete queries need an active transaction.
      */
+    fun findAllByCreatedAtBefore(cutoff: Instant): List<ReportJobEntity>
+
     @Transactional
     fun deleteByCreatedAtBefore(cutoff: Instant)
 

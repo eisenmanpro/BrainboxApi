@@ -2,6 +2,7 @@ package com.afrithecus.brainbox.api.media
 
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.media.web.MediaController
+import com.afrithecus.brainbox.api.storage.LocalObjectStorage
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.springframework.mock.web.MockHttpServletRequest
@@ -29,7 +30,7 @@ class MediaServiceTests {
     @BeforeEach
     fun setUp() {
         directory = Files.createTempDirectory("brainbox-media-test")
-        service = MediaService(directory.toString(), 1024L * 1024L)
+        service = MediaService(LocalObjectStorage(directory), 1024L * 1024L)
         RequestContextHolder.setRequestAttributes(ServletRequestAttributes(MockHttpServletRequest()))
     }
 

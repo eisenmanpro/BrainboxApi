@@ -63,6 +63,21 @@ app:
     # Hard cap for the general image/video/attachment upload path. The format is
     # still detected from the bytes; a file above this is a 400 before storage.
     max-upload-bytes: ${MEDIA_MAX_UPLOAD_BYTES:26214400}
+  # Object storage for media uploads and rendered report PDFs. local (the default)
+  # keeps the existing media/report directories; s3 routes both through one
+  # S3-compatible endpoint (MinIO in-country, or S3) with the media/ and reports/
+  # key prefixes. Bytes are proxied through the API node, so the client contract is
+  # unchanged. Credentials are required when provider=s3 and the app fails fast if
+  # they are missing.
+  storage:
+    provider: ${STORAGE_PROVIDER:local}
+    s3:
+      endpoint: ${S3_ENDPOINT:}
+      bucket: ${S3_BUCKET:}
+      region: ${S3_REGION:us-east-1}
+      access-key: ${S3_ACCESS_KEY:}
+      secret-key: ${S3_SECRET_KEY:}
+      path-style: ${S3_PATH_STYLE:true}
   auth:
     password-reset:
       # Development only: log the reset code (no SMS/email provider is wired).

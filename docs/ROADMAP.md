@@ -494,7 +494,9 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       overshoot it; the export ledger's derived deletes are now transactional, which also fixes
       the scheduled prune. Branding-logo fetches are restricted to public http(s) images with a
       size cap and no redirects (SSRF), and the retention sweep now expires job rows with their
-      files so a READY history entry cannot outlive the file it points at.
+      files so a READY history entry cannot outlive the file it points at. Report PDFs and
+      media now share the `ObjectStorage` seam, so either can move to the S3-compatible store
+      without a client change.
 - [x] Teacher settings & profile (V44): GET/PUT /teacher/settings (preferences, notification
       switches, grade weighting, subjects/TSC/grade) and GET/PUT /teacher/profile (the account
       shape with teacher code, classes, subjects and verification state), self-scoped.
@@ -568,8 +570,13 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       rather than a 500; unknown binary formats fail closed; and the public `/media/**` download is
       hardened with `X-Content-Type-Options: nosniff`,
       `Content-Security-Policy: default-src 'none'; sandbox`, `Referrer-Policy: no-referrer`, a
-      forced `Content-Disposition: attachment` for non-media, and `private` caching. Presigned
-      S3/MinIO upload and a malware/URL scanner remain for the deployment.
+      forced `Content-Disposition: attachment` for non-media, and `private` caching.
+      **S3-compatible storage seam (this pass):** media and report bytes now go through one
+      `ObjectStorage` seam - local disk by default, or an S3-compatible endpoint (MinIO
+      in-country) via `app.storage.provider=s3`, with SigV4 signing implemented over the JDK and
+      verified against the S3 documentation vectors; both use the `media/` and `reports/` key
+      prefixes and bytes are proxied through the API node, so the client contract is unchanged.
+      Presigned client-direct upload and a malware/URL scanner remain.
 - [ ] Redis: JWT revocation, rate-limit counters, live-class counters.
       **Partial without Redis:** access-token revocation is now enforced by checking the
       session row in `AuthTokenFilter`, so logout / password change / deactivation take effect
