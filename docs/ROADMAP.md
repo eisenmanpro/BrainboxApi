@@ -860,7 +860,15 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       timer and the error counter stay per-vendor, and a total outage raises the ordered
       per-provider attempt list so every failed candidate is still captured. Per-generation token
       tracking was already stored on `model_calls`; this pass makes the provider selection real.
-- [ ] Moderator gate (AI + human-in-the-loop UI) — nothing ships unmoderated
+- [ ] Moderator gate (AI + human-in-the-loop UI) — nothing ships unmoderated.
+      **AI critic delivered (this pass):** a separate `pedagogy-critique-v1` model interaction
+      through the router scores each unit and stores the score, model and structured findings on
+      `content_units` (V76). When `app.content.critique.enabled=true` the supervisor loop treats a
+      missing or below-`min-score` critique as a revision trigger (its findings become the
+      revision feedback), and `AutoApprovalService` refuses to auto-approve a unit whose critique
+      is missing (`CRITIQUE_MISSING`) or low (`CRITIQUE_LOW`), so it lands in the human exception
+      queue. A stored critique is reused, so re-projection spends no extra model call. Off by
+      default. The dedicated moderator console UI remains (frontend).
 - [ ] Content JSON schema v1; answer-key stripping before student delivery; scope inheritance
 - [x] Observable jobs: agent trace, provider, tokens, moderation outcome (audit trail).
       `agent_runs`, `model_calls` and `tool_calls` were already captured by the router and

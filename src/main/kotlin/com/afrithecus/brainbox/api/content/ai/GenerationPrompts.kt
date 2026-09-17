@@ -67,6 +67,37 @@ internal object GenerationPrompts {
     fun systemPrompt(persona: String?): String =
         if (persona.isNullOrBlank()) GENERATION_SYSTEM else GENERATION_SYSTEM + "\n\n" + persona.trim()
 
+    /** The LLM-critic system prompt (Phase 7.5): pedagogy quality, not safety. */
+    val CRITIQUE_SYSTEM = """
+        You are an experienced Kenyan CBC pedagogy reviewer. Judge the teaching
+        quality of the content below, not its safety. Reply with a single strict JSON
+        object and nothing else. The schema is:
+        {
+          "score": number,
+          "findings": [ { "severity": "BLOCKER"|"WARNING"|"INFO", "code": string, "message": string } ]
+        }
+        Score 1.0 means the content is clear, accurate and age-appropriate. Use
+        BLOCKER only when the content would actively mislead a learner. Never include
+        markdown fences or commentary.
+    """.trimIndent()
+
+    fun critiqueUserPrompt(request: ContentCritiqueRequest): String = buildString {
+        appendLine("Task type: " + request.taskType)
+        appendLine("Subject: " + request.subject)
+        appendLine("Grade level: " + request.gradeLevel)
+        request.title?.takeIf { it.isNotBlank() }?.let { appendLine("Title: " + it) }
+        request.body?.takeIf { it.isNotBlank() }?.let { appendLine("Body: " + it) }
+        if (request.steps.isNotEmpty()) {
+            appendLine("Steps:")
+            request.steps.forEachIndexed { index, step -> appendLine("  " + (index + 1) + ". " + step) }
+        }
+        if (request.questions.isNotEmpty()) {
+            appendLine("Questions:")
+            request.questions.forEachIndexed { index, question -> appendLine("  " + (index + 1) + ". " + question) }
+        }
+        appendLine("Return only the JSON object described by the system message.")
+    }
+
     fun generationUserPrompt(request: GenerationRequest): String = buildString {
         appendLine("Generate a " + request.taskType + " task for a learner.")
         request.taskTypeLabel?.let { appendLine("Task label: " + it) }

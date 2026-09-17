@@ -94,3 +94,35 @@ data class VerificationAnswer(
     val orderIndex: Int = 0,
     val answer: String? = null,
 )
+
+/**
+ * Phase 7.5 LLM critic. A separate model interaction that judges the pedagogy of an
+ * assembled unit (clarity, accuracy, age-appropriateness) and returns a 0..1 score
+ * plus structured findings. It is a quality signal, not the deterministic safety
+ * filter.
+ */
+data class ContentCritiqueRequest(
+    val taskType: String,
+    val subject: String,
+    val gradeLevel: String,
+    val title: String? = null,
+    val body: String? = null,
+    val steps: List<String> = emptyList(),
+    val questions: List<String> = emptyList(),
+)
+
+data class CritiqueFinding(
+    val severity: String = "WARNING",
+    val code: String = "",
+    val message: String = "",
+)
+
+data class CritiqueResult(
+    val score: Double? = null,
+    val findings: List<CritiqueFinding> = emptyList(),
+    val model: String? = null,
+    val provider: String? = null,
+    val promptTokens: Int = 0,
+    val completionTokens: Int = 0,
+    val costMicros: Long = 0L,
+)

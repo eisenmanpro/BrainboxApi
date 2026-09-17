@@ -188,6 +188,12 @@ app:
       language: ${CONTENT_BATCH_LANGUAGE:en}
       standard-version: ${CONTENT_BATCH_STANDARD_VERSION:v1}
       limit: ${CONTENT_BATCH_LIMIT:50}
+    critique:
+      # Phase 7.5 LLM critic. Off by default; when enabled the loop critiques each
+      # unit and auto-approval refuses a unit whose score is missing or below
+      # min-score.
+      enabled: ${CONTENT_CRITIQUE_ENABLED:false}
+      min-score: ${CONTENT_CRITIQUE_MIN_SCORE:0.8}
     loop:
       # Phase 7.5 supervisor task loop. 1 reproduces the previous single-shot path;
       # set 2-3 to revise a unit the validators block before it escalates to the

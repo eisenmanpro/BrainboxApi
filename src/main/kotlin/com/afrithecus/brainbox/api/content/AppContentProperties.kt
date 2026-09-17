@@ -21,6 +21,7 @@ data class AppContentProperties(
     val batch: Batch = Batch(),
     val tools: Tools = Tools(),
     val loop: Loop = Loop(),
+    val critique: Critique = Critique(),
 ) {
 
     /** True when this JVM should execute queued generation work. */
@@ -102,6 +103,16 @@ data class AppContentProperties(
     data class Loop(
         val maxIterations: Int = 1,
         val maxCostMicros: Long = 0,
+    )
+
+    /**
+     * Phase 7.5 LLM critic. When enabled, the supervisor loop critiques each unit
+     * and auto-approval refuses a unit whose score is missing or below [minScore].
+     * Off by default so no extra model call is made until it is validated.
+     */
+    data class Critique(
+        val enabled: Boolean = false,
+        val minScore: Double = 0.8,
     )
 
     /**

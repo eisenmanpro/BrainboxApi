@@ -8,6 +8,7 @@ import com.afrithecus.brainbox.api.content.repository.GenerationJobRepository
 import com.afrithecus.brainbox.api.content.repository.ModelCallRepository
 import com.afrithecus.brainbox.api.content.validation.ContentValidationService
 import com.afrithecus.brainbox.api.content.validation.FindingSeverity
+import com.afrithecus.brainbox.api.content.validation.ValidationReport
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.util.UUID
@@ -54,19 +55,25 @@ class ContentTaskLoop(
         var iterations = 1
         var feedback = job.loopFeedback
 
-        while (iterations < maxIterations) {
+        while (true) {
+            // Evaluate the current unit first, so the final generation is always
+            // validated (and critiqued) even when the revision budget is then spent.
             val report = validation.validate(CONTENT_TYPE_UNIT, unit.id)
-            if (!report.blockers) break
+            // The LLM critic is an optional quality gate (Phase 7.5): when enabled, a
+            // missing or below-bar pedagogy score is a revision trigger exactly like a
+            // validator blocker, and its findings become the revision feedback.
+            val critique = if (properties.critique.enabled) router.critique(unit.id) else null
+            val critiqueLow = properties.critique.enabled &&
+                (critique == null || critique < properties.critique.minScore)
+            if (!report.blockers && !critiqueLow) break
+            if (iterations >= maxIterations) break
             val ceiling = properties.loop.maxCostMicros
             val spent = costMicros(job.generationKey)
             if (ceiling > 0L && spent >= ceiling) {
                 log.info("task loop for {} stopped at the cost ceiling after {} iteration(s)", job.generationKey, iterations)
                 break
             }
-            feedback = report.findings
-                .filter { it.severity == FindingSeverity.BLOCKER }
-                .joinToString("; ") { it.code + ": " + it.message }
-                .take(MAX_FEEDBACK_CHARS)
+            feedback = feedbackFor(report, unit, critiqueLow)
             val revised = router.revise(job, request.copy(notes = mergeNotes(request.notes, feedback))) ?: break
             unit = revised
             iterations += 1
@@ -74,6 +81,23 @@ class ContentTaskLoop(
 
         persistLoopState(job, iterations, costMicros(job.generationKey), feedback)
         return unit
+    }
+
+    /** The validator blockers plus, when the critic tripped, its findings. */
+    private fun feedbackFor(report: ValidationReport, unit: ContentUnitEntity, critiqueLow: Boolean): String {
+        val blockers = report.findings
+            .filter { it.severity == FindingSeverity.BLOCKER }
+            .joinToString("; ") { it.code + ": " + it.message }
+        val critique = if (critiqueLow) {
+            val score = unit.critiqueScore?.let { "score " + it } ?: "no score"
+            val detail = unit.critiqueFindings?.takeIf { it.isNotBlank() }?.let { ": " + it }
+            "pedagogy critic (" + score + ")" + (detail ?: "")
+        } else {
+            null
+        }
+        return listOfNotNull(blockers.takeIf { it.isNotBlank() }, critique)
+            .joinToString(" | ")
+            .take(MAX_FEEDBACK_CHARS)
     }
 
     private fun mergeNotes(existing: String?, feedback: String?): String {

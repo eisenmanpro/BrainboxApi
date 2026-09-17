@@ -3,6 +3,7 @@ package com.afrithecus.brainbox.api.content
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.content.ai.AnswerVerificationRequest
+import com.afrithecus.brainbox.api.content.ai.ContentCritiqueRequest
 import com.afrithecus.brainbox.api.content.ai.ContentGenerationProvider
 import com.afrithecus.brainbox.api.content.ai.GenerationRequest
 import com.afrithecus.brainbox.api.content.ai.GenerationResult
@@ -225,6 +226,80 @@ class ContentRouter(
         agentRuns.save(run)
 
         return agreement
+    }
+
+    /**
+     * Phase 7.5 LLM critic. A third model interaction through the same seam that
+     * judges the unit's pedagogy (not safety) and stores the score, model and
+     * structured findings on the unit. Reused unless [force], so re-projection never
+     * spends another critic call. A provider failure is captured as a failed
+     * model_call and rethrown; an uncritiqued unit stays null and the auto-approval
+     * gate treats that as fail-closed when the critic is enabled.
+     */
+    @Transactional(noRollbackFor = [ApiException::class])
+    fun critique(unitId: UUID, force: Boolean = false): Double? {
+        val unit = contentUnits.findById(unitId).orElse(null) ?: return null
+        if (unit.critiqueAt != null && !force) return unit.critiqueScore
+
+        val steps = unitSteps.findAllByUnitIdOrderByOrderIndexAsc(unitId)
+        val questions = unitQuestions.findAllByUnitIdOrderByOrderIndexAsc(unitId)
+        val request = ContentCritiqueRequest(
+            taskType = unit.taskType,
+            subject = unit.subject,
+            gradeLevel = unit.gradeLevel,
+            title = unit.title,
+            body = unit.body,
+            steps = steps.mapNotNull { it.body?.takeIf { body -> body.isNotBlank() } },
+            questions = questions.map { it.text },
+        )
+
+        val run = agentRuns.save(
+            AgentRunEntity().apply {
+                generationKey = unit.generationKey
+                promptVersion = CRITIQUE_PROMPT_VERSION
+                status = "RUNNING"
+            }
+        )
+        val startedAt = System.nanoTime()
+        val result = try {
+            provider.critique(request)
+        } catch (failure: Exception) {
+            metrics.recordProviderError(provider.name, ProviderErrorReasons.reasonFor(failure))
+            recordFailedCall(run, failure, System.nanoTime() - startedAt, recordLatency = false)
+            run.status = "FAILED"
+            agentRuns.save(run)
+            if (failure is ApiException) throw failure
+            throw ApiException(
+                ApiErrorCode.SERVICE_UNAVAILABLE,
+                "pedagogy critique failed for unit '" + unit.id + "': " + (failure.message ?: failure.javaClass.simpleName),
+            )
+        }
+
+        val servedProvider = result.provider ?: provider.name
+        modelCalls.save(
+            ModelCallEntity().apply {
+                agentRunId = run.id
+                provider = servedProvider
+                model = result.model
+                promptTokens = result.promptTokens
+                completionTokens = result.completionTokens
+                costMicros = result.costMicros.takeIf { it > 0L }
+                    ?: ContentPricing.costMicros(result.promptTokens, result.completionTokens)
+                latencyMs = elapsedMillis(startedAt)
+                success = true
+            }
+        )
+
+        unit.critiqueScore = result.score
+        unit.critiqueAt = Instant.now()
+        unit.critiqueModel = result.model
+        unit.critiqueFindings = result.findings.takeIf { it.isNotEmpty() }?.let { mapper.writeValueAsString(it) }
+        contentUnits.save(unit)
+
+        run.status = "SUCCEEDED"
+        run.model = result.model
+        agentRuns.save(run)
+        return result.score
     }
 
     /**
@@ -469,6 +544,11 @@ class ContentRouter(
         unit.answerKeyDropped = 0
         unit.answerKeyDroppedDetail = null
         unit.autoApproveBlockedReason = null
+        // New content invalidates any prior pedagogy critique too.
+        unit.critiqueScore = null
+        unit.critiqueAt = null
+        unit.critiqueModel = null
+        unit.critiqueFindings = null
     }
 
     private fun persistStepsAndQuestions(unit: ContentUnitEntity, result: GenerationResult) {
@@ -520,6 +600,7 @@ class ContentRouter(
 
         /** Prompt-version marker that distinguishes a verification agent_run. */
         const val ANSWER_VERIFY_PROMPT_VERSION = "answer-verify-v1"
+        const val CRITIQUE_PROMPT_VERSION = "pedagogy-critique-v1"
         const val MULTIPLE_CHOICE = "MULTIPLE_CHOICE"
         val WHITESPACE = Regex("\\s+")
         val TRAILING_PUNCTUATION = charArrayOf('.', ',', ';', ':', '!', '?', '"', '(', ')', '[', ']', '{', '}')

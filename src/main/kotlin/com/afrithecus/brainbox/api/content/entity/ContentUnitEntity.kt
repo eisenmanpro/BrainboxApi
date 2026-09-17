@@ -97,6 +97,20 @@ class ContentUnitEntity : BaseEntity() {
     @Column(name = "auto_approve_blocked_reason", length = 64)
     var autoApproveBlockedReason: String? = null
 
+    /** Phase 7.5 LLM critic score for the current content, 0..1; null = not critiqued. */
+    @Column(name = "critique_score")
+    var critiqueScore: Double? = null
+
+    @Column(name = "critique_at")
+    var critiqueAt: Instant? = null
+
+    @Column(name = "critique_model", length = 64)
+    var critiqueModel: String? = null
+
+    /** JSON array of the critic's structured findings. */
+    @Column(name = "critique_findings", columnDefinition = "text")
+    var critiqueFindings: String? = null
+
     @Column(name = "review_state", nullable = false, length = 16)
     var reviewState: String = "UNREVIEWED"
 

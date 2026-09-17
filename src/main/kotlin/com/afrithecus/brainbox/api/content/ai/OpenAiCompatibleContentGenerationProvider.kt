@@ -61,6 +61,15 @@ class OpenAiCompatibleContentGenerationProvider(
         )
     }
 
+    override fun critique(request: ContentCritiqueRequest): CritiqueResult {
+        val model = settings.model.ifEmpty { DEFAULT_MODEL }
+        val parsed = parseCritique(send(mapper.writeValueAsString(critiqueChatRequest(model, request))), model)
+        return parsed.copy(
+            provider = name,
+            costMicros = costProfile.costMicros(parsed.promptTokens, parsed.completionTokens),
+        )
+    }
+
     /** One authenticated chat-completions POST; failures map to SERVICE_UNAVAILABLE. */
     private fun send(body: String): String {
         val apiKey = settings.apiKey
@@ -103,6 +112,17 @@ class OpenAiCompatibleContentGenerationProvider(
         "stream" to false,
     )
 
+    private fun critiqueChatRequest(model: String, request: ContentCritiqueRequest): Map<String, Any?> = linkedMapOf(
+        "model" to model,
+        "messages" to listOf(
+            mapOf("role" to "system", "content" to GenerationPrompts.CRITIQUE_SYSTEM),
+            mapOf("role" to "user", "content" to GenerationPrompts.critiqueUserPrompt(request)),
+        ),
+        "temperature" to 0.0,
+        "response_format" to mapOf("type" to "json_object"),
+        "stream" to false,
+    )
+
     private fun verificationChatRequest(model: String, request: AnswerVerificationRequest): Map<String, Any?> = linkedMapOf(
         "model" to model,
         "messages" to listOf(
@@ -136,6 +156,25 @@ class OpenAiCompatibleContentGenerationProvider(
             completionTokens = completionTokens,
             model = parsed.model ?: model,
         )
+    }
+
+    private fun parseCritique(body: String, fallbackModel: String): CritiqueResult {
+        val root = mapper.readTree(body)
+        val choices = root.get("choices")?.takeIf { it.isArray && it.size() > 0 }
+            ?: throw ApiException(ApiErrorCode.SERVICE_UNAVAILABLE, "provider " + name + " response has no choices")
+        val content = choices.get(0).get("message")?.get("content")?.asString()
+            ?: throw ApiException(ApiErrorCode.SERVICE_UNAVAILABLE, "provider " + name + " response has no message content")
+        val usage = root.get("usage")
+        val promptTokens = usage?.get("prompt_tokens")?.intValue() ?: 0
+        val completionTokens = usage?.get("completion_tokens")?.intValue() ?: 0
+        val model = root.get("model")?.asString()?.takeIf { it.isNotBlank() } ?: fallbackModel
+        val parsed = try {
+            mapper.readValue(content, CritiqueResult::class.java)
+        } catch (ex: Exception) {
+            log.warn("Provider {} returned malformed critique JSON: {}", name, ex.message)
+            throw ApiException(ApiErrorCode.SERVICE_UNAVAILABLE, "provider " + name + " returned malformed JSON: " + ex.message)
+        }
+        return parsed.copy(promptTokens = promptTokens, completionTokens = completionTokens, model = parsed.model ?: model)
     }
 
     private fun parseVerification(body: String, fallbackModel: String): AnswerVerificationResult {

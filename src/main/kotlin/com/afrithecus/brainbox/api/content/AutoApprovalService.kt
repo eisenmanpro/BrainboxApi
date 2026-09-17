@@ -62,6 +62,8 @@ class AutoApprovalService(
     private val outcomes: ModerationOutcomeRepository,
     /** H1 observability: approved/exception rate and the first gate that tripped. */
     private val metrics: ContentMetrics,
+    /** Phase 7.5 LLM critic: when enabled, a below-bar critique is a hard gate. */
+    private val properties: AppContentProperties,
 ) {
 
     @Transactional
@@ -93,6 +95,20 @@ class AutoApprovalService(
         if (report.score < moderationPolicy.autoApproveMinValidatorScore()) {
             persistBlockedReason(unit, report.findings.firstOrNull()?.code ?: REASON_VALIDATOR_SCORE)
             return gateException(reportReason(report, REASON_VALIDATOR_SCORE))
+        }
+
+        // Phase 7.5 LLM critic: when enabled, an absent or below-bar pedagogy score
+        // fails closed into the exception queue exactly like a validator finding.
+        if (properties.critique.enabled) {
+            val critique = unit.critiqueScore
+            if (critique == null) {
+                persistBlockedReason(unit, REASON_CRITIQUE_MISSING)
+                return gateException(REASON_CRITIQUE)
+            }
+            if (critique < properties.critique.minScore) {
+                persistBlockedReason(unit, REASON_CRITIQUE_LOW)
+                return gateException(REASON_CRITIQUE)
+            }
         }
 
         val questionCount = unitQuestions.findAllByUnitIdOrderByOrderIndexAsc(contentId).size
@@ -216,6 +232,7 @@ class AutoApprovalService(
         const val REASON_VALIDATOR_SCORE = "VALIDATOR_SCORE"
         const val REASON_QUESTION_FLOOR = "QUESTION_FLOOR"
         const val REASON_CRITIC_CONFIDENCE = "CRITIC_CONFIDENCE"
+        const val REASON_CRITIQUE = "CRITIQUE"
         const val REASON_ANSWER_KEY_UNVERIFIED = "ANSWER_KEY_UNVERIFIED"
         const val REASON_ANSWER_KEY_AGREEMENT = "ANSWER_KEY_AGREEMENT"
 
@@ -226,5 +243,7 @@ class AutoApprovalService(
         const val REASON_CONFIDENCE_MISSING = "CONFIDENCE_MISSING"
         const val REASON_CONFIDENCE_LOW = "CONFIDENCE_LOW"
         const val REASON_ANSWER_KEY_DISAGREEMENT = "ANSWER_KEY_DISAGREEMENT"
+        const val REASON_CRITIQUE_MISSING = "CRITIQUE_MISSING"
+        const val REASON_CRITIQUE_LOW = "CRITIQUE_LOW"
     }
 }
