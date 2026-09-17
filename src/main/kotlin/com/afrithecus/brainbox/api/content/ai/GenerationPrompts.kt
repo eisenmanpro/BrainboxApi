@@ -63,6 +63,10 @@ internal object GenerationPrompts {
         Never include markdown fences or commentary.
     """.trimIndent()
 
+    /** The generation system prompt with the subject-agent persona appended when present. */
+    fun systemPrompt(persona: String?): String =
+        if (persona.isNullOrBlank()) GENERATION_SYSTEM else GENERATION_SYSTEM + "\n\n" + persona.trim()
+
     fun generationUserPrompt(request: GenerationRequest): String = buildString {
         appendLine("Generate a " + request.taskType + " task for a learner.")
         request.taskTypeLabel?.let { appendLine("Task label: " + it) }

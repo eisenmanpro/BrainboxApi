@@ -95,7 +95,7 @@ class OpenAiCompatibleContentGenerationProvider(
     private fun chatRequest(model: String, request: GenerationRequest): Map<String, Any?> = linkedMapOf(
         "model" to model,
         "messages" to listOf(
-            mapOf("role" to "system", "content" to GenerationPrompts.GENERATION_SYSTEM),
+            mapOf("role" to "system", "content" to GenerationPrompts.systemPrompt(request.persona)),
             mapOf("role" to "user", "content" to GenerationPrompts.generationUserPrompt(request)),
         ),
         "temperature" to 0.2,

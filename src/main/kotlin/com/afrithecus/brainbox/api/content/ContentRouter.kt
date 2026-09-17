@@ -21,6 +21,7 @@ import com.afrithecus.brainbox.api.content.repository.ContentUnitRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitStepRepository
 import com.afrithecus.brainbox.api.content.repository.GenerationJobRepository
 import com.afrithecus.brainbox.api.content.repository.ModelCallRepository
+import com.afrithecus.brainbox.api.content.subject.SubjectAgentRegistry
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
@@ -59,6 +60,8 @@ class ContentRouter(
     private val mapper: ObjectMapper,
     /** H1 pipeline metrics; the router is the only caller of the provider. */
     private val metrics: ContentMetrics,
+    /** Phase 7.5: resolves the subject-agent persona from the request subject. */
+    private val subjectAgents: SubjectAgentRegistry,
 ) {
 
     /**
@@ -384,9 +387,13 @@ class ContentRouter(
         request: GenerationRequest,
     ): GenerationResult {
         val providerName = provider.name
+        // Resolve the subject-agent persona here so every generation path (initial
+        // and revise) is grounded in the subject, without the provider needing to
+        // know about the agent registry.
+        val enriched = request.copy(persona = subjectAgents.forSubject(request.subject).persona)
         val startedAt = System.nanoTime()
         val result = try {
-            provider.generate(request)
+            provider.generate(enriched)
         } catch (failure: Exception) {
             recordFailedCall(run, failure, System.nanoTime() - startedAt, recordLatency = true)
             run.status = "FAILED"

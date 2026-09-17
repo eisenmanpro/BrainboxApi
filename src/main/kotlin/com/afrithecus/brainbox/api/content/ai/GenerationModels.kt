@@ -17,6 +17,12 @@ data class GenerationRequest(
     val standardVersion: String,
     val difficulty: Int? = null,
     val notes: String? = null,
+    /**
+     * Subject-agent persona appended to the provider system prompt (Phase 7.5
+     * subject agents). Provider-neutral: the router resolves it from the subject,
+     * so a provider only has to append it.
+     */
+    val persona: String? = null,
 )
 
 data class GenerationResult(
