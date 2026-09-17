@@ -5,6 +5,7 @@ import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.content.ai.AnswerVerificationRequest
 import com.afrithecus.brainbox.api.content.ai.ContentGenerationProvider
 import com.afrithecus.brainbox.api.content.ai.GenerationRequest
+import com.afrithecus.brainbox.api.content.ai.GenerationResult
 import com.afrithecus.brainbox.api.content.ai.ProviderCallException
 import com.afrithecus.brainbox.api.content.ai.VerificationAnswer
 import com.afrithecus.brainbox.api.content.ai.VerificationQuestion
@@ -336,15 +337,53 @@ class ContentRouter(
      * caller owns the terminal job status (complete/fail).
      */
     private fun runCore(job: GenerationJobEntity, request: GenerationRequest): RunOutcome {
-        val providerName = provider.name
-        var run = agentRuns.save(
+        val run = beginRun(job, request.generationKey)
+        val result = generateCaptured(run, job, request)
+        val unit = ContentUnitEntity()
+        applyGeneratedFields(unit, request, job, run, result)
+        contentUnits.save(unit)
+        persistStepsAndQuestions(unit, result)
+        finishRun(run, result)
+        return RunOutcome(unit, run.id)
+    }
+
+    /**
+     * Phase 7.5 supervisor: regenerate an existing unit in place from a revised
+     * request (the validator findings folded into GenerationRequest.notes). It
+     * writes a new agent_run/model_call so the extra cost is captured like any
+     * other call, replaces the body/steps/questions, and clears the review and
+     * answer-key verification state because the content is new. Returns null when
+     * there is no unit to revise.
+     */
+    fun revise(job: GenerationJobEntity, request: GenerationRequest): ContentUnitEntity? {
+        val unit = contentUnits.findByGenerationKey(request.generationKey) ?: return null
+        val run = beginRun(job, request.generationKey)
+        val result = generateCaptured(run, job, request)
+        unitSteps.deleteAll(unitSteps.findAllByUnitIdOrderByOrderIndexAsc(unit.id))
+        unitQuestions.deleteAll(unitQuestions.findAllByUnitIdOrderByOrderIndexAsc(unit.id))
+        applyGeneratedFields(unit, request, job, run, result)
+        contentUnits.save(unit)
+        persistStepsAndQuestions(unit, result)
+        finishRun(run, result)
+        return unit
+    }
+
+    private fun beginRun(job: GenerationJobEntity, generationKey: String): AgentRunEntity =
+        agentRuns.save(
             AgentRunEntity().apply {
                 jobId = job.id
-                generationKey = request.generationKey
+                this.generationKey = generationKey
                 status = "RUNNING"
             }
         )
 
+    /** One provider call with its capture and fail-closed job routing. Throws on failure. */
+    private fun generateCaptured(
+        run: AgentRunEntity,
+        job: GenerationJobEntity,
+        request: GenerationRequest,
+    ): GenerationResult {
+        val providerName = provider.name
         val startedAt = System.nanoTime()
         val result = try {
             provider.generate(request)
@@ -369,8 +408,6 @@ class ContentRouter(
         val servedProvider = result.provider ?: providerName
         metrics.recordGenerationLatency(servedProvider, latencyNanos)
         metrics.recordTokens(result.promptTokens, result.completionTokens)
-        val latencyMs = latencyNanos / 1_000_000L
-
         modelCalls.save(
             ModelCallEntity().apply {
                 agentRunId = run.id
@@ -380,39 +417,54 @@ class ContentRouter(
                 completionTokens = result.completionTokens
                 costMicros = result.costMicros.takeIf { it > 0L }
                     ?: ContentPricing.costMicros(result.promptTokens, result.completionTokens)
-                this.latencyMs = latencyMs
+                latencyMs = latencyNanos / 1_000_000L
                 success = true
             }
         )
+        return result
+    }
 
-        val unit = contentUnits.save(
-            ContentUnitEntity().apply {
-                generationKey = request.generationKey
-                taskType = request.taskType
-                // The provider returns teaching content, not a display title; derive the
-                // title from the request so the structure validator can pass and the
-                // projected post has a human-readable heading.
-                title = request.conceptName?.takeIf { it.isNotBlank() }
-                    ?: request.taskTypeLabel?.takeIf { it.isNotBlank() }
-                    ?: request.taskType
-                conceptId = job.conceptId
-                subject = request.subject
-                gradeLevel = request.gradeLevel
-                language = request.language
-                standardVersion = request.standardVersion
-                promptVersion = run.promptVersion
-                body = result.body
-                provenance = "GENERATED"
-                sourceUrls = result.sourceUrls.takeIf { it.isNotEmpty() }?.joinToString("\n")
-                license = result.license
-                model = result.model
-                tokens = result.promptTokens + result.completionTokens
-                confidence = result.confidence
-                reviewState = "UNREVIEWED"
-                status = "DRAFT"
-            }
-        )
+    /** Applies generated fields to a new or existing unit. */
+    private fun applyGeneratedFields(
+        unit: ContentUnitEntity,
+        request: GenerationRequest,
+        job: GenerationJobEntity,
+        run: AgentRunEntity,
+        result: GenerationResult,
+    ) {
+        unit.generationKey = request.generationKey
+        unit.taskType = request.taskType
+        // The provider returns teaching content, not a display title; derive the
+        // title from the request so the structure validator can pass and the
+        // projected post has a human-readable heading.
+        unit.title = request.conceptName?.takeIf { it.isNotBlank() }
+            ?: request.taskTypeLabel?.takeIf { it.isNotBlank() }
+            ?: request.taskType
+        unit.conceptId = job.conceptId
+        unit.subject = request.subject
+        unit.gradeLevel = request.gradeLevel
+        unit.language = request.language
+        unit.standardVersion = request.standardVersion
+        unit.promptVersion = run.promptVersion
+        unit.body = result.body
+        unit.provenance = "GENERATED"
+        unit.sourceUrls = result.sourceUrls.takeIf { it.isNotEmpty() }?.joinToString("\n")
+        unit.license = result.license
+        unit.model = result.model
+        unit.tokens = result.promptTokens + result.completionTokens
+        unit.confidence = result.confidence
+        unit.reviewState = "UNREVIEWED"
+        unit.status = "DRAFT"
+        // New content invalidates the prior verification and gate reason.
+        unit.answerKeyAgreement = null
+        unit.answerKeyVerifiedAt = null
+        unit.answerKeyVerifiedModel = null
+        unit.answerKeyDropped = 0
+        unit.answerKeyDroppedDetail = null
+        unit.autoApproveBlockedReason = null
+    }
 
+    private fun persistStepsAndQuestions(unit: ContentUnitEntity, result: GenerationResult) {
         val savedSteps = result.steps.sortedBy { it.orderIndex }.map { generated ->
             unitSteps.save(
                 ContentUnitStepEntity().apply {
@@ -443,13 +495,13 @@ class ContentRouter(
                 }
             )
         }
+    }
 
+    private fun finishRun(run: AgentRunEntity, result: GenerationResult) {
         run.status = "SUCCEEDED"
         run.model = result.model
         run.confidence = result.confidence
         agentRuns.save(run)
-
-        return RunOutcome(unit, run.id)
     }
 
     private fun elapsedMillis(startedAt: Long): Long = (System.nanoTime() - startedAt) / 1_000_000L

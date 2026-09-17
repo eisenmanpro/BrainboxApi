@@ -827,7 +827,17 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       and is served by `GET /practice-papers/{examId}/content`; a `STUDY_GUIDE` projects into a
       `learning_post` whose blocks are its steps. Both are generated originals and never reproduce or
       attribute a KNEC/KICD paper. The full-breadth production seed run remains open.
-- [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences)
+- [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences).
+      **Supervisor loop delivered (this pass):** `ContentTaskLoop` runs generate -> validate ->
+      revise around each durable job, bounded by `app.content.loop.max-iterations` and
+      `app.content.loop.max-cost-micros`, folding the validator BLOCKER findings into the next
+      request and writing a new `agent_run`/`model_call` for each attempt. A unit still blocked
+      when the budget is spent is left for the projection gate to hide and the human exception
+      queue, so an unrevisable item escalates instead of publishing. The iteration count,
+      accumulated cost and last feedback are persisted on the job
+      (`loop_iterations`/`loop_cost_micros`/`loop_feedback`, V75) so a crash resumes rather than
+      restarts; `max-iterations=1` (the default) is the previous single-shot path. The per-subject
+      domain agents (subject-selected persona/prompt) remain.
 - [ ] Agent tools: DB metric queries, internet search, content validators. **Partial (this pass):**
       the tool layer behind `McpToolClient` now also exposes `metric_query` (shelf coverage and
       generation-queue depth from the database), `validate_content` (runs the deterministic

@@ -51,6 +51,7 @@ class GenerationJobWorker(
     private val properties: AppContentProperties,
     private val service: GenerationJobService,
     private val router: ContentRouter,
+    private val taskLoop: ContentTaskLoop,
     private val projection: ContentProjectionService,
     private val unitQuestions: ContentUnitQuestionRepository,
     /** H2 runtime policy: pause and source filter, overridable without a redeploy. */
@@ -119,7 +120,7 @@ class GenerationJobWorker(
             // Projecting is what makes a generated unit real: a clean unit is
             // auto-approved and published here, anything that fails a gate is
             // written hidden (DRAFT/isPublished=false) for the review queue.
-            val unit = router.runQueued(job.id)
+            val unit = taskLoop.run(job.id)
             if (unit != null) {
                 verifyAnswerKeys(unit.id)
                 projection.project(unit.id)

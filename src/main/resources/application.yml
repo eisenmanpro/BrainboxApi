@@ -188,6 +188,13 @@ app:
       language: ${CONTENT_BATCH_LANGUAGE:en}
       standard-version: ${CONTENT_BATCH_STANDARD_VERSION:v1}
       limit: ${CONTENT_BATCH_LIMIT:50}
+    loop:
+      # Phase 7.5 supervisor task loop. 1 reproduces the previous single-shot path;
+      # set 2-3 to revise a unit the validators block before it escalates to the
+      # human queue. max-cost-micros caps the accumulated provider spend per job
+      # (0 disables the cost ceiling).
+      max-iterations: ${CONTENT_LOOP_MAX_ITERATIONS:1}
+      max-cost-micros: ${CONTENT_LOOP_MAX_COST_MICROS:0}
     tools:
       # Phase 7.5 MCP tool layer. web-fetch is grounding only: off by default and
       # deny-all until an allow-list is set (CONTENT_WEB_FETCH_ALLOWED_DOMAINS as

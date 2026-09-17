@@ -62,4 +62,16 @@ class GenerationJobEntity : BaseEntity() {
      */
     @Column(name = "school_id")
     var schoolId: UUID? = null
+
+    /** Supervisor loop: completed generate/validate/revise iterations. */
+    @Column(name = "loop_iterations", nullable = false)
+    var loopIterations: Int = 0
+
+    /** Supervisor loop: accumulated provider cost for this job, in micros. */
+    @Column(name = "loop_cost_micros", nullable = false)
+    var loopCostMicros: Long = 0
+
+    /** The validator findings the last revision was asked to fix. */
+    @Column(name = "loop_feedback", columnDefinition = "text")
+    var loopFeedback: String? = null
 }

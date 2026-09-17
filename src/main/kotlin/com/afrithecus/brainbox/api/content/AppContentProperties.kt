@@ -20,6 +20,7 @@ data class AppContentProperties(
     val curriculum: Curriculum = Curriculum(),
     val batch: Batch = Batch(),
     val tools: Tools = Tools(),
+    val loop: Loop = Loop(),
 ) {
 
     /** True when this JVM should execute queued generation work. */
@@ -90,6 +91,17 @@ data class AppContentProperties(
         val language: String = "en",
         val standardVersion: String = "v1",
         val limit: Int = 50,
+    )
+
+    /**
+     * Phase 7.5 supervisor task loop. The loop runs generate -> validate -> revise
+     * up to [maxIterations], stopping at a unit with no BLOCKER findings or when
+     * the accumulated provider cost reaches [maxCostMicros] (0 disables the cost
+     * ceiling). maxIterations = 1 is the previous single-shot behaviour.
+     */
+    data class Loop(
+        val maxIterations: Int = 1,
+        val maxCostMicros: Long = 0,
     )
 
     /**
