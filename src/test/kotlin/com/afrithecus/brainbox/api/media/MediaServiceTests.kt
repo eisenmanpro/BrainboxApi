@@ -3,6 +3,8 @@ package com.afrithecus.brainbox.api.media
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.media.web.MediaController
 import com.afrithecus.brainbox.api.storage.LocalObjectStorage
+import com.afrithecus.brainbox.api.storage.ObjectStorage
+import com.afrithecus.brainbox.api.storage.StorageProperties
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.springframework.mock.web.MockHttpServletRequest
@@ -30,7 +32,7 @@ class MediaServiceTests {
     @BeforeEach
     fun setUp() {
         directory = Files.createTempDirectory("brainbox-media-test")
-        service = MediaService(LocalObjectStorage(directory), 1024L * 1024L)
+        service = MediaService(LocalObjectStorage(directory), StorageProperties(), 1024L * 1024L)
         RequestContextHolder.setRequestAttributes(ServletRequestAttributes(MockHttpServletRequest()))
     }
 
@@ -104,6 +106,21 @@ class MediaServiceTests {
                 ),
             )
         }
+    }
+
+    @Test
+    fun presignedBackendRedirectsDownloads() {
+        val fake = object : ObjectStorage {
+            override fun put(key: String, bytes: ByteArray, contentType: String) = Unit
+            override fun get(key: String): ByteArray? = null
+            override fun delete(key: String) = Unit
+            override fun presignGet(key: String, ttl: java.time.Duration): String? =
+                "https://minio.internal/brainbox/media/" + key + "?X-Amz-Signature=x"
+        }
+        val controller = MediaController(MediaService(fake, StorageProperties(), 1024L * 1024L))
+        val response = controller.download("abc.png")
+        assertEquals(302, response.statusCode.value())
+        assertTrue(response.headers.location.toString().startsWith("https://minio.internal/brainbox/media/abc.png"))
     }
 
     @Test

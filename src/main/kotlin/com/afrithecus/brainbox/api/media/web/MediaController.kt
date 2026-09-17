@@ -2,12 +2,14 @@ package com.afrithecus.brainbox.api.media.web
 
 import com.afrithecus.brainbox.api.media.MediaService
 import org.springframework.http.CacheControl
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import java.net.URI
 import java.time.Duration
 
 /**
@@ -23,6 +25,14 @@ class MediaController(private val service: MediaService) {
 
     @GetMapping("/{filename}")
     fun download(@PathVariable filename: String): ResponseEntity<ByteArray> {
+        // With an object store the stable URL redirects to a short-lived presigned
+        // GET, so the bytes come straight from storage instead of the API node.
+        service.presignedDownloadUrl(filename)?.let { presigned ->
+            return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI(presigned))
+                .cacheControl(CacheControl.noStore())
+                .build()
+        }
         val (bytes, contentType) = service.load(filename)
         val mediaType = MediaType.parseMediaType(contentType)
         val isRenderable = contentType.startsWith("image/") ||

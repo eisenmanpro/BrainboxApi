@@ -10,6 +10,7 @@ import com.afrithecus.brainbox.api.report.ReportScheduleService
 import com.afrithecus.brainbox.api.report.ReportStorage
 import com.afrithecus.brainbox.api.report.repository.ReportJobRepository
 import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder
+import java.net.URI
 import java.util.UUID
 
 /**
@@ -130,6 +132,16 @@ class TeacherReportController(
         val job = jobs.findById(id).orElse(null) ?: throw notFound("Report not found")
         val storageName = job.storageName
         if (job.status != "READY" || storageName == null) throw notFound("Report file is not ready")
+        // With an object store the signed API URL redirects to a short-lived
+        // presigned GET, so the PDF comes straight from storage.
+        val presigned = storage.presignedUrl(storageName)
+        if (presigned != null) {
+            val remaining = downloads.reserve(job.ownerId, id)
+            return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI(presigned))
+                .header("X-Reports-Quota-Remaining", remaining.toString())
+                .build()
+        }
         val bytes = storage.read(storageName) ?: throw notFound("Report file is not available")
         // Reserve the quota slot only once the file is known to exist, and atomically:
         // a missing file must not consume an export, and two concurrent downloads

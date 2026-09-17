@@ -44,6 +44,25 @@ class AwsSignatureV4Tests {
     }
 
     @Test
+    fun matchesTheDocumentedPresignedUrlExample() {
+        val url = signer().presign(
+            scheme = "https",
+            host = "examplebucket.s3.amazonaws.com",
+            path = "/test.txt",
+            expiresSeconds = 86400,
+            timestamp = timestamp,
+        )
+        assertTrue(
+            url.contains("X-Amz-Credential=AKIAIOSFODNN7EXAMPLE%2F20130524%2Fus-east-1%2Fs3%2Faws4_request"),
+            url,
+        )
+        assertTrue(
+            url.endsWith("X-Amz-Signature=aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404"),
+            url,
+        )
+    }
+
+    @Test
     fun matchesTheDocumentedPutObjectExample() {
         val body = "Welcome to Amazon S3."
         val bodyHash = AwsSignatureV4.sha256Hex(body)

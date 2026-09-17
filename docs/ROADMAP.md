@@ -575,8 +575,11 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       `ObjectStorage` seam - local disk by default, or an S3-compatible endpoint (MinIO
       in-country) via `app.storage.provider=s3`, with SigV4 signing implemented over the JDK and
       verified against the S3 documentation vectors; both use the `media/` and `reports/` key
-      prefixes and bytes are proxied through the API node, so the client contract is unchanged.
-      Presigned client-direct upload and a malware/URL scanner remain.
+      prefixes. Uploads are proxied through the API node; **downloads now redirect to a
+      short-lived presigned GET** when S3 is configured (the media and report download endpoints
+      answer 302, so the bytes come from storage instead of the API node), verified against the S3
+      presigned-URL vector. Presigned client-direct upload (which needs a server-side magic-byte
+      verify step) and a malware/URL scanner remain.
 - [ ] Redis: JWT revocation, rate-limit counters, live-class counters.
       **Partial without Redis:** access-token revocation is now enforced by checking the
       session row in `AuthTokenFilter`, so logout / password change / deactivation take effect

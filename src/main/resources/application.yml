@@ -66,11 +66,13 @@ app:
   # Object storage for media uploads and rendered report PDFs. local (the default)
   # keeps the existing media/report directories; s3 routes both through one
   # S3-compatible endpoint (MinIO in-country, or S3) with the media/ and reports/
-  # key prefixes. Bytes are proxied through the API node, so the client contract is
-  # unchanged. Credentials are required when provider=s3 and the app fails fast if
-  # they are missing.
+  # key prefixes. Uploads are proxied through the API node; downloads redirect to a
+  # short-lived presigned GET so the bytes come from storage directly. Credentials
+  # are required when provider=s3 and the app fails fast if they are missing.
   storage:
     provider: ${STORAGE_PROVIDER:local}
+    # Lifetime of a presigned direct-download URL (S3's maximum is 7 days).
+    presign-ttl: ${STORAGE_PRESIGN_TTL:10m}
     s3:
       endpoint: ${S3_ENDPOINT:}
       bucket: ${S3_BUCKET:}

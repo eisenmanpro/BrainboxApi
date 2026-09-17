@@ -1,6 +1,7 @@
 package com.afrithecus.brainbox.api.report
 
 import com.afrithecus.brainbox.api.storage.ObjectStorage
+import com.afrithecus.brainbox.api.storage.StorageProperties
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Service
 
@@ -11,7 +12,10 @@ import org.springframework.stereotype.Service
  * backend is app.storage.provider (LOCAL disk or S3-compatible MinIO).
  */
 @Service
-class ReportStorage(@Qualifier("reportObjectStorage") private val storage: ObjectStorage) {
+class ReportStorage(
+    @Qualifier("reportObjectStorage") private val storage: ObjectStorage,
+    private val properties: StorageProperties,
+) {
 
     fun save(storageName: String, bytes: ByteArray): Long {
         storage.put(storageName, bytes, "application/pdf")
@@ -21,4 +25,7 @@ class ReportStorage(@Qualifier("reportObjectStorage") private val storage: Objec
     fun read(storageName: String): ByteArray? = storage.get(storageName)
 
     fun delete(storageName: String) = storage.delete(storageName)
+
+    /** A direct-download URL, or null when the backend streams the bytes itself. */
+    fun presignedUrl(storageName: String): String? = storage.presignGet(storageName, properties.presignTtl)
 }

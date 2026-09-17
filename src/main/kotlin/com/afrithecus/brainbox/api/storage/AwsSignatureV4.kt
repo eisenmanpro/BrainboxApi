@@ -11,12 +11,12 @@ import javax.crypto.spec.SecretKeySpec
 /**
  * AWS Signature Version 4 signing for the S3 API, implemented with the JDK only so
  * no AWS SDK (and no new dependency) is needed. It is verified against the worked
- * GET and PUT examples in the S3 "Signature Calculations for the Authorization
- * Header" documentation.
+ * GET, PUT and presigned-URL examples in the S3 "Signature Calculations" and
+ * "Authenticating Requests: Using Query Parameters" documentation.
  *
- * Only the header-based, single-chunk form is implemented: the payload hash rides
- * in x-amz-content-sha256, which is what MinIO and S3 accept for ordinary uploads.
- * Presigned query-string URLs are a separate concern and are not built here.
+ * Header-based single-chunk signing carries the payload hash in
+ * x-amz-content-sha256; presigned URLs use UNSIGNED-PAYLOAD with only the host
+ * header signed. Both are what MinIO and S3 accept for ordinary traffic.
  */
 class AwsSignatureV4(
     private val accessKey: String,
@@ -63,6 +63,47 @@ class AwsSignatureV4(
             ", SignedHeaders=" + signedHeaders + ", Signature=" + signature
     }
 
+    /**
+     * A presigned URL for [method] on [path] at [host], valid for [expiresSeconds].
+     * The payload is UNSIGNED-PAYLOAD and only the host header is signed, which is
+     * the standard S3 form for a direct client GET or PUT. [extraQuery] carries
+     * response overrides such as response-content-disposition.
+     */
+    fun presign(
+        method: String = "GET",
+        scheme: String,
+        host: String,
+        path: String,
+        expiresSeconds: Long,
+        timestamp: Instant,
+        extraQuery: Map<String, String> = emptyMap(),
+    ): String {
+        val amzDate = amzDate(timestamp)
+        val dateStamp = amzDate.substring(0, 8)
+        val scope = dateStamp + "/" + region + "/" + service + "/aws4_request"
+        val query = sortedMapOf(
+            "X-Amz-Algorithm" to "AWS4-HMAC-SHA256",
+            "X-Amz-Credential" to (accessKey + "/" + scope),
+            "X-Amz-Date" to amzDate,
+            "X-Amz-Expires" to expiresSeconds.toString(),
+            "X-Amz-SignedHeaders" to "host",
+        )
+        query.putAll(extraQuery)
+        val canonicalQuery = query.entries
+            .map { uriEncode(it.key) + "=" + uriEncode(it.value) }
+            .sorted()
+            .joinToString("&")
+        val canonicalRequest = method.uppercase() + "\n" +
+            encodePath(path) + "\n" +
+            canonicalQuery + "\n" +
+            "host:" + host + "\n" + "\n" +
+            "host" + "\n" +
+            UNSIGNED_PAYLOAD
+        val stringToSign = "AWS4-HMAC-SHA256\n" + amzDate + "\n" + scope + "\n" + sha256Hex(canonicalRequest)
+        val signature = hex(hmac(signingKey(dateStamp), stringToSign))
+        return scheme + "://" + host + encodePath(path) + "?" + canonicalQuery + "&X-Amz-Signature=" + signature
+    }
+
     fun signingKey(dateStamp: String): ByteArray {
         val kDate = hmac(("AWS4" + secretKey).toByteArray(StandardCharsets.UTF_8), dateStamp)
         val kRegion = hmac(kDate, region)
@@ -104,6 +145,7 @@ class AwsSignatureV4(
 
     companion object {
         const val EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        const val UNSIGNED_PAYLOAD = "UNSIGNED-PAYLOAD"
 
         fun sha256Hex(value: String): String = sha256Hex(value.toByteArray(StandardCharsets.UTF_8))
 

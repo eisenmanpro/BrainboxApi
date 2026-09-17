@@ -60,6 +60,17 @@ class S3ObjectStorage(
         ensureSuccess(response, "DELETE " + objectKey)
     }
 
+    override fun presignGet(key: String, ttl: Duration): String? {
+        val url = urlFor(objectKey(key))
+        return signer.presign(
+            scheme = url.scheme,
+            host = hostHeader(url),
+            path = url.path,
+            expiresSeconds = ttl.seconds.coerceIn(1L, MAX_PRESIGN_SECONDS),
+            timestamp = clock.instant(),
+        )
+    }
+
     private fun request(method: String, objectKey: String, contentType: String?, payloadHash: String): HttpRequest.Builder {
         val url = urlFor(objectKey)
         val now = clock.instant()
@@ -115,6 +126,7 @@ class S3ObjectStorage(
     }
 
     private companion object {
+        const val MAX_PRESIGN_SECONDS = 604800L
         val CONNECT_TIMEOUT: Duration = Duration.ofSeconds(5)
         val REQUEST_TIMEOUT: Duration = Duration.ofSeconds(30)
     }

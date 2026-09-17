@@ -3,6 +3,7 @@ package com.afrithecus.brainbox.api.media
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.storage.ObjectStorage
+import com.afrithecus.brainbox.api.storage.StorageProperties
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -25,6 +26,7 @@ import java.util.UUID
 @Service
 class MediaService(
     @Qualifier("mediaObjectStorage") private val storage: ObjectStorage,
+    private val storageProperties: StorageProperties,
     @Value("\${app.media.max-upload-bytes:26214400}") private val maxUploadBytes: Long,
 ) {
 
@@ -67,6 +69,16 @@ class MediaService(
         storage.put(safe, bytes, contentType)
         val url = ServletUriComponentsBuilder.fromCurrentContextPath().path("/media/").path(safe).toUriString()
         return MediaUploadResponsePayload(url = url, mediaType = "FILE")
+    }
+
+    /**
+     * A direct-download URL for a stored file, or null when the backend streams the
+     * bytes itself (local disk). Validates the filename shape first.
+     */
+    fun presignedDownloadUrl(filenameRaw: String): String? {
+        val filename = filenameRaw.trim()
+        if (!FILENAME_REGEX.matches(filename)) return null
+        return storage.presignGet(filename, storageProperties.presignTtl)
     }
 
     /**
