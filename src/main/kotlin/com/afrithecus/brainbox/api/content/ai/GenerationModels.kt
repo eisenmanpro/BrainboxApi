@@ -28,6 +28,12 @@ data class GenerationRequest(
      * The router stamps it on the unit and the projection on the client row.
      */
     val scope: String? = null,
+    /**
+     * Curriculum grounding resolved through the concept_lookup tool: the strand,
+     * sub-strand and learning outcome for the concept, appended to the generation
+     * prompt so every unit is anchored in the seeded CBC catalogue.
+     */
+    val curriculumContext: String? = null,
 )
 
 data class GenerationResult(

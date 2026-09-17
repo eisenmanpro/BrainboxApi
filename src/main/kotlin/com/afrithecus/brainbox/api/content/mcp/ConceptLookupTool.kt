@@ -31,7 +31,9 @@ class ConceptLookupTool(
         payload.get("code")?.asString()?.trim()?.takeIf { it.isNotEmpty() }?.let { code ->
             val concept = concepts.findByCode(code)
                 ?: throw ApiException(ApiErrorCode.NOT_FOUND, "concept not found for code '" + code + "'")
-            return objectNode(concept, null)
+            // Attach the best curriculum mapping (the requested grade, else ALL, else
+            // the first) so a by-code lookup grounds the caller like the curriculum path.
+            return objectNode(concept, bestMapping(concept.id, optional(payload, "gradeLevel")))
         }
 
         val countryCode = required(payload, "countryCode")
@@ -57,6 +59,15 @@ class ConceptLookupTool(
             concepts.findById(mapping.conceptId).ifPresent { array.add(objectNode(it, mapping)) }
         }
         return array
+    }
+
+    private fun bestMapping(conceptId: java.util.UUID, gradeLevel: String?): CurriculumMapEntity? {
+        val all = curriculumMaps.findAllByConceptIdOrderBySortOrderAsc(conceptId)
+        if (all.isEmpty()) return null
+        if (gradeLevel != null) {
+            all.firstOrNull { it.gradeLevel.equals(gradeLevel, ignoreCase = true) }?.let { return it }
+        }
+        return all.firstOrNull { it.gradeLevel.equals("ALL", ignoreCase = true) } ?: all.first()
     }
 
     private fun required(payload: JsonNode, field: String): String =

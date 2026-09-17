@@ -108,6 +108,7 @@ internal object GenerationPrompts {
         appendLine("Language: " + request.language)
         appendLine("Standard version: " + request.standardVersion)
         request.difficulty?.let { appendLine("Difficulty (1-5): " + it) }
+        request.curriculumContext?.takeIf { it.isNotBlank() }?.let { appendLine("Curriculum grounding: " + it) }
         request.notes?.let { appendLine("Notes: " + it) }
         appendLine("Return only the JSON object described by the system message.")
     }

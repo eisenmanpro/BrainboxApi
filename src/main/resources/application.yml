@@ -201,18 +201,6 @@ app:
       # (0 disables the cost ceiling).
       max-iterations: ${CONTENT_LOOP_MAX_ITERATIONS:1}
       max-cost-micros: ${CONTENT_LOOP_MAX_COST_MICROS:0}
-    tools:
-      # Phase 7.5 MCP tool layer. web-fetch is grounding only: off by default and
-      # deny-all until an allow-list is set (CONTENT_WEB_FETCH_ALLOWED_DOMAINS as
-      # comma-separated host suffixes). It never follows redirects and refuses
-      # loopback/private/metadata hosts.
-      web-fetch:
-        enabled: ${CONTENT_WEB_FETCH_ENABLED:false}
-        # Allow-list via env: APP_CONTENT_TOOLS_WEB_FETCH_ALLOWED_DOMAINS=a.example,b.example
-        # (empty unless set, so the tool denies every host).
-        blocked-domains: ${CONTENT_WEB_FETCH_BLOCKED_DOMAINS:kicd.ac.ke,knec.ac.ke}
-        max-bytes: ${CONTENT_WEB_FETCH_MAX_BYTES:1000000}
-        timeout-ms: ${CONTENT_WEB_FETCH_TIMEOUT_MS:5000}
   security:
     jwt:
       # Base64-encoded HMAC secret. Override in each environment. Dev default only.

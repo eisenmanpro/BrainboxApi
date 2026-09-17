@@ -16,6 +16,7 @@ import com.afrithecus.brainbox.api.content.entity.ContentUnitQuestionEntity
 import com.afrithecus.brainbox.api.content.entity.ContentUnitStepEntity
 import com.afrithecus.brainbox.api.content.entity.GenerationJobEntity
 import com.afrithecus.brainbox.api.content.entity.ModelCallEntity
+import com.afrithecus.brainbox.api.content.mcp.McpToolClient
 import com.afrithecus.brainbox.api.content.repository.AgentRunRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitQuestionRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitRepository
@@ -25,6 +26,7 @@ import com.afrithecus.brainbox.api.content.repository.ModelCallRepository
 import com.afrithecus.brainbox.api.content.schema.ContentSchemaV1
 import com.afrithecus.brainbox.api.content.subject.SubjectAgentRegistry
 import com.afrithecus.brainbox.api.learning.model.LearningScope
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
@@ -65,7 +67,11 @@ class ContentRouter(
     private val metrics: ContentMetrics,
     /** Phase 7.5: resolves the subject-agent persona from the request subject. */
     private val subjectAgents: SubjectAgentRegistry,
+    /** Phase 7.5: the in-process tool layer, used for curriculum grounding. */
+    private val mcpTools: McpToolClient,
 ) {
+
+    private val log = LoggerFactory.getLogger(javaClass)
 
     /**
      * Synchronous cache-first resolve: hit returns the stored unit, miss enqueues
@@ -448,6 +454,29 @@ class ContentRouter(
         return unit
     }
 
+    /**
+     * Resolve the concept's curriculum grounding through the concept_lookup tool
+     * (strand, sub-strand, learning outcome) so the prompt is anchored in the seeded
+     * CBC catalogue. A lookup failure is logged and ignored: grounding is an
+     * enrichment, never a reason to lose a generation.
+     */
+    private fun curriculumContext(request: GenerationRequest): String? {
+        val code = request.conceptCode?.takeIf { it.isNotBlank() } ?: return null
+        return try {
+            val payload = mapper.createObjectNode().put("code", code).put("gradeLevel", request.gradeLevel)
+            val node = mcpTools.invoke("concept_lookup", payload)
+            val parts = buildList {
+                node.get("strandName")?.asString()?.takeIf { it.isNotBlank() }?.let { add("strand: " + it) }
+                node.get("substrandName")?.asString()?.takeIf { it.isNotBlank() }?.let { add("sub-strand: " + it) }
+                node.get("learningOutcome")?.asString()?.takeIf { it.isNotBlank() }?.let { add("learning outcome: " + it) }
+            }
+            parts.takeIf { it.isNotEmpty() }?.joinToString("; ")
+        } catch (failure: Exception) {
+            log.warn("concept_lookup grounding failed for {}: {}", code, failure.message)
+            null
+        }
+    }
+
     private fun beginRun(job: GenerationJobEntity, generationKey: String): AgentRunEntity =
         agentRuns.save(
             AgentRunEntity().apply {
@@ -467,7 +496,10 @@ class ContentRouter(
         // Resolve the subject-agent persona here so every generation path (initial
         // and revise) is grounded in the subject, without the provider needing to
         // know about the agent registry.
-        val enriched = request.copy(persona = subjectAgents.forSubject(request.subject).persona)
+        val enriched = request.copy(
+            persona = subjectAgents.forSubject(request.subject).persona,
+            curriculumContext = request.curriculumContext ?: curriculumContext(request),
+        )
         val startedAt = System.nanoTime()
         val result = try {
             provider.generate(enriched)
