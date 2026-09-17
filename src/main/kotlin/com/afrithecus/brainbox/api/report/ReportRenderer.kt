@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component
 import java.awt.Color
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.net.HttpURLConnection
 import java.net.URI
 import java.util.Base64
 import javax.imageio.ImageIO
@@ -724,7 +725,7 @@ private class PdfCanvas(
     }
 
     private fun fetch(url: String): ByteArray {
-        if (url.startsWith("data:", ignoreCase = true)) {
+        if (SafeImageUrl.isDataUrl(url)) {
             val comma = url.indexOf(',')
             if (comma < 0) return ByteArray(0)
             val payload = url.substring(comma + 1)
@@ -734,10 +735,23 @@ private class PdfCanvas(
                 payload.toByteArray(Charsets.ISO_8859_1)
             }
         }
-        return URI(url).toURL().openConnection().apply {
-            connectTimeout = 2500
-            readTimeout = 2500
-        }.getInputStream().use { it.readBytes() }
+        // Branding logos are admin-supplied, but this is still a server-side fetch:
+        // http(s) to a public host only, no redirects, image-only, size-capped.
+        if (!SafeImageUrl.isAllowed(url)) return ByteArray(0)
+        val uri = URI(url.trim())
+        val host = SafeImageUrl.normalizeHost(uri.host) ?: return ByteArray(0)
+        if (!SafeImageUrl.isPublicHost(host)) return ByteArray(0)
+        val connection = uri.toURL().openConnection()
+        connection.connectTimeout = LOGO_TIMEOUT_MILLIS
+        connection.readTimeout = LOGO_TIMEOUT_MILLIS
+        (connection as? HttpURLConnection)?.instanceFollowRedirects = false
+        if (connection is HttpURLConnection && connection.responseCode !in 200..299) return ByteArray(0)
+        val contentType = connection.contentType
+        if (contentType != null && !contentType.lowercase().startsWith("image/")) return ByteArray(0)
+        return connection.getInputStream().use { input ->
+            val bytes = input.readNBytes(LOGO_MAX_BYTES + 1)
+            if (bytes.size > LOGO_MAX_BYTES) ByteArray(0) else bytes
+        }
     }
 
     private fun fontWidth(font: PDFont, value: String, size: Float): Float =
@@ -773,5 +787,7 @@ private class PdfCanvas(
     private companion object {
         const val TABLE_HEADER_HEIGHT = 18f
         const val TABLE_ROW_HEIGHT = 16f
+        const val LOGO_TIMEOUT_MILLIS = 2500
+        const val LOGO_MAX_BYTES = 2 * 1024 * 1024
     }
 }

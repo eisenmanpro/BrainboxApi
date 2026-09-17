@@ -492,7 +492,9 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       profile (the HMAC key is the only authorization on the public download route), and the
       weekly quota is reserved atomically by locking the owner row so concurrent downloads cannot
       overshoot it; the export ledger's derived deletes are now transactional, which also fixes
-      the scheduled prune.
+      the scheduled prune. Branding-logo fetches are restricted to public http(s) images with a
+      size cap and no redirects (SSRF), and the retention sweep now expires job rows with their
+      files so a READY history entry cannot outlive the file it points at.
 - [x] Teacher settings & profile (V44): GET/PUT /teacher/settings (preferences, notification
       switches, grade weighting, subjects/TSC/grade) and GET/PUT /teacher/profile (the account
       shape with teacher code, classes, subjects and verification state), self-scoped.

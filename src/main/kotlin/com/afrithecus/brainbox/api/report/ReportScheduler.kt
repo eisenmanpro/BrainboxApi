@@ -1,6 +1,7 @@
 package com.afrithecus.brainbox.api.report
 
 import com.afrithecus.brainbox.api.report.repository.ReportDownloadRepository
+import com.afrithecus.brainbox.api.report.repository.ReportJobRepository
 import com.afrithecus.brainbox.api.report.repository.ReportScheduleRepository
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
@@ -18,6 +19,7 @@ class ReportScheduler(
     private val generation: ReportGenerationService,
     private val scheduleService: ReportScheduleService,
     private val downloads: ReportDownloadRepository,
+    private val jobs: ReportJobRepository,
     private val storage: ReportStorage,
     private val properties: ReportProperties,
     private val clock: Clock,
@@ -34,8 +36,12 @@ class ReportScheduler(
 
     @Scheduled(initialDelay = 300_000, fixedDelay = 86_400_000)
     fun prune() {
+        val retention = Duration.ofDays(properties.retentionDays.toLong())
         downloads.deleteByDownloadedAtBefore(clock.instant().minus(Duration.ofDays(DOWNLOAD_HISTORY_DAYS)))
-        storage.deleteOlderThan(Duration.ofDays(properties.retentionDays.toLong()).seconds)
+        // Expire job rows with their files, so a READY history entry cannot outlive
+        // the file it points at. Download rows cascade.
+        jobs.deleteByCreatedAtBefore(clock.instant().minus(retention))
+        storage.deleteOlderThan(retention.seconds)
     }
 
     private companion object {
