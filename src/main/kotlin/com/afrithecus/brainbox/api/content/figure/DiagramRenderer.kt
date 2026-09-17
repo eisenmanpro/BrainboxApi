@@ -45,6 +45,9 @@ object DiagramRenderer {
     private const val MAX_INTERVALS = 3
     private const val MAX_ELEMENTS = 40
     private const val MAX_TICKS = 40
+    private const val MAX_TREE_NODES = 18
+    private const val MAX_TREE_DEPTH = 6
+    private const val MAX_SET_ITEMS = 4
 
     fun render(spec: FigureSpec): String = when (spec.kind.trim().uppercase()) {
         "TABLE" -> table(spec)
@@ -54,6 +57,8 @@ object DiagramRenderer {
         "FLOW" -> flow(spec)
         "NUMBER_LINE" -> numberLine(spec)
         "GEOMETRY" -> geometry(spec)
+        "TREE" -> tree(spec)
+        "VENN" -> venn(spec)
         else -> throw IllegalArgumentException("unsupported figure kind: " + spec.kind)
     }
 
@@ -387,6 +392,58 @@ object DiagramRenderer {
                 val to = element.to ?: return
                 rightAngle(c, sx, sy, vertex, from, to)
             }
+            "RECT" -> {
+                val from = element.from ?: return
+                val to = element.to ?: return
+                val x1 = sx(from[0])
+                val y1 = sy(from[1])
+                val x2 = sx(to[0])
+                val y2 = sy(to[1])
+                c.rect(
+                    minOf(x1, x2),
+                    minOf(y1, y2),
+                    Math.abs(x2 - x1),
+                    Math.abs(y2 - y1),
+                    if (element.filled) PRIMARY_SOFT else "none",
+                    PRIMARY,
+                    0.0,
+                    1.8,
+                )
+                element.label?.takeIf { it.isNotBlank() }?.let {
+                    labelAt(c, sx, sy, (from[0] + to[0]) / 2.0, (from[1] + to[1]) / 2.0, it)
+                }
+            }
+            "ELLIPSE" -> {
+                val center = element.center ?: return
+                val rx = element.radius ?: return
+                val ry = element.radiusY ?: return
+                c.ellipse(sx(center[0]), sy(center[1]), rx * scale, ry * scale, "none", PRIMARY, 1.8)
+                element.label?.takeIf { it.isNotBlank() }?.let { labelAt(c, sx, sy, center[0], center[1], it) }
+            }
+            "ARROW" -> {
+                val from = element.from ?: return
+                val to = element.to ?: return
+                val x1 = sx(from[0])
+                val y1 = sy(from[1])
+                val x2 = sx(to[0])
+                val y2 = sy(to[1])
+                c.line(x1, y1, x2, y2, INK, 1.8, dash)
+                arrowHead(c, x1, y1, x2, y2, INK)
+                element.label?.takeIf { it.isNotBlank() }?.let {
+                    labelAt(c, sx, sy, (from[0] + to[0]) / 2.0, (from[1] + to[1]) / 2.0, it)
+                }
+            }
+            "BEZIER" -> {
+                val from = element.from ?: return
+                val to = element.to ?: return
+                val control1 = element.control1 ?: return
+                val control2 = element.control2 ?: return
+                val d = "M " + svgNum(sx(from[0])) + " " + svgNum(sy(from[1])) +
+                    " C " + svgNum(sx(control1[0])) + " " + svgNum(sy(control1[1])) +
+                    " " + svgNum(sx(control2[0])) + " " + svgNum(sy(control2[1])) +
+                    " " + svgNum(sx(to[0])) + " " + svgNum(sy(to[1]))
+                c.path(d, "none", PRIMARY, 1.8, dash)
+            }
             "LABEL" -> {
                 val at = element.at ?: return
                 val text = element.text ?: return
@@ -606,17 +663,185 @@ object DiagramRenderer {
         c.polygon(listOf((x - 4.5) to (y2 + 8.0), x to y2, (x + 4.5) to (y2 + 8.0)), color)
     }
 
-    // -------------------------------------------------------------- helpers
+    // ----------------------------------------------------------------- TREE
 
-    private fun heading(c: SvgCanvas, spec: FigureSpec) {
-        spec.title?.takeIf { it.isNotBlank() }?.let {
-            c.text(clip(it, 80), WIDTH / 2.0, 24.0, TITLE_SIZE, INK, "middle", true)
+    private class TreeNode(val id: String, val label: String) {
+        val children = mutableListOf<TreeNode>()
+        var depth = 0
+        var slot = 0.0
+    }
+
+    private fun tree(spec: FigureSpec): String {
+        val raw = spec.nodes.orEmpty().take(MAX_TREE_NODES)
+        val byId = LinkedHashMap<String, TreeNode>()
+        raw.forEach { node ->
+            if (node.id.isNotBlank()) byId.putIfAbsent(node.id, TreeNode(node.id, clip(node.label, 26)))
+        }
+        raw.forEach { node ->
+            val child = byId[node.id] ?: return@forEach
+            node.parent?.let { byId[it] }?.let { parent -> parent.children += child }
+        }
+        // A root is a node with no parent, or one whose parent is not a node.
+        val roots = raw.mapNotNull { byId[it.id] }
+            .filter { node -> raw.firstOrNull { it.id == node.id }?.parent?.let { byId.containsKey(it) } != true }
+        val forest = roots.ifEmpty { byId.values.take(1) }
+
+        var leaf = 0
+        var maxDepth = 0
+        fun assign(node: TreeNode, depth: Int) {
+            node.depth = depth
+            if (depth > maxDepth) maxDepth = depth
+            if (node.children.isEmpty() || depth >= MAX_TREE_DEPTH) {
+                node.slot = leaf.toDouble()
+                leaf += 1
+            } else {
+                node.children.forEach { assign(it, depth + 1) }
+                node.slot = node.children.map { it.slot }.average()
+            }
+        }
+        forest.forEach { assign(it, 0) }
+
+        val leaves = maxOf(leaf, 1)
+        val slotWidth = 150.0
+        val nodeWidth = 132.0
+        val nodeHeight = 44.0
+        val levelGap = 86.0
+        val top = MARGIN + titleHeight(spec)
+        val canvasWidth = maxOf(WIDTH, (MARGIN * 2.0 + nodeWidth + (leaves - 1) * slotWidth).toInt())
+        val height = (top + (maxDepth + 1) * levelGap + 12.0 + captionHeight(spec)).toInt()
+
+        val c = SvgCanvas(canvasWidth, height, spec.title ?: "Tree diagram")
+        heading(c, spec, canvasWidth / 2.0)
+
+        val all = mutableListOf<TreeNode>()
+        fun collect(node: TreeNode, depth: Int) {
+            if (depth > MAX_TREE_DEPTH) return
+            all += node
+            node.children.forEach { collect(it, depth + 1) }
+        }
+        forest.forEach { collect(it, 0) }
+
+        fun xOf(node: TreeNode): Double = MARGIN + nodeWidth / 2.0 + node.slot * slotWidth
+        fun yOf(node: TreeNode): Double = top + node.depth * levelGap
+
+        all.forEach { node ->
+            node.children.forEach { child ->
+                val px = xOf(node)
+                val py = yOf(node) + nodeHeight
+                val childX = xOf(child)
+                val childY = yOf(child)
+                val midY = (py + childY) / 2.0
+                c.polyline(listOf(px to py, px to midY, childX to midY, childX to childY), AXIS, 1.4)
+            }
+        }
+        all.forEach { node ->
+            val x = xOf(node)
+            val y = yOf(node)
+            c.rect(
+                x - nodeWidth / 2.0,
+                y,
+                nodeWidth,
+                nodeHeight,
+                if (node.depth == 0) PRIMARY_SOFT else WHITE,
+                PRIMARY,
+                8.0,
+                1.4,
+            )
+            wrappedText(c, node.label, x, y + 19.0, nodeWidth - 14.0, 11.5)
+        }
+        captionText(c, spec, height - 10.0, canvasWidth / 2.0)
+        return c.build()
+    }
+
+    // ----------------------------------------------------------------- VENN
+
+    private fun venn(spec: FigureSpec): String {
+        val sets = spec.sets.orEmpty().take(3)
+        val shared = spec.shared.orEmpty().take(MAX_SET_ITEMS)
+        val top = MARGIN + titleHeight(spec)
+        val radius = 118.0
+        val centers: List<Pair<Double, Double>> = if (sets.size <= 2) {
+            listOf(
+                (WIDTH / 2.0 - 84.0) to (top + radius + 30.0),
+                (WIDTH / 2.0 + 84.0) to (top + radius + 30.0),
+            )
+        } else {
+            listOf(
+                (WIDTH / 2.0) to (top + 128.0),
+                (WIDTH / 2.0 - 90.0) to (top + 252.0),
+                (WIDTH / 2.0 + 90.0) to (top + 252.0),
+            )
+        }
+        val height = (centers.maxOf { it.second } + radius + 46.0 + captionHeight(spec)).toInt()
+        val c = SvgCanvas(WIDTH, height, spec.title ?: spec.caption ?: "Venn diagram")
+        heading(c, spec)
+        val colors = listOf("#3B82F6", "#EF4444", "#10B981")
+        centers.forEachIndexed { index, center ->
+            c.circle(center.first, center.second, radius, colors[index % colors.size], null, 1.0, 0.14)
+        }
+
+        if (sets.size <= 2) {
+            sets.forEachIndexed { index, set ->
+                c.text(
+                    clip(set.label ?: ("Set " + (index + 1)), 20),
+                    centers[index].first,
+                    centers[index].second - radius - 10.0,
+                    LABEL_SIZE,
+                    colors[index % colors.size],
+                    "middle",
+                    true,
+                )
+            }
+            drawRegionItems(c, sets.getOrNull(0)?.items.orEmpty(), centers[0].first - radius * 0.42, centers[0].second)
+            drawRegionItems(c, sets.getOrNull(1)?.items.orEmpty(), centers[1].first + radius * 0.42, centers[1].second)
+            drawRegionItems(c, shared, WIDTH / 2.0, centers[0].second)
+        } else {
+            c.text(clip(sets[0].label ?: "Set 1", 20), centers[0].first, centers[0].second - radius - 10.0, LABEL_SIZE, colors[0], "middle", true)
+            c.text(clip(sets[1].label ?: "Set 2", 20), centers[1].first - radius * 0.62, centers[1].second + radius + 18.0, LABEL_SIZE, colors[1], "middle", true)
+            c.text(clip(sets[2].label ?: "Set 3", 20), centers[2].first + radius * 0.62, centers[2].second + radius + 18.0, LABEL_SIZE, colors[2], "middle", true)
+            drawRegionItems(c, sets[0].items, centers[0].first, centers[0].second - 46.0)
+            drawRegionItems(c, sets[1].items, centers[1].first - 46.0, centers[1].second + 30.0)
+            drawRegionItems(c, sets[2].items, centers[2].first + 46.0, centers[2].second + 30.0)
+            drawRegionItems(c, shared, WIDTH / 2.0, top + 176.0)
+        }
+        captionText(c, spec, height - 10.0)
+        return c.build()
+    }
+
+    private fun drawRegionItems(c: SvgCanvas, items: List<String>, centerX: Double, centerY: Double) {
+        val visible = items.take(MAX_SET_ITEMS)
+        val startY = centerY - (visible.size - 1) * 7.0 + 4.0
+        visible.forEachIndexed { index, item ->
+            c.text(clip(item, 18), centerX, startY + index * 14.0, 10.5, INK, "middle")
         }
     }
 
-    private fun captionText(c: SvgCanvas, spec: FigureSpec, y: Double) {
+    private fun arrowHead(c: SvgCanvas, x1: Double, y1: Double, x2: Double, y2: Double, color: String) {
+        val angle = Math.atan2(y2 - y1, x2 - x1)
+        val size = 11.0
+        val a = angle + Math.toRadians(155.0)
+        val b = angle - Math.toRadians(155.0)
+        c.polygon(
+            listOf(
+                x2 to y2,
+                (x2 + size * Math.cos(a)) to (y2 + size * Math.sin(a)),
+                (x2 + size * Math.cos(b)) to (y2 + size * Math.sin(b)),
+            ),
+            color,
+        )
+    }
+
+    // -------------------------------------------------------------- helpers
+
+    private fun heading(c: SvgCanvas, spec: FigureSpec, centerX: Double = WIDTH / 2.0) {
+        spec.title?.takeIf { it.isNotBlank() }?.let {
+            c.text(clip(it, 80), centerX, 24.0, TITLE_SIZE, INK, "middle", true)
+        }
+    }
+
+    private fun captionText(c: SvgCanvas, spec: FigureSpec, y: Double, centerX: Double = WIDTH / 2.0) {
         spec.caption?.takeIf { it.isNotBlank() }?.let {
-            c.text(clip(it, 110), WIDTH / 2.0, y, CAPTION_SIZE, MUTED, "middle")
+            c.text(clip(it, 110), centerX, y, CAPTION_SIZE, MUTED, "middle")
         }
     }
 

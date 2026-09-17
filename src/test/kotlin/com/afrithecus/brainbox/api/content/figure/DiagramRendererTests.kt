@@ -228,6 +228,68 @@ class DiagramRendererTests {
         assertEquals(40, count(svg, "<circle"))
     }
 
+    @Test
+    fun rendersATree() {
+        val svg = DiagramRenderer.render(
+            FigureSpec(
+                kind = "TREE",
+                title = "Vertebrates",
+                nodes = listOf(
+                    FigureNode("root", "Vertebrates"),
+                    FigureNode("fish", "Fish", "root"),
+                    FigureNode("birds", "Birds", "root"),
+                    FigureNode("mammals", "Mammals", "root"),
+                ),
+            ),
+        )
+        assertTrue(svg.startsWith("<svg "))
+        assertTrue(svg.contains(">Vertebrates<") && svg.contains(">Fish<") && svg.contains(">Mammals<"), svg)
+        assertEquals(4, count(svg, "<rect"))
+        assertTrue(svg.contains("<polyline"), svg)
+    }
+
+    @Test
+    fun rendersAVennDiagram() {
+        val svg = DiagramRenderer.render(
+            FigureSpec(
+                kind = "VENN",
+                title = "Living and non-living",
+                sets = listOf(FigureSet("Living", listOf("grows", "breathes")), FigureSet("Non-living", listOf("stone"))),
+                shared = listOf("water"),
+            ),
+        )
+        assertEquals(2, count(svg, "<circle"))
+        assertTrue(svg.contains("fill-opacity"))
+        assertTrue(svg.contains(">Living<") && svg.contains(">Non-living<"), svg)
+        assertTrue(svg.contains(">grows<") && svg.contains(">stone<") && svg.contains(">water<"), svg)
+    }
+
+    @Test
+    fun rendersTierTwoGeometryPrimitives() {
+        val svg = DiagramRenderer.render(
+            FigureSpec(
+                kind = "GEOMETRY",
+                viewBox = FigureViewBox(0.0, 0.0, 8.0, 6.0),
+                elements = listOf(
+                    FigureElement(type = "RECT", from = listOf(0.0, 0.0), to = listOf(3.0, 2.0), filled = true),
+                    FigureElement(type = "ELLIPSE", center = listOf(5.0, 1.0), radius = 1.5, radiusY = 1.0),
+                    FigureElement(type = "ARROW", from = listOf(0.0, 4.0), to = listOf(3.0, 4.0)),
+                    FigureElement(
+                        type = "BEZIER",
+                        from = listOf(3.0, 4.0),
+                        to = listOf(6.0, 4.0),
+                        control1 = listOf(4.0, 5.5),
+                        control2 = listOf(5.0, 2.5),
+                    ),
+                ),
+            ),
+        )
+        assertTrue(svg.contains("<rect"), svg)
+        assertTrue(svg.contains("<ellipse"), svg)
+        assertTrue(svg.contains("<polygon"), svg)
+        assertTrue(svg.contains("<path"), svg)
+    }
+
     private fun count(haystack: String, needle: String): Int {
         var index = haystack.indexOf(needle)
         var total = 0

@@ -62,8 +62,26 @@ data class FigureElement(
     val label: String? = null,
     /** SOLID (default) or DASHED. */
     val style: String? = null,
-    /** POLYGON only: shade the interior. */
+    /** POLYGON and RECT only: shade the interior. */
     val filled: Boolean = false,
+    /** ELLIPSE only: the vertical radius. */
+    val radiusY: Double? = null,
+    /** BEZIER only: the two cubic control points. */
+    val control1: List<Double>? = null,
+    val control2: List<Double>? = null,
+)
+
+/** One node of a TREE; [parent] is another node's [id], or null for the root. */
+data class FigureNode(
+    val id: String = "",
+    val label: String = "",
+    val parent: String? = null,
+)
+
+/** One set of a VENN diagram: its label and the items inside its own region. */
+data class FigureSet(
+    val label: String? = null,
+    val items: List<String> = emptyList(),
 )
 
 /**
@@ -103,6 +121,11 @@ data class FigureSpec(
     val viewBox: FigureViewBox? = null,
     val elements: List<FigureElement>? = null,
     val grid: Boolean = false,
+    // TREE.
+    val nodes: List<FigureNode>? = null,
+    // VENN.
+    val sets: List<FigureSet>? = null,
+    val shared: List<String>? = null,
 )
 
 /**
@@ -116,7 +139,17 @@ object FigureSpecs {
     const val VERSION = 2
 
     /** Kinds this contract allows. Adding a kind is a code change, not a promise. */
-    val KINDS: Set<String> = setOf("TABLE", "BAR", "FLOW", "LINE", "PIE", "NUMBER_LINE", "GEOMETRY")
+    val KINDS: Set<String> = setOf(
+        "TABLE",
+        "BAR",
+        "FLOW",
+        "LINE",
+        "PIE",
+        "NUMBER_LINE",
+        "GEOMETRY",
+        "TREE",
+        "VENN",
+    )
 
     /** The closed primitive set a GEOMETRY figure may compose. */
     val ELEMENT_TYPES: Set<String> = setOf(
@@ -127,6 +160,10 @@ object FigureSpecs {
         "POINT",
         "ANGLE",
         "RIGHT_ANGLE",
+        "RECT",
+        "ELLIPSE",
+        "ARROW",
+        "BEZIER",
         "LABEL",
     )
 
@@ -152,6 +189,8 @@ object FigureSpecs {
             "FLOW" -> validateFlow(node, out)
             "NUMBER_LINE" -> validateNumberLine(node, out)
             "GEOMETRY" -> validateGeometry(node, out)
+            "TREE" -> validateTree(node, out)
+            "VENN" -> validateVenn(node, out)
         }
         return out
     }
@@ -291,6 +330,64 @@ object FigureSpecs {
         }
     }
 
+    private fun validateTree(node: JsonNode, out: MutableList<SchemaViolation>) {
+        val nodes = node.get("nodes")
+        if (nodes == null || nodes.isNull || !nodes.isArray || nodes.size() == 0) {
+            out += violation("FIGURE_NODES_MISSING", "TREE requires a non-empty nodes array")
+            return
+        }
+        val ids = mutableSetOf<String>()
+        val parents = mutableListOf<String?>()
+        for (index in 0 until nodes.size()) {
+            val entry = nodes.get(index)
+            if (!entry.isObject) {
+                out += violation("FIGURE_NODE_INVALID", "TREE nodes[" + index + "] must be an object")
+                continue
+            }
+            val id = entry.get("id")?.asString()?.takeIf { it.isNotBlank() }
+            val label = entry.get("label")?.asString()?.takeIf { it.isNotBlank() }
+            if (id == null || label == null) {
+                out += violation("FIGURE_NODE_INVALID", "TREE nodes[" + index + "] requires id and label")
+            } else {
+                ids += id
+            }
+            parents += entry.get("parent")?.takeIf { it.isString }?.asString()?.takeIf { it.isNotBlank() }
+        }
+        parents.filterNotNull().forEach { parent ->
+            if (parent !in ids) out += violation("FIGURE_PARENT_UNKNOWN", "TREE parent '" + parent + "' is not a node id")
+        }
+        val roots = parents.count { it == null }
+        if (roots == 0) out += violation("FIGURE_TREE_NO_ROOT", "TREE needs one node with no parent")
+        if (roots > 1) out += violation("FIGURE_TREE_MULTIPLE_ROOTS", "TREE needs exactly one root node")
+    }
+
+    private fun validateVenn(node: JsonNode, out: MutableList<SchemaViolation>) {
+        val sets = node.get("sets")
+        if (sets == null || sets.isNull || !sets.isArray) {
+            out += violation("FIGURE_SETS_MISSING", "VENN requires a sets array")
+            return
+        }
+        if (sets.size() !in 2..3) {
+            out += violation("FIGURE_SETS_INVALID", "VENN supports two or three sets")
+            return
+        }
+        for (index in 0 until sets.size()) {
+            val entry = sets.get(index)
+            if (!entry.isObject) {
+                out += violation("FIGURE_SET_INVALID", "VENN sets[" + index + "] must be an object")
+                continue
+            }
+            val items = entry.get("items")
+            if (items != null && !items.isNull && (!items.isArray || items.any { !it.isString })) {
+                out += violation("FIGURE_SET_INVALID", "VENN sets[" + index + "].items must be an array of strings")
+            }
+        }
+        val shared = node.get("shared")
+        if (shared != null && !shared.isNull && (!shared.isArray || shared.any { !it.isString })) {
+            out += violation("FIGURE_SHARED_INVALID", "VENN shared must be an array of strings")
+        }
+    }
+
     private fun validateElement(index: Int, element: JsonNode, out: MutableList<SchemaViolation>) {
         val where = "GEOMETRY elements[" + index + "]"
         if (!element.isObject) {
@@ -310,6 +407,11 @@ object FigureSpecs {
                 element.get("startAngle")?.isNumber == true && element.get("endAngle")?.isNumber == true
             "POINT" -> hasPoint(element, "at")
             "ANGLE", "RIGHT_ANGLE" -> hasPoint(element, "vertex") && hasPoint(element, "from") && hasPoint(element, "to")
+            "RECT", "ARROW" -> hasPoint(element, "from") && hasPoint(element, "to")
+            "ELLIPSE" -> hasPoint(element, "center") &&
+                (element.get("radius")?.asDouble() ?: 0.0) > 0.0 && (element.get("radiusY")?.asDouble() ?: 0.0) > 0.0
+            "BEZIER" -> hasPoint(element, "from") && hasPoint(element, "to") &&
+                hasPoint(element, "control1") && hasPoint(element, "control2")
             "LABEL" -> hasPoint(element, "at") && !element.get("text")?.asString().isNullOrBlank()
             else -> false
         }
@@ -343,6 +445,9 @@ object FigureSpecs {
         viewBox = viewBox(node),
         elements = elements(node),
         grid = node.get("grid")?.asBoolean() ?: false,
+        nodes = nodes(node),
+        sets = sets(node),
+        shared = stringList(node, "shared"),
     )
 
     // ------------------------------------------------------------- parsing
@@ -429,7 +534,34 @@ object FigureSpecs {
                 label = stringValue(entry, "label"),
                 style = stringValue(entry, "style"),
                 filled = entry.get("filled")?.asBoolean() ?: false,
+                radiusY = doubleValue(entry, "radiusY"),
+                control1 = point(entry, "control1"),
+                control2 = point(entry, "control2"),
             )
+        }
+        return out
+    }
+
+    private fun nodes(node: JsonNode): List<FigureNode>? {
+        val array = array(node, "nodes") ?: return null
+        val out = ArrayList<FigureNode>(array.size())
+        for (index in 0 until array.size()) {
+            val entry = array.get(index)
+            out += FigureNode(
+                id = stringValue(entry, "id").orEmpty(),
+                label = stringValue(entry, "label").orEmpty(),
+                parent = stringValue(entry, "parent"),
+            )
+        }
+        return out
+    }
+
+    private fun sets(node: JsonNode): List<FigureSet>? {
+        val array = array(node, "sets") ?: return null
+        val out = ArrayList<FigureSet>(array.size())
+        for (index in 0 until array.size()) {
+            val entry = array.get(index)
+            out += FigureSet(label = stringValue(entry, "label"), items = stringList(entry, "items").orEmpty())
         }
         return out
     }

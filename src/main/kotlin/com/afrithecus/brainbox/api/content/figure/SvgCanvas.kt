@@ -93,9 +93,28 @@ internal class SvgCanvas(private val width: Int, private val height: Int, privat
         fill: String,
         stroke: String? = null,
         strokeWidth: Double = 1.0,
+        opacity: Double? = null,
     ): SvgCanvas {
         body.append("<circle cx=\"").append(svgNum(cx)).append("\" cy=\"").append(svgNum(cy))
         body.append("\" r=\"").append(svgNum(maxOf(r, 0.1))).append("\" fill=\"").append(fill).append("\"")
+        if (opacity != null) body.append(" fill-opacity=\"").append(svgNum(opacity)).append("\"")
+        if (stroke != null) body.append(" stroke=\"").append(stroke).append("\" stroke-width=\"").append(svgNum(strokeWidth)).append("\"")
+        body.append("/>")
+        return this
+    }
+
+    fun ellipse(
+        cx: Double,
+        cy: Double,
+        rx: Double,
+        ry: Double,
+        fill: String,
+        stroke: String? = null,
+        strokeWidth: Double = 1.0,
+    ): SvgCanvas {
+        body.append("<ellipse cx=\"").append(svgNum(cx)).append("\" cy=\"").append(svgNum(cy))
+        body.append("\" rx=\"").append(svgNum(maxOf(rx, 0.1))).append("\" ry=\"").append(svgNum(maxOf(ry, 0.1)))
+        body.append("\" fill=\"").append(fill).append("\"")
         if (stroke != null) body.append(" stroke=\"").append(stroke).append("\" stroke-width=\"").append(svgNum(strokeWidth)).append("\"")
         body.append("/>")
         return this

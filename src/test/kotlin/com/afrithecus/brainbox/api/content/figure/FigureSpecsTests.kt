@@ -119,7 +119,7 @@ class FigureSpecsTests {
         assertEquals(
             "FIGURE_ELEMENT_TYPE_INVALID",
             firstBlocker(
-                read("{\"kind\":\"GEOMETRY\",\"viewBox\":{\"width\":4,\"height\":3},\"elements\":[{\"type\":\"BEZIER\",\"at\":[0,0]}]}"),
+                read("{\"kind\":\"GEOMETRY\",\"viewBox\":{\"width\":4,\"height\":3},\"elements\":[{\"type\":\"SPIRAL\",\"at\":[0,0]}]}"),
             ).code,
         )
         assertEquals(
@@ -128,6 +128,56 @@ class FigureSpecsTests {
                 read("{\"kind\":\"GEOMETRY\",\"viewBox\":{\"width\":4,\"height\":3},\"elements\":[{\"type\":\"SEGMENT\",\"from\":[0,0]}]}"),
             ).code,
         )
+        assertEquals(
+            "FIGURE_ELEMENT_INVALID",
+            firstBlocker(
+                read(
+                    "{\"kind\":\"GEOMETRY\",\"viewBox\":{\"width\":4,\"height\":3},\"elements\":[{\"type\":\"BEZIER\",\"from\":[0,0],\"to\":[1,1]}]}",
+                ),
+            ).code,
+        )
+    }
+
+    @Test
+    fun acceptsTreeVennAndTierTwoPrimitives() {
+        assertTrue(
+            FigureSpecs.validate(
+                read("{\"kind\":\"TREE\",\"nodes\":[{\"id\":\"a\",\"label\":\"A\"},{\"id\":\"b\",\"label\":\"B\",\"parent\":\"a\"}]}"),
+            ).isEmpty(),
+        )
+        assertTrue(
+            FigureSpecs.validate(read("{\"kind\":\"VENN\",\"sets\":[{\"label\":\"A\"},{\"label\":\"B\"}],\"shared\":[\"x\"]}")).isEmpty(),
+        )
+        assertTrue(
+            FigureSpecs.validate(
+                read(
+                    "{\"kind\":\"GEOMETRY\",\"viewBox\":{\"width\":4,\"height\":4},\"elements\":[" +
+                        "{\"type\":\"BEZIER\",\"from\":[0,0],\"to\":[1,1],\"control1\":[0,1],\"control2\":[1,0]}," +
+                        "{\"type\":\"ELLIPSE\",\"center\":[2,2],\"radius\":1,\"radiusY\":0.5}]}",
+                ),
+            ).isEmpty(),
+        )
+    }
+
+    @Test
+    fun enforcesTreeShape() {
+        assertEquals("FIGURE_NODES_MISSING", firstBlocker(read("{\"kind\":\"TREE\"}")).code)
+        assertEquals(
+            "FIGURE_TREE_NO_ROOT",
+            firstBlocker(
+                read("{\"kind\":\"TREE\",\"nodes\":[{\"id\":\"a\",\"label\":\"A\",\"parent\":\"b\"},{\"id\":\"b\",\"label\":\"B\",\"parent\":\"a\"}]}"),
+            ).code,
+        )
+        assertEquals(
+            "FIGURE_PARENT_UNKNOWN",
+            firstBlocker(read("{\"kind\":\"TREE\",\"nodes\":[{\"id\":\"a\",\"label\":\"A\"},{\"id\":\"b\",\"label\":\"B\",\"parent\":\"zzz\"}]}")).code,
+        )
+    }
+
+    @Test
+    fun enforcesVennShape() {
+        assertEquals("FIGURE_SETS_MISSING", firstBlocker(read("{\"kind\":\"VENN\"}")).code)
+        assertEquals("FIGURE_SETS_INVALID", firstBlocker(read("{\"kind\":\"VENN\",\"sets\":[{\"label\":\"A\"}]}")).code)
     }
 
     private fun read(json: String) = mapper.readTree(json)

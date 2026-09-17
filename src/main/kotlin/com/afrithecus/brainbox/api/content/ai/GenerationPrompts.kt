@@ -40,6 +40,8 @@ internal object GenerationPrompts {
         - { "kind": "PIE", "slices": [ { "label": string, "value": number } ], "donut": bool } (max 8 slices, positive values)
         - { "kind": "NUMBER_LINE", "min": number, "max": number, "step": number?, "marks": [ { "value": number, "label": string?, "open": bool } ], "intervals": [ { "from": number, "to": number, "label": string? } ] }
         - { "kind": "FLOW", "steps": [string], "cyclic": bool } (max 8 short steps)
+        - { "kind": "TREE", "nodes": [ { "id": string, "label": string, "parent": string|null } ] } (exactly one root; max 18 nodes, 6 levels)
+        - { "kind": "VENN", "sets": [ { "label": string, "items": [string] } ], "shared": [string] } (two or three sets; max 4 items per region)
         - { "kind": "GEOMETRY", "viewBox": { "minX": number, "minY": number, "width": number, "height": number }, "grid": bool, "elements": [ primitive ] }
           The GEOMETRY primitives are the only figures you may compose; each has an
           optional "label". Nothing else is accepted:
@@ -50,10 +52,14 @@ internal object GenerationPrompts {
           { "type": "POINT", "at": [x,y] }
           { "type": "ANGLE", "vertex": [x,y], "from": [x,y], "to": [x,y] }
           { "type": "RIGHT_ANGLE", "vertex": [x,y], "from": [x,y], "to": [x,y] }
+          { "type": "RECT", "from": [x,y], "to": [x,y], "filled": bool }
+          { "type": "ELLIPSE", "center": [x,y], "radius": number, "radiusY": number }
+          { "type": "ARROW", "from": [x,y], "to": [x,y], "style": "SOLID"|"DASHED" }
+          { "type": "BEZIER", "from": [x,y], "control1": [x,y], "control2": [x,y], "to": [x,y] }
           { "type": "LABEL", "at": [x,y], "text": string }
           Geometry coordinates are in the viewBox's own units, with y increasing
           upwards, and the figure is scaled to fit; keep every coordinate inside
-          the viewBox and keep a figure to at most 20 primitives.
+          the viewBox and keep a figure to at most 40 primitives.
         Answer-key rules (mandatory):
         - Every question object MUST include a non-null "correctAnswer". A
           missing or null key makes the whole response invalid.
