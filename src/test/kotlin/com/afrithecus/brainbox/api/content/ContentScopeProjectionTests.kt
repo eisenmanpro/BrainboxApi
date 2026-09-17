@@ -79,6 +79,7 @@ class ContentScopeProjectionTests(
 
         assertEquals(LearningScope.SCHOOL, unit.scope)
         assertEquals(school.id, unit.schoolId)
+        assertEquals(com.afrithecus.brainbox.api.content.schema.ContentSchemaV1.VERSION, unit.contentSchemaVersion)
 
         projection.project(unit.id)
         val post = posts.findById(unit.id).orElseThrow()

@@ -22,6 +22,7 @@ import com.afrithecus.brainbox.api.content.repository.ContentUnitRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitStepRepository
 import com.afrithecus.brainbox.api.content.repository.GenerationJobRepository
 import com.afrithecus.brainbox.api.content.repository.ModelCallRepository
+import com.afrithecus.brainbox.api.content.schema.ContentSchemaV1
 import com.afrithecus.brainbox.api.content.subject.SubjectAgentRegistry
 import com.afrithecus.brainbox.api.learning.model.LearningScope
 import org.springframework.stereotype.Service
@@ -529,6 +530,8 @@ class ContentRouter(
         }
         unit.scope = effectiveScope
         unit.schoolId = if (effectiveScope == LearningScope.GLOBAL) null else job.schoolId
+        // Provenance: which content JSON contract this unit was generated under.
+        unit.contentSchemaVersion = ContentSchemaV1.VERSION
         unit.taskType = request.taskType
         // The provider returns teaching content, not a display title; derive the
         // title from the request so the structure validator can pass and the

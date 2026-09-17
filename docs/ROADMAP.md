@@ -869,7 +869,7 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       is missing (`CRITIQUE_MISSING`) or low (`CRITIQUE_LOW`), so it lands in the human exception
       queue. A stored critique is reused, so re-projection spends no extra model call. Off by
       default. The dedicated moderator console UI remains (frontend).
-- [ ] Content JSON schema v1; answer-key stripping before student delivery; scope inheritance.
+- [x] Content JSON schema v1; answer-key stripping before student delivery; scope inheritance.
       **Answer-key stripping is done** (`LearningService.stripKeys` removes
       `correctAnswer`/`correct`/`explanation`/`matchingPairs` from learner payloads).
       **Scope inheritance delivered (this pass):** `content_units` carries
@@ -878,7 +878,13 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       falls back to GLOBAL), and the projection copies them onto `learning_posts`,
       `readable_files` and `exams`, so the existing `ContentScope.isVisible` rule enforces
       SCHOOL / SCHOOL_GRADE_CLASS visibility for generated content too. **Content JSON schema v1
-      remains.**
+      delivered (this pass):** `ContentSchemaV1` (`ke-cbc-content-v1`) is the versioned structural
+      contract (root object, field types, the question-type enum); the OpenAI-compatible provider
+      enforces it on the raw response before mapping or caching, so a shape violation fails the
+      call with the offending codes while unknown fields are logged as informational drift.
+      Answer-key and content-quality rules stay in the validator chain, so an imperfect but
+      well-shaped response still routes to the human exception queue. The version is stamped on
+      `content_units.content_schema_version` (V78) for provenance and surfaced on the job trace.
 - [x] Observable jobs: agent trace, provider, tokens, moderation outcome (audit trail).
       `agent_runs`, `model_calls` and `tool_calls` were already captured by the router and
       `moderation_outcomes` held the decision; the missing read was per-job.

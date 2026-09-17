@@ -112,6 +112,10 @@ class ContentUnitEntity : BaseEntity() {
     @Column(name = "school_id")
     var schoolId: UUID? = null
 
+    /** Phase 7.5 provenance: the content JSON contract that produced this unit. */
+    @Column(name = "content_schema_version", length = 32)
+    var contentSchemaVersion: String? = null
+
     /** Phase 7.5 LLM critic score for the current content, 0..1; null = not critiqued. */
     @Column(name = "critique_score")
     var critiqueScore: Double? = null

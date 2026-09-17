@@ -2,6 +2,8 @@ package com.afrithecus.brainbox.api.content.ai
 
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
+import com.afrithecus.brainbox.api.content.schema.ContentSchemaV1
+import com.afrithecus.brainbox.api.content.validation.FindingSeverity
 import org.slf4j.LoggerFactory
 import tools.jackson.databind.ObjectMapper
 import java.net.URI
@@ -145,6 +147,27 @@ class OpenAiCompatibleContentGenerationProvider(
         val promptTokens = usage?.get("prompt_tokens")?.intValue() ?: 0
         val completionTokens = usage?.get("completion_tokens")?.intValue() ?: 0
         val model = root.get("model")?.asString()?.takeIf { it.isNotBlank() } ?: fallbackModel
+        val node = try {
+            mapper.readTree(content)
+        } catch (ex: Exception) {
+            log.warn("Provider {} returned malformed content JSON: {}", name, ex.message)
+            throw ApiException(ApiErrorCode.SERVICE_UNAVAILABLE, "provider " + name + " returned malformed JSON: " + ex.message)
+        }
+        // The versioned contract is enforced before anything is mapped or cached: a
+        // structural violation fails the call; informational drift is only logged.
+        val violations = ContentSchemaV1.validate(node)
+        val blockers = violations.filter { it.severity == FindingSeverity.BLOCKER }
+        if (blockers.isNotEmpty()) {
+            val codes = blockers.joinToString("; ") { it.code + ": " + it.message }
+            log.warn("Provider {} violated {}: {}", name, ContentSchemaV1.VERSION, codes)
+            throw ApiException(
+                ApiErrorCode.SERVICE_UNAVAILABLE,
+                "provider " + name + " returned content that violates " + ContentSchemaV1.VERSION + ": " + codes,
+            )
+        }
+        violations.filter { it.severity != FindingSeverity.BLOCKER }.forEach {
+            log.info("content schema {} finding on {}: {} {}", ContentSchemaV1.VERSION, name, it.code, it.message)
+        }
         val parsed = try {
             mapper.readValue(content, GenerationResult::class.java)
         } catch (ex: Exception) {

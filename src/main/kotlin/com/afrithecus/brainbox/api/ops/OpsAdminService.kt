@@ -282,6 +282,7 @@ class OpsAdminService(
         answerKeyVerifiedModel = unit.answerKeyVerifiedModel,
         answerKeyDropped = unit.answerKeyDropped,
         autoApproveBlockedReason = unit.autoApproveBlockedReason,
+        contentSchemaVersion = unit.contentSchemaVersion,
         createdAt = unit.createdAt.toEpochMilli(),
     )
 

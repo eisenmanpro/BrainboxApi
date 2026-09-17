@@ -197,6 +197,8 @@ data class OpsUnitSummary(
     val answerKeyVerifiedModel: String?,
     val answerKeyDropped: Int,
     val autoApproveBlockedReason: String?,
+    /** The content JSON schema that produced the unit, for provenance. */
+    val contentSchemaVersion: String? = null,
     val createdAt: Long,
 )
 
