@@ -78,4 +78,8 @@ class ExamQuestionEntity {
 
     @Column(name = "is_from_bank", nullable = false)
     var isFromBank: Boolean = false
+
+    /** Server-rendered figure SVG, when the question carries a diagram. */
+    @Column(name = "figure_svg", columnDefinition = "text")
+    var figureSvg: String? = null
 }

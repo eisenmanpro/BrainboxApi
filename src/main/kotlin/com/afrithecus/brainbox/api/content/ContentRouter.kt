@@ -16,6 +16,8 @@ import com.afrithecus.brainbox.api.content.entity.ContentUnitQuestionEntity
 import com.afrithecus.brainbox.api.content.entity.ContentUnitStepEntity
 import com.afrithecus.brainbox.api.content.entity.GenerationJobEntity
 import com.afrithecus.brainbox.api.content.entity.ModelCallEntity
+import com.afrithecus.brainbox.api.content.figure.DiagramRenderer
+import com.afrithecus.brainbox.api.content.figure.FigureSpecs
 import com.afrithecus.brainbox.api.content.mcp.McpToolClient
 import com.afrithecus.brainbox.api.content.repository.AgentRunRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitQuestionRepository
@@ -29,6 +31,7 @@ import com.afrithecus.brainbox.api.learning.model.LearningScope
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 import java.util.UUID
@@ -608,7 +611,8 @@ class ContentRouter(
                     orderIndex = generated.orderIndex
                     title = generated.title
                     body = generated.body
-                    figureSvg = generated.figureSvg
+                    figureSpec = generated.figure?.let { mapper.writeValueAsString(it) }
+                    figureSvg = generated.figure?.let { renderFigure(it) }
                 }
             )
         }
@@ -628,10 +632,19 @@ class ContentRouter(
                     difficulty = generated.difficulty
                     matchingPairs = generated.matchingPairs?.takeIf { it.isNotEmpty() }
                         ?.let { mapper.writeValueAsString(it) }
+                    figureSpec = generated.figure?.let { mapper.writeValueAsString(it) }
+                    figureSvg = generated.figure?.let { renderFigure(it) }
                 }
             )
         }
     }
+
+    /**
+     * Renders a model-authored figure spec to SVG. The spec already passed the
+     * closed-vocabulary check in the provider, so this only builds elements; any
+     * model text is escaped inside the renderer.
+     */
+    private fun renderFigure(figure: JsonNode): String = DiagramRenderer.render(FigureSpecs.parse(figure))
 
     private fun finishRun(run: AgentRunEntity, result: GenerationResult) {
         run.status = "SUCCEEDED"

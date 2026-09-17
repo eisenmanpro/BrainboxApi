@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.content.schema
 
+import com.afrithecus.brainbox.api.content.figure.FigureSpecs
 import com.afrithecus.brainbox.api.content.validation.FindingSeverity
 import tools.jackson.databind.JsonNode
 
@@ -46,7 +47,7 @@ object ContentSchemaV1 {
         "license",
     )
 
-    private val STEP_FIELDS = setOf("orderIndex", "title", "body", "figureSvg")
+    private val STEP_TEXT_FIELDS = setOf("title", "body")
 
     fun validate(node: JsonNode?): List<SchemaViolation> {
         if (node == null || !node.isObject) {
@@ -100,12 +101,15 @@ object ContentSchemaV1 {
             out += blocker("SCHEMA_STEP_NOT_OBJECT", "steps[" + index + "] must be an object")
             return
         }
-        STEP_FIELDS.forEach { field ->
-            val value = step.get(field) ?: return@forEach
-            if (value.isNull) return@forEach
-            val ok = if (field == "orderIndex") value.isNumber else value.isString
-            if (!ok) out += blocker("SCHEMA_TYPE_MISMATCH", "steps[" + index + "]." + field + " has the wrong type")
+        step.get("orderIndex")?.takeIf { !it.isNull }?.let {
+            if (!it.isNumber) out += mismatch("steps[" + index + "].orderIndex", "a number")
         }
+        STEP_TEXT_FIELDS.forEach { field ->
+            step.get(field)?.takeIf { !it.isNull }?.let {
+                if (!it.isString) out += mismatch("steps[" + index + "]." + field, "a string")
+            }
+        }
+        validateFigure("steps[" + index + "]", step.get("figure"), out)
     }
 
     private fun validateQuestion(index: Int, question: JsonNode, out: MutableList<SchemaViolation>) {
@@ -130,6 +134,23 @@ object ContentSchemaV1 {
             if (!options.isArray || options.any { !it.isString }) {
                 out += blocker("SCHEMA_OPTIONS_INVALID", "questions[" + index + "].options must be an array of strings")
             }
+        }
+        validateFigure("questions[" + index + "]", question.get("figure"), out)
+    }
+
+    /**
+     * A figure is either absent or a spec from the closed diagram vocabulary; a
+     * malformed or unknown-kind spec is a blocker, so it never reaches the
+     * renderer. The per-kind codes come from [FigureSpecs], prefixed with owner.
+     */
+    private fun validateFigure(owner: String, figure: JsonNode?, out: MutableList<SchemaViolation>) {
+        if (figure == null || figure.isNull) return
+        if (!figure.isObject) {
+            out += blocker("SCHEMA_TYPE_MISMATCH", "'" + owner + ".figure' must be an object")
+            return
+        }
+        FigureSpecs.validate(figure).forEach { violation ->
+            out += SchemaViolation(violation.severity, violation.code, owner + ".figure: " + violation.message)
         }
     }
 

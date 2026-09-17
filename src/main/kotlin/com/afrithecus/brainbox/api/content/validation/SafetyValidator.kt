@@ -22,8 +22,10 @@ import java.util.regex.Pattern
  *
  * Scope: unit title and body, every step title and body, and every question text,
  * option, correct answer and explanation. figure_svg is deliberately NOT scanned:
- * it is renderer markup (paths, coordinates, style attributes), not teachable
- * prose, so scanning it would flag geometry numbers while catching no extra prose.
+ * it is server-rendered from the closed figure vocabulary, so it contains only
+ * escaped model labels and coordinates, never raw model markup. The model-supplied
+ * labels inside it are covered where they are authored (the figure spec is part of
+ * the schema check), and scanning rendered geometry would only flag coordinates.
  */
 @Component
 class SafetyValidator(
@@ -60,7 +62,7 @@ class SafetyValidator(
         return findings
     }
 
-    /** Every prose field the safety gate owns; figure_svg is intentionally absent. */
+    /** Every prose field the safety gate owns; rendered figure_svg is intentionally absent. */
     private fun teachableTexts(ctx: ValidationContext): List<TeachableText> {
         val fields = mutableListOf<TeachableText>()
         fields += TeachableText("unit title", ctx.unit.title)

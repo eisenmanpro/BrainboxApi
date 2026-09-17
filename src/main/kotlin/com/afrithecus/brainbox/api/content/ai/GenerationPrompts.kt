@@ -12,7 +12,7 @@ internal object GenerationPrompts {
         strict JSON object and nothing else. The schema is:
         {
           "body": string,
-          "steps": [ { "orderIndex": int, "title": string, "body": string, "figureSvg": string|null } ],
+          "steps": [ { "orderIndex": int, "title": string, "body": string, "figure": figure|null } ],
           "questions": [ {
             "orderIndex": int,
             "stepIndex": int|null,
@@ -23,12 +23,22 @@ internal object GenerationPrompts {
             "explanation": string|null,
             "points": int,
             "difficulty": int,
-            "matchingPairs": { "left": "right" }|null
+            "matchingPairs": { "left": "right" }|null,
+            "figure": figure|null
           } ],
           "confidence": number,
           "sourceUrls": [string],
           "license": string|null
         }
+        A "figure" above is a declarative diagram the server renders; never emit
+        SVG or HTML. It is optional and worth adding only when it teaches more than
+        the prose. The allowed shapes are:
+        - { "kind": "TABLE", "title": string?, "caption": string?, "headers": [string], "rows": [[string]] }
+        - { "kind": "BAR", "title": string?, "caption": string?, "xLabel": string?, "yLabel": string?, "categories": [string], "values": [number] }
+        - { "kind": "FLOW", "title": string?, "caption": string?, "steps": [string], "cyclic": bool }
+        Keep a BAR to at most 12 categories, a TABLE to at most 6 columns and a
+        FLOW to at most 8 short steps, and put at most one figure per step or
+        question.
         Answer-key rules (mandatory):
         - Every question object MUST include a non-null "correctAnswer". A
           missing or null key makes the whole response invalid.

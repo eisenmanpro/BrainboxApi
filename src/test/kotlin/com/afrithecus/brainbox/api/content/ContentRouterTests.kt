@@ -93,6 +93,10 @@ class ContentRouterTests(
         /** The last generated result, used as an honest oracle when no override is set. */
         private var lastResult: GenerationResult? = null
 
+        private val figure = tools.jackson.databind.json.JsonMapper.builder().build().readTree(
+            "{\"kind\":\"TABLE\",\"title\":\"Ones\",\"headers\":[\"A\",\"B\"],\"rows\":[[\"1\",\"2\"]]}"
+        )
+
         override fun generate(request: GenerationRequest): GenerationResult {
             requests += request
             failNext?.let { message ->
@@ -107,7 +111,7 @@ class ContentRouterTests(
             val result = GenerationResult(
                 body = "Body for " + request.generationKey,
                 steps = listOf(
-                    GeneratedStep(0, "Step one", "First step body", "<svg xmlns=\"http://www.w3.org/2000/svg\"/>"),
+                    GeneratedStep(0, "Step one", "First step body", figure),
                     GeneratedStep(1, "Step two", "Second step body", null),
                 ),
                 questions = listOf(
@@ -121,6 +125,7 @@ class ContentRouterTests(
                         explanation = "Two plus two is four.",
                         points = 2,
                         difficulty = 2,
+                        figure = figure,
                     ),
                     GeneratedQuestion(
                         orderIndex = 1,
@@ -281,7 +286,8 @@ class ContentRouterTests(
         check(steps[0].orderIndex == 0)
         check(steps[0].title == "Step one")
         check(steps[0].body == "First step body")
-        check(steps[0].figureSvg != null)
+        check(steps[0].figureSvg?.contains("<svg") == true)
+        check(steps[0].figureSpec?.contains("\"TABLE\"") == true)
         check(steps[1].orderIndex == 1)
         check(steps[1].figureSvg == null)
 
@@ -293,6 +299,7 @@ class ContentRouterTests(
         check(questions[0].correctAnswer == "4")
         check(questions[0].points == 2)
         check(questions[0].difficulty == 2)
+        check(questions[0].figureSvg?.contains("<svg") == true)
         check(questions[0].stepId == steps[0].id)
         check(questions[1].stepId == null)
         check(questions[1].qType == "SHORT_ANSWER")

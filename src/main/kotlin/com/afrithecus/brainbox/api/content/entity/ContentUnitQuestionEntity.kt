@@ -43,4 +43,11 @@ class ContentUnitQuestionEntity : BaseEntity() {
 
     @Column(name = "matching_pairs", columnDefinition = "text")
     var matchingPairs: String? = null
+
+    /** The declarative figure spec (JSON) and the SVG the server rendered from it. */
+    @Column(name = "figure_spec", columnDefinition = "text")
+    var figureSpec: String? = null
+
+    @Column(name = "figure_svg", columnDefinition = "text")
+    var figureSvg: String? = null
 }

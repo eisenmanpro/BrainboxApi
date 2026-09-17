@@ -1,5 +1,7 @@
 package com.afrithecus.brainbox.api.content.ai
 
+import tools.jackson.databind.JsonNode
+
 /**
  * Provider-neutral content generation contracts (Phase 7.2). The router builds a
  * [GenerationRequest] and a [ContentGenerationProvider] returns a [GenerationResult];
@@ -56,7 +58,8 @@ data class GeneratedStep(
     val orderIndex: Int = 0,
     val title: String? = null,
     val body: String? = null,
-    val figureSvg: String? = null,
+    /** Declarative figure spec (Phase 7.5); the server renders it to SVG. */
+    val figure: JsonNode? = null,
 )
 
 data class GeneratedQuestion(
@@ -71,6 +74,8 @@ data class GeneratedQuestion(
     val points: Int = 1,
     val difficulty: Int = 3,
     val matchingPairs: Map<String, String>? = null,
+    /** Optional figure spec shown with the question; server-rendered to SVG. */
+    val figure: JsonNode? = null,
 )
 
 /**

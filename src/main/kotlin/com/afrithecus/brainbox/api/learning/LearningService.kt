@@ -181,12 +181,12 @@ class LearningService(
 
     /**
      * Maps the stored content type onto the client enum (NOTES, VIDEO, QUIZ, FLASHCARDS, PDF,
-     * EPUB, PLAINTEXT). DIAGRAM/DOCUMENT are not client values and must never be sent raw.
+     * EPUB, PLAINTEXT, DIAGRAM). DOCUMENT has no client enum value, so it projects
+     * as PDF; DIAGRAM is a first-class block whose content is server-rendered SVG.
      */
     private fun contentTypeForClient(block: LearningContentEntity): String {
         block.contentTypeLabel?.takeIf { it.isNotBlank() }?.let { return it }
         return when (block.contentType) {
-            ContentType.DIAGRAM -> "NOTES"
             ContentType.DOCUMENT -> "PDF"
             else -> block.contentType.name
         }

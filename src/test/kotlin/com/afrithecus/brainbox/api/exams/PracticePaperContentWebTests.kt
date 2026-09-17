@@ -5,6 +5,7 @@ import com.afrithecus.brainbox.api.exams.web.CreateExamQuestionRequest
 import com.afrithecus.brainbox.api.exams.web.CreateExamRequest
 import com.afrithecus.brainbox.api.exams.web.ExamContentPayload
 import com.afrithecus.brainbox.api.exams.web.ExamDetail
+import com.afrithecus.brainbox.api.exams.repository.ExamQuestionRepository
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
@@ -37,6 +38,7 @@ class PracticePaperContentWebTests(
     @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val userRepository: UserRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
+    @Autowired private val questionRepository: ExamQuestionRepository,
 ) {
 
     private fun auth(token: String) = "Bearer " + token
@@ -123,6 +125,39 @@ class PracticePaperContentWebTests(
         check(content.markingScheme.passingScore == 3)
         check(content.markingScheme.questionAnswers[section.questions.first().id] == "4")
         check(content.markingScheme.questionMarks[section.questions.last().id] == 3)
+    }
+
+    @Test
+    fun aQuestionWithAFigureBecomesItsOwnDiagramSection() {
+        val admin = adminToken()
+        val paperId = seedExam(admin, "PRACTICE_PAPER", "Diagram Practice Paper")
+        val student = signup("0779400012")
+
+        val questions = questionRepository.findAllByExamIdOrderByOrderIndexAsc(UUID.fromString(paperId))
+        questionRepository.save(
+            questions.first().apply {
+                figureSvg = "<svg xmlns=\"http://www.w3.org/2000/svg\"><rect width=\"10\" height=\"10\"/></svg>"
+            }
+        )
+
+        val content = objectMapper.readValue(
+            mockMvc.perform(get("/practice-papers/" + paperId + "/content").header("Authorization", auth(student.sessionToken!!)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            ExamContentPayload::class.java,
+        )
+        check(content.sections.size == 2)
+        val diagram = content.sections.first()
+        check(diagram.type == "DIAGRAM")
+        check(diagram.diagram?.type == "SVG")
+        check(diagram.diagram?.content?.contains("<svg") == true)
+        check(diagram.diagram?.version == 1)
+        check(diagram.questions.size == 1)
+        check(diagram.questions.single().number == 1)
+
+        val standard = content.sections.last()
+        check(standard.type == "STANDARD")
+        check(standard.questions.single().number == 2)
+        check(content.markingScheme.totalMarks == 5)
     }
 
     @Test

@@ -22,7 +22,7 @@ class ContentSchemaV1Tests {
             """
             {
               "body": "Intro",
-              "steps": [ { "orderIndex": 0, "title": "One", "body": "Body", "figureSvg": null } ],
+              "steps": [ { "orderIndex": 0, "title": "One", "body": "Body", "figure": null } ],
               "questions": [ { "orderIndex": 0, "type": "MULTIPLE_CHOICE", "text": "2+2?", "options": ["3", "4"], "correctAnswer": "4" } ],
               "confidence": 0.9,
               "sourceUrls": [],
@@ -33,6 +33,29 @@ class ContentSchemaV1Tests {
         assertTrue(
             ContentSchemaV1.validate(node).none { it.severity == FindingSeverity.BLOCKER },
             ContentSchemaV1.validate(node).toString(),
+        )
+    }
+
+    @Test
+    fun validatesFigureSpecs() {
+        assertTrue(
+            ContentSchemaV1.validate(
+                mapper.readTree("{\"steps\":[{\"orderIndex\":0,\"figure\":{\"kind\":\"BAR\",\"categories\":[\"A\"],\"values\":[1]}}]}"),
+            ).none { it.severity == FindingSeverity.BLOCKER },
+        )
+
+        val violations = ContentSchemaV1.validate(
+            mapper.readTree("{\"questions\":[{\"type\":\"ESSAY\",\"text\":\"x\",\"figure\":{\"kind\":\"PIE\"}}]}"),
+        )
+        assertTrue(
+            violations.any { it.code == "FIGURE_KIND_INVALID" && it.severity == FindingSeverity.BLOCKER },
+            violations.toString(),
+        )
+        assertTrue(violations.any { it.message.contains("questions[0].figure") }, violations.toString())
+
+        assertTrue(
+            ContentSchemaV1.validate(mapper.readTree("{\"steps\":[{\"orderIndex\":0,\"figure\":\"nope\"}]}"))
+                .any { it.code == "SCHEMA_TYPE_MISMATCH" },
         )
     }
 

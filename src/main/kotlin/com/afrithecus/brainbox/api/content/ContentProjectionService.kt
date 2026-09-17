@@ -4,6 +4,7 @@ import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.content.entity.ContentUnitEntity
 import com.afrithecus.brainbox.api.content.entity.ContentUnitQuestionEntity
+import com.afrithecus.brainbox.api.content.figure.FigureSpecs
 import com.afrithecus.brainbox.api.content.repository.ConceptRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitQuestionRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitRepository
@@ -128,6 +129,10 @@ class ContentProjectionService(
         val previous = contents.findAllByPostIdOrderByOrderIndexAsc(unit.id)
         if (previous.isNotEmpty()) contents.deleteAll(previous)
 
+        // Block order is assigned as blocks are emitted, so a figure block sits
+        // directly after the step it belongs to and the quiz stays last. The counter
+        // is named apart from the entity's own orderIndex, which apply{} would shadow.
+        var nextOrderIndex = 0
         steps.forEach { step ->
             contents.save(
                 LearningContentEntity().apply {
@@ -136,11 +141,25 @@ class ContentProjectionService(
                     title = step.title
                     content = step.body
                     durationMinutes = 0
-                    orderIndex = step.orderIndex
+                    orderIndex = nextOrderIndex++
                     thumbnailUrl = null
                     metadata = null
                 }
             )
+            step.figureSvg?.takeIf { it.isNotBlank() }?.let { svg ->
+                contents.save(
+                    LearningContentEntity().apply {
+                        postId = post.id
+                        contentType = ContentType.DIAGRAM
+                        title = step.title
+                        content = svg
+                        durationMinutes = 0
+                        orderIndex = nextOrderIndex++
+                        thumbnailUrl = null
+                        metadata = figureMetadata(step.figureSpec)
+                    }
+                )
+            }
         }
 
         if (questions.isNotEmpty()) {
@@ -149,7 +168,7 @@ class ContentProjectionService(
                     postId = post.id
                     contentType = ContentType.QUIZ
                     content = null
-                    orderIndex = (steps.maxOfOrNull { it.orderIndex } ?: -1) + 1
+                    orderIndex = nextOrderIndex
                     thumbnailUrl = null
                     metadata = quizMetadataJson(questions)
                 }
@@ -242,6 +261,7 @@ class ContentProjectionService(
                     points = question.points
                     difficulty = question.difficulty.coerceIn(1, 5)
                     matchingPairs = question.matchingPairs
+                    figureSvg = question.figureSvg
                     topic = conceptName
                     subtopic = null
                     orderIndex = question.orderIndex
@@ -319,9 +339,30 @@ class ContentProjectionService(
             // with only `correctAnswer` renders no answers. Emit the index the client
             // parses as well; the learner projection still strips both keys.
             optionIndex(options, q.correctAnswer)?.let { entry["correct"] = it }
+            // A question figure travels inside the quiz metadata as the same
+            // type/content/caption/version shape the exam diagram sections use.
+            q.figureSvg?.takeIf { it.isNotBlank() }?.let { svg ->
+                entry["figure"] = linkedMapOf<String, Any?>(
+                    "type" to "SVG",
+                    "content" to svg,
+                    "caption" to figureCaption(q.figureSpec),
+                    "version" to FigureSpecs.VERSION,
+                )
+            }
             entry
         }
         return mapper.writeValueAsString(mapOf("questions" to payload))
+    }
+
+    /** The metadata a learning-hub DIAGRAM block carries: its caption and version. */
+    private fun figureMetadata(figureSpec: String?): String = mapper.writeValueAsString(
+        linkedMapOf<String, Any?>("caption" to figureCaption(figureSpec), "version" to FigureSpecs.VERSION),
+    )
+
+    /** Reads the caption out of a stored figure spec; null when absent or malformed. */
+    private fun figureCaption(figureSpec: String?): String? {
+        val node = figureSpec?.let { runCatching { mapper.readTree(it) }.getOrNull() } ?: return null
+        return node.get("caption")?.takeIf { it.isString }?.asString()?.takeIf { it.isNotBlank() }
     }
 
     /**

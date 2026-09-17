@@ -2,8 +2,10 @@ package com.afrithecus.brainbox.api.exams
 
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
+import com.afrithecus.brainbox.api.content.figure.FigureSpecs
 import com.afrithecus.brainbox.api.exams.admin.ExamAuthoringService
 import com.afrithecus.brainbox.api.exams.entity.ExamEntity
+import com.afrithecus.brainbox.api.exams.entity.ExamQuestionEntity
 import com.afrithecus.brainbox.api.exams.entity.ExamSubmissionEntity
 import com.afrithecus.brainbox.api.exams.model.ExamScope
 import com.afrithecus.brainbox.api.exams.model.ExamStatus
@@ -15,6 +17,7 @@ import com.afrithecus.brainbox.api.exams.web.DocumentSourcePayload
 import com.afrithecus.brainbox.api.exams.web.ExamContentPayload
 import com.afrithecus.brainbox.api.exams.web.ExamContentQuestionPayload
 import com.afrithecus.brainbox.api.exams.web.ExamCoverPayload
+import com.afrithecus.brainbox.api.exams.web.ExamDiagramPayload
 import com.afrithecus.brainbox.api.exams.web.ExamSectionPayload
 import com.afrithecus.brainbox.api.exams.web.MarkingSchemePayload
 import com.afrithecus.brainbox.api.exams.web.PracticePaperAttemptRequest
@@ -90,7 +93,8 @@ class PracticePaperService(
         val schoolName = exam.schoolId?.let { schoolRepository.findById(it).map { school -> school.name }.orElse("") }
             ?: user.schoolId?.let { schoolRepository.findById(it).map { school -> school.name }.orElse("") }
             ?: ""
-        val questions = authoringService.questionsOf(exam.id).mapIndexed { index, question ->
+        val questionEntities = authoringService.questionsOf(exam.id)
+        val questions = questionEntities.mapIndexed { index, question ->
             val payload = authoringService.toQuestionPayload(question, includeKeys = true)
             ExamContentQuestionPayload(
                 id = payload.id,
@@ -120,7 +124,7 @@ class PracticePaperService(
                 mcp = exam.isMcp,
                 subject = exam.subject,
             ),
-            sections = listOf(ExamSectionPayload(type = "STANDARD", instructions = null, questions = questions)),
+            sections = buildSections(questionEntities, questions),
             markingScheme = MarkingSchemePayload(
                 questionAnswers = questions.associate { it.id to it.correctAnswer },
                 questionMarks = questions.associate { it.id to it.points },
@@ -131,6 +135,50 @@ class PracticePaperService(
     }
 
     // ------------------------------------------------------------ internals
+
+    /**
+     * A question with a figure becomes its own DIAGRAM section, which the client
+     * renders with the SVG above the question; every run of figureless questions
+     * stays in a STANDARD section, so the paper still reads in question order.
+     */
+    private fun buildSections(
+        questions: List<ExamQuestionEntity>,
+        payloads: List<ExamContentQuestionPayload>,
+    ): List<ExamSectionPayload> {
+        val sections = mutableListOf<ExamSectionPayload>()
+        var standard = mutableListOf<ExamContentQuestionPayload>()
+        fun flushStandard() {
+            if (standard.isNotEmpty()) {
+                sections += ExamSectionPayload(type = "STANDARD", instructions = null, questions = standard)
+                standard = mutableListOf()
+            }
+        }
+        questions.forEachIndexed { index, question ->
+            val payload = payloads[index]
+            val svg = question.figureSvg?.takeIf { it.isNotBlank() }
+            if (svg == null) {
+                standard += payload
+            } else {
+                flushStandard()
+                sections += ExamSectionPayload(
+                    type = "DIAGRAM",
+                    instructions = "Study the diagram below and answer the question that follows.",
+                    diagram = ExamDiagramPayload(
+                        id = payload.id + "-figure",
+                        type = "SVG",
+                        content = svg,
+                        version = FigureSpecs.VERSION,
+                    ),
+                    questions = listOf(payload),
+                )
+            }
+        }
+        flushStandard()
+        if (sections.isEmpty()) {
+            sections += ExamSectionPayload(type = "STANDARD", instructions = null, questions = emptyList())
+        }
+        return sections
+    }
 
     private fun formatDuration(minutes: Int): String {
         val hours = minutes / 60

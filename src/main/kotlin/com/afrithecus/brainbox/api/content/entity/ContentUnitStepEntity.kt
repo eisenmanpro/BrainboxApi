@@ -26,6 +26,10 @@ class ContentUnitStepEntity : BaseEntity() {
     @Column(name = "figure_svg", columnDefinition = "text")
     var figureSvg: String? = null
 
+    /** The declarative figure spec (JSON) that produced [figureSvg]; null when none. */
+    @Column(name = "figure_spec", columnDefinition = "text")
+    var figureSpec: String? = null
+
     @Column(name = "figure_url", length = 512)
     var figureUrl: String? = null
 }
