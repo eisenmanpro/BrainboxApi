@@ -157,8 +157,10 @@ class PracticePaperService(
         }
         questions.forEachIndexed { index, question ->
             val payload = payloads[index]
-            val svg = question.figureSvg?.takeIf { it.isNotBlank() }
-            if (svg == null) {
+            val spec = question.figureSpec?.let { runCatching { objectMapper.readTree(it) }.getOrNull() }
+            val isImage = FigureSpecs.kindOf(spec) == "IMAGE"
+            val content = if (isImage) FigureSpecs.imageUrl(spec) else question.figureSvg
+            if (content.isNullOrBlank()) {
                 standard += payload
             } else {
                 flushStandard()
@@ -167,10 +169,10 @@ class PracticePaperService(
                     instructions = "Study the diagram below and answer the question that follows.",
                     diagram = ExamDiagramPayload(
                         id = payload.id + "-figure",
-                        type = "SVG",
-                        content = svg,
+                        type = if (isImage) "IMAGE" else "SVG",
+                        content = content,
                         version = FigureSpecs.VERSION,
-                        spec = question.figureSpec?.let { runCatching { objectMapper.readTree(it) }.getOrNull() },
+                        spec = spec,
                     ),
                     questions = listOf(payload),
                 )

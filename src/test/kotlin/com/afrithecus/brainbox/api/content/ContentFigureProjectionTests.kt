@@ -58,17 +58,22 @@ class ContentFigureProjectionTests(
         private val bar: JsonNode = mapper.readTree(
             "{\"kind\":\"BAR\",\"caption\":\"Rainfall\",\"categories\":[\"Jan\",\"Feb\"],\"values\":[3,7]}"
         )
+        private val image: JsonNode = mapper.readTree(
+            "{\"kind\":\"IMAGE\",\"caption\":\"A plant cell\"," +
+                "\"url\":\"https://cdn.example.org/cell.png\",\"alt\":\"A labelled plant cell\"}"
+        )
 
         override fun generate(request: GenerationRequest): GenerationResult = GenerationResult(
             body = "Body for " + request.generationKey,
             steps = listOf(
                 GeneratedStep(0, "Step one", "First step body", table),
-                GeneratedStep(1, "Step two", "Second step body", null),
+                GeneratedStep(1, "Step two", "Second step body", image),
+                GeneratedStep(2, "Step three", "Third step body", null),
             ),
             questions = listOf(
                 GeneratedQuestion(
                     orderIndex = 0,
-                    stepIndex = 1,
+                    stepIndex = 2,
                     type = "SHORT_ANSWER",
                     text = "How much rain in February?",
                     correctAnswer = "7",
@@ -96,11 +101,18 @@ class ContentFigureProjectionTests(
 
         val blocks = contents.findAllByPostIdOrderByOrderIndexAsc(unit.id)
         assertEquals(
-            listOf(ContentType.NOTES, ContentType.DIAGRAM, ContentType.NOTES, ContentType.QUIZ),
+            listOf(
+                ContentType.NOTES,
+                ContentType.DIAGRAM,
+                ContentType.NOTES,
+                ContentType.DIAGRAM,
+                ContentType.NOTES,
+                ContentType.QUIZ,
+            ),
             blocks.map { it.contentType },
             blocks.map { it.contentType.name + "@" + it.orderIndex }.toString(),
         )
-        assertEquals(listOf(0, 1, 2, 3), blocks.map { it.orderIndex })
+        assertEquals(listOf(0, 1, 2, 3, 4, 5), blocks.map { it.orderIndex })
 
         val diagram = blocks[1]
         assertEquals("Step one", diagram.title)
@@ -108,8 +120,16 @@ class ContentFigureProjectionTests(
         assertTrue(diagram.content?.contains("Place value") == true, "the caption is drawn inside the SVG")
         assertTrue(diagram.metadata?.contains("\"caption\":\"Place value\"") == true, diagram.metadata ?: "null")
         assertTrue(diagram.metadata?.contains("\"kind\":\"TABLE\"") == true, diagram.metadata ?: "null")
+        assertTrue(diagram.metadata?.contains("\"type\":\"SVG\"") == true, diagram.metadata ?: "null")
 
-        val quiz = blocks[3].metadata ?: error("quiz metadata expected")
+        // An IMAGE block serves the URL directly, not the placeholder SVG, and says so.
+        val image = blocks[3]
+        assertEquals("Step two", image.title)
+        assertEquals("https://cdn.example.org/cell.png", image.content)
+        assertTrue(image.metadata?.contains("\"type\":\"IMAGE\"") == true, image.metadata ?: "null")
+        assertTrue(image.metadata?.contains("\"kind\":\"IMAGE\"") == true, image.metadata ?: "null")
+
+        val quiz = blocks[5].metadata ?: error("quiz metadata expected")
         assertTrue(quiz.contains("\"type\":\"SVG\""), quiz)
         assertTrue(quiz.contains("Rainfall"), quiz)
         assertTrue(quiz.contains("<svg"), quiz)

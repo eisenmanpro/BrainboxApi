@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.content.figure
 
+import com.afrithecus.brainbox.api.common.net.PublicUrlPolicy
 import com.afrithecus.brainbox.api.content.schema.SchemaViolation
 import com.afrithecus.brainbox.api.content.validation.FindingSeverity
 import tools.jackson.databind.JsonNode
@@ -121,6 +122,11 @@ data class FigureSpec(
     val viewBox: FigureViewBox? = null,
     val elements: List<FigureElement>? = null,
     val grid: Boolean = false,
+    // IMAGE.
+    val url: String? = null,
+    val alt: String? = null,
+    val width: Int? = null,
+    val height: Int? = null,
     // TREE.
     val nodes: List<FigureNode>? = null,
     // VENN.
@@ -136,7 +142,7 @@ data class FigureSpec(
 object FigureSpecs {
 
     /** Diagram-spec contract version, carried in the projected figure payloads. */
-    const val VERSION = 2
+    const val VERSION = 3
 
     /** Kinds this contract allows. Adding a kind is a code change, not a promise. */
     val KINDS: Set<String> = setOf(
@@ -149,6 +155,7 @@ object FigureSpecs {
         "GEOMETRY",
         "TREE",
         "VENN",
+        "IMAGE",
     )
 
     /** The closed primitive set a GEOMETRY figure may compose. */
@@ -191,6 +198,7 @@ object FigureSpecs {
             "GEOMETRY" -> validateGeometry(node, out)
             "TREE" -> validateTree(node, out)
             "VENN" -> validateVenn(node, out)
+            "IMAGE" -> validateImage(node, out)
         }
         return out
     }
@@ -330,6 +338,33 @@ object FigureSpecs {
         }
     }
 
+    /**
+     * An IMAGE points at an externally hosted picture. The server never fetches
+     * it, but it still refuses anything that is not a public https URL, so a spec
+     * can never aim a learner's device at the private network. Alt text is
+     * required: an image with no description is not teachable.
+     */
+    private fun validateImage(node: JsonNode, out: MutableList<SchemaViolation>) {
+        val url = node.get("url")?.takeIf { it.isString }?.asString()?.trim()
+        if (url.isNullOrEmpty()) {
+            out += violation("FIGURE_IMAGE_URL_MISSING", "IMAGE requires a url")
+        } else if (!url.lowercase().startsWith("https://") || !PublicUrlPolicy.isAllowed(url)) {
+            out += violation("FIGURE_IMAGE_URL_INVALID", "IMAGE url must be a public https URL")
+        }
+        val alt = node.get("alt")?.takeIf { it.isString }?.asString()?.trim()
+        if (alt.isNullOrEmpty()) {
+            out += violation("FIGURE_IMAGE_ALT_MISSING", "IMAGE requires alt text describing the picture")
+        }
+    }
+
+    /** The kind of a parsed spec node, uppercased; null when absent. */
+    fun kindOf(node: JsonNode?): String? =
+        node?.get("kind")?.takeIf { it.isString }?.asString()?.trim()?.uppercase()?.takeIf { it.isNotEmpty() }
+
+    /** The image URL of a parsed IMAGE spec node; null for other kinds. */
+    fun imageUrl(node: JsonNode?): String? =
+        node?.get("url")?.takeIf { it.isString }?.asString()?.takeIf { it.isNotBlank() }
+
     private fun validateTree(node: JsonNode, out: MutableList<SchemaViolation>) {
         val nodes = node.get("nodes")
         if (nodes == null || nodes.isNull || !nodes.isArray || nodes.size() == 0) {
@@ -448,6 +483,10 @@ object FigureSpecs {
         nodes = nodes(node),
         sets = sets(node),
         shared = stringList(node, "shared"),
+        url = stringValue(node, "url"),
+        alt = stringValue(node, "alt"),
+        width = intValue(node, "width"),
+        height = intValue(node, "height"),
     )
 
     // ------------------------------------------------------------- parsing
@@ -627,6 +666,9 @@ object FigureSpecs {
 
     private fun doubleValue(node: JsonNode, field: String): Double? =
         node.get(field)?.takeIf { it.isNumber }?.asDouble()
+
+    private fun intValue(node: JsonNode, field: String): Int? =
+        node.get(field)?.takeIf { it.isNumber }?.intValue()
 
     private fun violation(code: String, message: String) =
         SchemaViolation(FindingSeverity.BLOCKER, code, message)

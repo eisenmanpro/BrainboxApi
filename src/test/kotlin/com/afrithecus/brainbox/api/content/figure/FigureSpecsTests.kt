@@ -180,6 +180,28 @@ class FigureSpecsTests {
         assertEquals("FIGURE_SETS_INVALID", firstBlocker(read("{\"kind\":\"VENN\",\"sets\":[{\"label\":\"A\"}]}")).code)
     }
 
+    @Test
+    fun acceptsAndGuardsImages() {
+        assertTrue(
+            FigureSpecs.validate(
+                read("{\"kind\":\"IMAGE\",\"url\":\"https://cdn.example.org/cell.png\",\"alt\":\"A plant cell\"}"),
+            ).isEmpty(),
+        )
+        assertEquals("FIGURE_IMAGE_URL_MISSING", firstBlocker(read("{\"kind\":\"IMAGE\",\"alt\":\"x\"}")).code)
+        assertEquals(
+            "FIGURE_IMAGE_URL_INVALID",
+            firstBlocker(read("{\"kind\":\"IMAGE\",\"url\":\"http://cdn.example.org/cell.png\",\"alt\":\"x\"}")).code,
+        )
+        assertEquals(
+            "FIGURE_IMAGE_URL_INVALID",
+            firstBlocker(read("{\"kind\":\"IMAGE\",\"url\":\"https://127.0.0.1/cell.png\",\"alt\":\"x\"}")).code,
+        )
+        assertEquals(
+            "FIGURE_IMAGE_ALT_MISSING",
+            firstBlocker(read("{\"kind\":\"IMAGE\",\"url\":\"https://cdn.example.org/cell.png\"}")).code,
+        )
+    }
+
     private fun read(json: String) = mapper.readTree(json)
 
     private fun firstBlocker(node: tools.jackson.databind.JsonNode) =

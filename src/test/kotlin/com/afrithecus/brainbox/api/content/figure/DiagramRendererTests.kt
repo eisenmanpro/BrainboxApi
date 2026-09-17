@@ -290,6 +290,15 @@ class DiagramRendererTests {
         assertTrue(svg.contains("<path"), svg)
     }
 
+    @Test
+    fun rendersAnImagePlaceholder() {
+        val svg = DiagramRenderer.render(
+            FigureSpec(kind = "IMAGE", url = "https://cdn.example.org/cell.png", alt = "A labelled plant cell"),
+        )
+        assertTrue(svg.startsWith("<svg "))
+        assertTrue(svg.contains("A labelled plant cell"), svg)
+    }
+
     private fun count(haystack: String, needle: String): Int {
         var index = haystack.indexOf(needle)
         var total = 0

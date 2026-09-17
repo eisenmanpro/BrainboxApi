@@ -147,17 +147,19 @@ class ContentProjectionService(
                     metadata = null
                 }
             )
-            step.figureSvg?.takeIf { it.isNotBlank() }?.let { svg ->
+            val spec = figureSpecNode(step.figureSpec)
+            val figureValue = figureContent(spec, step.figureSvg)
+            if (!figureValue.isNullOrBlank()) {
                 contents.save(
                     LearningContentEntity().apply {
                         postId = post.id
                         contentType = ContentType.DIAGRAM
                         title = step.title
-                        content = svg
+                        content = figureValue
                         durationMinutes = 0
                         orderIndex = nextOrderIndex++
                         thumbnailUrl = null
-                        metadata = figureMetadata(step.figureSpec)
+                        metadata = figureMetadata(spec)
                     }
                 )
             }
@@ -342,14 +344,17 @@ class ContentProjectionService(
             // parses as well; the learner projection still strips both keys.
             optionIndex(options, q.correctAnswer)?.let { entry["correct"] = it }
             // A question figure travels inside the quiz metadata as the same
-            // type/content/caption/version shape the exam diagram sections use.
-            q.figureSvg?.takeIf { it.isNotBlank() }?.let { svg ->
+            // type/content/caption/version shape the exam diagram sections use. An
+            // IMAGE serves its URL directly; every other kind serves rendered SVG.
+            val spec = figureSpecNode(q.figureSpec)
+            val figureValue = figureContent(spec, q.figureSvg)
+            if (!figureValue.isNullOrBlank()) {
                 entry["figure"] = linkedMapOf<String, Any?>(
-                    "type" to "SVG",
-                    "content" to svg,
-                    "caption" to figureCaption(q.figureSpec),
+                    "type" to figureType(spec),
+                    "content" to figureValue,
+                    "caption" to figureCaption(spec),
                     "version" to FigureSpecs.VERSION,
-                    "spec" to figureSpecNode(q.figureSpec),
+                    "spec" to spec,
                 )
             }
             entry
@@ -358,21 +363,33 @@ class ContentProjectionService(
     }
 
     /**
-     * The metadata a learning-hub DIAGRAM block carries: its caption, the spec
-     * version and the declarative spec itself, so a client can render the figure
-     * natively instead of decoding the SVG.
+     * The metadata a learning-hub DIAGRAM block carries: its media type, caption,
+     * the spec version and the declarative spec itself, so a client can render the
+     * figure natively instead of decoding the SVG.
      */
-    private fun figureMetadata(figureSpec: String?): String = mapper.writeValueAsString(
+    private fun figureMetadata(spec: JsonNode?): String = mapper.writeValueAsString(
         linkedMapOf<String, Any?>(
-            "caption" to figureCaption(figureSpec),
+            "type" to figureType(spec),
+            "caption" to figureCaption(spec),
             "version" to FigureSpecs.VERSION,
-            "spec" to figureSpecNode(figureSpec),
+            "spec" to spec,
         ),
     )
 
-    /** Reads the caption out of a stored figure spec; null when absent or malformed. */
-    private fun figureCaption(figureSpec: String?): String? =
-        figureSpecNode(figureSpec)?.get("caption")?.takeIf { it.isString }?.asString()?.takeIf { it.isNotBlank() }
+    /** "IMAGE" for an image figure, "SVG" for everything the renderer draws. */
+    private fun figureType(spec: JsonNode?): String =
+        if (FigureSpecs.kindOf(spec) == "IMAGE") "IMAGE" else "SVG"
+
+    /**
+     * What a consumer should render: the remote URL for an IMAGE, otherwise the
+     * stored server-rendered SVG.
+     */
+    private fun figureContent(spec: JsonNode?, renderedSvg: String?): String? =
+        if (FigureSpecs.kindOf(spec) == "IMAGE") FigureSpecs.imageUrl(spec) else renderedSvg
+
+    /** Reads the caption out of a parsed figure spec; null when absent. */
+    private fun figureCaption(spec: JsonNode?): String? =
+        spec?.get("caption")?.takeIf { it.isString }?.asString()?.takeIf { it.isNotBlank() }
 
     /** Parses a stored figure spec back to JSON for the projected payload. */
     private fun figureSpecNode(figureSpec: String?): JsonNode? =

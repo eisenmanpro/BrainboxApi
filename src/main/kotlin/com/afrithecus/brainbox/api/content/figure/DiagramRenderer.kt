@@ -59,6 +59,7 @@ object DiagramRenderer {
         "GEOMETRY" -> geometry(spec)
         "TREE" -> tree(spec)
         "VENN" -> venn(spec)
+        "IMAGE" -> image(spec)
         else -> throw IllegalArgumentException("unsupported figure kind: " + spec.kind)
     }
 
@@ -829,6 +830,25 @@ object DiagramRenderer {
             ),
             color,
         )
+    }
+
+    // ---------------------------------------------------------------- IMAGE
+
+    /**
+     * An IMAGE is not drawn from primitives: its payload serves the URL directly
+     * with type IMAGE. This SVG is the neutral placeholder a consumer sees when it
+     * ignores that type, and it always shows the required alt text.
+     */
+    private fun image(spec: FigureSpec): String {
+        val top = MARGIN + titleHeight(spec)
+        val boxHeight = 210.0
+        val height = (top + boxHeight + 22.0 + captionHeight(spec)).toInt()
+        val c = SvgCanvas(WIDTH, height, spec.title ?: spec.alt ?: "Image")
+        heading(c, spec)
+        c.rect(MARGIN, top, WIDTH - 2.0 * MARGIN, boxHeight, SURFACE, GRID, 10.0, 1.4)
+        wrappedText(c, spec.alt ?: "Image", WIDTH / 2.0, top + boxHeight / 2.0 - 4.0, WIDTH - 2.0 * MARGIN - 40.0, 13.0)
+        captionText(c, spec, height - 10.0)
+        return c.build()
     }
 
     // -------------------------------------------------------------- helpers

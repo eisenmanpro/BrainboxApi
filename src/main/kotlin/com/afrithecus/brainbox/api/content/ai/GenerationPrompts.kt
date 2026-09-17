@@ -42,6 +42,7 @@ internal object GenerationPrompts {
         - { "kind": "FLOW", "steps": [string], "cyclic": bool } (max 8 short steps)
         - { "kind": "TREE", "nodes": [ { "id": string, "label": string, "parent": string|null } ] } (exactly one root; max 18 nodes, 6 levels)
         - { "kind": "VENN", "sets": [ { "label": string, "items": [string] } ], "shared": [string] } (two or three sets; max 4 items per region)
+        - { "kind": "IMAGE", "url": string, "alt": string } (only when a real photograph or externally hosted diagram is needed; the url must be a public https address and alt is mandatory)
         - { "kind": "GEOMETRY", "viewBox": { "minX": number, "minY": number, "width": number, "height": number }, "grid": bool, "elements": [ primitive ] }
           The GEOMETRY primitives are the only figures you may compose; each has an
           optional "label". Nothing else is accepted:
