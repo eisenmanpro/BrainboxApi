@@ -828,7 +828,15 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       `learning_post` whose blocks are its steps. Both are generated originals and never reproduce or
       attribute a KNEC/KICD paper. The full-breadth production seed run remains open.
 - [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences)
-- [ ] Agent tools: DB metric queries, internet search, content validators
+- [ ] Agent tools: DB metric queries, internet search, content validators. **Partial (this pass):**
+      the tool layer behind `McpToolClient` now also exposes `metric_query` (shelf coverage and
+      generation-queue depth from the database), `validate_content` (runs the deterministic
+      validator chain and returns the structured report) and `web_fetch` (grounding only:
+      allow-listed public http(s) pages, no redirects, loopback/private/metadata hosts refused via
+      the shared `PublicUrlPolicy`, body size-capped, returns the URL and a content hash for
+      provenance; off by default and deny-all until an allow-list is configured). `concept_lookup`
+      already existed. A provider-backed internet **search** tool (as opposed to fetching a known
+      URL) remains.
 - [x] LLM provider routing by cost/latency; per-generation token tracking (DeepSeek + others).
       One generic `OpenAiCompatibleContentGenerationProvider` now backs both the DeepSeek endpoint
       and a second generic OpenAI-compatible endpoint (`app.ai.openai`, off until

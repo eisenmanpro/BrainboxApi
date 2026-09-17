@@ -19,6 +19,7 @@ data class AppContentProperties(
     val worker: Worker = Worker(),
     val curriculum: Curriculum = Curriculum(),
     val batch: Batch = Batch(),
+    val tools: Tools = Tools(),
 ) {
 
     /** True when this JVM should execute queued generation work. */
@@ -89,5 +90,30 @@ data class AppContentProperties(
         val language: String = "en",
         val standardVersion: String = "v1",
         val limit: Int = 50,
+    )
+
+    /**
+     * Phase 7.5 MCP tool settings. The tools are in-process beans behind
+     * [com.afrithecus.brainbox.api.content.mcp.McpToolClient]; only the web tool
+     * needs configuration and it is off by default.
+     */
+    data class Tools(
+        val webFetch: WebFetch = WebFetch(),
+    )
+
+    /**
+     * Grounded web intel (docs/PHASE7_AGENT_ARCHITECTURE.md 2.9). Scraped material
+     * is grounding only: allow-list sources, record the URL, never reproduce the
+     * text verbatim in learner content. Off by default; an empty allow-list denies
+     * every host even when enabled.
+     */
+    data class WebFetch(
+        val enabled: Boolean = false,
+        /** Host suffixes permitted; empty means deny all. */
+        val allowedDomains: List<String> = emptyList(),
+        /** Host suffixes always blocked (exam/curriculum bodies we must not scrape). */
+        val blockedDomains: List<String> = listOf("kicd.ac.ke", "knec.ac.ke"),
+        val maxBytes: Int = 1_000_000,
+        val timeoutMs: Long = 5000,
     )
 }
