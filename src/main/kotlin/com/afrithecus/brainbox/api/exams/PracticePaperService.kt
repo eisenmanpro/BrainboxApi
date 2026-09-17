@@ -25,6 +25,7 @@ import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import tools.jackson.databind.ObjectMapper
 import java.time.Clock
 import java.time.Instant
 import java.util.UUID
@@ -43,6 +44,7 @@ class PracticePaperService(
     private val userRepository: UserRepository,
     private val authoringService: ExamAuthoringService,
     private val schoolRepository: SchoolRepository,
+    private val objectMapper: ObjectMapper,
     private val clock: Clock,
 ) {
 
@@ -168,6 +170,7 @@ class PracticePaperService(
                         type = "SVG",
                         content = svg,
                         version = FigureSpecs.VERSION,
+                        spec = question.figureSpec?.let { runCatching { objectMapper.readTree(it) }.getOrNull() },
                     ),
                     questions = listOf(payload),
                 )

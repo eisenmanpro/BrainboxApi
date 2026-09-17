@@ -30,7 +30,7 @@ class FigureSpecsTests {
 
     @Test
     fun rejectsUnknownKind() {
-        val violation = firstBlocker(read("{\"kind\":\"PIE\",\"categories\":[\"A\"],\"values\":[1]}"))
+        val violation = firstBlocker(read("{\"kind\":\"SCATTER\",\"categories\":[\"A\"],\"values\":[1]}"))
         assertEquals("FIGURE_KIND_INVALID", violation.code)
         assertEquals(FindingSeverity.BLOCKER, violation.severity)
     }
@@ -62,6 +62,72 @@ class FigureSpecsTests {
     fun kindIsCaseInsensitiveAndTrimmed() {
         assertTrue(FigureSpecs.validate(read("{\"kind\":\" bar \"}")).isEmpty() == false)
         assertTrue(firstBlocker(read("{\"kind\":\" bar \"}")).code == "FIGURE_CATEGORIES_MISSING")
+    }
+
+    @Test
+    fun acceptsTheExtendedKinds() {
+        assertTrue(
+            FigureSpecs.validate(read("{\"kind\":\"LINE\",\"categories\":[\"A\",\"B\"],\"series\":[{\"name\":\"S\",\"values\":[1,2]}]}")).isEmpty(),
+        )
+        assertTrue(FigureSpecs.validate(read("{\"kind\":\"PIE\",\"slices\":[{\"label\":\"A\",\"value\":1}]}")).isEmpty())
+        assertTrue(FigureSpecs.validate(read("{\"kind\":\"NUMBER_LINE\",\"min\":0,\"max\":10,\"step\":1}")).isEmpty())
+        assertTrue(
+            FigureSpecs.validate(
+                read("{\"kind\":\"GEOMETRY\",\"viewBox\":{\"width\":4,\"height\":3},\"elements\":[{\"type\":\"SEGMENT\",\"from\":[0,0],\"to\":[4,0]}]}"),
+            ).isEmpty(),
+        )
+    }
+
+    @Test
+    fun enforcesLineShape() {
+        assertEquals("FIGURE_SERIES_MISSING", firstBlocker(read("{\"kind\":\"LINE\",\"categories\":[\"A\"]}")).code)
+        assertEquals(
+            "FIGURE_LENGTH_MISMATCH",
+            firstBlocker(read("{\"kind\":\"LINE\",\"categories\":[\"A\",\"B\"],\"series\":[{\"values\":[1]}]}")).code,
+        )
+    }
+
+    @Test
+    fun enforcesPieShape() {
+        assertEquals("FIGURE_SLICES_MISSING", firstBlocker(read("{\"kind\":\"PIE\"}")).code)
+        assertEquals(
+            "FIGURE_SLICE_VALUE_INVALID",
+            firstBlocker(read("{\"kind\":\"PIE\",\"slices\":[{\"label\":\"A\",\"value\":-1}]}")).code,
+        )
+        assertEquals(
+            "FIGURE_SLICES_EMPTY_TOTAL",
+            firstBlocker(read("{\"kind\":\"PIE\",\"slices\":[{\"label\":\"A\",\"value\":0}]}")).code,
+        )
+    }
+
+    @Test
+    fun enforcesNumberLineShape() {
+        assertEquals("FIGURE_RANGE_MISSING", firstBlocker(read("{\"kind\":\"NUMBER_LINE\"}")).code)
+        assertEquals("FIGURE_RANGE_INVALID", firstBlocker(read("{\"kind\":\"NUMBER_LINE\",\"min\":5,\"max\":5}")).code)
+    }
+
+    @Test
+    fun enforcesGeometryShape() {
+        assertEquals(
+            "FIGURE_VIEWBOX_MISSING",
+            firstBlocker(read("{\"kind\":\"GEOMETRY\",\"elements\":[{\"type\":\"POINT\",\"at\":[0,0]}]}")).code,
+        )
+        assertEquals(
+            "FIGURE_ELEMENTS_MISSING",
+            firstBlocker(read("{\"kind\":\"GEOMETRY\",\"viewBox\":{\"width\":4,\"height\":3}}")).code,
+        )
+        assertEquals(
+            "FIGURE_ELEMENT_TYPE_INVALID",
+            firstBlocker(
+                read("{\"kind\":\"GEOMETRY\",\"viewBox\":{\"width\":4,\"height\":3},\"elements\":[{\"type\":\"BEZIER\",\"at\":[0,0]}]}"),
+            ).code,
+        )
+        assertEquals(
+            "FIGURE_ELEMENT_INVALID",
+            firstBlocker(
+                read("{\"kind\":\"GEOMETRY\",\"viewBox\":{\"width\":4,\"height\":3},\"elements\":[{\"type\":\"SEGMENT\",\"from\":[0,0]}]}"),
+            ).code,
+        )
     }
 
     private fun read(json: String) = mapper.readTree(json)

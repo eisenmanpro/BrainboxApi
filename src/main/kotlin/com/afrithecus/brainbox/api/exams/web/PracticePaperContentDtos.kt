@@ -1,5 +1,7 @@
 package com.afrithecus.brainbox.api.exams.web
 
+import tools.jackson.databind.JsonNode
+
 /**
  * Practice-paper content payload (doc 02 §4.2). Raw JSON matching the Android
  * ExamContent contract; sections carry a discriminant "type" tag so the client
@@ -39,6 +41,8 @@ data class ExamDiagramPayload(
     val content: String,
     val caption: String? = null,
     val version: Int = 1,
+    /** The declarative spec the SVG was rendered from, for native client rendering. */
+    val spec: JsonNode? = null,
 )
 
 data class ExamContentQuestionPayload(

@@ -98,7 +98,7 @@ class DiagramRendererTests {
 
     @Test
     fun rejectsUnknownKind() {
-        assertFailsWith<IllegalArgumentException> { DiagramRenderer.render(FigureSpec(kind = "PIE")) }
+        assertFailsWith<IllegalArgumentException> { DiagramRenderer.render(FigureSpec(kind = "SCATTER")) }
     }
 
     @Test
@@ -113,6 +113,119 @@ class DiagramRendererTests {
         assertTrue(bar.startsWith("<svg "))
         val empty = DiagramRenderer.render(FigureSpec(kind = "FLOW"))
         assertTrue(empty.startsWith("<svg "))
+    }
+
+    @Test
+    fun rendersALineChartWithALegend() {
+        val svg = DiagramRenderer.render(
+            FigureSpec(
+                kind = "LINE",
+                title = "Temperature",
+                yLabel = "C",
+                categories = listOf("Mon", "Tue", "Wed"),
+                series = listOf(
+                    FigureSeries("Nairobi", listOf(22.0, 24.0, 21.0)),
+                    FigureSeries("Kisumu", listOf(26.0, 27.0, 28.0)),
+                ),
+            ),
+        )
+        assertTrue(svg.startsWith("<svg "))
+        assertTrue(svg.contains(">Nairobi<") && svg.contains(">Kisumu<"), svg)
+        assertTrue(svg.contains(">Mon<") && svg.contains(">Wed<"))
+        assertEquals(2, count(svg, "<polyline"))
+        assertTrue(svg.contains("rotate(-90"))
+    }
+
+    @Test
+    fun rendersAPieAndCanMakeItADonut() {
+        val svg = DiagramRenderer.render(
+            FigureSpec(
+                kind = "PIE",
+                title = "Land use",
+                slices = listOf(FigureSlice("Farm", 60.0), FigureSlice("Forest", 40.0)),
+            ),
+        )
+        assertTrue(count(svg, "<path") >= 2)
+        assertTrue(svg.contains(">60%<"), svg)
+        assertTrue(svg.contains(">Farm<") && svg.contains(">Forest<"))
+
+        val donut = DiagramRenderer.render(FigureSpec(kind = "PIE", slices = listOf(FigureSlice("A", 1.0)), donut = true))
+        assertTrue(donut.contains("<circle"), donut)
+    }
+
+    @Test
+    fun capsPieSlicesAndGroupsTheRest() {
+        val slices = (1..12).map { FigureSlice("S" + it, it.toDouble()) }
+        val svg = DiagramRenderer.render(FigureSpec(kind = "PIE", slices = slices))
+        assertTrue(svg.contains(">Other<"), svg)
+        assertTrue(count(svg, "<path") <= 8)
+    }
+
+    @Test
+    fun rendersANumberLineWithMarksAndIntervals() {
+        val svg = DiagramRenderer.render(
+            FigureSpec(
+                kind = "NUMBER_LINE",
+                title = "Inequality",
+                min = 0.0,
+                max = 10.0,
+                step = 1.0,
+                marks = listOf(FigureMark(3.0, "3", open = true)),
+                intervals = listOf(FigureInterval(6.0, 10.0, "x > 6")),
+            ),
+        )
+        assertTrue(svg.startsWith("<svg "))
+        assertTrue(svg.contains("&gt; 6<"), svg)
+        assertTrue(svg.contains("<polygon"))
+        assertTrue(svg.contains("<rect"))
+    }
+
+    @Test
+    fun rendersAGeometryFigure() {
+        val svg = DiagramRenderer.render(
+            FigureSpec(
+                kind = "GEOMETRY",
+                title = "Triangle",
+                viewBox = FigureViewBox(0.0, 0.0, 6.0, 5.0),
+                grid = true,
+                elements = listOf(
+                    FigureElement(
+                        type = "POLYGON",
+                        points = listOf(listOf(0.0, 0.0), listOf(4.0, 0.0), listOf(2.0, 3.0)),
+                        label = "ABC",
+                        filled = true,
+                    ),
+                    FigureElement(type = "CIRCLE", center = listOf(2.0, 1.0), radius = 1.2, label = "O"),
+                    FigureElement(type = "SEGMENT", from = listOf(0.0, 0.0), to = listOf(4.0, 0.0), label = "AB"),
+                    FigureElement(type = "ANGLE", vertex = listOf(0.0, 0.0), from = listOf(4.0, 0.0), to = listOf(2.0, 3.0), label = "60"),
+                ),
+            ),
+        )
+        assertTrue(svg.contains("<polygon"))
+        assertTrue(svg.contains("<circle"))
+        assertTrue(svg.contains("<path"))
+        assertTrue(svg.contains(">ABC<") && svg.contains(">AB<") && svg.contains(">60<"), svg)
+        assertTrue(svg.contains("<line"))
+    }
+
+    @Test
+    fun escapesGeometryLabels() {
+        val svg = DiagramRenderer.render(
+            FigureSpec(
+                kind = "GEOMETRY",
+                viewBox = FigureViewBox(0.0, 0.0, 4.0, 4.0),
+                elements = listOf(FigureElement(type = "LABEL", at = listOf(1.0, 1.0), text = "<script>x</script>")),
+            ),
+        )
+        assertFalse(svg.contains("<script"), svg)
+        assertTrue(svg.contains("&lt;script&gt;"))
+    }
+
+    @Test
+    fun boundsGeometryElements() {
+        val elements = (1..80).map { FigureElement(type = "POINT", at = listOf((it % 5).toDouble(), (it % 4).toDouble())) }
+        val svg = DiagramRenderer.render(FigureSpec(kind = "GEOMETRY", viewBox = FigureViewBox(0.0, 0.0, 5.0, 4.0), elements = elements))
+        assertEquals(40, count(svg, "<circle"))
     }
 
     private fun count(haystack: String, needle: String): Int {

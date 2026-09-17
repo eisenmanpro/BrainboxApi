@@ -35,6 +35,7 @@ import com.afrithecus.brainbox.api.learning.repository.LearningPostRepository
 import com.afrithecus.brainbox.api.learning.repository.ReadableFileRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import java.nio.charset.StandardCharsets
 import java.time.ZoneOffset
@@ -262,6 +263,7 @@ class ContentProjectionService(
                     difficulty = question.difficulty.coerceIn(1, 5)
                     matchingPairs = question.matchingPairs
                     figureSvg = question.figureSvg
+                    figureSpec = question.figureSpec
                     topic = conceptName
                     subtopic = null
                     orderIndex = question.orderIndex
@@ -347,6 +349,7 @@ class ContentProjectionService(
                     "content" to svg,
                     "caption" to figureCaption(q.figureSpec),
                     "version" to FigureSpecs.VERSION,
+                    "spec" to figureSpecNode(q.figureSpec),
                 )
             }
             entry
@@ -354,16 +357,26 @@ class ContentProjectionService(
         return mapper.writeValueAsString(mapOf("questions" to payload))
     }
 
-    /** The metadata a learning-hub DIAGRAM block carries: its caption and version. */
+    /**
+     * The metadata a learning-hub DIAGRAM block carries: its caption, the spec
+     * version and the declarative spec itself, so a client can render the figure
+     * natively instead of decoding the SVG.
+     */
     private fun figureMetadata(figureSpec: String?): String = mapper.writeValueAsString(
-        linkedMapOf<String, Any?>("caption" to figureCaption(figureSpec), "version" to FigureSpecs.VERSION),
+        linkedMapOf<String, Any?>(
+            "caption" to figureCaption(figureSpec),
+            "version" to FigureSpecs.VERSION,
+            "spec" to figureSpecNode(figureSpec),
+        ),
     )
 
     /** Reads the caption out of a stored figure spec; null when absent or malformed. */
-    private fun figureCaption(figureSpec: String?): String? {
-        val node = figureSpec?.let { runCatching { mapper.readTree(it) }.getOrNull() } ?: return null
-        return node.get("caption")?.takeIf { it.isString }?.asString()?.takeIf { it.isNotBlank() }
-    }
+    private fun figureCaption(figureSpec: String?): String? =
+        figureSpecNode(figureSpec)?.get("caption")?.takeIf { it.isString }?.asString()?.takeIf { it.isNotBlank() }
+
+    /** Parses a stored figure spec back to JSON for the projected payload. */
+    private fun figureSpecNode(figureSpec: String?): JsonNode? =
+        figureSpec?.let { runCatching { mapper.readTree(it) }.getOrNull() }?.takeIf { it.isObject }
 
     /**
      * Resolves the stored answer to the 0-based option index the client parses

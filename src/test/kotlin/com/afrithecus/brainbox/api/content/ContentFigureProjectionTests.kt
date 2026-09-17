@@ -107,11 +107,14 @@ class ContentFigureProjectionTests(
         assertTrue(diagram.content?.contains("<svg") == true, "diagram block must carry rendered SVG")
         assertTrue(diagram.content?.contains("Place value") == true, "the caption is drawn inside the SVG")
         assertTrue(diagram.metadata?.contains("\"caption\":\"Place value\"") == true, diagram.metadata ?: "null")
+        assertTrue(diagram.metadata?.contains("\"kind\":\"TABLE\"") == true, diagram.metadata ?: "null")
 
         val quiz = blocks[3].metadata ?: error("quiz metadata expected")
         assertTrue(quiz.contains("\"type\":\"SVG\""), quiz)
         assertTrue(quiz.contains("Rainfall"), quiz)
         assertTrue(quiz.contains("<svg"), quiz)
+        assertTrue(quiz.contains("\"spec\""), quiz)
+        assertTrue(quiz.contains("\"kind\":\"BAR\""), quiz)
     }
 
     private fun request() = GenerationRequest(

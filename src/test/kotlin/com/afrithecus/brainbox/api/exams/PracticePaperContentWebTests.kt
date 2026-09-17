@@ -1,6 +1,7 @@
 package com.afrithecus.brainbox.api.exams
 
 import com.afrithecus.brainbox.api.auth.web.AuthResponse
+import com.afrithecus.brainbox.api.content.figure.FigureSpecs
 import com.afrithecus.brainbox.api.exams.web.CreateExamQuestionRequest
 import com.afrithecus.brainbox.api.exams.web.CreateExamRequest
 import com.afrithecus.brainbox.api.exams.web.ExamContentPayload
@@ -137,6 +138,7 @@ class PracticePaperContentWebTests(
         questionRepository.save(
             questions.first().apply {
                 figureSvg = "<svg xmlns=\"http://www.w3.org/2000/svg\"><rect width=\"10\" height=\"10\"/></svg>"
+                figureSpec = "{\"kind\":\"TABLE\",\"headers\":[\"A\"],\"rows\":[[\"1\"]]}"
             }
         )
 
@@ -148,9 +150,14 @@ class PracticePaperContentWebTests(
         check(content.sections.size == 2)
         val diagram = content.sections.first()
         check(diagram.type == "DIAGRAM")
-        check(diagram.diagram?.type == "SVG")
-        check(diagram.diagram?.content?.contains("<svg") == true)
-        check(diagram.diagram?.version == 1)
+        val figure = diagram.diagram
+        check(figure != null)
+        check(figure.type == "SVG")
+        check(figure.content.contains("<svg"))
+        check(figure.version == FigureSpecs.VERSION)
+        val spec = figure.spec
+        check(spec != null)
+        check(spec.get("kind").asString() == "TABLE")
         check(diagram.questions.size == 1)
         check(diagram.questions.single().number == 1)
 

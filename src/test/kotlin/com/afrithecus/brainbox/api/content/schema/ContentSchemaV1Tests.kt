@@ -45,7 +45,7 @@ class ContentSchemaV1Tests {
         )
 
         val violations = ContentSchemaV1.validate(
-            mapper.readTree("{\"questions\":[{\"type\":\"ESSAY\",\"text\":\"x\",\"figure\":{\"kind\":\"PIE\"}}]}"),
+            mapper.readTree("{\"questions\":[{\"type\":\"ESSAY\",\"text\":\"x\",\"figure\":{\"kind\":\"SCATTER\"}}]}"),
         )
         assertTrue(
             violations.any { it.code == "FIGURE_KIND_INVALID" && it.severity == FindingSeverity.BLOCKER },

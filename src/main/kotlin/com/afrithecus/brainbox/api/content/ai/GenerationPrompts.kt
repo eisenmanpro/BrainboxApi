@@ -32,13 +32,28 @@ internal object GenerationPrompts {
         }
         A "figure" above is a declarative diagram the server renders; never emit
         SVG or HTML. It is optional and worth adding only when it teaches more than
-        the prose. The allowed shapes are:
-        - { "kind": "TABLE", "title": string?, "caption": string?, "headers": [string], "rows": [[string]] }
-        - { "kind": "BAR", "title": string?, "caption": string?, "xLabel": string?, "yLabel": string?, "categories": [string], "values": [number] }
-        - { "kind": "FLOW", "title": string?, "caption": string?, "steps": [string], "cyclic": bool }
-        Keep a BAR to at most 12 categories, a TABLE to at most 6 columns and a
-        FLOW to at most 8 short steps, and put at most one figure per step or
-        question.
+        the prose. Put at most one figure per step or question. The allowed shapes,
+        all with optional "title" and "caption" strings, are:
+        - { "kind": "TABLE", "headers": [string], "rows": [[string]] } (max 6 columns, 20 rows)
+        - { "kind": "BAR", "categories": [string], "values": [number], "xLabel": string?, "yLabel": string?, "showValues": bool } (max 12 bars)
+        - { "kind": "LINE", "categories": [string], "series": [ { "name": string?, "values": [number] } ], "xLabel": string?, "yLabel": string? } (max 4 series)
+        - { "kind": "PIE", "slices": [ { "label": string, "value": number } ], "donut": bool } (max 8 slices, positive values)
+        - { "kind": "NUMBER_LINE", "min": number, "max": number, "step": number?, "marks": [ { "value": number, "label": string?, "open": bool } ], "intervals": [ { "from": number, "to": number, "label": string? } ] }
+        - { "kind": "FLOW", "steps": [string], "cyclic": bool } (max 8 short steps)
+        - { "kind": "GEOMETRY", "viewBox": { "minX": number, "minY": number, "width": number, "height": number }, "grid": bool, "elements": [ primitive ] }
+          The GEOMETRY primitives are the only figures you may compose; each has an
+          optional "label". Nothing else is accepted:
+          { "type": "SEGMENT", "from": [x,y], "to": [x,y], "style": "SOLID"|"DASHED" }
+          { "type": "POLYGON", "points": [[x,y],...], "filled": bool }
+          { "type": "CIRCLE", "center": [x,y], "radius": number }
+          { "type": "ARC", "center": [x,y], "radius": number, "startAngle": degrees, "endAngle": degrees }
+          { "type": "POINT", "at": [x,y] }
+          { "type": "ANGLE", "vertex": [x,y], "from": [x,y], "to": [x,y] }
+          { "type": "RIGHT_ANGLE", "vertex": [x,y], "from": [x,y], "to": [x,y] }
+          { "type": "LABEL", "at": [x,y], "text": string }
+          Geometry coordinates are in the viewBox's own units, with y increasing
+          upwards, and the figure is scaled to fit; keep every coordinate inside
+          the viewBox and keep a figure to at most 20 primitives.
         Answer-key rules (mandatory):
         - Every question object MUST include a non-null "correctAnswer". A
           missing or null key makes the whole response invalid.
