@@ -528,6 +528,19 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       distribution; the client trends screen aggregates those per-exam series locally (no dedicated
       trends endpoint in the current contract).
 - [x] Grading config; coordinator panels & subject config; teacher analytics (V29/V58).
+- [x] Roster-only learners (V82, docs/ongoing/api_roster_only_learners_changes.md): a class
+      teacher or a coordinator/ICT admin can provision a pupil who has no smartphone as a
+      real STUDENT row with account_kind = ROSTER_ONLY (name, optional admission number and
+      guardian details; the server issues a globally unique admission number when blank;
+      single or row-resilient bulk). The record is login-ineligible - AuthService refuses
+      login and a parent switch-session - while joining the class roster and the grade-wide
+      traditional exam list, so it is included in grade rankings, grade analysis, per-class
+      tables, the combined report and per-learner printable reports. A coordinator or
+      ICT_ADMIN can therefore download and print for phone-less families. The teacher can
+      upgrade the same record to FULL when the learner gets a phone (phone number plus a
+      server-generated one-time password), and deactivation removes the learner from the
+      active lists while keeping every mark for a later report. The roster payload carries
+      accountKind so the teacher app can badge and upgrade it.
 
 ### Phase 5 — Admin & School Management  (goal 5; doc 08) — COMPLETE
 - [x] Admin identity + approvals: user list/detail/patch/deactivate, reset-password,

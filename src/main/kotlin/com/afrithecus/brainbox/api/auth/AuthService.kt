@@ -16,6 +16,7 @@ import com.afrithecus.brainbox.api.identity.entity.RefreshTokenEntity
 import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.entity.UserSessionEntity
+import com.afrithecus.brainbox.api.identity.model.AccountKind
 import com.afrithecus.brainbox.api.identity.model.AccountStatus
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.model.Role
@@ -122,6 +123,9 @@ class AuthService(
         val user = resolveByIdentifier(identifier)
             ?: failLogin(identifier)
 
+        // A roster-only learner record has no credentials by design; it must never
+        // yield a session even if someone knows its admission number.
+        if (user.accountKind != AccountKind.FULL) failLogin(identifier)
         if (!user.isActive) failLogin(identifier)
         if (!passwordEncoder.matches(request.password, user.passwordHash)) failLogin(identifier)
 
@@ -237,6 +241,7 @@ class AuthService(
         val child = userRepository.findById(childId).orElse(null)
             ?: throw notFound("Child account not found")
         if (child.role != Role.STUDENT) throw invalidArgument("targetRole must match a STUDENT account")
+        if (child.accountKind != AccountKind.FULL) throw notFound("Child account not found")
 
         val linked = userRepository.findByParentUserId(currentUser.userId)
         if (linked.none { it.id == child.id }) {

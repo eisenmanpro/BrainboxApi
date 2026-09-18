@@ -1,6 +1,7 @@
 package com.afrithecus.brainbox.api.identity.entity
 
 import com.afrithecus.brainbox.api.common.jpa.BaseEntity
+import com.afrithecus.brainbox.api.identity.model.AccountKind
 import com.afrithecus.brainbox.api.identity.model.AccountStatus
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubRole
@@ -71,4 +72,22 @@ class UserEntity : BaseEntity() {
 
     @Column(name = "last_login")
     var lastLogin: Instant? = null
+
+    /** FULL accounts can log in; ROSTER_ONLY records are teacher-provisioned and cannot. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "account_kind", nullable = false, length = 16)
+    var accountKind: AccountKind = AccountKind.FULL
+
+    /** The teacher/coordinator who created a ROSTER_ONLY record. */
+    @Column(name = "provisioned_by")
+    var provisionedBy: UUID? = null
+
+    @Column(name = "provisioned_at")
+    var provisionedAt: Instant? = null
+
+    @Column(name = "guardian_name", length = 160)
+    var guardianName: String? = null
+
+    @Column(name = "guardian_phone", length = 32)
+    var guardianPhone: String? = null
 }

@@ -171,6 +171,7 @@ class ClassService(
         cbcCompetencySummary = strandMastery.mapNotNull { strand ->
             strand.studentBreakdown[student.id.toString()]?.let { strand.strandName to it }
         }.toMap(),
+        accountKind = student.accountKind.name,
     )
 
     private fun gradeNumber(raw: String?): Int =

@@ -45,4 +45,6 @@ data class StudentInClassPayload(
     val lastActive: Long = 0L,
     val parentId: String? = null,
     val cbcCompetencySummary: Map<String, String> = emptyMap(),
+    /** FULL or ROSTER_ONLY; a roster-only learner has no login and no smartphone. */
+    val accountKind: String = "FULL",
 )
