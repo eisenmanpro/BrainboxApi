@@ -79,6 +79,16 @@ class ContentMetricsTests {
     }
 
     @Test
+    fun cacheCountersSeparateHitsFromMisses() {
+        metrics.recordCacheHit()
+        metrics.recordCacheHit()
+        metrics.recordCacheMiss()
+
+        check(registry.counter(ContentMetrics.METRIC_CACHE, "result", ContentMetrics.CACHE_HIT).count() == 2.0)
+        check(registry.counter(ContentMetrics.METRIC_CACHE, "result", ContentMetrics.CACHE_MISS).count() == 1.0)
+    }
+
+    @Test
     fun `provider failure reasons are coarse and stable`() {
         check(ProviderErrorReasons.reasonFor(HttpTimeoutException("slow")) == ContentMetrics.REASON_TIMEOUT)
         check(ProviderErrorReasons.reasonFor(TimeoutException("slow")) == ContentMetrics.REASON_TIMEOUT)

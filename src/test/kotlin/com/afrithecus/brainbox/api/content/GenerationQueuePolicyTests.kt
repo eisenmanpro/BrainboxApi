@@ -4,12 +4,16 @@ import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.content.ai.ContentGenerationProvider
 import com.afrithecus.brainbox.api.content.ai.GenerationRequest
+import com.afrithecus.brainbox.api.content.entity.AgentRunEntity
 import com.afrithecus.brainbox.api.content.entity.ConceptEntity
 import com.afrithecus.brainbox.api.content.entity.CurriculumMapEntity
+import com.afrithecus.brainbox.api.content.entity.ModelCallEntity
+import com.afrithecus.brainbox.api.content.repository.AgentRunRepository
 import com.afrithecus.brainbox.api.content.repository.ConceptRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitRepository
 import com.afrithecus.brainbox.api.content.repository.CurriculumMapRepository
 import com.afrithecus.brainbox.api.content.repository.GenerationJobRepository
+import com.afrithecus.brainbox.api.content.repository.ModelCallRepository
 import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import jakarta.persistence.EntityManager
@@ -36,6 +40,8 @@ class GenerationQueuePolicyTests(
     @Autowired private val jobService: GenerationJobService,
     @Autowired private val provider: ContentGenerationProvider,
     @Autowired private val generationJobs: GenerationJobRepository,
+    @Autowired private val agentRuns: AgentRunRepository,
+    @Autowired private val modelCalls: ModelCallRepository,
     @Autowired private val contentUnits: ContentUnitRepository,
     @Autowired private val concepts: ConceptRepository,
     @Autowired private val curriculumMaps: CurriculumMapRepository,
@@ -247,5 +253,49 @@ class GenerationQueuePolicyTests(
 
         check(again.id == job.id) { "re-enqueue must reuse the existing row" }
         check(generationJobs.count() == used) { "re-enqueue must not create a new row" }
+    }
+
+    @Test
+    fun aDailyCostBudgetBlocksTheNextEnqueueAndAttributesSpendPerSchool() {
+        val school = schools.save(SchoolEntity().apply { name = "H3 Cost School" }).id
+        val seed = jobService.enqueue(
+            request("ke:cbc:grade4:mat-num-frac:cost-seed"),
+            GenerationJobSource.USER,
+            school,
+        )
+        val run = agentRuns.save(
+            AgentRunEntity().apply {
+                jobId = seed.id
+                generationKey = seed.generationKey
+                schoolId = school
+                status = "SUCCEEDED"
+            }
+        )
+        modelCalls.save(
+            ModelCallEntity().apply {
+                agentRunId = run.id
+                provider = "fake"
+                costMicros = 2_500_000
+            }
+        )
+        entityManager.flush()
+
+        val platformUsed = budgets.platformCostUsedToday()
+        check(platformUsed >= 2_500_000) { "platform spend must include the seeded call, was " + platformUsed }
+        check(budgets.schoolCostUsedToday(school) == 2_500_000L) { "school spend must be attributed exactly" }
+
+        moderationPolicy.setGenerationDailyJobBudget(0) // unlimited jobs; block on cost only
+        moderationPolicy.setGenerationDailyCostBudgetMicros(platformUsed)
+        entityManager.flush()
+
+        val blocked = assertFailsWith<ApiException> {
+            jobService.enqueue(request("ke:cbc:grade4:mat-num-frac:cost-blocked"))
+        }
+        check(blocked.code == ApiErrorCode.TOO_MANY_REQUESTS)
+        check(blocked.message.contains("cost budget")) { "message must name the cost budget: " + blocked.message }
+        check(blocked.message.contains("platform")) { "message must name the scope: " + blocked.message }
+        check(
+            generationJobs.findAllByGenerationKeyOrderByCreatedAtAsc("ke:cbc:grade4:mat-num-frac:cost-blocked").isEmpty()
+        ) { "an over-budget cost enqueue must not write a row" }
     }
 }

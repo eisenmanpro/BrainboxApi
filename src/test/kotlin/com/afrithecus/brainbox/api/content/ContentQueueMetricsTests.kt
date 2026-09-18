@@ -59,6 +59,16 @@ class ContentQueueMetricsTests(
         check(meter.value() == before + 1.0) { "budget-used gauge did not track a today job" }
     }
 
+    @Test
+    fun costBudgetGaugeIsRegisteredForThePlatformScope() {
+        val meter = requireNotNull(
+            registry.find(ContentQueueMetrics.METRIC_COST_USED)
+                .tag(ContentQueueMetrics.TAG_SCOPE, ContentQueueMetrics.SCOPE_PLATFORM)
+                .gauge()
+        ) { "missing platform cost-used gauge" }
+        check(meter.value() >= 0.0) { "cost-used gauge must be a non-negative micros sample" }
+    }
+
     private fun gauge(status: String): Double =
         requireNotNull(registry.find(ContentQueueMetrics.METRIC_QUEUE_DEPTH).tag("status", status).gauge()).value()
 

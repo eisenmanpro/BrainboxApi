@@ -54,6 +54,13 @@ import tools.jackson.databind.ObjectMapper
  *   may be newly enqueued for one school per UTC day. 0 or a negative value means unlimited.
  *   The platform-wide cap always applies too; a job with no school (platform batch/proactive
  *   work) counts only against the platform cap.
+ *
+ * H3 spend budget keys (cost, not job count), also opt-in:
+ *
+ * - generation_daily_cost_budget_micros (long, default 0 = unlimited): maximum provider
+ *   cost in micros that may be accrued platform-wide in the current UTC day.
+ * - generation_daily_school_cost_budget_micros (long, default 0 = unlimited): the same
+ *   cap for one school; platform-scope work is charged to the platform cap only.
  */
 @Service
 class ModerationPolicyService(
@@ -190,6 +197,37 @@ class ModerationPolicyService(
         set(KEY_GENERATION_DAILY_SCHOOL_JOB_BUDGET, mapper.writeValueAsString(budget))
     }
 
+    /**
+     * H3 spend budget: the maximum provider cost in micros that may be accrued
+     * platform-wide in the current UTC day. Defaults to
+     * [DEFAULT_GENERATION_DAILY_COST_BUDGET_MICROS]; 0 or a negative value means
+     * unlimited, so a direct write can never block all generation.
+     */
+    fun generationDailyCostBudgetMicros(): Long =
+        readLong(KEY_GENERATION_DAILY_COST_BUDGET_MICROS, DEFAULT_GENERATION_DAILY_COST_BUDGET_MICROS)
+
+    /**
+     * H3 spend budget for one school in the current UTC day. Defaults to
+     * [DEFAULT_GENERATION_DAILY_SCHOOL_COST_BUDGET_MICROS]; 0 or a negative value
+     * means unlimited. The platform cap still applies.
+     */
+    fun generationDailySchoolCostBudgetMicros(): Long =
+        readLong(KEY_GENERATION_DAILY_SCHOOL_COST_BUDGET_MICROS, DEFAULT_GENERATION_DAILY_SCHOOL_COST_BUDGET_MICROS)
+
+    /** Console write: sets the platform-wide daily spend budget; a negative value is rejected. */
+    @Transactional
+    fun setGenerationDailyCostBudgetMicros(budget: Long) {
+        if (budget < 0) throw invalidArgument("generationDailyCostBudgetMicros must be zero or positive")
+        set(KEY_GENERATION_DAILY_COST_BUDGET_MICROS, mapper.writeValueAsString(budget))
+    }
+
+    /** Console write: sets the per-school daily spend budget; a negative value is rejected. */
+    @Transactional
+    fun setGenerationDailySchoolCostBudgetMicros(budget: Long) {
+        if (budget < 0) throw invalidArgument("generationDailySchoolCostBudgetMicros must be zero or positive")
+        set(KEY_GENERATION_DAILY_SCHOOL_COST_BUDGET_MICROS, mapper.writeValueAsString(budget))
+    }
+
     /** Console write: sets one policy override to a JSON value. */
     @Transactional
     fun set(key: String, json: String) {
@@ -216,6 +254,9 @@ class ModerationPolicyService(
     private fun readDouble(key: String, fallback: Double): Double =
         raw(key)?.let { runCatching { mapper.readValue(it, Double::class.javaObjectType) }.getOrNull() } ?: fallback
 
+    private fun readLong(key: String, fallback: Long): Long =
+        raw(key)?.let { runCatching { mapper.readValue(it, Long::class.javaObjectType) }.getOrNull() } ?: fallback
+
     private fun raw(key: String): String? =
         policies.findByPolicyKey(key)?.valueJson?.trim()?.takeIf { it.isNotEmpty() }
 
@@ -236,8 +277,12 @@ class ModerationPolicyService(
         /** H3 daily generation budget keys; 0 (or a stored negative) means unlimited. */
         const val KEY_GENERATION_DAILY_JOB_BUDGET = "generation_daily_job_budget"
         const val KEY_GENERATION_DAILY_SCHOOL_JOB_BUDGET = "generation_daily_school_job_budget"
+        const val KEY_GENERATION_DAILY_COST_BUDGET_MICROS = "generation_daily_cost_budget_micros"
+        const val KEY_GENERATION_DAILY_SCHOOL_COST_BUDGET_MICROS = "generation_daily_school_cost_budget_micros"
         const val DEFAULT_GENERATION_DAILY_JOB_BUDGET = 500
         const val DEFAULT_GENERATION_DAILY_SCHOOL_JOB_BUDGET = 100
+        const val DEFAULT_GENERATION_DAILY_COST_BUDGET_MICROS = 0L
+        const val DEFAULT_GENERATION_DAILY_SCHOOL_COST_BUDGET_MICROS = 0L
         const val DEFAULT_QUORUM_REQUIRED = 2
         const val DEFAULT_AUTO_APPROVE_ENABLED = true
         const val DEFAULT_AUTO_APPROVE_MIN_VALIDATOR_SCORE = 1.0

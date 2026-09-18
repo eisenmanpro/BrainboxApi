@@ -1,6 +1,7 @@
 package com.afrithecus.brainbox.api.content
 
 import com.afrithecus.brainbox.api.content.repository.GenerationJobRepository
+import com.afrithecus.brainbox.api.content.repository.ModelCallRepository
 import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.MeterRegistry
 import jakarta.annotation.PostConstruct
@@ -20,6 +21,7 @@ import java.time.ZoneOffset
 class ContentQueueMetrics(
     private val registry: MeterRegistry,
     private val generationJobs: GenerationJobRepository,
+    private val modelCalls: ModelCallRepository,
     private val clock: Clock,
 ) {
 
@@ -37,6 +39,11 @@ class ContentQueueMetrics(
             .description("generation_jobs rows created since the start of the current UTC day (H3 platform budget usage)")
             .strongReference(true)
             .register(registry)
+        Gauge.builder(METRIC_COST_USED, this) { metrics: ContentQueueMetrics -> metrics.costToday() }
+            .tag(TAG_SCOPE, SCOPE_PLATFORM)
+            .description("provider cost in micros recorded since the start of the current UTC day (H3 spend budget usage)")
+            .strongReference(true)
+            .register(registry)
     }
 
     /** One scrape sample; a database error must not break the whole scrape. */
@@ -47,12 +54,17 @@ class ContentQueueMetrics(
     internal fun jobsToday(): Double =
         runCatching { generationJobs.countByCreatedAtGreaterThanEqual(startOfUtcDay()).toDouble() }.getOrDefault(0.0)
 
+    /** H3 spend gauge sample: provider cost in micros accrued since the start of the UTC day. */
+    internal fun costToday(): Double =
+        runCatching { (modelCalls.sumCostSince(startOfUtcDay()) ?: 0L).toDouble() }.getOrDefault(0.0)
+
     private fun startOfUtcDay(): java.time.Instant =
         clock.instant().atZone(ZoneOffset.UTC).toLocalDate().atStartOfDay(ZoneOffset.UTC).toInstant()
 
     companion object {
         const val METRIC_QUEUE_DEPTH = "brainbox.content.queue.depth"
         const val METRIC_BUDGET_USED = "brainbox.content.budget.used"
+        const val METRIC_COST_USED = "brainbox.content.budget.cost_micros"
         const val TAG_STATUS = "status"
         const val TAG_SCOPE = "scope"
         const val SCOPE_PLATFORM = "platform"

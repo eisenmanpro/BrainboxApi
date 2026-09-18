@@ -21,6 +21,7 @@ data class AppContentProperties(
     val batch: Batch = Batch(),
     val loop: Loop = Loop(),
     val critique: Critique = Critique(),
+    val retention: Retention = Retention(),
 ) {
 
     /** True when this JVM should execute queued generation work. */
@@ -114,4 +115,14 @@ data class AppContentProperties(
         val minScore: Double = 0.8,
     )
 
+    /**
+     * Capture retention. Generated content is served on demand from the content
+     * cache (content_units), never stored as a rendered document, so the only
+     * unbounded growth is the observability capture: agent_runs plus their
+     * model_calls/tool_calls. [captureDays] bounds it (the sweep removes the child
+     * rows first, then the runs); 0 keeps them forever.
+     */
+    data class Retention(
+        val captureDays: Long = 90,
+    )
 }

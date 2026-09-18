@@ -169,9 +169,17 @@ class ContentQueueAdminTests(
         check(initial.platformBudget == 500) { "default platform budget must be 500" }
         check(initial.schoolBudget == 100) { "default school budget must be 100" }
         check(initial.platformUsed >= 0L)
+        check(initial.platformCostBudgetMicros == 0L) { "the spend budget must be opt-in (default 0)" }
+        check(initial.schoolCostBudgetMicros == 0L)
+        check(initial.platformCostUsedMicros >= 0L)
 
         val body = objectMapper.writeValueAsString(
-            ContentQueueBudgetRequest(platformDailyJobs = 7, schoolDailyJobs = 3)
+            ContentQueueBudgetRequest(
+                platformDailyJobs = 7,
+                schoolDailyJobs = 3,
+                platformDailyCostMicros = 1_000_000,
+                schoolDailyCostMicros = 500_000,
+            )
         )
         val updated = read(
             mockMvc.perform(
@@ -184,7 +192,19 @@ class ContentQueueAdminTests(
         )
         check(updated.platformBudget == 7)
         check(updated.schoolBudget == 3)
+        check(updated.platformCostBudgetMicros == 1_000_000L)
+        check(updated.schoolCostBudgetMicros == 500_000L)
         check(budget(admin).platformBudget == 7) { "the write must persist on the next read" }
+        check(budget(admin).platformCostBudgetMicros == 1_000_000L) { "the spend write must persist too" }
+
+        // A negative cost value is rejected.
+        val negativeCost = objectMapper.writeValueAsString(ContentQueueBudgetRequest(platformDailyCostMicros = -1))
+        mockMvc.perform(
+            put("/admin/content/queue/budget")
+                .header("Authorization", auth(token(admin)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(negativeCost)
+        ).andExpect(status().isBadRequest)
 
         // A negative value is rejected.
         val negative = objectMapper.writeValueAsString(ContentQueueBudgetRequest(platformDailyJobs = -1))

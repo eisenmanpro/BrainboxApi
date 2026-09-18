@@ -26,16 +26,23 @@ data class ContentQueueSourcesRequest(
 
 /**
  * H3 budget snapshot returned by GET and PUT /admin/content/queue/budget.
- * [platformBudget] and [schoolBudget] are the effective policy values (0 or less
- * means unlimited). [platformUsed] is the number of jobs newly enqueued today
- * (current UTC day). [schoolsOverBudget] is the number of schools at or over
- * their daily budget, or null when the per-school budget is unlimited.
+ * [platformBudget] and [schoolBudget] are the effective job-count policy values
+ * (0 or less means unlimited). [platformUsed] is the number of jobs newly enqueued
+ * today (current UTC day). [schoolsOverBudget] is the number of schools at or over
+ * their daily job budget, or null when the per-school budget is unlimited.
+ *
+ * [platformCostBudgetMicros], [platformCostUsedMicros] and [schoolCostBudgetMicros]
+ * are the spend dimension: effective policy caps in micros, provider cost accrued
+ * today, and the per-school cap. A cost cap of 0 means unlimited.
  */
 data class ContentQueueBudget(
     val platformBudget: Int,
     val platformUsed: Long,
     val schoolBudget: Int,
     val schoolsOverBudget: Long?,
+    val platformCostBudgetMicros: Long,
+    val platformCostUsedMicros: Long,
+    val schoolCostBudgetMicros: Long,
 )
 
 /**
@@ -45,4 +52,6 @@ data class ContentQueueBudget(
 data class ContentQueueBudgetRequest(
     val platformDailyJobs: Int? = null,
     val schoolDailyJobs: Int? = null,
+    val platformDailyCostMicros: Long? = null,
+    val schoolDailyCostMicros: Long? = null,
 )

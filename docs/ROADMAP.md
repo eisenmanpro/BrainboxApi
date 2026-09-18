@@ -899,7 +899,24 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       carries the client `questions[].correct` index, and a gated unit still 404s).
       `GET /practice-papers/{examId}/content` is verified against both an admin-created paper and a
       generated `PRACTICE_PAPER` projected by the 7.6a pipeline.
-- [ ] Budget/storage story: generate-on-demand + cache instead of PDF storage
+- [x] Budget/storage story: generate-on-demand + cache instead of PDF storage.
+      Generated content is served on demand from the `content_units` cache and is never
+      rendered into a stored document, so the growth that matters is spend and capture.
+      **Spend budget delivered (this pass):** the H3 admission gate now caps money as well
+      as job count. `generation_daily_cost_budget_micros` (platform) and
+      `generation_daily_school_cost_budget_micros` (per school) are opt-in policy keys
+      (0 = unlimited) checked before a new job row is written against the cost already
+      stored on `model_calls` for the current UTC day; an over-budget enqueue is a 429
+      naming the cost budget and the scope. Runs carry `school_id` (V81) so per-school
+      spend is an indexed join and verification/critique calls are attributed too.
+      GET/PUT `/admin/content/queue/budget` reports and sets both dimensions, and the
+      `brainbox.content.budget.cost_micros` gauge (scope=platform) tracks spend.
+      **Capture retention delivered:** `app.content.retention.capture-days` (default 90,
+      0 keeps forever) drives a daily sweep that removes old `agent_runs` with their
+      `model_calls`/`tool_calls`, bounding the only unbounded storage.
+      **Cache observability:** `brainbox.content.cache` (result=hit|miss) records every
+      resolve/worker call, so the generate-once/serve-from-cache rate is a real meter.
+      Operator/ops only; **client action: none**.
 
 ---
 

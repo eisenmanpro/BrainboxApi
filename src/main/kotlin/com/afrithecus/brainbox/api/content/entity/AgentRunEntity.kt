@@ -17,6 +17,10 @@ class AgentRunEntity : BaseEntity() {
     @Column(name = "generation_key", nullable = false, length = 256)
     var generationKey: String = ""
 
+    /** H3 cost attribution: the requesting school, or null for platform-scope work. */
+    @Column(name = "school_id")
+    var schoolId: UUID? = null
+
     @Column(name = "prompt_version", length = 32)
     var promptVersion: String? = null
 

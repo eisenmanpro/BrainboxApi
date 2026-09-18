@@ -4,6 +4,7 @@ import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.content.repository.GenerationJobRepository
+import com.afrithecus.brainbox.api.content.repository.ModelCallRepository
 import org.springframework.stereotype.Service
 import java.time.Clock
 import java.time.Duration
@@ -35,6 +36,7 @@ import java.util.UUID
 @Service
 class GenerationBudgetService(
     private val generationJobs: GenerationJobRepository,
+    private val modelCalls: ModelCallRepository,
     private val moderationPolicy: ModerationPolicyService,
     private val clock: Clock,
 ) {
@@ -52,11 +54,29 @@ class GenerationBudgetService(
     fun schoolUsedToday(schoolId: UUID): Long =
         generationJobs.countBySchoolIdAndCreatedAtGreaterThanEqual(schoolId, startOfUtcDay())
 
+    /** Effective platform-wide daily spend budget in micros; <= 0 means unlimited. */
+    fun platformCostBudget(): Long = moderationPolicy.generationDailyCostBudgetMicros()
+
+    /** Effective per-school daily spend budget in micros; <= 0 means unlimited. */
+    fun schoolCostBudget(): Long = moderationPolicy.generationDailySchoolCostBudgetMicros()
+
+    /** Provider cost in micros recorded platform-wide since the start of the UTC day. */
+    fun platformCostUsedToday(): Long = modelCalls.sumCostSince(startOfUtcDay()) ?: 0L
+
+    /** Provider cost in micros recorded for [schoolId] since the start of the UTC day. */
+    fun schoolCostUsedToday(schoolId: UUID): Long =
+        modelCalls.sumCostForSchoolSince(schoolId, startOfUtcDay()) ?: 0L
+
     /**
      * Throws a 429 [ApiException] when the daily budget is already exhausted. Called
      * before any row is written, so an over-budget enqueue never partially writes.
      * A null [schoolId] (platform batch/proactive work) is checked against the
-     * platform budget only.
+     * platform budgets only.
+     *
+     * Both dimensions are checked: the job-count budget caps volume, and the spend
+     * budget caps the money already accrued today (from stored model_calls costs).
+     * The spend check is admission-time and uses observed spend, so it stops the
+     * next job once the day is already over budget rather than predicting a price.
      */
     fun enforce(schoolId: UUID?) {
         if (schoolId != null) {
@@ -65,11 +85,21 @@ class GenerationBudgetService(
                 val used = schoolUsedToday(schoolId)
                 if (used >= limit) throw blocked("school", schoolId, limit, used)
             }
+            val costLimit = schoolCostBudget()
+            if (costLimit > 0) {
+                val used = schoolCostUsedToday(schoolId)
+                if (used >= costLimit) throw blockedCost("school", schoolId, costLimit, used)
+            }
         }
         val platformLimit = platformBudget()
         if (platformLimit > 0) {
             val used = platformUsedToday()
             if (used >= platformLimit) throw blocked("platform", null, platformLimit, used)
+        }
+        val platformCostLimit = platformCostBudget()
+        if (platformCostLimit > 0) {
+            val used = platformCostUsedToday()
+            if (used >= platformCostLimit) throw blockedCost("platform", null, platformCostLimit, used)
         }
     }
 
@@ -77,12 +107,21 @@ class GenerationBudgetService(
      * Console write for one or both budgets. At least one value is required; a
      * negative value is rejected (0 is allowed and means unlimited).
      */
-    fun setBudgets(platformDailyJobs: Int?, schoolDailyJobs: Int?) {
-        if (platformDailyJobs == null && schoolDailyJobs == null) {
-            throw invalidArgument("at least one of platformDailyJobs or schoolDailyJobs is required")
+    fun setBudgets(
+        platformDailyJobs: Int?,
+        schoolDailyJobs: Int?,
+        platformDailyCostMicros: Long? = null,
+        schoolDailyCostMicros: Long? = null,
+    ) {
+        if (platformDailyJobs == null && schoolDailyJobs == null &&
+            platformDailyCostMicros == null && schoolDailyCostMicros == null
+        ) {
+            throw invalidArgument("at least one daily budget value is required")
         }
         platformDailyJobs?.let { moderationPolicy.setGenerationDailyJobBudget(it) }
         schoolDailyJobs?.let { moderationPolicy.setGenerationDailySchoolJobBudget(it) }
+        platformDailyCostMicros?.let { moderationPolicy.setGenerationDailyCostBudgetMicros(it) }
+        schoolDailyCostMicros?.let { moderationPolicy.setGenerationDailySchoolCostBudgetMicros(it) }
     }
 
     /**
@@ -106,6 +145,24 @@ class GenerationBudgetService(
                 "budget" to scope,
                 "limit" to limit,
                 "used" to used,
+                "window" to window,
+                "retryAfter" to secondsUntilNextUtcDay(),
+            ),
+        )
+    }
+
+    private fun blockedCost(scope: String, schoolId: UUID?, limitMicros: Long, usedMicros: Long): ApiException {
+        val window = "UTC day " + startOfUtcDay().atZone(ZoneOffset.UTC).toLocalDate()
+        val subject = if (schoolId == null) "platform" else "school " + schoolId
+        return ApiException(
+            ApiErrorCode.TOO_MANY_REQUESTS,
+            "daily generation cost budget reached: " + subject + " budget of " + limitMicros +
+                " micros for " + window + " is exhausted (used " + usedMicros + ")",
+            mapOf(
+                "budget" to "cost",
+                "scope" to scope,
+                "limitMicros" to limitMicros,
+                "usedMicros" to usedMicros,
                 "window" to window,
                 "retryAfter" to secondsUntilNextUtcDay(),
             ),

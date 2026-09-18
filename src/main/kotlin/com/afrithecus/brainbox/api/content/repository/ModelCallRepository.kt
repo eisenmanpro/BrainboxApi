@@ -2,8 +2,10 @@ package com.afrithecus.brainbox.api.content.repository
 
 import com.afrithecus.brainbox.api.content.entity.ModelCallEntity
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
+import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
@@ -43,6 +45,34 @@ interface ModelCallRepository : JpaRepository<ModelCallEntity, UUID> {
         @Param("from") from: Instant,
         @Param("to") to: Instant,
     ): List<ModelCallProviderAggregate>
+
+    /** H3 spend budget: total provider cost in micros recorded since [since]; null when none. */
+    @Query("SELECT SUM(m.costMicros) FROM ModelCallEntity m WHERE m.createdAt >= :since")
+    fun sumCostSince(@Param("since") since: Instant): Long?
+
+    /**
+     * H3 per-school spend: total provider cost for runs attributed to [schoolId]
+     * since [since]. The subquery reads agent_runs.school_id, set from the job (and
+     * from the unit for verification/critique), so platform-scope work is excluded.
+     */
+    @Query(
+        "SELECT SUM(m.costMicros) FROM ModelCallEntity m WHERE m.createdAt >= :since " +
+            "AND m.agentRunId IN (SELECT r.id FROM AgentRunEntity r WHERE r.schoolId = :schoolId)"
+    )
+    fun sumCostForSchoolSince(@Param("schoolId") schoolId: UUID, @Param("since") since: Instant): Long?
+
+    /**
+     * Retention: removes every call whose run was created before [cutoff]. Explicit
+     * rather than relying on the foreign-key cascade so the sweep is portable and
+     * the child rows are gone before the parent runs are removed. Returns the count.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Transactional
+    @Query(
+        "DELETE FROM ModelCallEntity m WHERE m.agentRunId IN " +
+            "(SELECT r.id FROM AgentRunEntity r WHERE r.createdAt < :cutoff)"
+    )
+    fun deleteByRunCreatedAtBefore(@Param("cutoff") cutoff: Instant): Int
 
     /** O1 rollup: failed provider calls in [from, to), classified into reasons in memory. */
     @Query(

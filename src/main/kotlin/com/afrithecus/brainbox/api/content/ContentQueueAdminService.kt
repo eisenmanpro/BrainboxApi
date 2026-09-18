@@ -74,19 +74,27 @@ class ContentQueueAdminService(
         return summary()
     }
 
-    /** H3: effective daily budgets plus today's platform usage and schools over budget. */
+    /** H3: effective daily job and spend budgets plus today's usage and schools over budget. */
     @Transactional(readOnly = true)
     fun budget(): ContentQueueBudget = ContentQueueBudget(
         platformBudget = budgets.platformBudget(),
         platformUsed = budgets.platformUsedToday(),
         schoolBudget = budgets.schoolBudget(),
         schoolsOverBudget = budgets.schoolsOverBudget(),
+        platformCostBudgetMicros = budgets.platformCostBudget(),
+        platformCostUsedMicros = budgets.platformCostUsedToday(),
+        schoolCostBudgetMicros = budgets.schoolCostBudget(),
     )
 
-    /** H3: sets one or both daily budgets and returns the new snapshot. */
+    /** H3: sets one or more daily budgets and returns the new snapshot. */
     @Transactional
     fun setBudget(request: ContentQueueBudgetRequest): ContentQueueBudget {
-        budgets.setBudgets(request.platformDailyJobs, request.schoolDailyJobs)
+        budgets.setBudgets(
+            request.platformDailyJobs,
+            request.schoolDailyJobs,
+            request.platformDailyCostMicros,
+            request.schoolDailyCostMicros,
+        )
         return budget()
     }
 

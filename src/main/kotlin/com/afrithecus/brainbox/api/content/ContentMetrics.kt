@@ -62,11 +62,26 @@ class ContentMetrics(private val registry: MeterRegistry) {
         registry.counter(METRIC_AUTOAPPROVE, TAG_RESULT, RESULT_EXCEPTION, TAG_REASON, reason).increment()
     }
 
+    /**
+     * Records a cache hit: a resolve/worker call answered from the content cache
+     * without a provider call. The hit rate is result=hit over the sum of both tags
+     * and is the "generate once, serve from the cache" half of the posture.
+     */
+    fun recordCacheHit() {
+        registry.counter(METRIC_CACHE, TAG_RESULT, CACHE_HIT).increment()
+    }
+
+    /** Records a cache miss: the request fell through to a provider generation. */
+    fun recordCacheMiss() {
+        registry.counter(METRIC_CACHE, TAG_RESULT, CACHE_MISS).increment()
+    }
+
     companion object {
         const val METRIC_GENERATION_LATENCY = "brainbox.content.generation.latency"
         const val METRIC_PROVIDER_ERRORS = "brainbox.content.provider.errors"
         const val METRIC_TOKENS = "brainbox.content.tokens"
         const val METRIC_AUTOAPPROVE = "brainbox.content.autoapprove"
+        const val METRIC_CACHE = "brainbox.content.cache"
 
         const val TAG_PROVIDER = "provider"
         const val TAG_REASON = "reason"
@@ -78,6 +93,9 @@ class ContentMetrics(private val registry: MeterRegistry) {
 
         const val RESULT_APPROVED = "approved"
         const val RESULT_EXCEPTION = "exception"
+
+        const val CACHE_HIT = "hit"
+        const val CACHE_MISS = "miss"
 
         const val REASON_TIMEOUT = "timeout"
         const val REASON_PARSE = "parse"

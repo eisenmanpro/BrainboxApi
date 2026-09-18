@@ -81,7 +81,11 @@ class ContentRouter(
      * the job and runs the shared core inline on the caller's thread.
      */
     fun resolve(request: GenerationRequest): ContentUnitEntity {
-        contentUnits.findByGenerationKey(request.generationKey)?.let { return it }
+        contentUnits.findByGenerationKey(request.generationKey)?.let {
+            metrics.recordCacheHit()
+            return it
+        }
+        metrics.recordCacheMiss()
 
         val job = generationJobs.save(
             jobService.enqueue(request, GenerationJobSource.USER).apply {
@@ -104,9 +108,11 @@ class ContentRouter(
         val job = generationJobs.findById(jobId).orElse(null) ?: return null
 
         contentUnits.findByGenerationKey(job.generationKey)?.let { existing ->
+            metrics.recordCacheHit()
             jobService.complete(job.id, job.runId)
             return existing
         }
+        metrics.recordCacheMiss()
 
         val request = jobService.decode(job)
         if (request == null) {
@@ -169,6 +175,7 @@ class ContentRouter(
         val run = agentRuns.save(
             AgentRunEntity().apply {
                 generationKey = unit.generationKey
+                schoolId = unit.schoolId
                 promptVersion = ANSWER_VERIFY_PROMPT_VERSION
                 status = "RUNNING"
             }
@@ -267,6 +274,7 @@ class ContentRouter(
         val run = agentRuns.save(
             AgentRunEntity().apply {
                 generationKey = unit.generationKey
+                schoolId = unit.schoolId
                 promptVersion = CRITIQUE_PROMPT_VERSION
                 status = "RUNNING"
             }
@@ -485,6 +493,7 @@ class ContentRouter(
             AgentRunEntity().apply {
                 jobId = job.id
                 this.generationKey = generationKey
+                schoolId = job.schoolId
                 status = "RUNNING"
             }
         )
