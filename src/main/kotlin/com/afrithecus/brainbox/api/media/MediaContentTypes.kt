@@ -48,6 +48,23 @@ enum class MediaKind(val contentType: String, val extension: String) {
  */
 object MediaContentTypes {
 
+    /** The kind a declared content type denotes, or null when it is not supported. */
+    fun forContentType(raw: String): MediaKind? {
+        val declared = raw.trim().lowercase().substringBefore(';').trim()
+        return when (declared) {
+            "image/jpg", "image/pjpeg" -> MediaKind.JPEG
+            "application/x-pdf" -> MediaKind.PDF
+            "text/x-markdown", "text/markdown" -> MediaKind.TEXT
+            else -> MediaKind.entries.firstOrNull { it.contentType == declared }
+        }
+    }
+
+    /** The kind a client filename extension denotes, or null when it is not supported. */
+    fun forExtension(raw: String): MediaKind? {
+        val extension = raw.trim().lowercase().substringAfterLast('.', "")
+        return MediaKind.entries.firstOrNull { it.extension == extension }
+    }
+
     fun detect(bytes: ByteArray): MediaKind? {
         if (bytes.isEmpty()) return null
         return when {

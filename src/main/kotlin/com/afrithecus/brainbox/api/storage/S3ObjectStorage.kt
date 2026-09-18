@@ -13,8 +13,9 @@ import java.time.Duration
  * S3-compatible object storage (MinIO, or S3 itself) addressed with SigV4 and a
  * JDK HttpClient. Path-style addressing is the default because that is how MinIO
  * and most self-hosted gateways are reached; virtual-hosted style is available for
- * the public S3 endpoint. Bytes are proxied through the API node: the existing
- * multipart upload and signed-download contracts are unchanged.
+ * the public S3 endpoint. Downloads redirect to a presigned GET and uploads can be
+ * a presigned PUT, so the bytes need not pass through the API node; the existing
+ * multipart upload stays as the fallback for any backend that cannot presign.
  */
 class S3ObjectStorage(
     private val config: StorageProperties.S3,
@@ -71,7 +72,54 @@ class S3ObjectStorage(
         )
     }
 
-    private fun request(method: String, objectKey: String, contentType: String?, payloadHash: String): HttpRequest.Builder {
+    override fun presignPut(key: String, contentType: String, ttl: Duration): PresignedUpload {
+        val url = urlFor(objectKey(key))
+        val presigned = signer.presign(
+            method = "PUT",
+            scheme = url.scheme,
+            host = hostHeader(url),
+            path = url.path,
+            expiresSeconds = ttl.seconds.coerceIn(1L, MAX_PRESIGN_SECONDS),
+            timestamp = clock.instant(),
+        )
+        return PresignedUpload(presigned, "PUT", mapOf("Content-Type" to contentType))
+    }
+
+    override fun head(key: String): ObjectMetadata? {
+        val objectKey = objectKey(key)
+        val request = request("HEAD", objectKey, null, AwsSignatureV4.EMPTY_SHA256)
+            .method("HEAD", HttpRequest.BodyPublishers.noBody())
+            .build()
+        val response = send(request)
+        if (response.statusCode() == 404) return null
+        ensureSuccess(response, "HEAD " + objectKey)
+        val size = response.headers().firstValue("Content-Length").orElse("0").toLongOrNull() ?: 0L
+        val contentType = response.headers().firstValue("Content-Type").orElse(null)
+        return ObjectMetadata(size, contentType)
+    }
+
+    override fun getRange(key: String, offset: Long, length: Int): ByteArray? {
+        if (length <= 0) return ByteArray(0)
+        val objectKey = objectKey(key)
+        val range = "bytes=" + offset + "-" + (offset + length - 1)
+        // The range header is signed so S3 accepts the partial read.
+        val request = request("GET", objectKey, null, AwsSignatureV4.EMPTY_SHA256, mapOf("range" to range))
+            .header("Range", range)
+            .GET()
+            .build()
+        val response = send(request)
+        if (response.statusCode() == 404) return null
+        ensureSuccess(response, "GET range " + objectKey)
+        return response.body()
+    }
+
+    private fun request(
+        method: String,
+        objectKey: String,
+        contentType: String?,
+        payloadHash: String,
+        extraHeaders: Map<String, String> = emptyMap(),
+    ): HttpRequest.Builder {
         val url = urlFor(objectKey)
         val now = clock.instant()
         val headers = linkedMapOf(
@@ -79,6 +127,7 @@ class S3ObjectStorage(
             "x-amz-content-sha256" to payloadHash,
         )
         if (contentType != null) headers["content-type"] = contentType
+        headers.putAll(extraHeaders)
         val authorization = signer.authorization(
             method = method,
             path = url.path,
@@ -93,6 +142,7 @@ class S3ObjectStorage(
             .header("x-amz-content-sha256", payloadHash)
             .header("x-amz-date", signer.amzDate(now))
         if (contentType != null) builder.header("Content-Type", contentType)
+        extraHeaders.forEach { (name, value) -> builder.header(name, value) }
         return builder
     }
 

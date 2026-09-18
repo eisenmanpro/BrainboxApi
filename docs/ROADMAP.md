@@ -613,11 +613,18 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       `ObjectStorage` seam - local disk by default, or an S3-compatible endpoint (MinIO
       in-country) via `app.storage.provider=s3`, with SigV4 signing implemented over the JDK and
       verified against the S3 documentation vectors; both use the `media/` and `reports/` key
-      prefixes. Uploads are proxied through the API node; **downloads now redirect to a
-      short-lived presigned GET** when S3 is configured (the media and report download endpoints
-      answer 302, so the bytes come from storage instead of the API node), verified against the S3
-      presigned-URL vector. Presigned client-direct upload (which needs a server-side magic-byte
-      verify step) and a malware/URL scanner remain.
+      prefixes. **Uploads can now go client-direct (this pass):** `POST /media/uploads` issues a
+      short-lived presigned PUT (`S3ObjectStorage.presignPut`, SigV4), the client PUTs the bytes
+      straight to the store, and `POST /media/uploads/{id}/confirm` HEADs the size and reads a
+      prefix to detect the real format (`MediaContentTypes`), requiring it to match the declared
+      type or deleting the object and rejecting (V85 `media_uploads`). A PENDING ticket records
+      ownership, a per-user pending cap and a scheduled sweeper delete abandoned objects, and the
+      MEDIA/HOMEWORK_ATTACHMENT/DOCUMENT purposes reuse the same allow-lists as the multipart
+      path (local disk keeps the multipart fallback). **Downloads redirect to a short-lived
+      presigned GET** when S3 is configured (the media and report download endpoints answer 302,
+      so the bytes come from storage instead of the API node), verified against the S3
+      presigned-URL vector. A malware/URL scanner remains (it would run at confirm, before the
+      file is marked VERIFIED).
 - [ ] Redis: JWT revocation, rate-limit counters, live-class counters.
       **Partial without Redis:** access-token revocation is now enforced by checking the
       session row in `AuthTokenFilter`, so logout / password change / deactivation take effect

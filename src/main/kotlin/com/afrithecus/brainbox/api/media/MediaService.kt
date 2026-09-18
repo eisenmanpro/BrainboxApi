@@ -47,11 +47,11 @@ class MediaService(
      * (docs/ongoing/api_homework_changes.md, attachment guard).
      */
     fun storeHomeworkAttachment(file: MultipartFile): MediaUploadResponsePayload =
-        storeChecked(file, HOMEWORK_ATTACHMENT_MAX_BYTES) { it in HOMEWORK_ATTACHMENT_KINDS }
+        storeChecked(file, MediaPolicies.ATTACHMENT_MAX_BYTES) { it in MediaPolicies.HOMEWORK_ATTACHMENT_KINDS }
 
     /** Teacher documents: 10 MB max, PDF/EPUB/plain text. */
     fun storeDocument(file: MultipartFile): MediaUploadResponsePayload =
-        storeChecked(file, DOCUMENT_MAX_BYTES) { it in DOCUMENT_KINDS }
+        storeChecked(file, MediaPolicies.ATTACHMENT_MAX_BYTES) { it in MediaPolicies.DOCUMENT_KINDS }
 
     /**
      * Deletes a stored file by URL or filename; repeat-safe. The filename must match
@@ -106,7 +106,7 @@ class MediaService(
         val bytes = file.bytes
         if (bytes.isEmpty()) throw invalidArgument("An upload file is required")
         if (bytes.size.toLong() > maxBytes) {
-            throw invalidArgument("File must be " + (maxBytes / BYTES_PER_MB) + " MB or smaller")
+            throw invalidArgument("File must be " + (maxBytes / MediaPolicies.BYTES_PER_MB) + " MB or smaller")
         }
         val kind = MediaContentTypes.detect(bytes) ?: throw invalidArgument("Unsupported or unrecognised file type")
         if (!allowed(kind)) throw invalidArgument("Unsupported file type")
@@ -129,20 +129,6 @@ class MediaService(
     }
 
     private companion object {
-        const val BYTES_PER_MB = 1024L * 1024L
-        const val HOMEWORK_ATTACHMENT_MAX_BYTES = 10L * 1024 * 1024
-        const val DOCUMENT_MAX_BYTES = 10L * 1024 * 1024
-
-        val HOMEWORK_ATTACHMENT_KINDS = setOf(
-            MediaKind.PDF,
-            MediaKind.DOC,
-            MediaKind.DOCX,
-            MediaKind.TEXT,
-            MediaKind.JPEG,
-            MediaKind.PNG,
-        )
-        val DOCUMENT_KINDS = setOf(MediaKind.PDF, MediaKind.EPUB, MediaKind.TEXT)
-
         /** A UUID plus the detected extension; the only filenames the server ever writes. */
         val FILENAME_REGEX = Regex("""^[A-Za-z0-9-]{1,64}\.[A-Za-z0-9]{1,5}$""")
     }
