@@ -90,4 +90,13 @@ class UserEntity : BaseEntity() {
 
     @Column(name = "guardian_phone", length = 32)
     var guardianPhone: String? = null
+
+    /**
+     * The class a ROSTER_ONLY learner was provisioned for. Deliberately not a
+     * class_memberships row: membership feeds attendance, gradebook, homework,
+     * CBC analytics and messaging, and a provisioned learner must not take part
+     * in any of them. This is used only to tag the learner in traditional reports.
+     */
+    @Column(name = "provisioned_class_id")
+    var provisionedClassId: UUID? = null
 }

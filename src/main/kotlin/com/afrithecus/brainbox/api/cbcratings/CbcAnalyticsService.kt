@@ -21,6 +21,7 @@ import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.feedback.repository.TeacherFeedbackRepository
+import com.afrithecus.brainbox.api.identity.LearnerAccess
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubRole
@@ -67,6 +68,7 @@ class CbcAnalyticsService(
         requireTeacher(teacher)
         val student = userRepository.findById(parseUuid(studentIdRaw, "studentId")).orElse(null)
             ?: throw notFound("Learner not found")
+        LearnerAccess.requireFull(student, "CBC ratings")
         requireStudentAccess(teacher, student)
         val strandCode = strandCodeRaw.trim().uppercase()
         strandRepository.findByCode(strandCode) ?: throw notFound("Strand not found")
@@ -138,6 +140,7 @@ class CbcAnalyticsService(
         requireTeacher(teacher)
         val student = userRepository.findById(parseUuid(studentIdRaw, "studentId")).orElse(null)
             ?: throw notFound("Learner not found")
+        LearnerAccess.requireFull(student, "CBC report cards")
         requireStudentAccess(teacher, student)
         return reportCard(student, termRaw)
     }
@@ -151,6 +154,7 @@ class CbcAnalyticsService(
     fun studentReportForViewer(viewer: UserEntity, studentIdRaw: String, termRaw: String): CbcReportCardPayload {
         val student = userRepository.findById(parseUuid(studentIdRaw, "studentId")).orElse(null)
             ?: throw notFound("Learner not found")
+        LearnerAccess.requireFull(student, "CBC report cards")
         requireViewerAccess(viewer, student)
         return reportCard(student, termRaw)
     }

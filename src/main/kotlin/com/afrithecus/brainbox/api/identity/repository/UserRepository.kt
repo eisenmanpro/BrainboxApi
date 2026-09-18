@@ -50,6 +50,9 @@ interface UserRepository : JpaRepository<UserEntity, UUID> {
 
     fun findAllByGradeLevelAndRole(gradeLevel: String, role: Role): List<UserEntity>
 
+    /** Provisioned (roster-only) learners for one class, in name order. */
+    fun findAllByProvisionedClassIdOrderByNameAsc(provisionedClassId: UUID): List<UserEntity>
+
     fun findByPhoneNumber(phoneNumber: String): UserEntity?
 
     fun findByEmail(email: String): UserEntity?

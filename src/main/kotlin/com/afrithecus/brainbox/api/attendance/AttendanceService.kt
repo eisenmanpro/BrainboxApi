@@ -26,6 +26,7 @@ import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
+import com.afrithecus.brainbox.api.identity.LearnerAccess
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.model.Role
@@ -94,6 +95,8 @@ class AttendanceService(
             val payloadIds = classRecords.map { parseUuid(it.studentId, "studentId") }.toSet()
             for (record in classRecords) {
                 val studentId = parseUuid(record.studentId, "studentId")
+                // A provisioned learner is not part of the attendance feature.
+                userRepository.findById(studentId).orElse(null)?.let { LearnerAccess.requireFull(it, "attendance") }
                 val isNew = existing[studentId] == null
                 val row = existing[studentId] ?: AttendanceRecordEntity().apply {
                     classId = clazz.id

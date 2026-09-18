@@ -21,6 +21,7 @@ import com.afrithecus.brainbox.api.exams.repository.ExamSubmissionRepository
 import com.afrithecus.brainbox.api.feedback.repository.TeacherFeedbackRepository
 import com.afrithecus.brainbox.api.feedback.web.TeacherFeedbackPayload
 import com.afrithecus.brainbox.api.homework.repository.HomeworkSubmissionRepository
+import com.afrithecus.brainbox.api.identity.LearnerAccess
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubRole
@@ -287,6 +288,7 @@ class StudentAnalyticsService(
     private fun requireStudent(teacher: UserEntity, raw: String): UserEntity {
         val student = userRepository.findById(parseUuid(raw, "studentId")).orElse(null)
             ?: throw notFound("Learner not found")
+        LearnerAccess.requireFull(student, "student analytics")
         requireStudentAccess(teacher, student)
         return student
     }

@@ -80,6 +80,13 @@ class TeacherClassesController(
         @Valid @RequestBody request: ProvisionLearnerRequest,
     ): ProvisionedLearnerPayload = provisioning.provision(teacher(currentUser), classId, request)
 
+    /** The class's provisioned (roster-only) learners, for management and upgrade. */
+    @GetMapping("/{classId}/learners")
+    fun learners(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable classId: String,
+    ): List<ProvisionedLearnerPayload> = provisioning.learners(teacher(currentUser), classId)
+
     /** Paste/import a class list; per-row failures are reported, not fatal. */
     @PostMapping("/{classId}/learners/bulk")
     fun provisionLearners(

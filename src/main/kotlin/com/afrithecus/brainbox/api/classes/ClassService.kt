@@ -16,6 +16,7 @@ import com.afrithecus.brainbox.api.common.error.conflict
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
+import com.afrithecus.brainbox.api.identity.model.AccountKind
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.achievements.AchievementsService
 import com.afrithecus.brainbox.api.gradebook.entity.GradebookEntryEntity
@@ -93,6 +94,9 @@ class ClassService(
             val student = userRepository.findById(studentId).orElse(null)
                 ?: throw notFound("Student not found")
             if (student.role != Role.STUDENT) throw invalidArgument("Only STUDENT accounts can join a class roster")
+            if (student.accountKind != AccountKind.FULL) {
+                throw invalidArgument("A provisioned learner is enrolled for traditional exams only and cannot join a normal class roster")
+            }
             if (clazz.schoolId != null && student.schoolId != null && clazz.schoolId != student.schoolId) {
                 throw invalidArgument("Student is not enrolled in this school")
             }

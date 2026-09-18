@@ -14,6 +14,7 @@ import com.afrithecus.brainbox.api.gradebook.repository.GradebookEntryRepository
 import com.afrithecus.brainbox.api.gradebook.web.GradebookAssessmentPayload
 import com.afrithecus.brainbox.api.gradebook.web.GradebookEntryPayload
 import com.afrithecus.brainbox.api.gradebook.web.PublishedGradePayload
+import com.afrithecus.brainbox.api.identity.LearnerAccess
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.model.Role
@@ -156,6 +157,7 @@ class GradebookService(
         val assessment = assessmentForClass(clazz, payload.assessmentId)
         val studentId = parseUuid(payload.studentId, "studentId")
         val student = userRepository.findById(studentId).orElse(null) ?: throw notFound("Student not found")
+        LearnerAccess.requireFull(student, "the gradebook")
         val row = existing
             ?: entryRepository.findByClassIdAndAssessmentIdAndStudentId(clazz.id, assessment.clientId, studentId)
             ?: GradebookEntryEntity().apply {

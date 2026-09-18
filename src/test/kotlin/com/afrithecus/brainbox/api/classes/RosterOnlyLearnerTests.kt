@@ -1,6 +1,17 @@
 package com.afrithecus.brainbox.api.classes
 
+import com.afrithecus.brainbox.api.attendance.AttendanceService
+import com.afrithecus.brainbox.api.attendance.web.AttendanceRecordPayload
 import com.afrithecus.brainbox.api.auth.web.AuthResponse
+import com.afrithecus.brainbox.api.cbcratings.CbcAnalyticsService
+import com.afrithecus.brainbox.api.common.error.ApiErrorCode
+import com.afrithecus.brainbox.api.common.error.ApiException
+import com.afrithecus.brainbox.api.feedback.FeedbackService
+import com.afrithecus.brainbox.api.feedback.web.TeacherFeedbackPayload
+import com.afrithecus.brainbox.api.gradebook.GradebookService
+import com.afrithecus.brainbox.api.gradebook.web.GradebookAssessmentPayload
+import com.afrithecus.brainbox.api.gradebook.web.GradebookEntryPayload
+import com.afrithecus.brainbox.api.studentanalytics.StudentAnalyticsService
 import com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity
 import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
@@ -42,11 +53,13 @@ import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
 import java.util.UUID
+import kotlin.test.assertFailsWith
 
 /**
  * Roster-only learners: a class teacher (or a coordinator/ICT admin in the same
@@ -68,6 +81,11 @@ class RosterOnlyLearnerTests(
     @Autowired private val classMembershipRepository: ClassMembershipRepository,
     @Autowired private val traditional: TraditionalExamService,
     @Autowired private val examRepository: TraditionalExamRepository,
+    @Autowired private val attendance: AttendanceService,
+    @Autowired private val gradebook: GradebookService,
+    @Autowired private val feedback: FeedbackService,
+    @Autowired private val cbc: CbcAnalyticsService,
+    @Autowired private val studentAnalytics: StudentAnalyticsService,
     @Autowired private val reportData: ReportDataService,
     @Autowired private val schoolConfig: SchoolConfigService,
 ) {
@@ -102,7 +120,10 @@ class RosterOnlyLearnerTests(
         check(stored.gradeLevel == "Grade 4")
         check(stored.schoolId == schoolId)
         check(stored.isActive)
-        check(classMembershipRepository.findByClassIdAndStudentId(clazz.id, stored.id) != null)
+        check(stored.provisionedClassId == clazz.id)
+        check(classMembershipRepository.findByClassIdAndStudentId(clazz.id, stored.id) == null) {
+            "a provisioned learner must not be a normal class member"
+        }
 
         // The grade-wide traditional roster (marks, rankings, combined/class reports).
         val exam = exam(owner)
@@ -303,6 +324,91 @@ class RosterOnlyLearnerTests(
         check(traditional.marks(coordinatorUser, exam.examId).any { it.studentId == learner.id }) {
             "marks survive deactivation so a report can still be produced"
         }
+    }
+
+    @Test
+    fun provisionedLearnersAreExcludedFromEveryOtherFeature() {
+        val owner = user(Role.TEACHER, "Owner Teacher", "0700000111", schoolId)
+        val clazz = clazz(owner, "Grade 4", "4B", schoolId)
+        val ownerToken = token(owner)
+        val ownerCurrent = CurrentUser(owner.id, Role.TEACHER, null)
+        val learner = provision(clazz.id, ownerToken, "Grace Auma", "BB-T-0008")
+
+        // The general class roster (which backs gradebook/attendance/feedback/CBC and
+        // homework rosters) must not list them; the management list must.
+        val rosterJson = mockMvc.perform(
+            get("/teacher/classes/" + clazz.id + "/students").header("Authorization", auth(ownerToken))
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        check(!rosterJson.contains(learner.id)) { "a provisioned learner must not appear in the class roster" }
+        val learnersJson = mockMvc.perform(
+            get("/teacher/classes/" + clazz.id + "/learners").header("Authorization", auth(ownerToken))
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        check(learnersJson.contains(learner.id)) { "the management list must return the provisioned learner" }
+
+        // Direct writes are refused even when a client sends the learner id.
+        val assessment = gradebook.createAssessment(
+            ownerCurrent,
+            clazz.id.toString(),
+            GradebookAssessmentPayload(
+                id = "gb-assessment-1",
+                classId = clazz.id.toString(),
+                title = "CAT 1",
+                assessmentType = "EXAM",
+                maxScore = 100,
+                dateAssigned = System.currentTimeMillis(),
+            ),
+        )
+        val gradebookBlocked = assertFailsWith<ApiException> {
+            gradebook.submitGrade(
+                ownerCurrent,
+                GradebookEntryPayload(
+                    id = "gb-entry-1",
+                    classId = clazz.id.toString(),
+                    teacherId = owner.id.toString(),
+                    assessmentId = assessment.id,
+                    assessmentType = "EXAM",
+                    studentId = learner.id,
+                    studentName = "Grace Auma",
+                    rawScore = 50,
+                    maxScore = 100,
+                    percentage = 50,
+                    gradedAt = System.currentTimeMillis(),
+                ),
+            )
+        }
+        check(gradebookBlocked.code == ApiErrorCode.FORBIDDEN)
+
+        val attendanceBlocked = assertFailsWith<ApiException> {
+            attendance.submit(
+                ownerCurrent,
+                listOf(
+                    AttendanceRecordPayload(
+                        id = "att-1",
+                        classId = clazz.id.toString(),
+                        studentId = learner.id,
+                        studentName = "Grace Auma",
+                        date = System.currentTimeMillis(),
+                        status = "PRESENT",
+                    )
+                ),
+            )
+        }
+        check(attendanceBlocked.code == ApiErrorCode.FORBIDDEN)
+
+        val feedbackBlocked = assertFailsWith<ApiException> {
+            feedback.submit(owner, TeacherFeedbackPayload(studentId = learner.id, textFeedback = "Good work"))
+        }
+        check(feedbackBlocked.code == ApiErrorCode.FORBIDDEN)
+
+        val cbcBlocked = assertFailsWith<ApiException> {
+            cbc.inputRating(owner, learner.id, "STRAND-1", "TERM_1", "ME", null, null)
+        }
+        check(cbcBlocked.code == ApiErrorCode.FORBIDDEN)
+
+        val analyticsBlocked = assertFailsWith<ApiException> {
+            studentAnalytics.studentAnalytics(owner, learner.id)
+        }
+        check(analyticsBlocked.code == ApiErrorCode.FORBIDDEN)
     }
 
     // ------------------------------------------------------------- fixtures

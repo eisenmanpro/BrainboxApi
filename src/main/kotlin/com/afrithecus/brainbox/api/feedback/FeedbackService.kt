@@ -11,8 +11,10 @@ import com.afrithecus.brainbox.api.feedback.repository.FeedbackTemplateRepositor
 import com.afrithecus.brainbox.api.feedback.repository.TeacherFeedbackRepository
 import com.afrithecus.brainbox.api.feedback.web.FeedbackTemplatePayload
 import com.afrithecus.brainbox.api.feedback.web.TeacherFeedbackPayload
+import com.afrithecus.brainbox.api.identity.LearnerAccess
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
+import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
@@ -27,6 +29,7 @@ import java.util.UUID
 class FeedbackService(
     private val feedbackRepository: TeacherFeedbackRepository,
     private val templateRepository: FeedbackTemplateRepository,
+    private val userRepository: UserRepository,
     private val codec: QuestionCodec,
     private val clock: Clock,
 ) {
@@ -89,7 +92,11 @@ class FeedbackService(
             this.clientId = clientId
             teacherId = teacher.id
         }
-        entity.studentId = parseUuid(request.studentId, "studentId")
+        val studentId = parseUuid(request.studentId, "studentId")
+        val student = userRepository.findById(studentId).orElse(null)
+            ?: throw invalidArgument("studentId does not reference a learner")
+        LearnerAccess.requireFull(student, "feedback")
+        entity.studentId = studentId
         entity.submissionId = request.submissionId.trim().takeIf { it.isNotEmpty() }
         entity.textFeedback = request.textFeedback?.trim()?.takeIf { it.isNotEmpty() }
         entity.voiceFeedbackUrl = request.voiceFeedbackUrl?.trim()?.takeIf { it.isNotEmpty() }

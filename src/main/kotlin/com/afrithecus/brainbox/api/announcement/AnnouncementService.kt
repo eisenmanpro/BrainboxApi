@@ -14,6 +14,7 @@ import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.exams.QuestionCodec
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
+import com.afrithecus.brainbox.api.identity.model.AccountKind
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.notification.NotificationService
@@ -204,6 +205,9 @@ class AnnouncementService(
                 members.filter { it.role == Role.STUDENT && it.id in studentIds }
             }
         }
+            // A provisioned learner is not reachable by any app feature, including
+            // announcements and its notification fan-out.
+            .filter { it.accountKind == AccountKind.FULL }
         if (entity.audience != "PARENT") return students
         val parentIds = students.mapNotNull { it.parentUserId }.toSet()
         return userRepository.findAllById(parentIds).filter { it.isActive }

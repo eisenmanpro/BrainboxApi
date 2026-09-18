@@ -1042,6 +1042,11 @@ class TraditionalExamService(
         if (membership != null) {
             teacherClassRepository.findById(membership.classId).orElse(null)?.let { return it.name }
         }
+        // A provisioned learner has no membership; the provisioned class link is
+        // what tags it correctly in the per-class traditional tables.
+        student.provisionedClassId?.let { provisioned ->
+            teacherClassRepository.findById(provisioned).orElse(null)?.let { return it.name }
+        }
         return student.gradeLevel ?: exam.gradeLevel
     }
 

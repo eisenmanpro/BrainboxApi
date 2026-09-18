@@ -1,6 +1,5 @@
 package com.afrithecus.brainbox.api.classes
 
-import com.afrithecus.brainbox.api.classes.entity.ClassMembershipEntity
 import com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity
 import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
@@ -93,7 +92,7 @@ class LearnerProvisioningService(
         val clazz = manageableClass(actor, classIdRaw)
         val student = learner(parseUuid(studentIdRaw, "studentId"))
         requireSameSchool(student, clazz.schoolId)
-        membershipRepository.deleteByClassIdAndStudentId(clazz.id, student.id)
+        student.provisionedClassId = null
         student.isActive = false
         userRepository.save(student)
     }
@@ -188,14 +187,12 @@ class LearnerProvisioningService(
             created = true
         }
 
-        if (membershipRepository.findByClassIdAndStudentId(clazz.id, student.id) == null) {
-            membershipRepository.save(
-                ClassMembershipEntity().apply {
-                    classId = clazz.id
-                    studentId = student.id
-                }
-            )
-        }
+        // Deliberately not a class membership: membership is what feeds attendance,
+        // gradebook, homework, CBC analytics and messaging, and a provisioned learner
+        // must stay out of all of them. The class link exists only so traditional
+        // per-class reports can tag the learner.
+        student.provisionedClassId = clazz.id
+        userRepository.save(student)
         return toPayload(student, clazz, created) to created
     }
 
@@ -211,13 +208,19 @@ class LearnerProvisioningService(
         created = created,
     )
 
-    private fun inClassByName(clazz: TeacherClassEntity, name: String): UserEntity? {
-        val memberIds = membershipRepository.findAllByClassId(clazz.id).map { it.studentId }
-        if (memberIds.isEmpty()) return null
-        return userRepository.findAllById(memberIds).firstOrNull {
+    /** Management list: the provisioned (roster-only) learners of one class. */
+    @Transactional(readOnly = true)
+    fun learners(actor: UserEntity, classIdRaw: String): List<ProvisionedLearnerPayload> {
+        val clazz = manageableClass(actor, classIdRaw)
+        return userRepository.findAllByProvisionedClassIdOrderByNameAsc(clazz.id)
+            .filter { it.accountKind == AccountKind.ROSTER_ONLY }
+            .map { toPayload(it, clazz, created = false) }
+    }
+
+    private fun inClassByName(clazz: TeacherClassEntity, name: String): UserEntity? =
+        userRepository.findAllByProvisionedClassIdOrderByNameAsc(clazz.id).firstOrNull {
             it.role == Role.STUDENT && it.accountKind == AccountKind.ROSTER_ONLY && it.name.equals(name, ignoreCase = true)
         }
-    }
 
     private fun manageableClass(actor: UserEntity, classIdRaw: String): TeacherClassEntity {
         val clazz = classRepository.findById(parseUuid(classIdRaw, "classId")).orElse(null)
@@ -231,9 +234,11 @@ class LearnerProvisioningService(
 
     private fun requireManagesLearner(actor: UserEntity, student: UserEntity) {
         if (actor.role == Role.ADMIN) return
-        val ownsTheClass = membershipRepository.findAllByStudentId(student.id).any { membership ->
-            classRepository.findById(membership.classId).orElse(null)?.teacherUserId == actor.id
-        }
+        val ownsTheClass = student.provisionedClassId?.let { classRepository.findById(it).orElse(null) }
+            ?.teacherUserId == actor.id ||
+            membershipRepository.findAllByStudentId(student.id).any { membership ->
+                classRepository.findById(membership.classId).orElse(null)?.teacherUserId == actor.id
+            }
         val coordinates = isCoordinator(actor) && actor.schoolId != null && actor.schoolId == student.schoolId
         if (!ownsTheClass && !coordinates) throw ApiException(ApiErrorCode.FORBIDDEN, "Not your learner")
     }

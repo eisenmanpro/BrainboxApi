@@ -540,7 +540,15 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       upgrade the same record to FULL when the learner gets a phone (phone number plus a
       server-generated one-time password), and deactivation removes the learner from the
       active lists while keeping every mark for a later report. The roster payload carries
-      accountKind so the teacher app can badge and upgrade it.
+      accountKind so the teacher app can badge and upgrade it. **Abuse guard:** a
+      provisioned learner is deliberately NOT a class member (the class link lives on
+      the user), so attendance, gradebook, homework, CBC analytics, class chat, message
+      fan-out and announcements exclude it by construction, and a shared LearnerAccess
+      guard refuses attendance/gradebook/feedback writes, CBC ratings and report cards,
+      and student analytics even when a client sends the learner id directly. Only the
+      traditional exam engine and its analysis/reports include them. `GET
+      /teacher/classes/{classId}/learners` is the management list, separate from the
+      normal class roster read.
 
 ### Phase 5 — Admin & School Management  (goal 5; doc 08) — COMPLETE
 - [x] Admin identity + approvals: user list/detail/patch/deactivate, reset-password,

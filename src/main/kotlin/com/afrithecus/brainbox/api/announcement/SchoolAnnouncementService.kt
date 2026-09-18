@@ -12,6 +12,7 @@ import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.identity.AuditLogService
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
+import com.afrithecus.brainbox.api.identity.model.AccountKind
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
@@ -167,7 +168,8 @@ class SchoolAnnouncementService(
                     val grades = numericTokens(part.substringAfter(":"))
                     if (grades.isNotEmpty()) {
                         val students = roster.filter {
-                            it.role == Role.STUDENT && numericTokens(it.gradeLevel.orEmpty()).any { grade -> grade in grades }
+                            it.role == Role.STUDENT && it.accountKind == AccountKind.FULL &&
+                                numericTokens(it.gradeLevel.orEmpty()).any { grade -> grade in grades }
                         }
                         targeted += students.map { it.id }
                         targeted += parentsOf(students, roster)
@@ -196,7 +198,7 @@ class SchoolAnnouncementService(
         val lower = audience.lowercase()
         return when {
             lower.contains("parent") -> roster.count { it.role == Role.PARENT }
-            lower.contains("student") -> roster.count { it.role == Role.STUDENT }
+            lower.contains("student") -> roster.count { it.role == Role.STUDENT && it.accountKind == AccountKind.FULL }
             lower.contains("teacher") || lower.contains("staff") -> roster.count { it.role == Role.TEACHER }
             else -> roster.size
         }
