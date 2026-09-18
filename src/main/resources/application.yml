@@ -201,6 +201,26 @@ app:
       # (0 disables the cost ceiling).
       max-iterations: ${CONTENT_LOOP_MAX_ITERATIONS:1}
       max-cost-micros: ${CONTENT_LOOP_MAX_COST_MICROS:0}
+  payments:
+    # M-Pesa subscription payments relayed through IntaSend (doc 14 section 6).
+    # Off by default. At deployment, switch sandbox to false and replace the test
+    # keys with the live ones through these environment variables; no code or
+    # schema change is required. PaymentSecretGuard refuses to start with
+    # payments enabled and no usable key/challenge outside the test profile.
+    enabled: ${APP_PAYMENTS_ENABLED:false}
+    sandbox: ${APP_PAYMENTS_SANDBOX:true}
+    currency: ${APP_PAYMENTS_CURRENCY:KES}
+    callback-url: ${PAYMENT_CALLBACK_URL:}
+    callback-challenge: ${PAYMENT_CALLBACK_CHALLENGE:}
+    intasend:
+      secret-key: ${INTASEND_SECRET_KEY:}
+      publishable-key: ${INTASEND_PUBLISHABLE_KEY:}
+      wallet-id: ${INTASEND_WALLET_ID:}
+    plans:
+      explorer: ${PAYMENTS_PRICE_EXPLORER:100}
+      pro: ${PAYMENTS_PRICE_PRO:150}
+      upgrade: ${PAYMENTS_PRICE_UPGRADE:50}
+      duration-days: ${PAYMENTS_PERIOD_DAYS:30}
   security:
     jwt:
       # Base64-encoded HMAC secret. Override in each environment. Dev default only.

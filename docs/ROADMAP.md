@@ -579,7 +579,24 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
 - [x] WebRTC signaling server (teacher/learner live classes): /ws/live/{classId} relay with
       JWT handshake auth, presence, heartbeat and class-ended. TURN/STUN stays client/deployment
       configuration (the app already carries per-flavor SIGNALING_TURN_* values).
-- [ ] M-Pesa production integration (idempotent STK push + callbacks, state transitions)
+- [x] M-Pesa production integration (idempotent STK push + callbacks, state transitions).
+      **IntaSend relay delivered (this pass):** the server owns the flow and the secret
+      key. POST /payments/stk-push validates the Kenyan phone shape and the tier price
+      server-side (EXPLORER 100, PRO 150, 50 only as the Explorer-to-Pro upgrade),
+      records a payment_transactions row and relays to IntaSend's payment/mpesa-stk-push/
+      (Bearer secret key). POST /payments/query is tri-state and falls back to an
+      IntaSend status poll when the webhook is delayed. POST /payments/mpesa/callback is
+      public but challenge-authenticated, and activation is idempotent per provider
+      invoice id, so a retried COMPLETE never extends expiry twice or double-charges.
+      Activation updates subscriptions (ACTIVE, server-computed expiry, upgrade
+      preserves expiry, V84 mpesa_transaction_id) and appends subscription_history
+      (CREATED/RENEWED/UPGRADED); GET /subscriptions/{userId}[/history] serves self,
+      linked parent and coordinator/ICT admin. Everything is environment-driven
+      (APP_PAYMENTS_ENABLED/SANDBOX, INTASEND_SECRET_KEY/PUBLISHABLE_KEY,
+      PAYMENT_CALLBACK_URL/CHALLENGE) so a deployment swaps IntaSend test keys for live
+      ones with no code or schema change, and PaymentSecretGuard refuses to boot with
+      payments enabled and no usable credentials outside test. Client doc:
+      BrainBox/docs/ongoing/api_payments_changes.md.
 - [x] FCM push notifications + deep links (LC-1, `04f0bff`): device registration plus an HTTP
       v1 sender wired into every server notification, disabled until `app.push.fcm` is set.
 - [ ] Media/file upload (presigned S3/MinIO) + file security (scan URLs, size/type policy).

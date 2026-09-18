@@ -9,3 +9,14 @@ data class SubscriptionPayload(
     val amountPaid: Int = 0,
     val mpesaTransactionId: String? = null,
 )
+
+/** One subscription history entry (doc 07 section 2.3). */
+data class SubscriptionHistoryPayload(
+    val id: String,
+    val userId: String,
+    val action: String,
+    val tier: String,
+    val amount: Int,
+    val transactionId: String? = null,
+    val timestamp: Long,
+)

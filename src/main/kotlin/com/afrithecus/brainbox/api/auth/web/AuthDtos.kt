@@ -91,7 +91,8 @@ data class SubscriptionPayload(
     val status: String,
     val tier: String,
     val expiryDate: Long?,
-    val totalPaid: Int,
+    val amountPaid: Int,
+    val mpesaTransactionId: String? = null,
 )
 
 /** Login/signup/me response (doc 01 §1.1). */
@@ -118,5 +119,6 @@ fun SubscriptionView.toPayload(): SubscriptionPayload = SubscriptionPayload(
     status = status,
     tier = tier,
     expiryDate = expiryDate,
-    totalPaid = totalPaid,
+    amountPaid = totalPaid,
+    mpesaTransactionId = mpesaTransactionId,
 )

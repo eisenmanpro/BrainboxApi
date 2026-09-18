@@ -79,6 +79,9 @@ class SecurityConfig(
                         // Signed report downloads: the client fetches fileUrl with no
                         // bearer header, so the HMAC-bound token is the authorization.
                         "/teacher/reports/download/**",
+                        // IntaSend cannot present a bearer token; the callback is
+                        // authenticated by the shared challenge inside PaymentService.
+                        "/payments/mpesa/callback",
                         // WebSocket handshakes authenticate themselves in the
                         // LiveSignalingHandshakeInterceptor (Bearer token).
                         "/ws/**",

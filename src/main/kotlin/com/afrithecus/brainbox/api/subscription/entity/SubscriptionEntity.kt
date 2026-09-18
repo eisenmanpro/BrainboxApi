@@ -35,4 +35,8 @@ class SubscriptionEntity : BaseEntity() {
 
     @Column(name = "total_paid", nullable = false)
     var totalPaid: Int = 0
+
+    /** The most recent successful M-Pesa invoice (doc 07 section 2.1). */
+    @Column(name = "mpesa_transaction_id", length = 64)
+    var mpesaTransactionId: String? = null
 }
