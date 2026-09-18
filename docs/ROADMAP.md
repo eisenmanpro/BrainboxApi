@@ -18,12 +18,11 @@ repository is the server that becomes the **single source of truth**. The backen
 must implement the REST contracts in the BrainBox docs, enforce every invariant the
 client already assumes, and later host the agentic content-generation pipeline.
 
-**Authoritative contracts (read these, they win):**
-- BrainBox/docs/backend_contracts/ARCHITECTURE.md — platform overview, tech stack,
-  feature inventory, §13 agentic content pipeline, Appendix A obligations
-- BrainBox/docs/backend_contracts/01..12 — per-domain API contracts with models,
-  endpoints, request/response JSON, and "Critical Server Obligations" appendices
-- BrainBox/docs/backend_contracts/archive/* — older blueprints (superseded by 01..12)
+**Authoritative contracts:** the original BrainBox docs/backend_contracts set
+(ARCHITECTURE.md, 01..14 and the archive) has been retired now that the server
+implements it; it was the starting guide, not a live reference. The durable
+contract is the code plus the per-domain client change docs under
+BrainBox/docs/ongoing/api_*_changes.md, updated as each slice lands.
 
 ---
 
@@ -151,9 +150,10 @@ UX checks; the server MUST enforce:
 
 ## 5. Phased Delivery Plan
 
-Phases come from BrainBox/docs/backend_contracts/11_... Appendix A (checklist), with
-agentic pipeline added as Phase 7. Each phase becomes its own session goal when it
-starts; this document is the durable long-term plan. Progress = checked items.
+Phases come from the original doc 11 Appendix A checklist (its source document has
+been retired), with the agentic pipeline added as Phase 7. Each phase becomes its
+own session goal when it starts; this document is the durable long-term plan.
+Progress = checked items.
 
 ### Phase 1 — Core Infrastructure  (goal 1) — COMPLETE (commit e1a1dae + this round)
 - [x] Project setup: com.afrithecus.brainbox.api, profiles (dev/staging/prod), env-driven secrets,
