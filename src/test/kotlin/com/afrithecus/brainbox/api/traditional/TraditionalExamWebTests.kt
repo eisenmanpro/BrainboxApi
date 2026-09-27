@@ -715,4 +715,44 @@ class TraditionalExamWebTests(
                 .content(objectMapper.writeValueAsString(listOf(MarkEntryDto(otherStudent.id.toString(), "MAT", 70))))
         ).andExpect(status().isOk)
     }
+
+    /**
+     * The grant body carries only the pair the grant is about. The permission id, grantor,
+     * expiry and used flag are server-owned, so a client that manages to omit them must
+     * still be able to grant (and an older client that sends them is ignored).
+     */
+    @Test
+    fun `granting an edit permission needs only the student and teacher`() {
+        val coordinator = user(Role.TEACHER, "Coordinator Grant", "0700000500", grade = "Grade 8", subRole = SubRole.GRADE_COORDINATOR)
+        val teacher = user(Role.TEACHER, "Teacher Grant", "0700000501", grade = "Grade 8")
+        val student = user(Role.STUDENT, "Pupil Grant", "0700000502", grade = "Grade 8", admission = "ADM-301")
+        val coordinatorToken = token(coordinator)
+
+        val created = objectMapper.readValue(
+            mockMvc.perform(
+                post("/traditional/exams").header("Authorization", auth(coordinatorToken))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        objectMapper.writeValueAsString(
+                            CreateTraditionalExamRequest(
+                                examId = "TRAD_Grade8_OPENER_2026_T1",
+                                title = "Opener Term 1 2026 - Grade 8",
+                                term = ExamTerm.TERM_1,
+                                gradeLevel = "Grade 8",
+                                year = 2026,
+                                subjects = listOf(SubjectConfigDto("MAT", "Mathematics", 100, TraditionalSubjectType.SINGLE)),
+                            )
+                        )
+                    )
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            TraditionalExamDto::class.java,
+        )
+
+        mockMvc.perform(
+            post("/traditional/exams/${created.examId}/edit-permission/grant")
+                .header("Authorization", auth(coordinatorToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"studentId\":\"${student.id}\",\"teacherId\":\"${teacher.id}\"}")
+        ).andExpect(status().isNoContent)
+    }
 }

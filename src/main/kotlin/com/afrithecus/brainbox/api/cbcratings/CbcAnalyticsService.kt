@@ -49,11 +49,25 @@ class CbcAnalyticsService(
 ) {
 
     @Transactional(readOnly = true)
-    fun curriculumMap(): CbcCurriculumMapPayload = CbcCurriculumMapPayload(
-        strands = strandRepository.findAllByOrderBySortOrderAsc().map {
-            CbcStrandInfoPayload(it.code, it.name, it.descriptor, it.gradeLevel)
-        },
-    )
+    fun curriculumMap(): CbcCurriculumMapPayload {
+        val rows = strandRepository.findAllByOrderBySortOrderAsc()
+        // Sub-strands carry a parent id; the payload speaks in codes so a client can
+        // nest them without knowing server ids.
+        val codeById = rows.associate { it.id to it.code }
+        return CbcCurriculumMapPayload(
+            strands = rows.map {
+                CbcStrandInfoPayload(
+                    code = it.code,
+                    name = it.name,
+                    descriptor = it.descriptor,
+                    gradeLevel = it.gradeLevel,
+                    subject = it.subject,
+                    level = it.level,
+                    parentCode = it.parentId?.let(codeById::get),
+                )
+            },
+        )
+    }
 
     @Transactional
     fun inputRating(

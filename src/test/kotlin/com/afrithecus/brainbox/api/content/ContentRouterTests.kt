@@ -266,6 +266,7 @@ class ContentRouterTests(
         entityManager.clear()
 
         val stored = requireNotNull(contentUnits.findByGenerationKey(key))
+        check(stored.agentCode == "MATH") { "the unit carries its agent for review, was " + stored.agentCode }
         check(stored.subject == "Mathematics")
         check(stored.conceptId == concept.id)
         check(stored.gradeLevel == "Grade 4")
@@ -333,6 +334,10 @@ class ContentRouterTests(
         check(run.jobId != null)
         check(run.model == "fake-model")
         check(run.confidence != null)
+        // Attribution: the capture tables must say which domain agent and prompt version
+        // produced the unit, not just which model answered.
+        check(run.agentCode == "MATH") { "a Mathematics lesson must be attributed to MATH, was " + run.agentCode }
+        check(run.promptVersion == "content-gen-v1") { "was " + run.promptVersion }
 
         val calls = modelCalls.findAllByAgentRunId(run.id)
         check(calls.size == 1)

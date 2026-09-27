@@ -4,10 +4,12 @@ import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
+import com.afrithecus.brainbox.api.common.web.PublicUrlBuilder
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.media.entity.MediaUploadEntity
 import com.afrithecus.brainbox.api.media.repository.MediaUploadRepository
+import com.afrithecus.brainbox.api.media.security.MediaScanAction
 import com.afrithecus.brainbox.api.media.web.MediaUploadInitiateRequest
 import com.afrithecus.brainbox.api.media.web.MediaUploadTicket
 import com.afrithecus.brainbox.api.storage.ObjectStorage
@@ -39,6 +41,9 @@ class MediaUploadService(
     @Qualifier("mediaObjectStorage") private val storage: ObjectStorage,
     private val uploads: MediaUploadRepository,
     private val storageProperties: StorageProperties,
+    private val urls: PublicUrlBuilder,
+    /** The malware-scan gate: runs after the format check, before VERIFIED. */
+    private val scanGate: MediaScanGate,
     private val clock: Clock,
     @Value("\${app.media.max-upload-bytes:26214400}") private val maxUploadBytes: Long,
 ) {
@@ -104,11 +109,67 @@ class MediaUploadService(
             ?: reject(row, "The uploaded file could not be read")
         val detected = MediaContentTypes.detect(prefix) ?: reject(row, "Unsupported or unrecognised file type")
         if (detected != kind) reject(row, "The file content does not match the declared type")
+
+        // A direct PUT bypassed the proxied path's mid-flight inspection, so the object is
+        // scanned in full here and the verdict is recorded even when it passes. A refusal
+        // quarantines the bytes by default (the console can inspect, restore or delete) or
+        // deletes them when the deployment says so.
+        val scan = scanGate.inspect(
+            uploadId = row.id,
+            storageKey = row.storageKey,
+            ownerId = row.ownerId,
+            sizeBytes = metadata.sizeBytes,
+            contentType = kind.contentType,
+        ) { storage.get(row.storageKey) }
+        row.scanStatus = scan.status.name
+        row.scanDetail = scan.detail?.take(MAX_SCAN_DETAIL_CHARS)
+        row.scanner = scan.provider
+        row.scanAction = scan.action.name
+        row.quarantineId = scan.quarantineId
+        if (!scan.allowed) {
+            val reason = if (scan.status == MediaScanStatus.INFECTED) {
+                "This file was rejected by the malware scan"
+            } else {
+                "This file could not be scanned and was refused"
+            }
+            rejectScanned(row, scan.action, reason + scan.detail?.let { ": " + it }.orEmpty())
+        }
         row.status = STATUS_VERIFIED
         row.sizeBytes = metadata.sizeBytes
         uploads.save(row)
         return payload(row, kind, baseUrl)
     }
+
+    /**
+     * The served URL of a ticket this caller already confirmed, or null while it is still
+     * PENDING. Lets a record-creating endpoint (a teacher document) reference a
+     * client-direct upload instead of carrying the bytes through the API.
+     *
+     * Refuses another user's ticket and an unknown one, so a client cannot point a record
+     * at a key it never uploaded.
+     */
+    @Transactional(readOnly = true)
+    fun confirmedUpload(owner: UserEntity, uploadIdRaw: String, baseUrl: String? = null): ConfirmedUpload? {
+        val row = uploads.findById(parseUuid(uploadIdRaw)).orElse(null)
+            ?: throw notFound("Upload not found")
+        if (row.ownerId != owner.id) throw ApiException(ApiErrorCode.FORBIDDEN, "Not your upload")
+        if (row.status != STATUS_VERIFIED) return null
+        val kind = MediaKind.valueOf(row.declaredKind)
+        return ConfirmedUpload(
+            url = payload(row, kind, baseUrl).url,
+            kind = kind,
+            purpose = row.purpose,
+            sizeBytes = row.sizeBytes,
+        )
+    }
+
+    /** A confirmed client-direct upload, ready to be referenced by a record. */
+    data class ConfirmedUpload(
+        val url: String,
+        val kind: MediaKind,
+        val purpose: String,
+        val sizeBytes: Long?,
+    )
 
     /** Deletes the object of every PENDING ticket whose presigned window passed. */
     @Transactional
@@ -129,9 +190,23 @@ class MediaUploadService(
         throw invalidArgument(message)
     }
 
+    /**
+     * Applies the scan policy's outcome for a refused object. A quarantined object has
+     * already been moved out of its serving key, so storage is left alone; every other
+     * outcome (delete, or a policy that could not quarantine) destroys the object, so a
+     * refused upload never stays servable.
+     */
+    private fun rejectScanned(row: MediaUploadEntity, action: MediaScanAction, message: String): Nothing {
+        val quarantined = action == MediaScanAction.QUARANTINED
+        if (!quarantined) runCatching { storage.delete(row.storageKey) }
+        row.status = if (quarantined) STATUS_QUARANTINED else STATUS_REJECTED
+        uploads.save(row)
+        throw invalidArgument(message)
+    }
+
     private fun payload(row: MediaUploadEntity, kind: MediaKind, baseUrl: String?): MediaUploadResponsePayload =
         MediaUploadResponsePayload(
-            url = baseUrl?.trim()?.trimEnd('/').orEmpty() + "/media/" + row.storageKey,
+            url = urls.mediaUrl(row.storageKey, baseUrl),
             mediaType = when {
                 kind.isVideo -> "VIDEO"
                 kind.isImage -> "IMAGE"
@@ -149,7 +224,8 @@ class MediaUploadService(
     }
 
     private fun parsePurpose(raw: String): MediaPurpose =
-        parsePurposeOrNull(raw) ?: throw invalidArgument("purpose must be MEDIA, HOMEWORK_ATTACHMENT or DOCUMENT")
+        parsePurposeOrNull(raw)
+            ?: throw invalidArgument("purpose must be MEDIA, HOMEWORK_ATTACHMENT, CHAT_ATTACHMENT or DOCUMENT")
 
     private fun parsePurposeOrNull(raw: String): MediaPurpose? =
         runCatching { MediaPurpose.valueOf(raw.trim().uppercase()) }.getOrNull()
@@ -163,9 +239,13 @@ class MediaUploadService(
         const val STATUS_VERIFIED = "VERIFIED"
         const val STATUS_REJECTED = "REJECTED"
 
+        /** The object is held in quarantine rather than deleted or served. */
+        const val STATUS_QUARANTINED = "QUARANTINED"
+
         /** Enough of the file to identify a ZIP-based DOCX/EPUB as well as a header. */
         const val DETECT_PREFIX_BYTES = 64 * 1024
         const val MAX_PENDING_PER_USER = 10L
+        const val MAX_SCAN_DETAIL_CHARS = 200
         val UPLOAD_GRACE: Duration = Duration.ofMinutes(15)
     }
 }

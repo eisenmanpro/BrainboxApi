@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.media.web
 
+import com.afrithecus.brainbox.api.media.MediaProperties
 import com.afrithecus.brainbox.api.media.MediaService
 import org.springframework.http.CacheControl
 import org.springframework.http.HttpStatus
@@ -21,7 +22,23 @@ import java.time.Duration
  */
 @RestController
 @RequestMapping("/media")
-class MediaController(private val service: MediaService) {
+class MediaController(
+    private val service: MediaService,
+    private val properties: MediaProperties,
+) {
+
+    /**
+     * `public, max-age=<configured>, immutable` when a CDN is fronting the deployment,
+     * otherwise `private, max-age=<configured>` (the historical behaviour).
+     */
+    private fun cacheControl(): CacheControl {
+        val maxAge = Duration.ofSeconds(properties.cache.maxAgeSeconds)
+        return if (properties.cache.publicCache) {
+            CacheControl.maxAge(maxAge).cachePublic().immutable()
+        } else {
+            CacheControl.maxAge(maxAge).cachePrivate()
+        }
+    }
 
     @GetMapping("/{filename}")
     fun download(@PathVariable filename: String): ResponseEntity<ByteArray> {
@@ -44,7 +61,10 @@ class MediaController(private val service: MediaService) {
             .header("Content-Security-Policy", "default-src 'none'; sandbox")
             .header("Referrer-Policy", "no-referrer")
             .header("Content-Disposition", if (isRenderable) "inline" else "attachment")
-            .cacheControl(CacheControl.maxAge(Duration.ofDays(30)).cachePrivate())
+            // Keys are UUIDs that are never reused, so the bytes are immutable. Until a
+            // CDN or reverse proxy is in front (`app.media.cache.public=true`) the
+            // response stays `private`, which keeps the no-shared-cache posture.
+            .cacheControl(cacheControl())
             .body(bytes)
     }
 }

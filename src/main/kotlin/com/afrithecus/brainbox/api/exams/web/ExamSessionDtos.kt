@@ -137,4 +137,8 @@ data class DocumentItem(
     val questionCount: Int? = null,
     val examYear: Int? = null,
     val isMcp: Boolean = false,
+    /** True when a model wrote this paper (the cover shows a model-generated badge). */
+    val generated: Boolean = false,
+    /** UNREVIEWED | REVIEWED | REJECTED for generated content. */
+    val reviewState: String = "REVIEWED",
 )

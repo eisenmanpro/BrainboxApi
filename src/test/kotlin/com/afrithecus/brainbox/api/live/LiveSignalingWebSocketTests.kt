@@ -42,6 +42,8 @@ class LiveSignalingWebSocketTests(
     @Autowired private val classRepository: LiveClassRepository,
     @Autowired private val registrationRepository: LiveRegistrationRepository,
     @Autowired private val liveClassService: TeacherLiveClassService,
+    /** The class-scoped service that owns polls (create/vote/end). */
+    @Autowired private val pollService: LiveClassService,
     @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val passwordEncoder: PasswordEncoder,
     @LocalServerPort private val port: Int,
@@ -151,6 +153,84 @@ class LiveSignalingWebSocketTests(
         } finally {
             runCatching { hostWs.abort() }
             runCatching { studentWs.abort() }
+        }
+    }
+
+    /**
+     * Polls are pushed over the same class channel: a create, a vote and a close each
+     * reach the other participants immediately, which is what makes the tally live
+     * instead of up to one 15 s refresh old.
+     */
+    @Test
+    fun `opening, voting on and closing a poll is pushed to the class`() {
+        val teacher = user(Role.TEACHER, "Poll Host", "0755050021")
+        val student = user(Role.STUDENT, "Poll Learner", "0755050022")
+        val start = Instant.now().plusSeconds(3600)
+        val clazz = classRepository.save(LiveClassEntity().apply {
+            teacherId = teacher.id
+            teacherName = teacher.name
+            title = "Poll Push"
+            subject = "Mathematics"
+            scheduledStart = start
+            scheduledEnd = start.plusSeconds(3600)
+            status = LiveClassStatus.SCHEDULED
+        })
+        registrationRepository.save(LiveRegistrationEntity().apply {
+            classId = clazz.id
+            studentId = student.id
+        })
+
+        val hostToken = jwtTokenService.issueAccessToken(teacher.id, Role.TEACHER)
+        val learnerToken = jwtTokenService.issueAccessToken(student.id, Role.STUDENT)
+        val (hostWs, hostQueue) = connect(clazz.id, hostToken)
+        val (learnerWs, learnerQueue) = connect(clazz.id, learnerToken)
+
+        try {
+            // The host opens a poll through the service (the REST call the teacher app makes).
+            val created = pollService.createParticipantPoll(
+                com.afrithecus.brainbox.api.identity.model.CurrentUser(teacher.id, Role.TEACHER, null),
+                clazz.id.toString(),
+                com.afrithecus.brainbox.api.live.web.CreatePollRequest("Ready?", listOf("Yes", "No")),
+                java.util.UUID.randomUUID().toString(),
+            )
+            // Both connections get the create frame; drain the host's too so the next
+            // frame the host sees is the vote.
+            val createdFrame = awaitType(learnerQueue, "poll_update")
+            awaitType(hostQueue, "poll_update")
+            check(createdFrame.get("poll").get("id").asString() == created.id)
+            check(createdFrame.get("poll").get("question").asString() == "Ready?")
+            check(createdFrame.get("poll").get("isActive").asBoolean())
+            check(createdFrame.get("poll").get("createdBy").asString() == teacher.id.toString())
+            // The option list travels with the frame, so a client can render it immediately.
+            check(createdFrame.get("poll").get("options").size() == 2)
+
+            // A learner vote pushes the new tally to the host.
+            pollService.vote(
+                com.afrithecus.brainbox.api.identity.model.CurrentUser(student.id, Role.STUDENT, null),
+                clazz.id.toString(),
+                created.id,
+                0,
+            )
+            val votedFrame = awaitType(hostQueue, "poll_update")
+            check(votedFrame.get("poll").get("votes").get("0").asInt() == 1) { votedFrame.toString() }
+            check(votedFrame.get("poll").get("id").asString() == created.id)
+            // The learner got the same vote frame; drain it so the close is next in line.
+            check(
+                awaitType(learnerQueue, "poll_update").get("poll").get("votes").get("0").asInt() == 1,
+            )
+
+            // Closing pushes isActive=false, which is what stops the vote action everywhere.
+            pollService.endPoll(
+                com.afrithecus.brainbox.api.identity.model.CurrentUser(teacher.id, Role.TEACHER, null),
+                clazz.id.toString(),
+                created.id,
+            )
+            val closedFrame = awaitType(learnerQueue, "poll_update")
+            check(!closedFrame.get("poll").get("isActive").asBoolean()) { closedFrame.toString() }
+            check(closedFrame.get("poll").get("votes").get("0").asInt() == 1)
+        } finally {
+            runCatching { hostWs.abort() }
+            runCatching { learnerWs.abort() }
         }
     }
 

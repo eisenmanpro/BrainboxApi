@@ -16,5 +16,24 @@ services:
       timeout: 5s
       retries: 10
 
+  # Optional shared state for a multi-node deployment. The application runs happily
+  # without it (app.redis.enabled=false keeps counters in process); start it and set
+  # REDIS_ENABLED=true to share rate-limit counters and presence between API nodes.
+  # See docs/ongoing/api_shared_state_changes.md.
+  redis:
+    image: 'redis:7-alpine'
+    container_name: brainbox-redis
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - brainbox-redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   brainbox-postgres-data:
+  brainbox-redis-data:

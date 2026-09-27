@@ -10,6 +10,8 @@ import com.afrithecus.brainbox.api.learning.web.TeacherContentDraftPayload
 import com.afrithecus.brainbox.api.learning.web.TeacherContentPayload
 import com.afrithecus.brainbox.api.learning.web.TeacherDocumentPayload
 import com.afrithecus.brainbox.api.learning.web.TeacherPostPayload
+import com.afrithecus.brainbox.api.media.entity.MediaUploadEntity
+import com.afrithecus.brainbox.api.media.repository.MediaUploadRepository
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -39,6 +41,7 @@ class TeacherContentWebTests(
     @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val userRepository: UserRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
+    @Autowired private val mediaUploads: MediaUploadRepository,
 ) {
     private fun teacher(phone: String): UserEntity = userRepository.save(UserEntity().apply {
         phoneNumber = phone
@@ -224,6 +227,101 @@ class TeacherContentWebTests(
                 Array<TeacherDocumentPayload>::class.java,
             ).isEmpty()
         )
+    }
+
+    /**
+     * A presigned (client-direct) upload can create the document: the endpoint takes the
+     * confirmed ticket's id instead of the bytes, and only the owner's confirmed ticket
+     * of a document kind is accepted.
+     */
+    @Test
+    fun `a document can reference a confirmed presigned upload`() {
+        val teacher = teacher("0744000150")
+        val other = teacher("0744000151")
+        val token = token(teacher)
+
+        fun confirmed(id: UUID, owner: UserEntity, kind: String, purpose: String = "DOCUMENT") =
+            mediaUploads.save(
+                MediaUploadEntity().apply {
+                    this.id = id
+                    ownerId = owner.id
+                    storageKey = id.toString() + ".pdf"
+                    declaredKind = kind
+                    this.purpose = purpose
+                    status = "VERIFIED"
+                    sizeBytes = 2048
+                    expiresAt = java.time.Instant.now().plusSeconds(600)
+                }
+            )
+
+        val ticket = UUID.randomUUID()
+        confirmed(ticket, teacher, "PDF")
+
+        val payload = objectMapper.readValue(
+            mockMvc.perform(
+                multipart("/teacher/content/document")
+                    .file(MockMultipartFile("title", null, "text/plain", "Presigned notes".toByteArray()))
+                    .file(MockMultipartFile("type", null, "text/plain", "PDF".toByteArray()))
+                    .file(MockMultipartFile("id", null, "text/plain", "doc_presigned".toByteArray()))
+                    .file(MockMultipartFile("uploadId", null, "text/plain", ticket.toString().toByteArray()))
+                    .header("Authorization", auth(token))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            TeacherDocumentPayload::class.java,
+        )
+        check(payload.id == "doc_presigned")
+        check(payload.sourcePath.endsWith("/media/$ticket.pdf")) {
+            "the document must reference the confirmed object, was ${payload.sourcePath}"
+        }
+
+        // An unknown ticket, another teacher's ticket and a non-document kind are refused.
+        mockMvc.perform(
+            multipart("/teacher/content/document")
+                .file(MockMultipartFile("title", null, "text/plain", "Nope".toByteArray()))
+                .file(MockMultipartFile("type", null, "text/plain", "PDF".toByteArray()))
+                .file(MockMultipartFile("uploadId", null, "text/plain", UUID.randomUUID().toString().toByteArray()))
+                .header("Authorization", auth(token))
+        ).andExpect(status().isNotFound)
+
+        val foreign = UUID.randomUUID()
+        confirmed(foreign, other, "PDF")
+        mockMvc.perform(
+            multipart("/teacher/content/document")
+                .file(MockMultipartFile("title", null, "text/plain", "Nope".toByteArray()))
+                .file(MockMultipartFile("type", null, "text/plain", "PDF".toByteArray()))
+                .file(MockMultipartFile("uploadId", null, "text/plain", foreign.toString().toByteArray()))
+                .header("Authorization", auth(token))
+        ).andExpect(status().isForbidden)
+
+        val image = UUID.randomUUID()
+        confirmed(image, teacher, "PNG", purpose = "MEDIA")
+        mockMvc.perform(
+            multipart("/teacher/content/document")
+                .file(MockMultipartFile("title", null, "text/plain", "Nope".toByteArray()))
+                .file(MockMultipartFile("type", null, "text/plain", "PDF".toByteArray()))
+                .file(MockMultipartFile("uploadId", null, "text/plain", image.toString().toByteArray()))
+                .header("Authorization", auth(token))
+        ).andExpect(status().isBadRequest)
+
+        // A ticket that was never confirmed cannot be referenced.
+        val pending = UUID.randomUUID()
+        mediaUploads.save(
+            MediaUploadEntity().apply {
+                this.id = pending
+                ownerId = teacher.id
+                storageKey = pending.toString() + ".pdf"
+                declaredKind = "PDF"
+                purpose = "DOCUMENT"
+                status = "PENDING"
+                expiresAt = java.time.Instant.now().plusSeconds(600)
+            }
+        )
+        mockMvc.perform(
+            multipart("/teacher/content/document")
+                .file(MockMultipartFile("title", null, "text/plain", "Nope".toByteArray()))
+                .file(MockMultipartFile("type", null, "text/plain", "PDF".toByteArray()))
+                .file(MockMultipartFile("uploadId", null, "text/plain", pending.toString().toByteArray()))
+                .header("Authorization", auth(token))
+        ).andExpect(status().isBadRequest)
     }
 
     @Test

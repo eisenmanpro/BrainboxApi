@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder
 
 /** Learner/parent report exports; see docs/ongoing/pdf_generator_cleanup.md section 3. */
 @RestController
@@ -18,6 +17,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder
 class StudentReportController(
     private val studentReports: StudentReportService,
     private val generation: ReportGenerationService,
+    private val urls: com.afrithecus.brainbox.api.common.web.PublicUrlBuilder,
 ) {
 
     @PostMapping("/generate")
@@ -36,5 +36,5 @@ class StudentReportController(
     @GetMapping("/quota")
     fun quota(@AuthenticationPrincipal current: CurrentUser): ReportQuotaPayload = generation.quota(current)
 
-    private fun baseUrl(): String = ServletUriComponentsBuilder.fromCurrentContextPath().toUriString()
+    private fun baseUrl(): String = urls.baseUrl()
 }

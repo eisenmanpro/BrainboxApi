@@ -82,4 +82,8 @@ class ExamEntity : BaseEntity() {
 
     @Column(name = "close_at")
     var closeAt: Instant? = null
+
+    /** Owner of a PERSONAL practice paper; null for every shared catalog paper. */
+    @Column(name = "owner_user_id")
+    var ownerUserId: UUID? = null
 }

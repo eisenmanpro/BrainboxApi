@@ -61,6 +61,7 @@ class StudentAnalyticsService(
     private val feedbackRepository: TeacherFeedbackRepository,
     private val contractService: LearningContractService,
     private val conferenceBookingRepository: ConferenceBookingRepository,
+    private val conferenceService: com.afrithecus.brainbox.api.conference.ConferenceService,
     private val cbcRatingRepository: CbcRatingRepository,
     private val cbcStrandRepository: CbcStrandRepository,
     private val achievementsService: AchievementsService,
@@ -228,20 +229,9 @@ class StudentAnalyticsService(
     fun conferences(teacher: UserEntity, studentIdRaw: String): List<ConferenceBookingPayload> {
         requireTeacher(teacher)
         val student = requireStudent(teacher, studentIdRaw)
-        return conferenceBookingRepository.findAllByChildIdOrderByBookingDateDesc(student.id).map { booking ->
-            ConferenceBookingPayload(
-                id = booking.clientId,
-                slotId = booking.slotId.toString(),
-                parentId = booking.parentId.toString(),
-                childId = booking.childId.toString(),
-                teacherName = booking.teacherName.orEmpty(),
-                date = booking.bookingDate.toEpochMilli(),
-                time = booking.bookingTime.orEmpty(),
-                meetLink = booking.meetLink,
-                notes = booking.notes,
-                status = booking.status,
-            )
-        }
+        // One booking mapping for the whole app: the conference service resolves the
+        // slot's live-class link, so the analytics history matches the booking reads.
+        return conferenceService.bookingHistory(student.id)
     }
 
     @Transactional(readOnly = true)

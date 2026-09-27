@@ -55,3 +55,14 @@ data class ContentQueueBudgetRequest(
     val platformDailyCostMicros: Long? = null,
     val schoolDailyCostMicros: Long? = null,
 )
+
+/**
+ * One domain subject agent and how much generation it has produced
+ * (`GET admin/content/queue/agents`). The roster is code, the count is captured fact.
+ */
+data class SubjectAgentSummary(
+    val code: String,
+    val displayName: String,
+    val subjects: List<String> = emptyList(),
+    val runs: Long = 0,
+)

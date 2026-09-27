@@ -228,6 +228,105 @@ class ModerationPolicyService(
         set(KEY_GENERATION_DAILY_SCHOOL_COST_BUDGET_MICROS, mapper.writeValueAsString(budget))
     }
 
+    // ------------------------------------------------------------------ media security
+    //
+    // The upload security posture is a runtime policy, not a redeploy: a deployment that
+    // has ClamAV turns it on (and off) here, and the console can relax or tighten URL
+    // reputation and infection handling without a release. Every getter falls back to the
+    // `app.media.scan` / `app.media.url-reputation` deployment default when the row is
+    // absent or malformed, so a bad console write cannot leave uploads unguarded.
+
+    /** Whether uploads are scanned at all. Absent → the deployment default. */
+    fun mediaScanEnabled(fallback: Boolean): Boolean = readBoolean(KEY_MEDIA_SCAN_ENABLED, fallback)
+
+    /** The scanner: none, clamav or http. Absent/unknown → the deployment default. */
+    fun mediaScanProvider(fallback: String): String {
+        val stored = raw(KEY_MEDIA_SCAN_PROVIDER)?.let { runCatching { mapper.readValue(it, String::class.java) }.getOrNull() }
+        val normalized = stored?.trim()?.lowercase()
+        return if (normalized in KNOWN_SCAN_PROVIDERS) normalized!! else fallback.trim().lowercase()
+    }
+
+    /** Accept an object a scanner could not judge. Absent → the deployment default. */
+    fun mediaScanFailOpen(fallback: Boolean): Boolean = readBoolean(KEY_MEDIA_SCAN_FAIL_OPEN, fallback)
+
+    /** What to do with a refused object: QUARANTINE or DELETE. */
+    fun mediaOnInfection(fallback: String): String {
+        val stored = raw(KEY_MEDIA_ON_INFECTION)?.let { runCatching { mapper.readValue(it, String::class.java) }.getOrNull() }
+        val normalized = stored?.trim()?.uppercase()
+        return if (normalized in KNOWN_INFECTION_ACTIONS) normalized!! else fallback.trim().uppercase()
+    }
+
+    /** Whether a refusal or a scanner failure raises a console alert. */
+    fun mediaAlertEnabled(fallback: Boolean): Boolean = readBoolean(KEY_MEDIA_ALERT_ENABLED, fallback)
+
+    /** Whether URLs are reputation-checked before they are stored or fetched. */
+    fun mediaUrlReputationEnabled(fallback: Boolean): Boolean =
+        readBoolean(KEY_MEDIA_URL_REPUTATION_ENABLED, fallback)
+
+    /** The URL check provider: none, deny_list or http. */
+    fun mediaUrlReputationProvider(fallback: String): String {
+        val stored = raw(KEY_MEDIA_URL_REPUTATION_PROVIDER)
+            ?.let { runCatching { mapper.readValue(it, String::class.java) }.getOrNull() }
+        val normalized = stored?.trim()?.lowercase()
+        return if (normalized in KNOWN_URL_PROVIDERS) normalized!! else fallback.trim().lowercase()
+    }
+
+    /** Whether an unreachable URL-reputation provider blocks the URL. */
+    fun mediaUrlReputationFailOpen(fallback: Boolean): Boolean =
+        readBoolean(KEY_MEDIA_URL_REPUTATION_FAIL_OPEN, fallback)
+
+    /** Console write: turns scanning on or off. */
+    @Transactional
+    fun setMediaScanEnabled(enabled: Boolean) = set(KEY_MEDIA_SCAN_ENABLED, mapper.writeValueAsString(enabled))
+
+    /** Console write: switches the scanner; an unknown provider is rejected. */
+    @Transactional
+    fun setMediaScanProvider(provider: String) {
+        val normalized = provider.trim().lowercase()
+        if (normalized !in KNOWN_SCAN_PROVIDERS) {
+            throw invalidArgument("mediaScanProvider must be one of " + KNOWN_SCAN_PROVIDERS.joinToString(", "))
+        }
+        set(KEY_MEDIA_SCAN_PROVIDER, mapper.writeValueAsString(normalized))
+    }
+
+    /** Console write: accept or refuse an object the scanner could not judge. */
+    @Transactional
+    fun setMediaScanFailOpen(failOpen: Boolean) = set(KEY_MEDIA_SCAN_FAIL_OPEN, mapper.writeValueAsString(failOpen))
+
+    /** Console write: quarantine (default) or delete a refused object. */
+    @Transactional
+    fun setMediaOnInfection(action: String) {
+        val normalized = action.trim().uppercase()
+        if (normalized !in KNOWN_INFECTION_ACTIONS) {
+            throw invalidArgument("mediaOnInfection must be QUARANTINE or DELETE")
+        }
+        set(KEY_MEDIA_ON_INFECTION, mapper.writeValueAsString(normalized))
+    }
+
+    /** Console write: raise (or silence) media security alerts. */
+    @Transactional
+    fun setMediaAlertEnabled(enabled: Boolean) = set(KEY_MEDIA_ALERT_ENABLED, mapper.writeValueAsString(enabled))
+
+    /** Console write: turn URL reputation on or off. */
+    @Transactional
+    fun setMediaUrlReputationEnabled(enabled: Boolean) =
+        set(KEY_MEDIA_URL_REPUTATION_ENABLED, mapper.writeValueAsString(enabled))
+
+    /** Console write: choose the URL reputation provider. */
+    @Transactional
+    fun setMediaUrlReputationProvider(provider: String) {
+        val normalized = provider.trim().lowercase()
+        if (normalized !in KNOWN_URL_PROVIDERS) {
+            throw invalidArgument("mediaUrlReputationProvider must be one of " + KNOWN_URL_PROVIDERS.joinToString(", "))
+        }
+        set(KEY_MEDIA_URL_REPUTATION_PROVIDER, mapper.writeValueAsString(normalized))
+    }
+
+    /** Console write: block or allow a URL when the reputation provider cannot answer. */
+    @Transactional
+    fun setMediaUrlReputationFailOpen(failOpen: Boolean) =
+        set(KEY_MEDIA_URL_REPUTATION_FAIL_OPEN, mapper.writeValueAsString(failOpen))
+
     /** Console write: sets one policy override to a JSON value. */
     @Transactional
     fun set(key: String, json: String) {
@@ -290,5 +389,18 @@ class ModerationPolicyService(
         const val DEFAULT_AUTO_APPROVE_MIN_CRITIC_CONFIDENCE = 0.90
         const val DEFAULT_ANSWER_KEY_MIN_AGREEMENT = 1.0
         const val DEFAULT_ANSWER_KEY_DROP_DISAGREEMENTS = true
+
+        /** Media security keys; the deployment defaults come from app.media.* config. */
+        const val KEY_MEDIA_SCAN_ENABLED = "media_scan_enabled"
+        const val KEY_MEDIA_SCAN_PROVIDER = "media_scan_provider"
+        const val KEY_MEDIA_SCAN_FAIL_OPEN = "media_scan_fail_open"
+        const val KEY_MEDIA_ON_INFECTION = "media_on_infection"
+        const val KEY_MEDIA_ALERT_ENABLED = "media_alert_enabled"
+        const val KEY_MEDIA_URL_REPUTATION_ENABLED = "media_url_reputation_enabled"
+        const val KEY_MEDIA_URL_REPUTATION_PROVIDER = "media_url_reputation_provider"
+        const val KEY_MEDIA_URL_REPUTATION_FAIL_OPEN = "media_url_reputation_fail_open"
+        val KNOWN_SCAN_PROVIDERS = setOf("none", "clamav", "http")
+        val KNOWN_URL_PROVIDERS = setOf("none", "deny_list", "http")
+        val KNOWN_INFECTION_ACTIONS = setOf("QUARANTINE", "DELETE")
     }
 }

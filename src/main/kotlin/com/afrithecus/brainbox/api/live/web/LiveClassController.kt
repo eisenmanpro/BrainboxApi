@@ -70,8 +70,20 @@ class LiveClassController(
     fun createPoll(
         @AuthenticationPrincipal current: CurrentUser,
         @PathVariable classId: String,
+        @RequestParam(required = false) clientPollId: String?,
         @Valid @RequestBody request: CreatePollRequest,
-    ): LivePollPayload = service.createPoll(current, classId, request)
+    ): LivePollPayload = service.createParticipantPoll(current, classId, request, clientPollId)
+
+    /**
+     * Closes a poll. The host, an admin, or the poll's own author may call it; a replay
+     * returns the already-closed poll rather than an error.
+     */
+    @PostMapping("/class/{classId}/poll/{pollId}/end")
+    fun endPoll(
+        @AuthenticationPrincipal current: CurrentUser,
+        @PathVariable classId: String,
+        @PathVariable pollId: String,
+    ): LivePollPayload = service.endPoll(current, classId, pollId)
 
     @PostMapping("/class/{classId}/poll/{pollId}/vote")
     fun vote(

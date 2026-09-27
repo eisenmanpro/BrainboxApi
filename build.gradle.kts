@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.Afrithecus"
-version = "0.0.1-SNAPSHOT"
+version = "1.0.0"
 
 java {
     toolchain {
@@ -32,6 +32,10 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-websocket")
     implementation("org.springframework.boot:spring-boot-starter-flyway")
+    // Redis is optional at runtime: app.redis.enabled=false (the default) keeps every
+    // counter in process, and the starter being present is what makes adoption a config
+    // change rather than a build change. See docs/ongoing/api_shared_state_changes.md.
+    implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("org.springframework.security:spring-security-oauth2-jose")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.springframework.ai:spring-ai-pdf-document-reader")

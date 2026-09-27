@@ -81,6 +81,25 @@ class LiveSignalingHandler(
         sessions.remove(classId)?.forEach { session -> runCatching { session.close(CloseStatus.NORMAL) } }
     }
 
+    /**
+     * Pushes a poll to everyone in the class the moment it is created, voted on or
+     * closed, so the tally is live instead of up to one refresh interval old. The frame
+     * carries the same payload the REST read returns, so a client applies it with the
+     * code path it already uses for `GET live/class/{classId}/polls`.
+     *
+     * The 15 s poll read stays as the fallback for a client whose socket is down.
+     */
+    fun broadcastPoll(classId: UUID, poll: Any) {
+        broadcast(
+            classId,
+            mapOf(
+                "type" to "poll_update",
+                "poll" to poll,
+                "timestamp" to System.currentTimeMillis(),
+            ),
+        )
+    }
+
     fun connectionCount(classId: UUID): Int = sessions[classId]?.size ?: 0
 
     private fun broadcast(classId: UUID, payload: Any, except: WebSocketSession? = null) {

@@ -75,6 +75,7 @@ class GeneratedContentServingTests(
     @Autowired private val readables: ReadableFileRepository,
     @Autowired private val users: UserRepository,
     @Autowired private val examRepository: ExamRepository,
+    @Autowired private val cbcStrands: com.afrithecus.brainbox.api.cbcratings.repository.CbcStrandRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
     @Autowired private val entityManager: EntityManager,
 ) {
@@ -436,5 +437,145 @@ class GeneratedContentServingTests(
     private companion object {
         val nextLearner = AtomicInteger(0)
         val nextAdmin = AtomicInteger(0)
+    }
+
+    /**
+     * The badge data has to reach the client, not just exist server-side: a learning post,
+     * a readable chunk and a practice paper all resolve their provenance from the content
+     * unit that produced them.
+     */
+    @Test
+    fun `generated content tells the client it is model-generated`() {
+        fake.clean = true
+        batch.enqueueBatch(
+            ContentBatchRequest(
+                gradeLevel = "Grade 4",
+                subject = "Mathematics",
+                taskTypes = listOf("NOTES", "PRACTICE_PAPER"),
+                limit = 1,
+            )
+        )
+        worker.poll()
+        flushAndClear()
+        val token = learnerToken()
+
+        val notesUnit = storedUnit("NOTES")
+        check(notesUnit.provenance == "GENERATED")
+        val post = objectMapper.readValue(
+            mockMvc.perform(get("/learning/post/" + notesUnit.id).header("Authorization", auth(token)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            com.afrithecus.brainbox.api.learning.web.LearningPostPayload::class.java,
+        )
+        check(post.generated) { "the hub post must be flagged model-generated" }
+        check(post.reviewState == "REVIEWED") { "auto-approved content is REVIEWED, was " + post.reviewState }
+
+        val chunkRequest = batch.buildRequest(topic, "CHUNK", "Grade 4", "en", "v1")
+        jobService.enqueue(chunkRequest, GenerationJobSource.BATCH)
+        worker.poll()
+        flushAndClear()
+        val chunkUnit = requireNotNull(contentUnits.findByGenerationKey(chunkRequest.generationKey))
+        val chunk = objectMapper.readValue(
+            mockMvc.perform(get("/materials/readable/" + chunkUnit.id).header("Authorization", auth(token)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            ReadableFilePayload::class.java,
+        )
+        check(chunk.generated) { "the readable chunk must be flagged model-generated" }
+        check(chunk.reviewState == "REVIEWED")
+
+        val paperKey = batch.practicePaperKey("Grade 4", "Mathematics", 1, "en", "v1")
+        val paperUnit = requireNotNull(contentUnits.findByGenerationKey(paperKey))
+        val listing = objectMapper.readValue(
+            mockMvc.perform(get("/practice-papers/all").header("Authorization", auth(token)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<com.afrithecus.brainbox.api.exams.web.DocumentItem>::class.java,
+        )
+        val paper = listing.firstOrNull { it.id == paperUnit.id.toString() }
+        check(paper != null) { "the generated paper must appear in the practice-paper listing" }
+        check(paper!!.generated) { "the paper cover must be flagged model-generated" }
+        check(paper.reviewState == "REVIEWED")
+
+        // A teacher-uploaded material has no unit behind it and is never labelled generated.
+        val authored = com.afrithecus.brainbox.api.learning.entity.ReadableFileEntity().apply {
+            title = "Authored handout"
+            subject = "Mathematics"
+            docType = "PDF"
+            fileUrl = "/media/handout.pdf"
+            fileType = com.afrithecus.brainbox.api.learning.model.FileType.PDF
+            pageCount = 2
+            sizeBytes = 1024
+            createdBy = users.findAll().first().id
+            isActive = true
+            gradeLevel = "Grade 4"
+        }
+        readables.save(authored)
+        flushAndClear()
+        val authoredPayload = objectMapper.readValue(
+            mockMvc.perform(get("/materials/readable/" + authored.id).header("Authorization", auth(token)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            ReadableFilePayload::class.java,
+        )
+        check(!authoredPayload.generated) { "a human-authored material must not be flagged generated" }
+        check(authoredPayload.reviewState == "REVIEWED")
+    }
+
+    /**
+     * Section I: the strand and sub-strand a requester picks travel with the unit and name
+     * the projected learner content, so authored and generated content align by code.
+     */
+    @Test
+    fun `picked strand codes align the projected content`() {
+        val strand = cbcStrands.save(
+            com.afrithecus.brainbox.api.cbcratings.entity.CbcStrandEntity().apply {
+                code = "MAT4-NUM-01"
+                name = "Numbers"
+                descriptor = "Number sense"
+                gradeLevel = "Grade 4"
+                subject = "Mathematics"
+                level = "STRAND"
+                sortOrder = 1
+            }
+        )
+        cbcStrands.save(
+            com.afrithecus.brainbox.api.cbcratings.entity.CbcStrandEntity().apply {
+                code = "MAT4-NUM-01-S1"
+                name = "Fractions"
+                descriptor = "Compare fractions"
+                gradeLevel = "Grade 4"
+                subject = "Mathematics"
+                level = "SUBSTRAND"
+                parentId = strand.id
+                sortOrder = 2
+            }
+        )
+
+        fake.clean = true
+        val request = batch.buildRequest(topic, "NOTES", "Grade 4", "en", "v1")
+            .copy(cbcStrand = "MAT4-NUM-01", cbcSubStrand = "MAT4-NUM-01-S1")
+        jobService.enqueue(request, GenerationJobSource.BATCH)
+        worker.poll()
+        flushAndClear()
+
+        val unit = requireNotNull(contentUnits.findByGenerationKey(request.generationKey))
+        check(unit.cbcStrand == "MAT4-NUM-01") { "the picked strand code must be stored on the unit" }
+        check(unit.cbcSubStrand == "MAT4-NUM-01-S1")
+
+        val post = requireNotNull(posts.findById(unit.id).orElse(null))
+        check(post.cbcStrand == "Numbers") { "the projection names the strand, was " + post.cbcStrand }
+        check(post.cbcSubStrand == "Fractions") { "the sub-strand is projection-visible, was " + post.cbcSubStrand }
+    }
+
+    /** A picked sub-strand without a catalogue row still reaches the content as its code. */
+    @Test
+    fun `an unknown strand code falls back to the code itself`() {
+        fake.clean = true
+        val request = batch.buildRequest(topic, "NOTES", "Grade 4", "en", "v1")
+            .copy(cbcStrand = "NOT-IN-CATALOGUE")
+        jobService.enqueue(request, GenerationJobSource.BATCH)
+        worker.poll()
+        flushAndClear()
+
+        val unit = requireNotNull(contentUnits.findByGenerationKey(request.generationKey))
+        val post = requireNotNull(posts.findById(unit.id).orElse(null))
+        check(post.cbcStrand == "NOT-IN-CATALOGUE") { "unresolved codes pass through, was " + post.cbcStrand }
     }
 }

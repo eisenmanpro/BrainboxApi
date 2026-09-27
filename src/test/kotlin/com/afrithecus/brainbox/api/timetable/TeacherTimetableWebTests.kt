@@ -170,6 +170,67 @@ class TeacherTimetableWebTests(
             .andExpect(status().isNoContent)
     }
 
+    /**
+     * The 409 body is the contract the client renders inline: the clashing entry (or
+     * room booking) travels with it, so the app can name what it collided with instead
+     * of only repeating "that time is taken".
+     */
+    @Test
+    fun `a clash returns the clashing entry and booking`() {
+        val teacher = user(Role.TEACHER, "Clash Teacher", "0755020090")
+        val clazz = teachClass(teacher, "Grade 4 South", "Mathematics")
+        val t = token(teacher)
+
+        val first = entry().copy(id = "clash_1", classId = clazz.id.toString(), startTime = "08:00", endTime = "09:00")
+        mockMvc.perform(post("/teacher/timetable/entries").header("Authorization", auth(t))
+            .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(first)))
+            .andExpect(status().isOk)
+
+        val clashBody = mockMvc.perform(post("/teacher/timetable/entries").header("Authorization", auth(t))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(
+                first.copy(id = "clash_2", startTime = "08:30", endTime = "09:30"))))
+            .andExpect(status().isConflict).andReturn().response.contentAsString
+
+        val clash = objectMapper.readTree(clashBody)
+        check(clash.get("error").asString() == "CONFLICT")
+        check(clash.get("message").asString().isNotBlank())
+        val entryDetails = clash.get("details")
+        check(entryDetails.get("conflictType").asString() == "TEACHER_OVERLAP")
+        check(entryDetails.get("clashingEntryId").asString() == "clash_1")
+        val clashingEntry = entryDetails.get("clashingEntry")
+        check(clashingEntry.get("id").asString() == "clash_1")
+        check(clashingEntry.get("startTime").asString() == "08:00")
+        check(clashingEntry.get("endTime").asString() == "09:00")
+        check(clashingEntry.get("subject").asString() == "Mathematics")
+
+        // Room bookings carry the booking the same way.
+        val base = System.currentTimeMillis() + 86_400_000L
+        fun booking(id: String, room: String, start: Long, end: Long) = RoomBookingPayload(
+            id = id, roomId = room, roomName = "Room 101", teacherName = "Clash Teacher",
+            startTime = start, endTime = end, purpose = "Revision",
+        )
+        mockMvc.perform(post("/teacher/rooms/book").header("Authorization", auth(t))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(booking("clash_booking_1", "room9", base, base + 3_600_000))))
+            .andExpect(status().isOk)
+
+        val roomClashBody = mockMvc.perform(post("/teacher/rooms/book").header("Authorization", auth(t))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(
+                booking("clash_booking_2", "room9", base + 1_800_000, base + 5_400_000))))
+            .andExpect(status().isConflict).andReturn().response.contentAsString
+
+        val roomClash = objectMapper.readTree(roomClashBody)
+        val bookingDetails = roomClash.get("details")
+        check(bookingDetails.get("conflictType").asString() == "ROOM_OVERLAP")
+        check(bookingDetails.get("clashingBookingId").asString() == "clash_booking_1")
+        val clashingBooking = bookingDetails.get("clashingBooking")
+        check(clashingBooking.get("id").asString() == "clash_booking_1")
+        check(clashingBooking.get("roomId").asString() == "room9")
+        check(clashingBooking.get("startTime").asLong() == base)
+    }
+
     @Test
     fun `auto schedule is idempotent and the kenyan export round trips`() {
         val teacher = user(Role.TEACHER, "Science Teacher", "0755020010")

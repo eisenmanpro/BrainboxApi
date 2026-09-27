@@ -16,5 +16,13 @@ interface AuditLogRepository : JpaRepository<AuditLogEntity, UUID> {
         pageable: Pageable,
     ): List<AuditLogEntity>
 
+    /** Platform console entries (no school), newest first. */
+    fun findAllBySchoolIdIsNullOrderByCreatedAtDesc(pageable: Pageable): List<AuditLogEntity>
+
+    fun findAllBySchoolIdIsNullAndCreatedAtLessThanOrderByCreatedAtDesc(
+        before: Instant,
+        pageable: Pageable,
+    ): List<AuditLogEntity>
+
     fun deleteByCreatedAtBefore(cutoff: Instant): Long
 }

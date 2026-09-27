@@ -360,12 +360,23 @@ class ConferenceService(
         return bookings.map { booking -> bookingPayload(booking, users) }
     }
 
+    /**
+     * One child's conference bookings, newest first, as the teacher analytics history
+     * reads them. The live-class link is resolved from each booking's slot.
+     */
+    @Transactional(readOnly = true)
+    fun bookingHistory(childId: UUID): List<ConferenceBookingPayload> =
+        bookingRepository.findAllByChildIdOrderByBookingDateDesc(childId).map { bookingPayload(it) }
+
     private fun bookingPayload(
         booking: ConferenceBookingEntity,
         users: Map<UUID, UserEntity> = userRepository.findAllById(listOf(booking.parentId, booking.childId)).associateBy { it.id },
     ): ConferenceBookingPayload {
         val parent = users[booking.parentId]
         val child = users[booking.childId]
+        // The live-class link lives on the slot, not the booking, so it is resolved here
+        // and travels with every booking read (the client shows "Live class linked").
+        val slot = slotRepository.findById(booking.slotId).orElse(null)
         return ConferenceBookingPayload(
             id = booking.clientId,
             slotId = booking.slotId.toString(),
@@ -382,6 +393,7 @@ class ConferenceService(
             status = booking.status,
             requestedAt = booking.requestedAt.toEpochMilli(),
             confirmedAt = booking.confirmedAt?.toEpochMilli(),
+            linkedLiveClassId = slot?.linkedLiveClassId,
         )
     }
 

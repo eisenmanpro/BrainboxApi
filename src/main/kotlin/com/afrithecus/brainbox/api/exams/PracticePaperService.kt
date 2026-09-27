@@ -2,6 +2,7 @@ package com.afrithecus.brainbox.api.exams
 
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
+import com.afrithecus.brainbox.api.content.ContentProvenanceService
 import com.afrithecus.brainbox.api.content.figure.FigureSpecs
 import com.afrithecus.brainbox.api.exams.admin.ExamAuthoringService
 import com.afrithecus.brainbox.api.exams.entity.ExamEntity
@@ -45,6 +46,7 @@ class PracticePaperService(
     private val authoringService: ExamAuthoringService,
     private val schoolRepository: SchoolRepository,
     private val objectMapper: ObjectMapper,
+    private val provenanceService: ContentProvenanceService,
     private val clock: Clock,
 ) {
 
@@ -204,6 +206,8 @@ class PracticePaperService(
             .filter { exam ->
                 when (exam.scope) {
                     ExamScope.GLOBAL -> true
+                    // A learner's own practice papers are not part of the browse listing.
+                    ExamScope.PERSONAL -> false
                     ExamScope.SCHOOL, ExamScope.SCHOOL_GRADE_CLASS ->
                         user.schoolId != null && exam.schoolId != null && exam.schoolId == user.schoolId
                 }
@@ -217,6 +221,7 @@ class PracticePaperService(
         val user = userRepository.findById(userId).orElseThrow { notFound("User not found") }
         val visible = when (exam.scope) {
             ExamScope.GLOBAL -> true
+            ExamScope.PERSONAL -> exam.ownerUserId == user.id
             ExamScope.SCHOOL, ExamScope.SCHOOL_GRADE_CLASS ->
                 user.schoolId != null && exam.schoolId != null && exam.schoolId == user.schoolId
         }
@@ -224,23 +229,28 @@ class PracticePaperService(
         return exam
     }
 
-    private fun toDocumentItem(exam: ExamEntity) = DocumentItem(
-        id = exam.id.toString(),
-        title = exam.title,
-        source = DocumentSourcePayload(type = "REMOTE", url = "/practice-papers/" + exam.id + "/content"),
-        coverUrl = exam.coverImageUrl,
-        addedAt = exam.createdAt.toEpochMilli(),
-        code = exam.clientId,
-        isPracticePaper = exam.examType == ExamType.PRACTICE_PAPER,
-        grade = exam.gradeLevel?.let { "Grade " + it },
-        subject = exam.subject,
-        scope = exam.scope.name,
-        schoolId = exam.schoolId?.toString(),
-        durationMinutes = exam.durationMinutes,
-        questionCount = exam.questionCount,
-        examYear = exam.examYear,
-        isMcp = exam.isMcp,
-    )
+    private fun toDocumentItem(exam: ExamEntity): DocumentItem {
+        val provenance = provenanceService.of(exam.id)
+        return DocumentItem(
+            id = exam.id.toString(),
+            title = exam.title,
+            source = DocumentSourcePayload(type = "REMOTE", url = "/practice-papers/" + exam.id + "/content"),
+            coverUrl = exam.coverImageUrl,
+            addedAt = exam.createdAt.toEpochMilli(),
+            code = exam.clientId,
+            isPracticePaper = exam.examType == ExamType.PRACTICE_PAPER,
+            grade = exam.gradeLevel?.let { "Grade " + it },
+            subject = exam.subject,
+            scope = exam.scope.name,
+            schoolId = exam.schoolId?.toString(),
+            durationMinutes = exam.durationMinutes,
+            questionCount = exam.questionCount,
+            examYear = exam.examYear,
+            isMcp = exam.isMcp,
+            generated = provenance.generated,
+            reviewState = provenance.reviewState,
+        )
+    }
 
     /** The client sends a display grade ("Grade 4" or "4"); match on the numeric part. */
     private fun matchesGrade(examGrade: Int?, requested: String?): Boolean {

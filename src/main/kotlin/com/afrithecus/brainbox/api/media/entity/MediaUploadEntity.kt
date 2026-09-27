@@ -27,7 +27,7 @@ class MediaUploadEntity : BaseEntity() {
     @Column(name = "declared_kind", nullable = false, length = 16)
     var declaredKind: String = ""
 
-    /** MEDIA, HOMEWORK_ATTACHMENT or DOCUMENT. */
+    /** MEDIA, HOMEWORK_ATTACHMENT, CHAT_ATTACHMENT or DOCUMENT. */
     @Column(nullable = false, length = 32)
     var purpose: String = ""
 
@@ -39,4 +39,28 @@ class MediaUploadEntity : BaseEntity() {
 
     @Column(name = "expires_at", nullable = false)
     var expiresAt: Instant = Instant.now()
+
+    /**
+     * The malware-scan verdict: CLEAN, INFECTED, SKIPPED (no scanner configured) or
+     * ERROR. Defaults to SKIPPED so a row written before scanning existed is honest
+     * about never having been checked.
+     */
+    @Column(name = "scan_status", nullable = false, length = 16)
+    var scanStatus: String = "SKIPPED"
+
+    /** The matched signature, or why the scan could not run. */
+    @Column(name = "scan_detail", length = 255)
+    var scanDetail: String? = null
+
+    /** The scanner that produced the verdict (none, clamav, http). */
+    @Column(length = 16)
+    var scanner: String? = null
+
+    /** ACCEPTED, QUARANTINED, DELETED or REFUSED. */
+    @Column(name = "scan_action", length = 16)
+    var scanAction: String? = null
+
+    /** The quarantine row, when a refusal kept the bytes instead of deleting them. */
+    @Column(name = "quarantine_id")
+    var quarantineId: UUID? = null
 }

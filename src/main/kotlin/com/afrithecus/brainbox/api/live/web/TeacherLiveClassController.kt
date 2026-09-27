@@ -95,8 +95,9 @@ class TeacherLiveClassController(
     fun sendPoll(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @PathVariable classId: String,
+        @RequestParam(required = false) clientPollId: String?,
         @RequestBody poll: LivePollPayload,
-    ): LivePollPayload = service.sendPoll(currentUser, classId, poll)
+    ): LivePollPayload = service.sendPoll(currentUser, classId, poll, clientPollId)
 
     @GetMapping("/{classId}/messages")
     fun messages(

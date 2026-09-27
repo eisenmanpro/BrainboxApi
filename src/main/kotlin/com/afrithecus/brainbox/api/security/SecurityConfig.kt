@@ -93,6 +93,9 @@ class SecurityConfig(
                         "/news/**",
                         "/landing/**",
                         "/media/**",
+                        // The app downloads the adaptive-difficulty model at startup,
+                        // before a session exists; the manifest carries the SHA-256.
+                        "/models/**",
                     ).permitAll()
                     .anyRequest().authenticated()
             }

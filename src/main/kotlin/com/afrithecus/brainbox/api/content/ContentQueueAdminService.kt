@@ -2,6 +2,7 @@ package com.afrithecus.brainbox.api.content
 
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.content.repository.GenerationJobRepository
+import com.afrithecus.brainbox.api.content.web.SubjectAgentSummary
 import com.afrithecus.brainbox.api.content.web.ContentQueueBudget
 import com.afrithecus.brainbox.api.content.web.ContentQueueBudgetRequest
 import com.afrithecus.brainbox.api.content.web.ContentQueueSummary
@@ -24,7 +25,33 @@ class ContentQueueAdminService(
     private val moderationPolicy: ModerationPolicyService,
     private val properties: AppContentProperties,
     private val budgets: GenerationBudgetService,
+    private val agentRuns: com.afrithecus.brainbox.api.content.repository.AgentRunRepository,
+    private val subjectAgents: com.afrithecus.brainbox.api.content.subject.SubjectAgentRegistry,
 ) {
+
+    /**
+     * The domain subject agents and how much work each has actually produced. This is the
+     * console's view over the capture tables: the roster comes from code (a deployable
+     * artifact), the counts from `agent_runs.agent_code`.
+     *
+     * Runs captured before attribution existed have no agent code; they are folded into
+     * the GENERAL row rather than dropped, so the totals still add up.
+     */
+    @Transactional(readOnly = true)
+    fun agents(): List<SubjectAgentSummary> {
+        val counts = agentRuns.countsByAgent()
+        val byCode = counts.mapNotNull { row -> row.getAgentCode()?.let { code -> code to row.getTotal() } }.toMap()
+        val unattributed = counts.filter { it.getAgentCode() == null }.sumOf { it.getTotal() }
+        return subjectAgents.roster().map { agent ->
+            val runs = byCode[agent.code] ?: 0L
+            SubjectAgentSummary(
+                code = agent.code,
+                displayName = agent.displayName,
+                subjects = agent.subjects.sorted(),
+                runs = if (agent.code == subjectAgents.generalCode) runs + unattributed else runs,
+            )
+        }
+    }
 
     /** Live policy plus queue depth; a pure read, no writes. */
     @Transactional(readOnly = true)

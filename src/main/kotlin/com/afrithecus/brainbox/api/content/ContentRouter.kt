@@ -505,11 +505,19 @@ class ContentRouter(
         request: GenerationRequest,
     ): GenerationResult {
         val providerName = provider.name
-        // Resolve the subject-agent persona here so every generation path (initial
-        // and revise) is grounded in the subject, without the provider needing to
-        // know about the agent registry.
+        // Resolve the domain subject agent here so every generation path (initial and
+        // revise) is grounded in the subject and the task shape, without the provider
+        // needing to know about the agent registry. The choice is recorded on the run
+        // (and later on the unit) so quality is attributable to an agent, not just to
+        // "the model".
+        // Attribution is set on the in-memory run; the existing single persist on the
+        // success/failure paths writes it. Saving here as well would be a second update
+        // of the same row and races the worker's optimistic lock.
+        val assignment = subjectAgents.assignmentFor(request.subject, request.taskType)
+        run.agentCode = assignment.code
+        run.promptVersion = GENERATION_PROMPT_VERSION
         val enriched = request.copy(
-            persona = subjectAgents.forSubject(request.subject).persona,
+            persona = assignment.personaBlock,
             curriculumContext = request.curriculumContext ?: curriculumContext(request),
         )
         val startedAt = System.nanoTime()
@@ -584,11 +592,14 @@ class ContentRouter(
             ?: request.taskTypeLabel?.takeIf { it.isNotBlank() }
             ?: request.taskType
         unit.conceptId = job.conceptId
+        unit.cbcStrand = request.cbcStrand
+        unit.cbcSubStrand = request.cbcSubStrand
         unit.subject = request.subject
         unit.gradeLevel = request.gradeLevel
         unit.language = request.language
         unit.standardVersion = request.standardVersion
         unit.promptVersion = run.promptVersion
+        unit.agentCode = run.agentCode ?: subjectAgents.generalCode
         unit.body = result.body
         unit.provenance = "GENERATED"
         unit.sourceUrls = result.sourceUrls.takeIf { it.isNotEmpty() }?.joinToString("\n")
@@ -668,6 +679,12 @@ class ContentRouter(
 
     private companion object {
         const val MAX_ERROR_CHARS = 2000
+
+        /**
+         * Version of the generation system prompt together with the subject-agent block.
+         * Bumping it is what makes a quality change attributable in the capture tables.
+         */
+        const val GENERATION_PROMPT_VERSION = "content-gen-v1"
 
         /** Prompt-version marker that distinguishes a verification agent_run. */
         const val ANSWER_VERIFY_PROMPT_VERSION = "answer-verify-v1"

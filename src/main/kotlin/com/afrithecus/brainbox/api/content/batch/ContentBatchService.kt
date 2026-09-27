@@ -8,6 +8,7 @@ import com.afrithecus.brainbox.api.content.GenerationJobSource
 import com.afrithecus.brainbox.api.content.ai.GenerationRequest
 import com.afrithecus.brainbox.api.content.entity.ConceptEntity
 import com.afrithecus.brainbox.api.content.repository.ConceptRepository
+import com.afrithecus.brainbox.api.content.repository.CurriculumMapRepository
 import com.afrithecus.brainbox.api.content.repository.GenerationJobRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -41,9 +42,22 @@ class ContentBatchService(
     private val concepts: ConceptRepository,
     private val generationJobs: GenerationJobRepository,
     private val jobService: GenerationJobService,
+    private val curriculumMaps: CurriculumMapRepository,
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
+
+    /**
+     * The concept's Kenya-CBC curriculum mapping, which carries the strand and
+     * sub-strand codes the generated unit is aligned to. Batch generation has no
+     * picker, so the mapping is the alignment source.
+     */
+    private fun curriculumMapping(conceptId: UUID) =
+        curriculumMaps.findFirstByConceptIdAndCountryCodeAndCurriculumOrderBySortOrderAsc(
+            conceptId,
+            CONTENT_BATCH_COUNTRY_CODE,
+            CONTENT_BATCH_CURRICULUM,
+        )
 
     /**
      * The leaf topics of the Tier 0 skeleton for [gradeLevel]: a concept with a
@@ -215,6 +229,8 @@ class ContentBatchService(
         taskTypeLabel = taskTypeLabel(taskType),
         conceptCode = topic.code,
         conceptName = topic.name,
+        cbcStrand = curriculumMapping(topic.id)?.strandCode,
+        cbcSubStrand = curriculumMapping(topic.id)?.substrandCode,
         subject = topic.subject,
         gradeLevel = gradeLevel,
         language = language,
@@ -250,6 +266,8 @@ class ContentBatchService(
             taskTypeLabel = taskTypeLabel(normalizedType),
             conceptCode = anchor.code,
             conceptName = shelfTitle(gradeLevel, subject, normalizedType, paperIndex),
+            cbcStrand = curriculumMapping(anchor.id)?.strandCode,
+            cbcSubStrand = curriculumMapping(anchor.id)?.substrandCode,
             subject = subject,
             gradeLevel = gradeLevel,
             language = language,

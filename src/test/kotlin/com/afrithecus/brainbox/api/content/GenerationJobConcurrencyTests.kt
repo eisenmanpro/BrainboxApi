@@ -115,7 +115,9 @@ class GenerationJobConcurrencyTests(
         check(fake.maxActive.get() == 3) { "expected three jobs in flight, saw " + fake.maxActive.get() }
         check(fake.generationKeys.size == 6)
         val reloaded = jobs.map { generationJobs.findById(it.id).orElseThrow() }
-        check(reloaded.all { it.status == "SUCCEEDED" }) { "every job must reach SUCCEEDED" }
+        check(reloaded.all { it.status == "SUCCEEDED" }) {
+            "every job must reach SUCCEEDED: " + reloaded.map { it.status + "/" + it.lastError }
+        }
         check(reloaded.all { it.attempts == 1 })
         keys.forEach { key ->
             val unit = requireNotNull(contentUnits.findByGenerationKey(key)) { "missing unit for " + key }
@@ -136,7 +138,9 @@ class GenerationJobConcurrencyTests(
 
         check(fake.generationKeys.size == 5)
         val reloaded = jobs.map { generationJobs.findById(it.id).orElseThrow() }
-        check(reloaded.count { it.status == "SUCCEEDED" } == 4) { "the other four jobs must complete" }
+        check(reloaded.count { it.status == "SUCCEEDED" } == 4) {
+            "the other four jobs must complete: " + reloaded.map { it.status + "/" + it.lastError }
+        }
         val rescheduled = reloaded.single { it.status == "QUEUED" }
         check(rescheduled.attempts == 1)
         check(rescheduled.lastError!!.contains("model exploded"))

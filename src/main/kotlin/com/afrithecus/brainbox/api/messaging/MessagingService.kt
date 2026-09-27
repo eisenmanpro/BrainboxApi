@@ -100,13 +100,55 @@ class MessagingService(
 
     // ---------------------------------------------------------------- reads
 
+    /**
+     * The role a message shows for its sender. The platform's own messages present as SYSTEM
+     * rather than as the administrator account that writes them.
+     */
+    private fun platformRoleOf(senderId: UUID, sender: UserEntity?): String? =
+        if (senderId == PlatformSender.USER_ID) "SYSTEM" else sender?.role?.name
+
     @Transactional(readOnly = true)
     fun list(userId: UUID, folder: String): List<MessagePayload> {
         val f = parseFolder(folder)
-        return when (f) {
+        val rows = when (f) {
             Folder.inbox -> messageRepository.findAllByRecipientIdAndFolderOrderByCreatedAtDesc(userId, Folder.inbox)
             else -> messageRepository.findAllBySenderIdAndFolderOrderByCreatedAtDesc(userId, f)
-        }.map(::toPayload)
+        }
+        // Resolve both parties once for the whole page rather than per row.
+        val parties = userRepository.findAllById(
+            rows.flatMap { listOfNotNull(it.senderId, it.recipientId) }.distinct(),
+        ).associateBy { it.id }
+        return rows.map { row -> toPayload(row, parties[row.senderId], row.recipientId?.let { parties[it] }) }
+    }
+
+    /**
+     * The platform inbox: every reply written **to** Brainbox. The console reads these so an
+     * answer to a platform message is actionable instead of being dropped on the floor.
+     */
+    @Transactional(readOnly = true)
+    fun platformInbox(limit: Int = 50): List<MessagePayload> {
+        val rows = messageRepository
+            .findAllByRecipientIdAndFolderOrderByCreatedAtDesc(PlatformSender.USER_ID, Folder.inbox)
+            .take(limit.coerceIn(1, 200))
+        val parties = userRepository.findAllById(
+            rows.flatMap { listOfNotNull(it.senderId, it.recipientId) }.distinct(),
+        ).associateBy { it.id }
+        return rows.map { row -> toPayload(row, parties[row.senderId], row.recipientId?.let { parties[it] }) }
+    }
+
+    /** Marks one platform-inbox row read. False when no such row exists. */
+    @Transactional
+    fun markPlatformInboxRead(messageIdRaw: String): Boolean {
+        val id = runCatching { UUID.fromString(messageIdRaw) }.getOrNull()
+            ?: throw invalidArgument("message id is not a valid identifier")
+        val message = messageRepository.findById(id).orElse(null) ?: return false
+        if (message.folder != Folder.inbox || message.recipientId != PlatformSender.USER_ID) return false
+        if (!message.isRead) {
+            message.isRead = true
+            message.readAt = clock.instant()
+            messageRepository.save(message)
+        }
+        return true
     }
 
     @Transactional
@@ -160,6 +202,9 @@ class MessagingService(
     }
 
     private fun authorizeDirectSender(sender: UserEntity, recipient: UserEntity) {
+        // Brainbox is reachable from every account and every school: it is the platform, not a
+        // peer, and a message from the platform that could not be answered would be a dead end.
+        if (recipient.id == PlatformSender.USER_ID) return
         if (sender.role == Role.STUDENT) {
             val staff = recipient.role == Role.TEACHER
             if (!staff || recipient.schoolId == null || recipient.schoolId != sender.schoolId) {
@@ -216,10 +261,32 @@ class MessagingService(
     private fun generateMessageId(userId: UUID): String =
         "msg_" + clock.millis() + "_" + userId.toString()
 
-    internal fun toPayload(row: MessageEntity): MessagePayload = MessagePayload(
+    internal fun toPayload(row: MessageEntity): MessagePayload {
+        val sender = userRepository.findById(row.senderId).orElse(null)
+        val recipient = row.recipientId?.let { userRepository.findById(it).orElse(null) }
+        return toPayload(row, sender, recipient)
+    }
+
+    /**
+     * The payload with its parties already resolved. A list read resolves them in one batch
+     * rather than per row.
+     *
+     * `senderName`/`senderRole` are what the client renders as the sender; the platform's own
+     * messages come from the seeded Brainbox account and are presented as SYSTEM rather than as
+     * an administrator.
+     */
+    internal fun toPayload(
+        row: MessageEntity,
+        sender: UserEntity?,
+        recipient: UserEntity?,
+    ): MessagePayload = MessagePayload(
         id = row.id.toString(),
         senderId = row.senderId.toString(),
+        senderName = sender?.name,
+        senderRole = platformRoleOf(row.senderId, sender),
         recipientId = row.recipientId?.toString(),
+        recipientName = recipient?.name,
+        recipientRole = row.recipientId?.let { platformRoleOf(it, recipient) },
         subject = row.subject,
         body = row.body,
         attachments = row.attachments?.let {

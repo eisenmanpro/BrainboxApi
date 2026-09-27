@@ -143,10 +143,13 @@ class ExamCatalogService(
     /**
      * A class-scoped exam (one authored for a specific teacher class) is only
      * visible to a student enrolled in that class; every other scope keeps the
-     * existing school-level rule.
+     * existing school-level rule. Shared with practice generation (§B7) so the
+     * two reads can never disagree about what a learner may draw from.
      */
-    private fun isVisible(exam: ExamEntity, user: UserEntity): Boolean = when (exam.scope) {
+    internal fun isVisible(exam: ExamEntity, user: UserEntity): Boolean = when (exam.scope) {
         ExamScope.GLOBAL -> true
+        // A personal practice paper is reached through the practice reads, not the catalog.
+        ExamScope.PERSONAL -> false
         ExamScope.SCHOOL, ExamScope.SCHOOL_GRADE_CLASS -> {
             val sameSchool = user.schoolId != null && exam.schoolId != null && exam.schoolId == user.schoolId
             val classId = exam.classId

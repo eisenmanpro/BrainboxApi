@@ -30,4 +30,8 @@ data class TeacherDocumentPayload(
     val isLocked: Boolean = false,
     val scope: String = "SCHOOL",
     val schoolId: String? = null,
+    /** True when a model wrote this material (the reader header shows a model-generated badge). */
+    val generated: Boolean = false,
+    /** UNREVIEWED | REVIEWED | REJECTED for generated content. */
+    val reviewState: String = "REVIEWED",
 )

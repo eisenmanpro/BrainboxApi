@@ -7,6 +7,7 @@ import com.afrithecus.brainbox.api.content.web.ContentQueueBudget
 import com.afrithecus.brainbox.api.content.web.ContentQueueBudgetRequest
 import com.afrithecus.brainbox.api.content.web.ContentQueueSourcesRequest
 import com.afrithecus.brainbox.api.content.web.ContentQueueSummary
+import com.afrithecus.brainbox.api.content.web.SubjectAgentSummary
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
@@ -40,7 +41,49 @@ class ContentQueueAdminTests(
     @Autowired private val users: UserRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
     @Autowired private val generationJobs: GenerationJobRepository,
+    @Autowired private val agentRuns: com.afrithecus.brainbox.api.content.repository.AgentRunRepository,
 ) {
+
+    /**
+     * The console's view over the capture tables: the domain agents and what each has
+     * produced. A run captured before attribution is folded into GENERAL so the totals add
+     * up rather than disappearing.
+     */
+    @Test
+    fun `the agents view lists the domain agents with their captured run counts`() {
+        val admin = seed("0744620510", Role.ADMIN, "Agents Admin")
+        saveRun("MATH")
+        saveRun("MATH")
+        saveRun("SST")
+        saveRun(null)
+
+        val agents: List<SubjectAgentSummary> = objectMapper.readValue(
+            mockMvc.perform(get("/admin/content/queue/agents").header("Authorization", auth(token(admin))))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            objectMapper.typeFactory.constructCollectionType(List::class.java, SubjectAgentSummary::class.java),
+        )
+        val byCode = agents.associateBy { it.code }
+        check(byCode["MATH"]?.runs == 2L) { "MATH runs, was ${byCode["MATH"]?.runs}" }
+        check(byCode["SST"]?.runs == 1L) { "SST runs, was ${byCode["SST"]?.runs}" }
+        check(byCode["GENERAL"]?.runs == 1L) {
+            "an unattributed run must be reported under GENERAL, was ${byCode["GENERAL"]?.runs}"
+        }
+        check(byCode["ENG"]?.runs == 0L)
+        check(byCode["SST"]?.subjects?.contains("social studies") == true)
+        check(agents.size == 6) {
+            "the roster is the five domain agents plus the general fallback, was " + agents.map { it.code }
+        }
+    }
+
+    private fun saveRun(agentCode: String?) {
+        agentRuns.save(
+            com.afrithecus.brainbox.api.content.entity.AgentRunEntity().apply {
+                generationKey = "ke:cbc:grade4:agent:" + UUID.randomUUID()
+                this.agentCode = agentCode
+                status = "SUCCEEDED"
+            }
+        )
+    }
 
     @Test
     fun `the admin queue summary reports depth by status and by source`() {

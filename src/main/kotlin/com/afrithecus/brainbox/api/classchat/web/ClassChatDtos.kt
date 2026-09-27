@@ -57,8 +57,13 @@ data class ClassGroupMessagePayload(
     val isAnnouncement: Boolean = false,
 )
 
+/**
+ * A message body. `text` may be blank when [attachments] is not: an attachment-only
+ * message (typically a file uploaded client-direct) is valid, and the service still
+ * refuses a message with neither.
+ */
 data class SendMessageRequest(
-    @field:NotBlank val text: String,
+    val text: String = "",
     val attachments: List<MessageAttachmentPayload>? = null,
 )
 

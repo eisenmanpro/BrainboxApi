@@ -6,13 +6,16 @@ import jakarta.persistence.Entity
 import jakarta.persistence.Table
 import java.util.UUID
 
-/** A school-scoped administrative action, server-owned (api_admin_changes.md). */
+/**
+ * An administrative action, server-owned (api_admin_changes.md). A school-scoped row carries
+ * its school; a platform console action has no school and leaves [schoolId] null.
+ */
 @Entity
 @Table(name = "audit_logs")
 class AuditLogEntity : BaseEntity() {
 
-    @Column(name = "school_id", nullable = false)
-    var schoolId: UUID = UUID.randomUUID()
+    @Column(name = "school_id")
+    var schoolId: UUID? = null
 
     @Column(name = "actor_id")
     var actorId: UUID? = null
@@ -22,4 +25,12 @@ class AuditLogEntity : BaseEntity() {
 
     @Column(nullable = false, length = 200)
     var action: String = ""
+
+    /** What the action was applied to, e.g. `settings` or `quarantine:<id>`. */
+    @Column(length = 200)
+    var target: String? = null
+
+    /** The change or reason, enough to reconstruct what happened without the request body. */
+    @Column(length = 500)
+    var detail: String? = null
 }

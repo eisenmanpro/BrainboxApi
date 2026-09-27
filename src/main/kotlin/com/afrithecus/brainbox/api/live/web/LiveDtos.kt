@@ -64,6 +64,12 @@ data class LivePollPayload(
     val votes: Map<Int, Int> = emptyMap(),
     val results: Map<String, Int> = emptyMap(),
     val isActive: Boolean = true,
+    /**
+     * The author of the poll. The client needs it to offer "End poll" to exactly the
+     * people the server allows (the author, plus the class host and admins, which the
+     * client knows from the class itself).
+     */
+    val createdBy: String? = null,
     val createdAt: Long = 0L,
 )
 

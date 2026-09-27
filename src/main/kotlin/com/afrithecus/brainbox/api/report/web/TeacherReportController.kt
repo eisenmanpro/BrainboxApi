@@ -22,7 +22,6 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder
 import java.net.URI
 import java.util.UUID
 
@@ -39,6 +38,7 @@ class TeacherReportController(
     private val downloads: ReportDownloadService,
     private val jobs: ReportJobRepository,
     private val storage: ReportStorage,
+    private val urls: com.afrithecus.brainbox.api.common.web.PublicUrlBuilder,
 ) {
 
     @PostMapping("/generate")
@@ -155,5 +155,9 @@ class TeacherReportController(
             .body(bytes)
     }
 
-    private fun baseUrl(): String = ServletUriComponentsBuilder.fromCurrentContextPath().toUriString()
+    /**
+     * The base for signed download links. `app.public-base-url` wins when a CDN or
+     * reverse proxy fronts the API; otherwise this is the request's own base.
+     */
+    private fun baseUrl(): String = urls.baseUrl()
 }

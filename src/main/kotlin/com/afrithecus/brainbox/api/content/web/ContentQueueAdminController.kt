@@ -42,6 +42,13 @@ class ContentQueueAdminController(private val service: ContentQueueAdminService)
     fun sources(@RequestBody request: ContentQueueSourcesRequest): ContentQueueSummary =
         service.setSources(request.sources)
 
+    /**
+     * The domain subject agents and their captured run counts. A console view over the
+     * capture tables, so agent quality can be compared across subjects.
+     */
+    @GetMapping("/agents")
+    fun agents(): List<SubjectAgentSummary> = service.agents()
+
     /** H3: effective daily generation budgets plus today's platform usage. */
     @GetMapping("/budget")
     fun budget(): ContentQueueBudget = service.budget()

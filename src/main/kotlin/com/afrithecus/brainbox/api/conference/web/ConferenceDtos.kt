@@ -49,4 +49,9 @@ data class ConferenceBookingPayload(
     /** When the request was made; drives the confirmation-expiry window. */
     val requestedAt: Long? = null,
     val confirmedAt: Long? = null,
+    /**
+     * The live class this booking's slot is linked to, resolved from the slot. The
+     * analytics history shows a "Live class linked" note for it.
+     */
+    val linkedLiveClassId: String? = null,
 )

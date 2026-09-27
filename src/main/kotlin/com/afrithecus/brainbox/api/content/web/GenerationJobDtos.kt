@@ -16,6 +16,12 @@ data class GenerateContentRequest(
     val language: String? = null,
     val standardVersion: String? = null,
     val conceptCode: String? = null,
+    /**
+     * CBC strand/sub-strand codes from the seeded taxonomy (`cbc_strands.code`). The
+     * projected learner content aligns by these codes.
+     */
+    val cbcStrand: String? = null,
+    val cbcSubStrand: String? = null,
     val difficulty: Int? = null,
     val notes: String? = null,
     /** GLOBAL (default), SCHOOL or SCHOOL_GRADE_CLASS. */

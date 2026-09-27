@@ -34,6 +34,44 @@ class AuditLogService(
         )
     }
 
+    /**
+     * A platform console action. It has no school, and it records what was acted on and why,
+     * so an operator's actions can be reconstructed without the request body (which may hold
+     * a token or a URL).
+     */
+    @Transactional
+    fun recordPlatform(actor: UserEntity?, action: String, target: String? = null, detail: String? = null) {
+        repository.save(
+            AuditLogEntity().apply {
+                schoolId = null
+                actorId = actor?.id
+                actorName = actor?.name ?: "System"
+                this.action = action
+                this.target = target?.take(200)
+                this.detail = detail?.take(500)
+            }
+        )
+    }
+
+    /** Platform (school-less) entries, newest first, for the console's audit view. */
+    @Transactional(readOnly = true)
+    fun listPlatform(limit: Int, before: Instant?): List<AuditLogEntryPayload> {
+        val page = PageRequest.of(0, limit.coerceIn(1, 200))
+        val rows = if (before == null) {
+            repository.findAllBySchoolIdIsNullOrderByCreatedAtDesc(page)
+        } else {
+            repository.findAllBySchoolIdIsNullAndCreatedAtLessThanOrderByCreatedAtDesc(before, page)
+        }
+        return rows.map {
+            AuditLogEntryPayload(
+                logId = it.id.toString(),
+                actorName = it.actorName,
+                action = it.action,
+                timestamp = it.createdAt.toEpochMilli(),
+            )
+        }
+    }
+
     @Transactional(readOnly = true)
     fun list(schoolId: UUID, limit: Int, before: Instant?): List<AuditLogEntryPayload> {
         val page = PageRequest.of(0, limit.coerceIn(1, 200))

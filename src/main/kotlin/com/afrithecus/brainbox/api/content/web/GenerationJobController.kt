@@ -74,6 +74,8 @@ class GenerationJobController(
         generationKey = required(generationKey, "generationKey"),
         taskType = required(taskType, "taskType"),
         conceptCode = conceptCode?.trim()?.takeIf { it.isNotEmpty() },
+        cbcStrand = cbcStrand?.trim()?.takeIf { it.isNotEmpty() },
+        cbcSubStrand = cbcSubStrand?.trim()?.takeIf { it.isNotEmpty() },
         subject = required(subject, "subject"),
         gradeLevel = required(gradeLevel, "gradeLevel"),
         language = required(language, "language"),

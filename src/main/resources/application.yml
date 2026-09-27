@@ -57,12 +57,96 @@ management:
 app:
   # Calendar zone used to bucket attendance registers (client sends local midnight).
   school-zone: ${SCHOOL_ZONE:Africa/Nairobi}
+  # Adaptive-difficulty ONNX model distribution. The operator drops the model file on
+  # disk and points ML_MODEL_PATH at it; the API publishes its SHA-256 so the app can
+  # verify the bytes before loading them. With no path (or a missing file) the manifest
+  # endpoint answers 503 and the app keeps using its rule-based engine.
+  ml:
+    model:
+      path: ${ML_MODEL_PATH:}
+      version: ${ML_MODEL_VERSION:1}
+      name: ${ML_MODEL_NAME:adaptive_difficulty}
+      file-name: ${ML_MODEL_FILE_NAME:adaptive_difficulty.onnx}
+  # The admin console (a separate app) is operated with explicit platform permissions, not
+  # merely the ADMIN role. No account holds one until it is granted; the first operator is
+  # bootstrapped from this list (comma-separated phone numbers of ADMIN accounts) and the
+  # application logs a warning while no operator exists. Remove the entry once operators can
+  # manage each other. See docs/ongoing/console_security_requirements.md.
+  console:
+    bootstrap-operator-phones: ${CONSOLE_BOOTSTRAP_OPERATOR_PHONES:}
+  # Shared state between API nodes (rate-limit counters, advisory presence). Off by
+  # default: the process keeps every counter in memory, which is correct for one node.
+  # Setting enabled=true moves that state to Redis with no code change, because callers
+  # only ever see SharedStateStore. Failure modes are per feature and chosen for product
+  # usability: rate limiting and presence degrade to per-node (ALLOW), while anything
+  # security-shaped (a revocation list) refuses when it cannot be read (DENY).
+  redis:
+    enabled: ${REDIS_ENABLED:false}
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    database: ${REDIS_DATABASE:0}
+    username: ${REDIS_USERNAME:}
+    password: ${REDIS_PASSWORD:}
+    ssl: ${REDIS_SSL:false}
+    timeout-millis: ${REDIS_TIMEOUT_MILLIS:2000}
+    # One Redis database can serve several environments; every key carries this prefix.
+    key-prefix: ${REDIS_KEY_PREFIX:brainbox:}
+    failure-mode:
+      rate-limit: ${REDIS_FAILURE_RATE_LIMIT:ALLOW}
+      presence: ${REDIS_FAILURE_PRESENCE:ALLOW}
+      revocation: ${REDIS_FAILURE_REVOCATION:DENY}
+  # The public base for links the API hands to clients (served media keys and signed
+  # report downloads). Empty keeps the request's own base, which is right for a
+  # single-origin deployment. Set it to a CDN, a reverse proxy or the public
+  # object-store endpoint and every returned link points there instead; clients treat an
+  # absolute URL as final, so no app change is needed. See docs/ongoing/api_cdn_deployment.md.
+  public-base-url: ${PUBLIC_BASE_URL:}
   media:
     # Local disk storage for uploaded project media until S3/MinIO (Phase 6).
     local-dir: ${MEDIA_DIR:./data/media}
     # Hard cap for the general image/video/attachment upload path. The format is
     # still detected from the bytes; a file above this is a 400 before storage.
     max-upload-bytes: ${MEDIA_MAX_UPLOAD_BYTES:26214400}
+    cache:
+      # Media keys are server-generated UUIDs that are never reused, so /media/{key} is
+      # immutable. `false` (the default) answers `private, max-age=30d`, which keeps
+      # shared caches out; set `true` once a CDN or reverse proxy fronts the deployment
+      # and the response becomes `public, max-age=30d, immutable`.
+      public: ${MEDIA_CACHE_PUBLIC:false}
+      max-age-seconds: ${MEDIA_CACHE_MAX_AGE_SECONDS:2592000}
+    url-reputation:
+      # URL reputation for URLs the platform stores or fetches (generated figure images,
+      # grounding sources). Off by default; a deployment with a provider turns it on here
+      # or from the console. `none` records SKIPPED, `deny_list` applies the shared SSRF
+      # rules with no external call, `http` calls a provider that answers
+      # {"status":"CLEAN"|"MALICIOUS"|"ERROR"}.
+      enabled: ${MEDIA_URL_REPUTATION_ENABLED:false}
+      provider: ${MEDIA_URL_REPUTATION_PROVIDER:none}
+      # A provider outage refuses a URL unless this is true.
+      fail-open: ${MEDIA_URL_REPUTATION_FAIL_OPEN:false}
+      timeout-millis: ${MEDIA_URL_REPUTATION_TIMEOUT_MILLIS:5000}
+      http:
+        url: ${MEDIA_URL_REPUTATION_URL:}
+        bearer-token: ${MEDIA_URL_REPUTATION_TOKEN:}
+    scan:
+      # Malware/URL scanning, run after the format check and before an upload is marked
+      # VERIFIED, on both the presigned confirm path and the proxied multipart path.
+      #   none   (default) accepts the object and records scan_status=SKIPPED
+      #   clamav          clamd INSTREAM over TCP (no temp file)
+      #   http            a scanner sidecar that answers {"status":"CLEAN"|"INFECTED"|"ERROR"}
+      provider: ${MEDIA_SCAN_PROVIDER:none}
+      # What an unreachable/broken scanner means. false (default) refuses the upload;
+      # true accepts it and records scan_status=ERROR. A deployment that configured a
+      # scanner should leave this false.
+      fail-open: ${MEDIA_SCAN_FAIL_OPEN:false}
+      timeout-millis: ${MEDIA_SCAN_TIMEOUT_MILLIS:15000}
+      max-scan-bytes: ${MEDIA_SCAN_MAX_BYTES:26214400}
+      clamav:
+        host: ${CLAMAV_HOST:127.0.0.1}
+        port: ${CLAMAV_PORT:3310}
+      http:
+        url: ${MEDIA_SCAN_URL:}
+        bearer-token: ${MEDIA_SCAN_TOKEN:}
   # Object storage for media uploads and rendered report PDFs. local (the default)
   # keeps the existing media/report directories; s3 routes both through one
   # S3-compatible endpoint (MinIO in-country, or S3) with the media/ and reports/

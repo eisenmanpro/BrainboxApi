@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder
 
 /**
  * Presigned client-direct upload. Initiate returns a short-lived PUT URL for the
@@ -40,7 +39,9 @@ class MediaUploadController(
     ): MediaUploadResponsePayload = service.confirm(
         user(currentUser),
         uploadId,
-        ServletUriComponentsBuilder.fromCurrentContextPath().build().toUriString(),
+        // Null: PublicUrlBuilder then uses app.public-base-url when the deployment sets
+        // one (a CDN or public object-store endpoint) and the request's own base otherwise.
+        baseUrl = null,
     )
 
     private fun user(current: CurrentUser): UserEntity =

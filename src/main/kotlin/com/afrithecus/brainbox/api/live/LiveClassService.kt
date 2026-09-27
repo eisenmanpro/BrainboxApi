@@ -48,6 +48,8 @@ import kotlin.math.roundToInt
  */
 @Service
 class LiveClassService(
+    /** Realtime fan-out: a poll frame reaches the class the moment it changes. */
+    private val signaling: com.afrithecus.brainbox.api.live.ws.LiveSignalingHandler,
     private val classRepository: LiveClassRepository,
     private val registrationRepository: LiveRegistrationRepository,
     private val attendanceRepository: LiveAttendanceRepository,
@@ -176,19 +178,69 @@ class LiveClassService(
     fun polls(classIdRaw: String): List<LivePollPayload> =
         pollRepository.findAllByClassIdOrderByCreatedAtAsc(requireClass(classIdRaw).id).map(::pollPayload)
 
+    /** Host-only poll create (the teacher surface). */
     @Transactional
-    fun createPoll(current: CurrentUser, classIdRaw: String, request: CreatePollRequest): LivePollPayload {
+    fun createPoll(
+        current: CurrentUser,
+        classIdRaw: String,
+        request: CreatePollRequest,
+        clientPollId: String? = null,
+    ): LivePollPayload {
         val clazz = requireClass(classIdRaw)
         requireHost(current, clazz)
+        return createPollFor(clazz, current, request, clientPollId)
+    }
+
+    /**
+     * Poll create from the learner surface: the class host, an admin, or a learner
+     * registered for this class may open a poll (doc 05 §4.6).
+     */
+    @Transactional
+    fun createParticipantPoll(
+        current: CurrentUser,
+        classIdRaw: String,
+        request: CreatePollRequest,
+        clientPollId: String? = null,
+    ): LivePollPayload {
+        val clazz = requireClass(classIdRaw)
+        requireParticipant(current, clazz)
+        return createPollFor(clazz, current, request, clientPollId)
+    }
+
+    private fun createPollFor(
+        clazz: LiveClassEntity,
+        current: CurrentUser,
+        request: CreatePollRequest,
+        clientPollId: String?,
+    ): LivePollPayload {
         val options = request.options.map { it.trim() }.filter { it.isNotEmpty() }
         if (options.size < 2) throw invalidArgument("A poll needs at least two options")
+
+        // The client's poll id is the idempotency key for a queued create: a replayed
+        // request must return the original poll rather than publish a duplicate. It is
+        // also the id the poll keeps, so a vote queued against the local id resolves.
+        val stableId = clientPollId?.trim()?.takeIf { it.isNotEmpty() }
+        val stableUuid = stableId?.let { raw ->
+            runCatching { UUID.fromString(raw) }.getOrNull()
+                ?: throw invalidArgument("clientPollId is not a valid identifier")
+        }
+        if (stableUuid != null) {
+            pollRepository.findById(stableUuid).orElse(null)?.let { existing ->
+                if (existing.classId != clazz.id) throw invalidArgument("clientPollId is already in use")
+                return pollPayload(existing)
+            }
+        }
+
         val poll = pollRepository.save(LivePollEntity().apply {
+            if (stableUuid != null) id = stableUuid
             this.classId = clazz.id
             this.createdBy = current.userId
             this.question = request.question.trim()
             this.options = mapper.writeValueAsString(options)
         })
-        return pollPayload(poll)
+        val payload = pollPayload(poll)
+        signaling.broadcastPoll(clazz.id, payload)
+        return payload
     }
 
     @Transactional
@@ -211,7 +263,35 @@ class LiveClassService(
             existing.votedAt = clock.instant()
             pollVoteRepository.save(existing)
         }
-        return pollPayload(poll)
+        val payload = pollPayload(poll)
+        // Live tally: every vote is pushed, so the class does not wait for the 15 s read.
+        signaling.broadcastPoll(clazz.id, payload)
+        return payload
+    }
+
+    /**
+     * Closes a poll so it stops accepting votes and its tally is final. Allowed for the
+     * class host, an admin, and the person who opened it (a learner may close their own
+     * poll); everybody else is refused. Repeat-safe: closing a closed poll returns it.
+     */
+    @Transactional
+    fun endPoll(current: CurrentUser, classIdRaw: String, pollIdRaw: String): LivePollPayload {
+        val clazz = requireClass(classIdRaw)
+        val poll = pollRepository.findById(parseUuid(pollIdRaw, "poll id")).orElse(null)
+            ?: throw notFound("Poll not found")
+        if (poll.classId != clazz.id) throw notFound("Poll not found")
+        val isHost = clazz.teacherId == current.userId ||
+            userRepository.findById(current.userId).orElse(null)?.role == Role.ADMIN
+        if (!isHost && poll.createdBy != current.userId) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "Only the host or the poll's author can close this poll")
+        }
+        if (poll.isActive) {
+            poll.isActive = false
+            pollRepository.save(poll)
+        }
+        val payload = pollPayload(poll)
+        signaling.broadcastPoll(clazz.id, payload)
+        return payload
     }
 
     @Transactional
@@ -294,6 +374,7 @@ class LiveClassService(
             votes = voteMap,
             results = resultMap,
             isActive = poll.isActive,
+            createdBy = poll.createdBy.toString(),
             createdAt = poll.createdAt.toEpochMilli(),
         )
     }
@@ -319,6 +400,19 @@ class LiveClassService(
         val user = userRepository.findById(current.userId).orElse(null)
         if (user?.role == Role.ADMIN) return
         throw ApiException(ApiErrorCode.FORBIDDEN, "Only the class teacher can do this")
+    }
+
+    /**
+     * The host, an admin, or a learner registered for this class. Registration is what
+     * joining a live class records, so it is the participant check the learner surface
+     * uses; everybody else must not open a poll in someone else's class.
+     */
+    private fun requireParticipant(current: CurrentUser, clazz: LiveClassEntity) {
+        if (clazz.teacherId == current.userId) return
+        val user = userRepository.findById(current.userId).orElse(null)
+        if (user?.role == Role.ADMIN) return
+        if (registrationRepository.findByClassIdAndStudentId(clazz.id, current.userId) != null) return
+        throw ApiException(ApiErrorCode.FORBIDDEN, "Join this class before opening a poll")
     }
 
     private fun parseMaterials(json: String?): List<MaterialPayload> {

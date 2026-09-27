@@ -215,9 +215,23 @@ class TeacherLiveClassService(
 
     /** Host poll; reuses the existing poll store so learners vote on the same rows. */
     @Transactional
-    fun sendPoll(current: CurrentUser, classIdRaw: String, request: LivePollPayload): LivePollPayload {
+    fun sendPoll(
+        current: CurrentUser,
+        classIdRaw: String,
+        request: LivePollPayload,
+        clientPollId: String? = null,
+    ): LivePollPayload {
         val options = request.options.map { it.trim() }.filter { it.isNotEmpty() }
-        return liveClassService.createPoll(current, classIdRaw, CreatePollRequest(request.question, options))
+        // The client's poll id doubles as the idempotency key for a queued send; a body
+        // that carries the id but no query parameter is honoured too.
+        val stableId = clientPollId?.trim()?.takeIf { it.isNotEmpty() }
+            ?: request.id.takeIf { it.isNotBlank() }
+        return liveClassService.createPoll(
+            current,
+            classIdRaw,
+            CreatePollRequest(request.question, options),
+            stableId,
+        )
     }
 
     @Transactional(readOnly = true)

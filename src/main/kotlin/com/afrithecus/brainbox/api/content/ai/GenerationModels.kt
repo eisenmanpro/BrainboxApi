@@ -13,6 +13,9 @@ data class GenerationRequest(
     val taskTypeLabel: String? = null,
     val conceptCode: String? = null,
     val conceptName: String? = null,
+    /** CBC strand/sub-strand codes the requester picked; null when none was chosen. */
+    val cbcStrand: String? = null,
+    val cbcSubStrand: String? = null,
     val subject: String,
     val gradeLevel: String,
     val language: String,

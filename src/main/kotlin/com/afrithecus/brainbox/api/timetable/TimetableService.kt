@@ -151,8 +151,8 @@ class TimetableService(
                 "Room is already booked for that time",
                 mapOf(
                     "conflictType" to "ROOM_OVERLAP",
-                    "conflictingBookingId" to clash.clientId,
-                    "conflictingBooking" to toBookingPayload(clash),
+                    "clashingBookingId" to clash.clientId,
+                    "clashingBooking" to toBookingPayload(clash),
                 ),
             )
         }
@@ -258,8 +258,8 @@ class TimetableService(
             "You already have a class scheduled at that time",
             mapOf(
                 "conflictType" to "TEACHER_OVERLAP",
-                "conflictingEntryId" to clash.clientId,
-                "conflictingEntry" to toEntryPayload(clash),
+                "clashingEntryId" to clash.clientId,
+                "clashingEntry" to toEntryPayload(clash),
             ),
         )
     }

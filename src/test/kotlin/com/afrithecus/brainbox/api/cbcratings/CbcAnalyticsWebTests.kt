@@ -40,6 +40,7 @@ class CbcAnalyticsWebTests(
     @Autowired private val schoolRepository: SchoolRepository,
     @Autowired private val classRepository: TeacherClassRepository,
     @Autowired private val membershipRepository: ClassMembershipRepository,
+    @Autowired private val cbcStrands: com.afrithecus.brainbox.api.cbcratings.repository.CbcStrandRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
 ) {
     private fun user(role: Role, name: String, phone: String, schoolId: java.util.UUID): UserEntity =
@@ -89,6 +90,32 @@ class CbcAnalyticsWebTests(
         })
         val t = token(teacher)
 
+        // The seeder is off in tests, so the payload shape assertions create the two
+        // levels the taxonomy supports: a top-level strand and one child sub-strand.
+        val parent = cbcStrands.save(
+            com.afrithecus.brainbox.api.cbcratings.entity.CbcStrandEntity().apply {
+                code = "TEST-STRAND-1"
+                name = "Test strand"
+                descriptor = "Test descriptor"
+                gradeLevel = "Grade 4"
+                subject = "Mathematics"
+                level = "STRAND"
+                sortOrder = 900
+            }
+        )
+        cbcStrands.save(
+            com.afrithecus.brainbox.api.cbcratings.entity.CbcStrandEntity().apply {
+                code = "TEST-SUB-1"
+                name = "Test sub-strand"
+                descriptor = "Test sub descriptor"
+                gradeLevel = "Grade 4"
+                subject = "Mathematics"
+                level = "SUBSTRAND"
+                parentId = parent.id
+                sortOrder = 901
+            }
+        )
+
         val map = objectMapper.readValue(
             mockMvc.perform(get("/teacher/cbc/curriculum-map").header("Authorization", auth(t)))
                 .andExpect(status().isOk).andReturn().response.contentAsString,
@@ -96,6 +123,24 @@ class CbcAnalyticsWebTests(
         )
         check(map.strands.size >= 15)
         check(map.strands.any { it.code == "MAT-NUM" })
+
+        // The taxonomy carries the whole tree, not just top-level strands: a picker can
+        // nest a sub-strand under its parent without knowing server ids.
+        val sub = map.strands.single { it.code == "TEST-SUB-1" }
+        check(sub.level == "SUBSTRAND") { "the taxonomy must mark a sub-strand, was " + sub.level }
+        check(sub.parentCode == "TEST-STRAND-1") { "a sub-strand names its parent code, was " + sub.parentCode }
+        check(sub.subject == "Mathematics")
+        check(map.strands.single { it.code == "TEST-STRAND-1" }.parentCode == null)
+        check(map.strands.first { it.code == "MAT-NUM" }.level == "STRAND")
+
+        // The same taxonomy is readable by a learner, who picks a strand when submitting
+        // a CBC project: the teacher route is not the only consumer.
+        val learnerMap = objectMapper.readValue(
+            mockMvc.perform(get("/cbc/curriculum-map").header("Authorization", auth(token(student))))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            CbcCurriculumMapPayload::class.java,
+        )
+        check(learnerMap.strands.size == map.strands.size)
 
         // Rate, then re-rate the same pair: it must correct, not duplicate.
         mockMvc.perform(post("/teacher/cbc/rating")

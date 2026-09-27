@@ -134,6 +134,36 @@ class NotificationService(
         return payload(saved)
     }
 
+    /**
+     * A push on its own, with **no in-app row**: for content that already has its own home in
+     * the app (a direct message lives in the message centre) but should still reach the device.
+     * Registration and delivery semantics are [notifyUser]'s, including the after-commit
+     * dispatch, so a rolled-back transaction never pushes.
+     */
+    fun pushToUser(
+        userId: UUID,
+        title: String,
+        message: String,
+        type: NotificationType = NotificationType.MESSAGE,
+        urgency: NotificationUrgency = NotificationUrgency.NORMAL,
+        actionRoute: String? = null,
+        actionLabel: String? = null,
+        metadata: Map<String, String> = emptyMap(),
+    ) {
+        pushFanout.dispatch(
+            userId,
+            PushMessage(
+                title = title.trim(),
+                message = message,
+                type = type.name,
+                actionRoute = actionRoute,
+                actionLabel = actionLabel,
+                urgency = urgency.name,
+                metadata = metadata,
+            ),
+        )
+    }
+
     @Transactional
     fun markRead(current: CurrentUser, notificationIdRaw: String) {
         val row = owned(current, notificationIdRaw)

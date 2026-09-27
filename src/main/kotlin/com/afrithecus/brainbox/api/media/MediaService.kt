@@ -2,13 +2,14 @@ package com.afrithecus.brainbox.api.media
 
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
+import com.afrithecus.brainbox.api.common.web.PublicUrlBuilder
+import com.afrithecus.brainbox.api.media.security.MediaScanAction
 import com.afrithecus.brainbox.api.storage.ObjectStorage
 import com.afrithecus.brainbox.api.storage.StorageProperties
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder
 import java.util.UUID
 
 /**
@@ -27,6 +28,9 @@ import java.util.UUID
 class MediaService(
     @Qualifier("mediaObjectStorage") private val storage: ObjectStorage,
     private val storageProperties: StorageProperties,
+    private val urls: PublicUrlBuilder,
+    /** The malware-scan gate; `none` records uploads as unscanned and changes nothing else. */
+    private val scanGate: MediaScanGate,
     @Value("\${app.media.max-upload-bytes:26214400}") private val maxUploadBytes: Long,
 ) {
 
@@ -67,8 +71,7 @@ class MediaService(
     fun storeBytes(bytes: ByteArray, filenameRaw: String, contentType: String): MediaUploadResponsePayload {
         val safe = filenameRaw.replace(Regex("[^A-Za-z0-9._-]"), "_").take(80)
         storage.put(safe, bytes, contentType)
-        val url = ServletUriComponentsBuilder.fromCurrentContextPath().path("/media/").path(safe).toUriString()
-        return MediaUploadResponsePayload(url = url, mediaType = "FILE")
+        return MediaUploadResponsePayload(url = urls.mediaUrl(safe), mediaType = "FILE")
     }
 
     /**
@@ -110,9 +113,29 @@ class MediaService(
         }
         val kind = MediaContentTypes.detect(bytes) ?: throw invalidArgument("Unsupported or unrecognised file type")
         if (!allowed(kind)) throw invalidArgument("Unsupported file type")
+        // The proxied path scans before storing, so it accepts exactly what the presigned
+        // confirm path accepts; with no scanner configured this is a recorded no-op. The
+        // object is not stored yet, so a refusal has nothing to quarantine: the bytes are
+        // simply never written.
         val filename = UUID.randomUUID().toString() + "." + kind.extension
+        val scan = scanGate.inspect(
+            uploadId = null,
+            storageKey = filename,
+            ownerId = null,
+            sizeBytes = bytes.size.toLong(),
+            contentType = kind.contentType,
+        ) { bytes }
+        if (!scan.allowed) {
+            throw invalidArgument(
+                if (scan.status == MediaScanStatus.INFECTED) {
+                    "This file was rejected by the malware scan" + scan.detail?.let { ": " + it }.orEmpty()
+                } else {
+                    "This file could not be scanned and was refused" + scan.detail?.let { ": " + it }.orEmpty()
+                }
+            )
+        }
         storage.put(filename, bytes, kind.contentType)
-        val url = ServletUriComponentsBuilder.fromCurrentContextPath().path("/media/").path(filename).toUriString()
+        val url = urls.mediaUrl(filename)
         return MediaUploadResponsePayload(
             url = url,
             mediaType = when {

@@ -37,7 +37,16 @@ data class TeacherSendMessageRequest(
 data class MessagePayload(
     val id: String,
     val senderId: String,
+    /**
+     * Who sent it, so an inbox can render a sender without a second lookup. The platform's own
+     * messages carry "Brainbox" and `senderRole = SYSTEM`.
+     */
+    val senderName: String? = null,
+    val senderRole: String? = null,
     val recipientId: String? = null,
+    val recipientName: String? = null,
+    /** Present for the same reason as [senderRole]: a client renders both ends without a lookup. */
+    val recipientRole: String? = null,
     val subject: String? = null,
     val body: String,
     val attachments: List<AttachmentPayload>? = null,

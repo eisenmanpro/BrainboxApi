@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.learning
 
+import com.afrithecus.brainbox.api.content.ContentProvenanceService
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
@@ -29,6 +30,7 @@ class MaterialsService(
     private val fileRepository: ReadableFileRepository,
     private val progressRepository: ReadingProgressRepository,
     private val sessionRepository: ReadingSessionRepository,
+    private val provenanceService: ContentProvenanceService,
     private val clock: Clock,
 ) {
 
@@ -191,24 +193,29 @@ class MaterialsService(
         return file
     }
 
-    private fun toPayload(file: ReadableFileEntity) = ReadableFilePayload(
-        id = file.id.toString(),
-        title = file.title,
-        author = file.authorName,
-        description = file.description,
-        subject = file.subject,
-        category = file.category,
-        filePath = file.fileUrl,
-        // A generated chunk carries its content inline; file-backed materials leave this null.
-        body = file.body,
-        fileType = clientFileType(file),
-        totalPages = file.pageCount,
-        thumbnailUrl = null,
-        isFromAssets = false,
-        fileSize = file.sizeBytes,
-        version = file.fileVersion,
-        createdAt = file.createdAt.toEpochMilli(),
-    )
+    private fun toPayload(file: ReadableFileEntity): ReadableFilePayload {
+        val provenance = provenanceService.of(file.id)
+        return ReadableFilePayload(
+            id = file.id.toString(),
+            title = file.title,
+            author = file.authorName,
+            description = file.description,
+            subject = file.subject,
+            category = file.category,
+            filePath = file.fileUrl,
+            // A generated chunk carries its content inline; file-backed materials leave this null.
+            body = file.body,
+            fileType = clientFileType(file),
+            totalPages = file.pageCount,
+            thumbnailUrl = null,
+            isFromAssets = false,
+            fileSize = file.sizeBytes,
+            version = file.fileVersion,
+            createdAt = file.createdAt.toEpochMilli(),
+            generated = provenance.generated,
+            reviewState = provenance.reviewState,
+        )
+    }
 
     /**
      * The Android ReadableFileType enum is PDF|EPUB|PLAINTEXT. The stored doc_type already uses

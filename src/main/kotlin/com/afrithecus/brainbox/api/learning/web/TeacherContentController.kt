@@ -126,6 +126,11 @@ class TeacherContentController(
         @RequestPart(value = "teacherId", required = false) teacherId: String?,
         @RequestPart(value = "id", required = false) id: String?,
         @RequestPart(value = "file", required = false) file: MultipartFile?,
+        /**
+         * A confirmed client-direct upload to reference instead of the bytes, so a
+         * presigned PUT can create the document (see api_presigned_upload_changes.md).
+         */
+        @RequestPart(value = "uploadId", required = false) uploadId: String?,
     ): TeacherDocumentPayload = service.uploadDocument(
         teacher(currentUser),
         id,
@@ -138,6 +143,7 @@ class TeacherContentController(
         topic,
         fileSizeBytes?.trim()?.toLongOrNull(),
         file,
+        uploadId,
     )
 
     @DeleteMapping("/content/document/{documentId}")

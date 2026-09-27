@@ -3,6 +3,7 @@ package com.afrithecus.brainbox.api.learning
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.common.domain.GradeNormalizer
+import com.afrithecus.brainbox.api.content.ContentProvenanceService
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.learning.entity.LearningContentEntity
@@ -40,6 +41,7 @@ class LearningService(
     private val codec: QuestionCodec,
     private val mapper: ObjectMapper,
     private val userRepository: UserRepository,
+    private val provenanceService: ContentProvenanceService,
     private val clock: Clock,
 ) {
 
@@ -125,6 +127,7 @@ class LearningService(
 
     private fun toPost(post: LearningPostEntity, trending: Boolean = false): LearningPostPayload {
         val canonical = CanonicalSubject.canonical(post.subject)
+        val provenance = provenanceService.of(post.id)
         val custom = post.customSubjectName?.takeIf { it.isNotBlank() }
             ?: post.subject.takeIf { canonical == null }?.trim()?.takeIf { it.isNotEmpty() }
         return LearningPostPayload(
@@ -153,6 +156,8 @@ class LearningService(
             authorName = userRepository.findById(post.createdBy).orElse(null)?.name.orEmpty(),
             customSubjectName = custom,
             status = post.status,
+            generated = provenance.generated,
+            reviewState = provenance.reviewState,
         )
     }
 

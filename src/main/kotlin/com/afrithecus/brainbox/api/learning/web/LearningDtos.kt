@@ -98,5 +98,9 @@ data class LearningPostPayload(
     val customSubjectName: String? = null,
     /** PUBLISHED | SCHEDULED | ARCHIVED; a missing status used to leak archived posts. */
     val status: String = "PUBLISHED",
+    /** True when a model wrote this content (the hub card shows a model-generated badge). */
+    val generated: Boolean = false,
+    /** UNREVIEWED | REVIEWED | REJECTED; the review gate's state for generated content. */
+    val reviewState: String = "REVIEWED",
     val content: List<LearningContentPayload>? = null,
 )

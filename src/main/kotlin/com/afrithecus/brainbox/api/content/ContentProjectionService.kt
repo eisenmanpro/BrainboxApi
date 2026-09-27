@@ -5,6 +5,7 @@ import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.content.entity.ContentUnitEntity
 import com.afrithecus.brainbox.api.content.entity.ContentUnitQuestionEntity
 import com.afrithecus.brainbox.api.content.figure.FigureSpecs
+import com.afrithecus.brainbox.api.cbcratings.repository.CbcStrandRepository
 import com.afrithecus.brainbox.api.content.repository.ConceptRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitQuestionRepository
 import com.afrithecus.brainbox.api.content.repository.ContentUnitRepository
@@ -77,6 +78,7 @@ class ContentProjectionService(
     private val codec: QuestionCodec,
     private val mapper: ObjectMapper,
     private val autoApproval: AutoApprovalService,
+    private val cbcStrands: CbcStrandRepository,
 ) {
 
     @Transactional
@@ -115,8 +117,10 @@ class ContentProjectionService(
         post.schoolId = unit.schoolId
         post.gradeLevel = unit.gradeLevel
         post.teacherId = null
-        post.cbcStrand = strandName(unit.conceptId)
-        post.cbcSubStrand = null
+        // The requester's picked taxonomy codes win over the concept-derived name, so
+        // authored and generated content line up by strand code.
+        post.cbcStrand = strandLabel(unit)
+        post.cbcSubStrand = subStrandLabel(unit)
         post.status = if (reviewed) PUBLISHED else DRAFT
         post.isPublished = reviewed
         post.publishAt = null
@@ -282,6 +286,18 @@ class ContentProjectionService(
     }
 
     // ------------------------------------------------------------ internals
+
+    /**
+     * The unit's strand as learner-facing text: the picked code resolved to its
+     * taxonomy name (or the code itself when the catalogue has no such row), falling
+     * back to the concept's curriculum-mapped strand name.
+     */
+    private fun strandLabel(unit: ContentUnitEntity): String? =
+        unit.cbcStrand?.takeIf { it.isNotBlank() }?.let { code -> cbcStrands.findByCode(code)?.name ?: code }
+            ?: strandName(unit.conceptId)
+
+    private fun subStrandLabel(unit: ContentUnitEntity): String? =
+        unit.cbcSubStrand?.takeIf { it.isNotBlank() }?.let { code -> cbcStrands.findByCode(code)?.name ?: code }
 
     private fun strandName(conceptId: UUID?): String? {
         if (conceptId == null) return null

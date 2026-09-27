@@ -45,9 +45,44 @@ class MediaUploadServiceTests(
     private lateinit var student: UserEntity
     private lateinit var teacher: UserEntity
 
+    /** The scanner seam under test; the default deployment configures none. */
+    private var scanner: MediaScanner = NoOpMediaScanner()
+    private var scanProperties = MediaProperties()
+
+    /** The runtime posture each test wants the gate to read. */
+    private var scanSettings = ScanSettings()
+    private val urls = com.afrithecus.brainbox.api.common.web.PublicUrlBuilder("")
+
+    /** A test-local view of the runtime scan posture. */
+    private data class ScanSettings(
+        val enabled: Boolean = false,
+        val provider: String = "none",
+        val failOpen: Boolean = false,
+        val onInfection: String = "QUARANTINE",
+    )
+
+    private fun gate() = MediaScanGate(
+        registry = MediaScannerRegistry(mapOf("none" to scanner, "stub" to scanner, "clamav" to scanner, "http" to scanner)),
+        properties = MediaProperties(scan = scanProperties.scan),
+        settings = MediaSecurityTestDoubles.settings(
+            scanEnabled = scanSettings.enabled,
+            provider = scanSettings.provider,
+            failOpen = scanSettings.failOpen,
+            onInfection = scanSettings.onInfection,
+        ),
+        security = MediaSecurityTestDoubles.security(),
+    )
+
+    /** Built per test so a scanner assigned after setUp is the one the service uses. */
+    private fun uploadService(maxBytes: Long = 25L * 1024 * 1024): MediaUploadService =
+        MediaUploadService(storage, uploads, storageProperties, urls, gate(), clock, maxBytes)
+
     @BeforeEach
     fun setUp() {
-        service = MediaUploadService(storage, uploads, storageProperties, clock, 25L * 1024 * 1024)
+        scanner = NoOpMediaScanner()
+        scanProperties = MediaProperties()
+        scanSettings = ScanSettings()
+        service = uploadService()
         storage.objects.clear()
         storage.presignEnabled = true
         val school = schools.save(SchoolEntity().apply { name = "Media Upload School"; isActive = true })
@@ -100,13 +135,109 @@ class MediaUploadServiceTests(
 
     @Test
     fun confirmRejectsAnOversizedFile() {
-        val small = MediaUploadService(storage, uploads, storageProperties, clock, 4L)
+        val small = uploadService(maxBytes = 4L)
         val ticket = small.initiate(student, MediaUploadInitiateRequest(contentType = "image/png"))
         storage.put(ticket.key, PNG, "image/png")
 
         assertFailsWith<ApiException> { small.confirm(student, ticket.uploadId, null) }
         check(!storage.objects.containsKey(ticket.key))
         check(uploads.findById(UUID.fromString(ticket.uploadId)).orElseThrow().status == "REJECTED")
+    }
+
+    @Test
+    fun confirmRecordsAVerdictAndRefusesAnInfectedObject() {
+        // A direct PUT bypasses the proxied path, so confirm must scan before VERIFIED.
+        scanner = object : MediaScanner {
+            override val name = "stub"
+            override fun scan(bytes: ByteArray, contentType: String?): MediaScanResult =
+                MediaScanResult(MediaScanStatus.INFECTED, "Eicar-Test-Signature")
+        }
+        scanSettings = ScanSettings(enabled = true, provider = "stub")
+        val svc = uploadService()
+        val ticket = svc.initiate(student, MediaUploadInitiateRequest(contentType = "image/png"))
+        storage.put(ticket.key, PNG, "image/png")
+
+        val failure = assertFailsWith<ApiException> { svc.confirm(student, ticket.uploadId, null) }
+        check(failure.code == ApiErrorCode.INVALID_ARGUMENT)
+        check(!storage.objects.containsKey(ticket.key)) { "an infected object must be deleted" }
+        val row = uploads.findById(UUID.fromString(ticket.uploadId)).orElseThrow()
+        check(row.status == "REJECTED")
+        check(row.scanStatus == "INFECTED") { "the verdict is recorded even on rejection, was " + row.scanStatus }
+        check(row.scanDetail == "Eicar-Test-Signature")
+        check(row.scanner == "stub")
+    }
+
+    @Test
+    fun aCleanScanIsRecordedAndTheUploadIsServed() {
+        scanner = object : MediaScanner {
+            override val name = "stub"
+            override fun scan(bytes: ByteArray, contentType: String?): MediaScanResult =
+                MediaScanResult(MediaScanStatus.CLEAN)
+        }
+        scanSettings = ScanSettings(enabled = true, provider = "stub")
+        val svc = uploadService()
+        val ticket = svc.initiate(student, MediaUploadInitiateRequest(contentType = "image/png"))
+        storage.put(ticket.key, PNG, "image/png")
+
+        val payload = svc.confirm(student, ticket.uploadId, "https://api.test")
+        check(payload.url == "https://api.test/media/" + ticket.key)
+        val row = uploads.findById(UUID.fromString(ticket.uploadId)).orElseThrow()
+        check(row.status == "VERIFIED")
+        check(row.scanStatus == "CLEAN")
+        check(row.scanner == "stub")
+    }
+
+    @Test
+    fun anUnreachableScannerRefusesTheUploadUnlessTheDeploymentOptsOut() {
+        scanner = object : MediaScanner {
+            override val name = "stub"
+            override fun scan(bytes: ByteArray, contentType: String?): MediaScanResult =
+                MediaScanResult(MediaScanStatus.ERROR, "The malware scanner is unavailable")
+        }
+        scanSettings = ScanSettings(enabled = true, provider = "stub")
+        val closed = uploadService()
+        val refused = closed.initiate(student, MediaUploadInitiateRequest(contentType = "image/png"))
+        storage.put(refused.key, PNG, "image/png")
+        assertFailsWith<ApiException> { closed.confirm(student, refused.uploadId, null) }
+        check(!storage.objects.containsKey(refused.key))
+
+        scanSettings = ScanSettings(enabled = true, provider = "stub", failOpen = true)
+        val open = uploadService()
+        val accepted = open.initiate(student, MediaUploadInitiateRequest(contentType = "image/png"))
+        storage.put(accepted.key, PNG, "image/png")
+        open.confirm(student, accepted.uploadId, null)
+        val row = uploads.findById(UUID.fromString(accepted.uploadId)).orElseThrow()
+        check(row.status == "VERIFIED")
+        check(row.scanStatus == "ERROR") { "an accepted failure must not read as clean, was " + row.scanStatus }
+    }
+
+    @Test
+    fun theDefaultDeploymentRecordsUploadsAsUnscanned() {
+        val ticket = service.initiate(student, MediaUploadInitiateRequest(contentType = "image/png"))
+        storage.put(ticket.key, PNG, "image/png")
+        service.confirm(student, ticket.uploadId, null)
+
+        val row = uploads.findById(UUID.fromString(ticket.uploadId)).orElseThrow()
+        check(row.status == "VERIFIED")
+        check(row.scanStatus == "SKIPPED") { "with no scanner the row must say so, was " + row.scanStatus }
+        check(row.scanner == "none")
+    }
+
+    @Test
+    fun aPublicBaseUrlIsUsedForServedMedia() {
+        val cdn = MediaUploadService(
+            storage,
+            uploads,
+            storageProperties,
+            com.afrithecus.brainbox.api.common.web.PublicUrlBuilder("https://cdn.brainbox.co.ke/"),
+            gate(),
+            clock,
+            25L * 1024 * 1024,
+        )
+        val ticket = cdn.initiate(student, MediaUploadInitiateRequest(contentType = "image/png"))
+        storage.put(ticket.key, PNG, "image/png")
+        val payload = cdn.confirm(student, ticket.uploadId, null)
+        check(payload.url == "https://cdn.brainbox.co.ke/media/" + ticket.key) { payload.url }
     }
 
     @Test

@@ -51,6 +51,10 @@ data class ReadableFilePayload(
     val fileSize: Long,
     val version: Int,
     val createdAt: Long,
+    /** True when a model wrote this material (the reader header shows a model-generated badge). */
+    val generated: Boolean = false,
+    /** UNREVIEWED | REVIEWED | REJECTED for generated content. */
+    val reviewState: String = "REVIEWED",
 )
 
 data class ReadingProgressRequest(

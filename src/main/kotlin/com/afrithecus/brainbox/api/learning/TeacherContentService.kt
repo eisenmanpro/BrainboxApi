@@ -2,6 +2,7 @@ package com.afrithecus.brainbox.api.learning
 
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
+import com.afrithecus.brainbox.api.content.ContentProvenanceService
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.exams.QuestionCodec
@@ -23,6 +24,7 @@ import com.afrithecus.brainbox.api.learning.entity.ReadableFileEntity
 import com.afrithecus.brainbox.api.learning.model.FileType
 import com.afrithecus.brainbox.api.learning.web.DocumentSourcePayload
 import com.afrithecus.brainbox.api.learning.web.TeacherDocumentPayload
+import com.afrithecus.brainbox.api.media.MediaPolicies
 import com.afrithecus.brainbox.api.media.MediaService
 import org.springframework.web.multipart.MultipartFile
 import com.afrithecus.brainbox.api.learning.web.ContentAnalyticsPayload
@@ -52,8 +54,10 @@ class TeacherContentService(
     private val progressRepository: LearningProgressRepository,
     private val fileRepository: ReadableFileRepository,
     private val mediaService: MediaService,
+    private val mediaUploads: com.afrithecus.brainbox.api.media.MediaUploadService,
     private val userRepository: UserRepository,
     private val codec: QuestionCodec,
+    private val provenanceService: ContentProvenanceService,
     private val clock: Clock,
 ) {
 
@@ -253,6 +257,8 @@ class TeacherContentService(
         topic: String?,
         fileSizeBytes: Long?,
         file: MultipartFile?,
+        /** A confirmed client-direct upload to adopt instead of carrying the bytes. */
+        uploadId: String? = null,
     ): TeacherDocumentPayload {
         requireTeacher(teacher)
         if (title.isBlank()) throw invalidArgument("Document title is required")
@@ -264,11 +270,23 @@ class TeacherContentService(
             this.clientId = clientId
             createdBy = teacher.id
         }
+        val confirmed = uploadId?.trim()?.takeIf { it.isNotEmpty() }?.let { id ->
+            mediaUploads.confirmedUpload(teacher, id)
+                ?: throw invalidArgument("That upload has not been confirmed yet")
+        }
+        if (confirmed != null && confirmed.kind !in MediaPolicies.DOCUMENT_KINDS) {
+            throw invalidArgument("A document must be a PDF, EPUB or text file")
+        }
         if (file != null && !file.isEmpty) {
             val stored = mediaService.storeDocument(file)
             mediaService.delete(entity.fileUrl)
             entity.fileUrl = stored.url
             entity.sizeBytes = file.size
+        } else if (confirmed != null) {
+            // The object was already verified at confirm time; the record just references it.
+            mediaService.delete(entity.fileUrl)
+            entity.fileUrl = confirmed.url
+            confirmed.sizeBytes?.let { entity.sizeBytes = it }
         } else if (fileSizeBytes != null) {
             entity.sizeBytes = fileSizeBytes
         }
@@ -298,23 +316,28 @@ class TeacherContentService(
         fileRepository.delete(entity)
     }
 
-    private fun documentPayload(entity: ReadableFileEntity) = TeacherDocumentPayload(
-        id = entity.clientId ?: entity.id.toString(),
-        title = entity.title,
-        author = entity.authorName.orEmpty(),
-        description = entity.description.orEmpty(),
-        type = entity.docType ?: entity.fileType.name,
-        source = DocumentSourcePayload(entity.fileUrl),
-        sourcePath = entity.fileUrl,
-        pageCount = entity.pageCount.takeIf { it > 0 },
-        fileSizeBytes = entity.sizeBytes.takeIf { it > 0 },
-        addedAt = entity.createdAt.toEpochMilli(),
-        teacherId = entity.createdBy.toString(),
-        grade = entity.gradeLevel,
-        subject = entity.subject,
-        scope = entity.scope.name,
-        schoolId = entity.schoolId?.toString(),
-    )
+    private fun documentPayload(entity: ReadableFileEntity): TeacherDocumentPayload {
+        val provenance = provenanceService.of(entity.id)
+        return TeacherDocumentPayload(
+            id = entity.clientId ?: entity.id.toString(),
+            title = entity.title,
+            author = entity.authorName.orEmpty(),
+            description = entity.description.orEmpty(),
+            type = entity.docType ?: entity.fileType.name,
+            source = DocumentSourcePayload(entity.fileUrl),
+            sourcePath = entity.fileUrl,
+            pageCount = entity.pageCount.takeIf { it > 0 },
+            fileSizeBytes = entity.sizeBytes.takeIf { it > 0 },
+            addedAt = entity.createdAt.toEpochMilli(),
+            teacherId = entity.createdBy.toString(),
+            grade = entity.gradeLevel,
+            subject = entity.subject,
+            scope = entity.scope.name,
+            schoolId = entity.schoolId?.toString(),
+            generated = provenance.generated,
+            reviewState = provenance.reviewState,
+        )
+    }
 
     private fun documentType(raw: String): String {
         val upper = raw.trim().uppercase()

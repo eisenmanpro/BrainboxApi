@@ -48,6 +48,10 @@ class ContentUnitEntity : BaseEntity() {
     @Column(name = "prompt_version", length = 32)
     var promptVersion: String? = null
 
+    /** The domain subject agent that generated this version, for review attribution. */
+    @Column(name = "agent_code", length = 32)
+    var agentCode: String? = null
+
     @Column(columnDefinition = "text")
     var body: String? = null
 
@@ -138,4 +142,12 @@ class ContentUnitEntity : BaseEntity() {
 
     @Column(name = "published_at")
     var publishedAt: Instant? = null
+
+    /** CBC strand code the requester picked (`cbc_strands.code`), when one was given. */
+    @Column(name = "cbc_strand", length = 32)
+    var cbcStrand: String? = null
+
+    /** CBC sub-strand code that sits under [cbcStrand], when one was given. */
+    @Column(name = "cbc_sub_strand", length = 32)
+    var cbcSubStrand: String? = null
 }

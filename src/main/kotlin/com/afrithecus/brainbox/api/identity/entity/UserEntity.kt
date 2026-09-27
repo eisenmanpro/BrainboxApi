@@ -41,6 +41,17 @@ class UserEntity : BaseEntity() {
     @Column(name = "sub_role", length = 32)
     var subRole: SubRole? = null
 
+    /**
+     * Platform console permissions, comma-separated (see `PlatformPermission`). Empty for
+     * every account by default: holding the ADMIN role alone buys no console operation.
+     */
+    @Column(name = "platform_permissions", length = 255)
+    var platformPermissions: String? = null
+
+    /** The account's console role, if it operates the platform console. */
+    @Column(name = "console_role_id")
+    var consoleRoleId: UUID? = null
+
     @Column(name = "school_id")
     var schoolId: UUID? = null
 

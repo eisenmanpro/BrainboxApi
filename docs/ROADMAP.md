@@ -73,6 +73,12 @@ compose.yaml to a stable major (17).
    interfaces). Migrations own the schema; entities are persistence objects.
 5. **Migrations: Flyway (SQL-first).** Versioned SQL migrations + seed/reference
    data; reviewed like code; one baseline for dev/staging/prod.
+   **The pre-release chain was collapsed into `V1__baseline.sql`** before the first
+   deployment: the platform has never had a live user base, so V1..V92 were
+   concatenated in order into that one file (nothing rewritten) and the numbered
+   files were deleted. The integration suite rebuilds the schema from the baseline
+   on every run under `ddl-auto: validate`, which is what proves it complete. From
+   here on a schema change is a new `V2__…` migration; the baseline is never edited.
 6. **Module layout: single Gradle module with domain packages**
    (auth, users, schools, exams, ... layered controller/service/repository inside
    each). Split into modules only if Phase 7 (agentic) demands isolation.
@@ -599,7 +605,7 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       BrainBox/docs/ongoing/api_payments_changes.md.
 - [x] FCM push notifications + deep links (LC-1, `04f0bff`): device registration plus an HTTP
       v1 sender wired into every server notification, disabled until `app.push.fcm` is set.
-- [ ] Media/file upload (presigned S3/MinIO) + file security (scan URLs, size/type policy).
+- [x] Media/file upload (presigned S3/MinIO) + file security (scan URLs, size/type policy).
       **File security done (this pass):** the stored and served type is detected from the file's
       leading bytes (`MediaContentTypes`), never from the client-declared multipart type or the
       client filename, so an HTML/script payload cannot be smuggled in as an image or under an
@@ -623,14 +629,22 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       path (local disk keeps the multipart fallback). **Downloads redirect to a short-lived
       presigned GET** when S3 is configured (the media and report download endpoints answer 302,
       so the bytes come from storage instead of the API node), verified against the S3
-      presigned-URL vector. A malware/URL scanner remains (it would run at confirm, before the
-      file is marked VERIFIED).
-- [ ] Redis: JWT revocation, rate-limit counters, live-class counters.
-      **Partial without Redis:** access-token revocation is now enforced by checking the
-      session row in `AuthTokenFilter`, so logout / password change / deactivation take effect
-      immediately instead of waiting out the 24h token TTL; rate limiting is an in-memory token
-      bucket and live-class presence an in-memory map. Redis remains the multi-node upgrade and
-      needs the starter (not in the offline build) and a server.
+      presigned-URL vector. **The malware/URL stage now runs** (`app.media.scan.provider` =
+      none | clamav | http): it executes after the format check and before VERIFIED on both
+      the presign confirm path and the proxied multipart path, records `scan_status`/
+      `scan_detail`/`scanner` (baseline schema), and fails closed on an unavailable scanner unless the
+      deployment sets `app.media.scan.fail-open=true`. Served URLs are CDN-ready through
+      `app.public-base-url` and `app.media.cache.*` (`docs/ongoing/api_cdn_deployment.md`).
+- [x] Redis: JWT revocation, rate-limit counters, live-class counters.
+      **Adoption is now a config change.** `SharedStateStore` has an in-process default and a
+      Redis implementation behind `app.redis.enabled` (the starter is on the classpath), with
+      `ResilientSharedStateStore` falling back in process and logging when the backend is
+      unreachable. Failure modes are per feature and chosen for usability: rate limiting and
+      presence degrade to per-node (`ALLOW`), revocation-shaped state refuses (`DENY`).
+      Access-token revocation is enforced from the authoritative session row in
+      `AuthTokenFilter`, so it is already correct without Redis; login throttling now counts in
+      the shared store when it is enabled. The in-memory token bucket stays as the coarse IP
+      control. See `docs/ongoing/api_shared_state_changes.md`.
 - [x] Background job processing: scheduled maintenance for audit retention, password-reset
       cleanup, report schedules + file retention, conference expiry, content/announcement
       release, idempotency purge, and (new) expired refresh-token / dead-session pruning
@@ -872,7 +886,7 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       and is served by `GET /practice-papers/{examId}/content`; a `STUDY_GUIDE` projects into a
       `learning_post` whose blocks are its steps. Both are generated originals and never reproduce or
       attribute a KNEC/KICD paper. The full-breadth production seed run remains open.
-- [ ] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences).
+- [x] Brainbox Supervisor Agent + domain sub-agents (math, sciences, social sciences).
       **Supervisor loop delivered (this pass):** `ContentTaskLoop` runs generate -> validate ->
       revise around each durable job, bounded by `app.content.loop.max-iterations` and
       `app.content.loop.max-cost-micros`, folding the validator BLOCKER findings into the next
@@ -881,8 +895,13 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       queue, so an unrevisable item escalates instead of publishing. The iteration count,
       accumulated cost and last feedback are persisted on the job
       (`loop_iterations`/`loop_cost_micros`/`loop_feedback`, V75) so a crash resumes rather than
-      restarts; `max-iterations=1` (the default) is the previous single-shot path. The per-subject
-      domain agents (subject-selected persona/prompt) remain.
+      restarts; `max-iterations=1` (the default) is the previous single-shot path. **Per-subject
+      domain agents are delivered** (`SubjectAgentRegistry`: one persona plus task-shaped
+      pedagogy per seeded CBC subject, resolved on every generation and revise path and
+      attributed on `agent_runs.agent_code` / `content_units.agent_code`, with
+      `GET admin/content/queue/agents` as the console view). The dedicated non-subject roles
+      the diagram expects (diagram/figure, localisation, standalone assessment) remain
+      prompt-shaped work inside the subject agents rather than parallel workers.
 - [ ] Agent tools: DB metric queries, internet search, content validators. **Partial (this pass):**
       the tool layer behind `McpToolClient` now also exposes `metric_query` (shelf coverage and
       generation-queue depth from the database), `validate_content` (runs the deterministic
@@ -906,6 +925,28 @@ Key docs: ARCHITECTURE §6/8 + Appendix A; 01; 11 §1/8; 12 (model conventions).
       per-provider attempt list so every failed candidate is still captured. Per-generation token
       tracking was already stored on `model_calls`; this pass makes the provider selection real.
 - [ ] Moderator gate (AI + human-in-the-loop UI) — nothing ships unmoderated.
+      **Platform console API delivered:** capability-based RBAC with console roles the ADMIN
+      creates, `/admin/console/me` returning only the caller's actionable items, account
+      administration across every type (including override creation with generated
+      credentials), school administration, public news management, targeted/scheduled
+      notifications with automation rules, subscriber views and editable subject-agent
+      prompts; every mutation audited (`docs/ongoing/api_console_changes.md`). The console
+      application itself is still to build, against the obligations in
+      `docs/ongoing/console_security_requirements.md`.
+      **Direct messages delivered:** the console writes to users' inboxes as the seeded platform
+      account **Brainbox** (`MESSAGES_MANAGE`, separate from `NOTIFICATIONS_MANAGE`), with no
+      impersonation and no notification row; messages are ordinary inbox rows the user can reply
+      to, and the replies are read back through `/admin/console/messages/replies`. Delivery also
+      pushes the device (`type = MESSAGE`, route `message_centre`) without writing an alert row.
+      The platform account is not an operator: it is hidden from the console's account and
+      operator lists and refuses suspend/verify/password-reset.
+      **Console authorization is delivered:** the media-security console is operated with
+      explicit platform permissions (`CONSOLE_READ` / `SECURITY_OPERATE` / `PLATFORM_ADMIN`)
+      rather than the ADMIN role, bootstrapped from `CONSOLE_BOOTSTRAP_OPERATOR_PHONES`, with
+      every operator action audited as a platform row in `audit_logs` and a lockout rule that
+      stops the last platform admin stranding the console. The console's own obligations
+      (OIDC/MFA, no admin token in the browser, CSRF, step-up on destructive actions, CSP,
+      secrets server-side) are the checklist in `docs/ongoing/console_security_requirements.md`.
       **AI critic delivered (this pass):** a separate `pedagogy-critique-v1` model interaction
       through the router scores each unit and stores the score, model and structured findings on
       `content_units` (V76). When `app.content.critique.enabled=true` the supervisor loop treats a

@@ -7,6 +7,12 @@ data class CbcStrandInfoPayload(
     val name: String,
     val descriptor: String,
     val gradeLevel: String,
+    /** Subject the strand belongs to (Mathematics, Integrated Science, ...). */
+    val subject: String = "",
+    /** STRAND or SUBSTRAND; a picker shows a sub-strand under its parent. */
+    val level: String = "STRAND",
+    /** Code of the parent strand for a sub-strand; null for a top-level strand. */
+    val parentCode: String? = null,
 )
 
 data class CbcCurriculumMapPayload(

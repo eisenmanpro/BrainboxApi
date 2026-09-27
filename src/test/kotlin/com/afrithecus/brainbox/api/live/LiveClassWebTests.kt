@@ -215,7 +215,7 @@ class LiveClassWebTests(
         val student = signup("0778800022")
         val clazz = createClass(admin, teacher.id.toString(), "Poll Live")
 
-        // students cannot create polls
+        // a student who never joined the class cannot create polls
         mockMvc.perform(
             post("/live/class/${clazz.id}/poll").header("Authorization", auth(student.sessionToken!!))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -259,6 +259,218 @@ class LiveClassWebTests(
             Array<LivePollPayload>::class.java,
         )
         check(polls.single().id == poll.id)
+    }
+
+    /**
+     * The app queues a poll created offline and replays it. The client poll id is the
+     * idempotency key, so the replay must return the original poll (and keep the id the
+     * client already used for a queued vote) instead of publishing a duplicate.
+     */
+    @Test
+    fun `a replayed poll create returns the original poll`() {
+        newUser("0778800040", "live.admin5@test", Role.ADMIN)
+        val admin = login("live.admin5@test")
+        val teacher = newUser("0778800041", "live.teacher5@test", Role.TEACHER)
+        val teacherToken = login("live.teacher5@test")
+        val student = signup("0778800042")
+        val clazz = createClass(admin, teacher.id.toString(), "Poll Replay Live")
+        val clientPollId = java.util.UUID.randomUUID().toString()
+
+        val first = mockMvc.perform(
+            post("/live/class/${clazz.id}/poll?clientPollId=$clientPollId")
+                .header("Authorization", auth(teacherToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(CreatePollRequest("Ready?", listOf("Yes", "No"))))
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val created = objectMapper.readValue(first, LivePollPayload::class.java)
+        check(created.id == clientPollId) { "the client poll id must be the poll id" }
+
+        // The exact replay the sync worker sends.
+        val replay = mockMvc.perform(
+            post("/live/class/${clazz.id}/poll?clientPollId=$clientPollId")
+                .header("Authorization", auth(teacherToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(CreatePollRequest("Ready?", listOf("Yes", "No"))))
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val replayed = objectMapper.readValue(replay, LivePollPayload::class.java)
+        check(replayed.id == created.id)
+
+        val polls = objectMapper.readValue(
+            mockMvc.perform(get("/live/class/${clazz.id}/polls").header("Authorization", auth(student.sessionToken!!)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<LivePollPayload>::class.java,
+        )
+        check(polls.size == 1) { "the replay must not publish a second poll, found ${polls.size}" }
+
+        // A vote queued against the local poll id resolves once the create has replayed.
+        mockMvc.perform(
+            post("/live/class/${clazz.id}/poll/$clientPollId/vote").header("Authorization", auth(student.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON).content("""{"optionIndex":0}""")
+        ).andExpect(status().isOk)
+
+        // A client poll id that is not a UUID cannot be the poll id.
+        mockMvc.perform(
+            post("/live/class/${clazz.id}/poll?clientPollId=not-a-uuid")
+                .header("Authorization", auth(teacherToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(CreatePollRequest("Other?", listOf("A", "B"))))
+        ).andExpect(status().isBadRequest)
+
+        // The host send path takes the same key, so a queued send is replay-safe too.
+        val hostPollId = java.util.UUID.randomUUID().toString()
+        val hostBody = objectMapper.writeValueAsString(
+            LivePollPayload(
+                id = hostPollId,
+                classId = clazz.id.toString(),
+                question = "Host poll?",
+                options = listOf("A", "B"),
+            )
+        )
+        repeat(2) {
+            mockMvc.perform(
+                post("/teacher/live-classes/${clazz.id}/polls?clientPollId=$hostPollId")
+                    .header("Authorization", auth(teacherToken))
+                    .contentType(MediaType.APPLICATION_JSON).content(hostBody)
+            ).andExpect(status().isOk)
+        }
+        val afterHostSend = objectMapper.readValue(
+            mockMvc.perform(get("/live/class/${clazz.id}/polls").header("Authorization", auth(student.sessionToken!!)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<LivePollPayload>::class.java,
+        )
+        check(afterHostSend.size == 2) { "the host replay must not duplicate, found ${afterHostSend.size}" }
+        check(afterHostSend.map { it.id }.contains(hostPollId))
+    }
+
+    /**
+     * The learner surface also opens polls, but only for someone actually in the class:
+     * the client shows the create action to a joined participant.
+     */
+    @Test
+    fun `a learner who joined the class can open a poll`() {
+        newUser("0778800050", "live.admin6@test", Role.ADMIN)
+        val admin = login("live.admin6@test")
+        val teacher = newUser("0778800051", "live.teacher6@test", Role.TEACHER)
+        val student = signup("0778800052")
+        val clazz = createClass(admin, teacher.id.toString(), "Learner Polls Live")
+        val body = objectMapper.writeValueAsString(CreatePollRequest("Quick check?", listOf("Yes", "No")))
+
+        // Not in the class yet.
+        mockMvc.perform(
+            post("/live/class/${clazz.id}/poll").header("Authorization", auth(student.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON).content(body)
+        ).andExpect(status().isForbidden)
+
+        // Joining the class (registering) is what makes the learner a participant.
+        mockMvc.perform(
+            post("/live/class/${clazz.id}/register").header("Authorization", auth(student.sessionToken!!))
+        ).andExpect(status().isOk)
+
+        val pollId = java.util.UUID.randomUUID().toString()
+        val created = objectMapper.readValue(
+            mockMvc.perform(
+                post("/live/class/${clazz.id}/poll?clientPollId=$pollId")
+                    .header("Authorization", auth(student.sessionToken!!))
+                    .contentType(MediaType.APPLICATION_JSON).content(body)
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            LivePollPayload::class.java,
+        )
+        check(created.id == pollId)
+        check(created.question == "Quick check?")
+
+        // The host sees the learner's poll in the class poll list and can vote on it.
+        val polls = objectMapper.readValue(
+            mockMvc.perform(
+                get("/live/class/${clazz.id}/polls").header("Authorization", auth(student.sessionToken!!))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<LivePollPayload>::class.java,
+        )
+        check(polls.map { it.id } == listOf(pollId))
+    }
+
+    /**
+     * Closing a poll: the host and the poll's author may end it, the tally stops moving,
+     * a replay is harmless, and everybody else is refused. Without this a poll stayed
+     * open forever (the 15 s refresh was the only live signal).
+     */
+    @Test
+    fun `a poll can be closed by the host or its author`() {
+        newUser("0778800060", "live.admin7@test", Role.ADMIN)
+        val admin = login("live.admin7@test")
+        val teacher = newUser("0778800061", "live.teacher7@test", Role.TEACHER)
+        val teacherToken = login("live.teacher7@test")
+        val author = signup("0778800062")
+        val bystander = signup("0778800063")
+        val clazz = createClass(admin, teacher.id.toString(), "Poll End Live")
+        val body = objectMapper.writeValueAsString(CreatePollRequest("Ready?", listOf("Yes", "No")))
+
+        mockMvc.perform(
+            post("/live/class/${clazz.id}/register").header("Authorization", auth(author.sessionToken!!))
+        ).andExpect(status().isOk)
+        mockMvc.perform(
+            post("/live/class/${clazz.id}/register").header("Authorization", auth(bystander.sessionToken!!))
+        ).andExpect(status().isOk)
+
+        val pollId = java.util.UUID.randomUUID().toString()
+        mockMvc.perform(
+            post("/live/class/${clazz.id}/poll?clientPollId=$pollId")
+                .header("Authorization", auth(author.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON).content(body)
+        ).andExpect(status().isOk)
+
+        // a classmate cannot close someone else's poll
+        mockMvc.perform(
+            post("/live/class/${clazz.id}/poll/$pollId/end").header("Authorization", auth(bystander.sessionToken!!))
+        ).andExpect(status().isForbidden)
+
+        // the author can
+        val closed = objectMapper.readValue(
+            mockMvc.perform(
+                post("/live/class/${clazz.id}/poll/$pollId/end").header("Authorization", auth(author.sessionToken!!))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            LivePollPayload::class.java,
+        )
+        check(!closed.isActive) { "an ended poll must report isActive=false" }
+
+        // a replay is idempotent, and a closed poll takes no more votes
+        mockMvc.perform(
+            post("/live/class/${clazz.id}/poll/$pollId/end").header("Authorization", auth(author.sessionToken!!))
+        ).andExpect(status().isOk)
+        mockMvc.perform(
+            post("/live/class/${clazz.id}/poll/$pollId/vote").header("Authorization", auth(bystander.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON).content("""{"optionIndex":0}""")
+        ).andExpect(status().isConflict)
+
+        // the host can close a learner's still-open poll too
+        val hostPollId = java.util.UUID.randomUUID().toString()
+        mockMvc.perform(
+            post("/live/class/${clazz.id}/poll?clientPollId=$hostPollId")
+                .header("Authorization", auth(author.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON).content(body)
+        ).andExpect(status().isOk)
+        mockMvc.perform(
+            post("/live/class/${clazz.id}/poll/$hostPollId/end").header("Authorization", auth(teacherToken))
+        ).andExpect(status().isOk)
+
+        // the class poll list carries the closed state
+        val polls = objectMapper.readValue(
+            mockMvc.perform(
+                get("/live/class/${clazz.id}/polls").header("Authorization", auth(author.sessionToken!!))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<LivePollPayload>::class.java,
+        )
+        check(polls.size == 2)
+        check(polls.none { it.isActive }) { "both polls must be closed" }
+
+        // unknown ids are refused rather than invented
+        mockMvc.perform(
+            post("/live/class/${clazz.id}/poll/${java.util.UUID.randomUUID()}/end")
+                .header("Authorization", auth(author.sessionToken!!))
+        ).andExpect(status().isNotFound)
+        mockMvc.perform(
+            post("/live/class/${clazz.id}/poll/not-a-uuid/end").header("Authorization", auth(author.sessionToken!!))
+        ).andExpect(status().isBadRequest)
+        mockMvc.perform(post("/live/class/${clazz.id}/poll/$pollId/end")).andExpect(status().isUnauthorized)
     }
 
     @Test

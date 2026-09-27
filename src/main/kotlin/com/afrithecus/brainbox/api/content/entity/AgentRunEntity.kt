@@ -24,6 +24,14 @@ class AgentRunEntity : BaseEntity() {
     @Column(name = "prompt_version", length = 32)
     var promptVersion: String? = null
 
+    /**
+     * The domain subject agent that produced this run (MATH, SCI, ENG, KIS, SST,
+     * GENERAL). Part of the capture contract: quality is attributable to an agent, not
+     * only to a model.
+     */
+    @Column(name = "agent_code", length = 32)
+    var agentCode: String? = null
+
     @Column(length = 64)
     var model: String? = null
 

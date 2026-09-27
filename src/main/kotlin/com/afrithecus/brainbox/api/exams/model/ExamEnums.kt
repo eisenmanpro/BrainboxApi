@@ -4,7 +4,12 @@ package com.afrithecus.brainbox.api.exams.model
 enum class ExamType { DIGITAL, PRACTICE_PAPER, TRADITIONAL, QUIZ }
 
 /** Content scope rules shared with the learning hub (ARCHITECTURE.md §A.2). */
-enum class ExamScope { GLOBAL, SCHOOL, SCHOOL_GRADE_CLASS }
+/**
+ * GLOBAL/SCHOOL/SCHOOL_GRADE_CLASS are shared catalogs; PERSONAL is a paper generated for
+ * one learner (§B7), visible only to its owner (and to that learner's teacher and guardian
+ * through the practice reads).
+ */
+enum class ExamScope { GLOBAL, SCHOOL, SCHOOL_GRADE_CLASS, PERSONAL }
 
 /** Lifecycle for authored exams (doc 02 §2.4). */
 enum class ExamStatus { DRAFT, PUBLISHED, ARCHIVED }

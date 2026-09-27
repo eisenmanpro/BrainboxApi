@@ -1,6 +1,7 @@
 package com.afrithecus.brainbox.api.media
 
 import com.afrithecus.brainbox.api.common.error.ApiException
+import com.afrithecus.brainbox.api.common.web.PublicUrlBuilder
 import com.afrithecus.brainbox.api.media.web.MediaController
 import com.afrithecus.brainbox.api.storage.LocalObjectStorage
 import com.afrithecus.brainbox.api.storage.ObjectStorage
@@ -29,10 +30,20 @@ class MediaServiceTests {
     private lateinit var directory: Path
     private lateinit var service: MediaService
 
+    /** No scanner configured: the default deployment, which records uploads as unscanned. */
+    private fun noScan(): MediaScanGate = MediaSecurityTestDoubles.gate()
+
+    private fun mediaService(
+        urlBuilder: PublicUrlBuilder = PublicUrlBuilder(""),
+        scanGate: MediaScanGate = noScan(),
+        storage: ObjectStorage = LocalObjectStorage(directory),
+        maxBytes: Long = 1024L * 1024L,
+    ): MediaService = MediaService(storage, StorageProperties(), urlBuilder, scanGate, maxBytes)
+
     @BeforeEach
     fun setUp() {
         directory = Files.createTempDirectory("brainbox-media-test")
-        service = MediaService(LocalObjectStorage(directory), StorageProperties(), 1024L * 1024L)
+        service = mediaService()
         RequestContextHolder.setRequestAttributes(ServletRequestAttributes(MockHttpServletRequest()))
     }
 
@@ -117,7 +128,7 @@ class MediaServiceTests {
             override fun presignGet(key: String, ttl: java.time.Duration): String? =
                 "https://minio.internal/brainbox/media/" + key + "?X-Amz-Signature=x"
         }
-        val controller = MediaController(MediaService(fake, StorageProperties(), 1024L * 1024L))
+        val controller = MediaController(mediaService(storage = fake), MediaProperties())
         val response = controller.download("abc.png")
         assertEquals(302, response.statusCode.value())
         assertTrue(response.headers.location.toString().startsWith("https://minio.internal/brainbox/media/abc.png"))
@@ -127,9 +138,94 @@ class MediaServiceTests {
     fun servedDownloadCarriesTheAntiSniffingHeaders() {
         val stored = service.store(MockMultipartFile("file", "note.png", "image/png", png))
         val filename = stored.url.substringAfterLast("/media/")
-        val response = MediaController(service).download(filename)
+        val response = MediaController(service, MediaProperties()).download(filename)
         assertEquals("nosniff", response.headers.getFirst("X-Content-Type-Options"))
         assertEquals("inline", response.headers.getFirst("Content-Disposition"))
         assertEquals("image/png", response.headers.contentType.toString())
+    }
+
+    @Test
+    fun mediaCacheStaysPrivateUntilACdnIsConfigured() {
+        val stored = service.store(MockMultipartFile("file", "note.png", "image/png", png))
+        val filename = stored.url.substringAfterLast("/media/")
+
+        // Default: immutable bytes, but no shared cache may store the response.
+        val privateResponse = MediaController(service, MediaProperties()).download(filename)
+        val privateCache = privateResponse.headers.cacheControl!!
+        assertTrue(privateCache.startsWith("max-age=") || privateCache.contains("max-age="), privateCache)
+        assertTrue(privateCache.contains("private"), privateCache)
+        assertTrue(!privateCache.contains("public"), privateCache)
+
+        // With a CDN in front the deployment flips one property and the origin says so.
+        val publicProperties = MediaProperties(
+            cache = MediaProperties.Cache(publicCache = true, maxAgeSeconds = 600),
+        )
+        val publicResponse = MediaController(service, publicProperties).download(filename)
+        val publicCache = publicResponse.headers.cacheControl!!
+        assertTrue(publicCache.contains("public"), publicCache)
+        assertTrue(publicCache.contains("max-age=600"), publicCache)
+        assertTrue(publicCache.contains("immutable"), publicCache)
+    }
+
+    @Test
+    fun servedMediaUrlsUseTheConfiguredPublicBase() {
+        // The CDN knob: every returned media URL points at the public base instead of the
+        // API host, and the app needs no change because it treats an absolute URL as final.
+        val cdn = mediaService(urlBuilder = PublicUrlBuilder("https://cdn.brainbox.co.ke/"))
+        val stored = cdn.store(MockMultipartFile("file", "note.png", "image/png", png))
+        assertTrue(stored.url.startsWith("https://cdn.brainbox.co.ke/media/"), stored.url)
+    }
+
+    @Test
+    fun theProxiedPathRefusesAnInfectedUpload() {
+        val infected = object : MediaScanner {
+            override val name = "stub"
+            override fun scan(bytes: ByteArray, contentType: String?): MediaScanResult =
+                MediaScanResult(MediaScanStatus.INFECTED, "Eicar-Test-Signature")
+        }
+        val scanning = mediaService(
+            scanGate = MediaSecurityTestDoubles.gate(
+                scanner = infected,
+                settings = MediaSecurityTestDoubles.settings(scanEnabled = true, provider = "stub"),
+            ),
+        )
+
+        val failure = assertFailsWith<ApiException> {
+            scanning.store(MockMultipartFile("file", "note.png", "image/png", png))
+        }
+        assertTrue(failure.message!!.contains("malware scan"), failure.message!!)
+        assertTrue(failure.message!!.contains("Eicar-Test-Signature"), failure.message!!)
+    }
+
+    @Test
+    fun aBrokenScannerRefusesTheUploadUnlessTheDeploymentOptsOut() {
+        val broken = object : MediaScanner {
+            override val name = "stub"
+            override fun scan(bytes: ByteArray, contentType: String?): MediaScanResult =
+                MediaScanResult(MediaScanStatus.ERROR, "The malware scanner is unavailable")
+        }
+        val failClosed = mediaService(
+            scanGate = MediaSecurityTestDoubles.gate(
+                scanner = broken,
+                settings = MediaSecurityTestDoubles.settings(scanEnabled = true, provider = "stub"),
+            ),
+        )
+        assertFailsWith<ApiException> {
+            failClosed.store(MockMultipartFile("file", "note.png", "image/png", png))
+        }
+
+        val failOpen = mediaService(
+            scanGate = MediaSecurityTestDoubles.gate(
+                scanner = broken,
+                settings = MediaSecurityTestDoubles.settings(
+                    scanEnabled = true,
+                    provider = "stub",
+                    failOpen = true,
+                ),
+            ),
+        )
+        assertTrue(
+            failOpen.store(MockMultipartFile("file", "note.png", "image/png", png)).url.isNotBlank(),
+        )
     }
 }

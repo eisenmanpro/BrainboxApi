@@ -141,15 +141,17 @@ data class EditRequestDto(
     val createdAt: Long,
 )
 
+/**
+ * Grant body for `POST traditional/exams/{examId}/edit-permission/grant`.
+ *
+ * Only the pair the grant is about travels from the client: the permission id, grantor,
+ * timestamps and used flag are server-owned (the service derives them from the caller and
+ * the exam), so asking the client to supply them was fabrication. Unknown fields are
+ * ignored, so an older client that still sends them keeps working.
+ */
 data class EditPermissionDto(
-    val permissionId: String,
-    val examId: String,
     val studentId: String,
     val teacherId: String,
-    val grantedBy: String,
-    val grantedAt: Long,
-    val expiresAt: Long,
-    val used: Boolean = false,
 )
 
 data class StudentDto(

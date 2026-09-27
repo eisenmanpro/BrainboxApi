@@ -203,6 +203,8 @@ class ExamSessionService(
         val user = userRepository.findById(userId).orElseThrow { notFound("User not found") }
         val visible = when (exam.scope) {
             ExamScope.GLOBAL -> true
+            // A personal practice paper belongs to the learner who generated it.
+            ExamScope.PERSONAL -> exam.ownerUserId == user.id
             ExamScope.SCHOOL, ExamScope.SCHOOL_GRADE_CLASS -> {
                 val sameSchool = user.schoolId != null && exam.schoolId != null && exam.schoolId == user.schoolId
                 val classId = exam.classId

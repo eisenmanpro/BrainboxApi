@@ -265,10 +265,39 @@ on every generation so quality is attributable.
 ### 2.3 Subject agents — concept × subject × pedagogy
 
 The diagram's Subject A..N map to sub-agents, but the BrainBox standard means each is really
-*concept + subject + pedagogy*: the same concept taught the BrainBox way. Expect dedicated
-roles beyond subjects — a **diagram/figure agent** (labelled SVG drawings), a **localisation
-agent** (examples, names, money, language), and an **assessment agent** (nested questions,
-practice papers). All are stateless workers the loop can call in parallel.
+*concept + subject + pedagogy*: the same concept taught the BrainBox way.
+
+**Delivered.** `SubjectAgentRegistry` holds one agent per seeded CBC subject — Mathematics,
+English, Integrated Science, Kiswahili, Social Studies — plus a general fallback, each with
+a persona *and* task-shaped pedagogy (`assessmentGuidance` for QUIZ/EXAM/ASSESSMENT/
+PRACTICE_PAPER, `notesGuidance` for NOTES/BOOK/CHUNK/LESSON/STUDY_GUIDE). `ContentRouter`
+resolves `assignmentFor(subject, taskType)` on every generation and revise path, which is
+also what records attribution:
+
+- `agent_runs.agent_code` + `agent_runs.prompt_version` (`content-gen-v1`) — which agent and
+  which prompt produced the run;
+- `content_units.agent_code` — the same on the unit, so a review or a console view can show
+  it without joining the capture tables.
+
+`GET admin/content/queue/agents` returns the roster with captured run counts per agent (an
+unattributed historical run is reported under GENERAL rather than dropped), which is the
+console's `agent → quality` view over the capture tables.
+
+Selection rules, because a wrong domain agent is worse than the fallback: an exact alias
+wins, otherwise a whole-word alias wins, and the longest match breaks a tie. The earlier
+substring test sent "Social Science" to Integrated Science.
+
+**Console-editable.** The prompt *text* is editable from the platform console
+(`GET/POST/DELETE /admin/console/agents`, capability `CONTENT_AGENTS_MANAGE`): the roster and the
+matching rules stay in code, an override is stored versioned in `subject_agent_prompts`, and the
+router reads it when building a prompt, so an edit changes generation without a release. See
+`docs/ongoing/api_console_changes.md` §3.
+
+**Still open here:** the dedicated non-subject roles the diagram expects — a
+diagram/figure agent, a localisation agent and a standalone assessment agent — remain
+prompt-shaped work inside the subject agents rather than separate workers the loop can call
+in parallel. The concept layer (§2.3.1) is also still to build; the CBC catalogue remains
+the taxonomy.
 
 ### 2.3.1 The concept layer (locked: build now, Kenya as first mapping)
 
