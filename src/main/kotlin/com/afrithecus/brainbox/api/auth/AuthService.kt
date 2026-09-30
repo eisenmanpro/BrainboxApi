@@ -451,12 +451,31 @@ class AuthService(
             return schoolRepository.findById(id).orElseThrow { notFound("School not found") }
         }
         if (requestedName != null) {
-            return schoolRepository.findByNameIgnoreCase(requestedName) ?: schoolRepository.save(
-                SchoolEntity().apply { name = requestedName }
+            // Signup accepts a school by name, which is how a learner joins their own school. A
+            // name that matches nothing creates one — so match forgivingly first, or "Alpha
+            // School", "alpha  school" and "ALPHA SCHOOL" quietly become three public schools.
+            val name = normalizeName(requestedName)
+            return findExistingSchool(name) ?: schoolRepository.save(
+                SchoolEntity().apply { this.name = name }
             )
         }
         return teacherSchoolId?.let { id -> schoolRepository.findById(id).orElse(null) }
     }
+
+    /**
+     * Case- and whitespace-insensitive lookup so signup cannot mint a duplicate school from a
+     * variant of a name that already exists. Only an exact match after normalisation reuses a
+     * row: a genuinely different name still creates its own school, which is the intended
+     * "my school is not listed" behaviour.
+     */
+    private fun findExistingSchool(normalizedName: String): SchoolEntity? {
+        schoolRepository.findByNameIgnoreCase(normalizedName)?.let { return it }
+        val probe = normalizedName.substringBefore(' ').takeIf { it.length >= 3 } ?: return null
+        return schoolRepository.findByNameContainingIgnoreCaseOrderByNameAsc(probe)
+            .firstOrNull { normalizeName(it.name).equals(normalizedName, ignoreCase = true) }
+    }
+
+    private fun normalizeName(raw: String): String = raw.trim().replace(WHITESPACE, " ")
 
     private fun generateAdmissionNumber(): String {
         val epoch = clock.millis() / 1000
@@ -476,6 +495,7 @@ class AuthService(
         const val STUDENT_SESSION_CAP = 3
         const val MAX_ADMISSION_ATTEMPTS = 20
         const val MIN_PASSWORD_LENGTH = 8
+        val WHITESPACE = Regex("\\s+")
         const val LOGIN_THROTTLE_PREFIX = "login:"
         val random = SecureRandom()
     }
