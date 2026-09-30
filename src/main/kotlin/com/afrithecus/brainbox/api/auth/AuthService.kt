@@ -30,6 +30,7 @@ import com.afrithecus.brainbox.api.identity.repository.TeacherCodeRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.identity.repository.UserSessionRepository
 import com.afrithecus.brainbox.api.identity.web.UserPayloadFactory
+import com.afrithecus.brainbox.api.notification.WebCounterpartNoticeService
 import com.afrithecus.brainbox.api.security.AuthThrottle
 import com.afrithecus.brainbox.api.security.JwtTokenService
 import com.afrithecus.brainbox.api.security.TokenHash
@@ -60,6 +61,7 @@ class AuthService(
     private val jwtTokenService: JwtTokenService,
     private val userPayloadFactory: UserPayloadFactory,
     private val authThrottle: AuthThrottle,
+    private val webCounterpart: WebCounterpartNoticeService,
     private val clock: Clock,
 ) {
 
@@ -132,6 +134,9 @@ class AuthService(
         authThrottle.clear(LOGIN_THROTTLE_PREFIX + identifier)
         user.lastLogin = clock.instant()
         userRepository.save(user)
+        // One-time announcement that the same workspace exists on the web (item 6). An
+        // announcement must never be the reason a login fails.
+        runCatching { webCounterpart.ensureNotified(user) }
         return issueAuthResponse(user, deviceId, includeTokens = true, message = "Login successful")
     }
 
