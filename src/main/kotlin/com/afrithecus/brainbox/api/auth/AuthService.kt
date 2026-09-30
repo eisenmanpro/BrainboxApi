@@ -25,6 +25,8 @@ import com.afrithecus.brainbox.api.identity.model.SubscriptionStatus
 import com.afrithecus.brainbox.api.identity.model.SubscriptionTier
 import com.afrithecus.brainbox.api.identity.repository.RefreshTokenRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
+import com.afrithecus.brainbox.api.identity.entity.SchoolRegistrationRequestEntity
+import com.afrithecus.brainbox.api.identity.repository.SchoolRegistrationRequestRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolSystemSettingsRepository
 import com.afrithecus.brainbox.api.identity.repository.TeacherCodeRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
@@ -57,6 +59,7 @@ class AuthService(
     private val teacherCodeRepository: TeacherCodeRepository,
     private val subscriptionService: SubscriptionService,
     private val settingsRepository: SchoolSystemSettingsRepository,
+    private val schoolRegistrationRequests: SchoolRegistrationRequestRepository,
     private val passwordEncoder: PasswordEncoder,
     private val jwtTokenService: JwtTokenService,
     private val userPayloadFactory: UserPayloadFactory,
@@ -455,9 +458,10 @@ class AuthService(
             // name that matches nothing creates one — so match forgivingly first, or "Alpha
             // School", "alpha  school" and "ALPHA SCHOOL" quietly become three public schools.
             val name = normalizeName(requestedName)
-            return findExistingSchool(name) ?: schoolRepository.save(
-                SchoolEntity().apply { this.name = name }
-            )
+            findExistingSchool(name)?.let { return it }
+            val created = schoolRepository.save(SchoolEntity().apply { this.name = name })
+            queueForReview(created)
+            return created
         }
         return teacherSchoolId?.let { id -> schoolRepository.findById(id).orElse(null) }
     }
@@ -476,6 +480,25 @@ class AuthService(
     }
 
     private fun normalizeName(raw: String): String = raw.trim().replace(WHITESPACE, " ")
+
+    /**
+     * A school minted at signup becomes publicly visible immediately, so it must also land in the
+     * console's review queue — otherwise a public school exists that nobody ever approved.
+     * Approval is idempotent (it finds the school by name and activates it), so this is safe even
+     * though the school already exists. submittedBy is null: signup is not an authenticated
+     * submission yet.
+     */
+    private fun queueForReview(school: SchoolEntity) {
+        if (schoolRegistrationRequests.findBySchoolNameIgnoreCaseAndStatus(school.name, "PENDING") != null) return
+        schoolRegistrationRequests.save(
+            SchoolRegistrationRequestEntity().apply {
+                requestId = UUID.randomUUID().toString()
+                schoolName = school.name
+                submittedBy = null
+                status = "PENDING"
+            }
+        )
+    }
 
     private fun generateAdmissionNumber(): String {
         val epoch = clock.millis() / 1000

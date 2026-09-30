@@ -47,11 +47,13 @@ class SchoolRegistrationService(
         requests.findByRequestId(requestId)?.let { existing ->
             return authService.accountResponse(user, messageFor(existing)).copy(success = existing.status != "REJECTED")
         }
-        if (schoolRepository.findByNameIgnoreCase(name)?.isActive == true) {
-            return authService.accountResponse(user, "A school with this name is already registered.").copy(success = false)
-        }
+        // Queued first: a school that signup created already has a request, and telling the
+        // submitter "already registered" would hide that their school is genuinely in the queue.
         requests.findBySchoolNameIgnoreCaseAndStatus(name, "PENDING")?.let {
             return authService.accountResponse(user, "A request for this school is already awaiting review.")
+        }
+        if (schoolRepository.findByNameIgnoreCase(name)?.isActive == true) {
+            return authService.accountResponse(user, "A school with this name is already registered.").copy(success = false)
         }
         requests.saveAndFlush(
             SchoolRegistrationRequestEntity().apply {
