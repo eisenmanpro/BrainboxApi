@@ -14,6 +14,8 @@ data class CreateClassRequest(
     val grade: String,
     @field:NotBlank
     val subject: String,
+    /** Optional stream/section within the grade (e.g. "North"). */
+    val stream: String? = null,
 )
 
 data class TeacherClassPayload(
@@ -22,6 +24,7 @@ data class TeacherClassPayload(
     val grade: String,
     val subject: String,
     val studentCount: Int,
+    val stream: String? = null,
 )
 
 data class AddStudentsRequest(

@@ -55,6 +55,7 @@ class ClassService(
             name = request.name.trim()
             gradeLevel = request.grade.trim()
             subject = request.subject.trim()
+            stream = request.stream?.trim()?.takeIf { it.isNotEmpty() }
             isActive = true
         }
         classRepository.save(entity)
@@ -157,6 +158,7 @@ class ClassService(
         grade = clazz.gradeLevel,
         subject = clazz.subject,
         studentCount = membershipRepository.countByClassId(clazz.id).toInt(),
+        stream = clazz.stream,
     )
 
     private fun toStudent(

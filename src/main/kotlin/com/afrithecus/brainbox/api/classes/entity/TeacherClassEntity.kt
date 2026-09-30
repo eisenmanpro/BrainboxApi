@@ -26,6 +26,10 @@ class TeacherClassEntity : BaseEntity() {
     @Column(nullable = false, length = 128)
     var subject: String = ""
 
+    /** Stream / section within the grade (e.g. "North"); null when unused. */
+    @Column(length = 64)
+    var stream: String? = null
+
     @Column(name = "is_active", nullable = false)
     var isActive: Boolean = true
 }

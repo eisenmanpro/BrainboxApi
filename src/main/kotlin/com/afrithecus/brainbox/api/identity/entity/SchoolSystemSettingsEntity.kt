@@ -23,6 +23,10 @@ class SchoolSystemSettingsEntity {
     @Column(name = "registration_open", nullable = false)
     var registrationOpen: Boolean = true
 
+    /** Grade coordinator's switch for learner grade/stream transitions (item 4). */
+    @Column(name = "transitions_enabled", nullable = false)
+    var transitionsEnabled: Boolean = true
+
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant = Instant.now()
 
