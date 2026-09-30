@@ -459,7 +459,15 @@ class AuthService(
             // School", "alpha  school" and "ALPHA SCHOOL" quietly become three public schools.
             val name = normalizeName(requestedName)
             findExistingSchool(name)?.let { return it }
-            val created = schoolRepository.save(SchoolEntity().apply { this.name = name })
+            val created = schoolRepository.save(
+                SchoolEntity().apply {
+                    this.name = name
+                    // Not created from the console, so it must await review: an inactive school is
+                    // hidden from every public read (directory, search, trending, detail) until an
+                    // approval activates it.
+                    isActive = false
+                }
+            )
             queueForReview(created)
             return created
         }
