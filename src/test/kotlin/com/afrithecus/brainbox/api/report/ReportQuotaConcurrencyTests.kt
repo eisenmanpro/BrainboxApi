@@ -21,9 +21,9 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 
 /**
- * The weekly export quota must hold under concurrency: the owner-row lock in
+ * The lifetime student allowance must hold under concurrency: the owner-row lock in
  * [ReportDownloadService.reserve] serializes the count-and-insert, so exactly the
- * quota can be reserved no matter how many downloads race. Deliberately not
+ * allowance can be reserved no matter how many downloads race. Deliberately not
  * transactional so the competing threads each open their own transaction and the
  * lock is exercised for real.
  */
@@ -75,7 +75,7 @@ class ReportQuotaConcurrencyTests(
         )
         jobId = job.id
 
-        val attempts = 8
+        val attempts = 14
         val ready = CountDownLatch(attempts)
         val start = CountDownLatch(1)
         val success = AtomicInteger()
@@ -85,7 +85,7 @@ class ReportQuotaConcurrencyTests(
                 ready.countDown()
                 start.await()
                 try {
-                    downloads.reserve(owner.id, job.id)
+                    downloads.reserve(owner.id, job.id, ReportDownloadScope.STUDENT, 1)
                     success.incrementAndGet()
                 } catch (failure: ApiException) {
                     if (failure.code == ApiErrorCode.TOO_MANY_REQUESTS) {
@@ -103,7 +103,7 @@ class ReportQuotaConcurrencyTests(
             Thread.sleep(20)
         }
 
-        check(success.get() == 3) { "exactly the weekly quota must be reservable, got " + success.get() }
-        check(limited.get() == attempts - 3) { "the rest must be rate-limited, got " + limited.get() }
+        check(success.get() == 10) { "exactly the lifetime allowance must be reservable, got " + success.get() }
+        check(limited.get() == attempts - 10) { "the rest must be rate-limited, got " + limited.get() }
     }
 }

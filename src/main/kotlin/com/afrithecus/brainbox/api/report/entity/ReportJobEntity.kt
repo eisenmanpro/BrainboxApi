@@ -74,6 +74,10 @@ class ReportJobEntity : BaseEntity() {
     @Column(name = "payload_json", columnDefinition = "text")
     var payloadJson: String? = null
 
+    /** Learners covered by this job; > 1 means a multi-student bulk job. */
+    @Column(name = "student_count", nullable = false)
+    var studentCount: Int = 1
+
     @Column(name = "completed_at")
     var completedAt: Instant? = null
 }

@@ -40,6 +40,11 @@ class ReportJobStateService(
             examId = request.examId
             term = request.term
             year = request.year
+            studentCount = if (ReportPolicy.isStudentCounted(request.reportType)) {
+                request.studentIds.count { it.isNotBlank() }.coerceAtLeast(1)
+            } else {
+                0
+            }
             this.payloadJson = payloadJson
         }
     )

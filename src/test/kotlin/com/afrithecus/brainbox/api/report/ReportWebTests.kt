@@ -147,7 +147,7 @@ class ReportWebTests(
         )
 
     @Test
-    fun `generate is idempotent, branded and quota-limited`() {
+    fun `generate is idempotent, branded and free-kind downloads are unlimited`() {
         val coordinator = user(Role.TEACHER, "Coordinator", "0755121001", grade = "Grade 4", subRole = SubRole.GRADE_COORDINATOR)
         val alice = user(Role.STUDENT, "Alice Mwangi", "0755121002", grade = "Grade 4", admission = "ADM-001")
         val bob = user(Role.STUDENT, "Bob Otieno", "0755121003", grade = "Grade 4", admission = "ADM-002")
@@ -187,7 +187,7 @@ class ReportWebTests(
                 .andExpect(status().isOk).andReturn().response.contentAsString,
             ReportQuotaPayload::class.java,
         )
-        check(quota.limit == 3 && quota.used == 0 && quota.remaining == 3)
+        check(quota.used == 0 && quota.remaining == quota.limit) { "a free aggregate kind must not consume the allowance" }
 
         // The signed URL downloads without a bearer header and is counted against quota.
         val uri = URI(first.fileUrl)
@@ -197,14 +197,15 @@ class ReportWebTests(
         val bytes = download.contentAsByteArray
         check(bytes.size > 500 && String(bytes, 0, 5, Charsets.ISO_8859_1) == "%PDF-")
 
-        repeat(2) { mockMvc.perform(get(uri.rawPath + "?" + uri.rawQuery)).andExpect(status().isOk) }
-        val exhausted = objectMapper.readValue(
+        // Free aggregate kinds are unlimited: repeated signed downloads all succeed and
+        // never consume the metered student allowance (product_ops_roadmap item 1).
+        repeat(4) { mockMvc.perform(get(uri.rawPath + "?" + uri.rawQuery)).andExpect(status().isOk) }
+        val stillFree = objectMapper.readValue(
             mockMvc.perform(get("/teacher/reports/quota").header("Authorization", auth(t)))
                 .andExpect(status().isOk).andReturn().response.contentAsString,
             ReportQuotaPayload::class.java,
         )
-        check(exhausted.remaining == 0) { "quota should be exhausted after 3 exports" }
-        mockMvc.perform(get(uri.rawPath + "?" + uri.rawQuery)).andExpect(status().isTooManyRequests)
+        check(stillFree.used == 0 && stillFree.remaining == stillFree.limit) { "free kinds must never consume the allowance" }
 
         // A tampered token is rejected.
         mockMvc.perform(get(uri.rawPath).param("token", "not-a-token")).andExpect(status().isForbidden)

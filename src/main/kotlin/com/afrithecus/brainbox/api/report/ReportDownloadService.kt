@@ -2,28 +2,32 @@ package com.afrithecus.brainbox.api.report
 
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
+import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
-import com.afrithecus.brainbox.api.report.repository.ReportDownloadRepository
 import com.afrithecus.brainbox.api.report.entity.ReportDownloadEntity
+import com.afrithecus.brainbox.api.report.repository.ReportDownloadRepository
 import com.afrithecus.brainbox.api.report.web.ReportQuotaPayload
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.security.MessageDigest
 import java.time.Clock
-import java.time.DayOfWeek
-import java.time.Duration
-import java.time.ZoneId
 import java.util.Base64
 import java.util.UUID
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * Short-lived signed download links and the server-authoritative weekly export
- * quota (docs/ongoing/api_reports_changes.md sections 3-4). The client fetches
- * fileUrl without a bearer header, so the signature is the authorization; the
- * quota ledger counts each successful download.
+ * Short-lived signed download links and the server-authoritative lifetime
+ * allowance for per-student reports (docs/ongoing/product_ops_roadmap.md item 1).
+ *
+ * Policy:
+ * - Aggregate kinds (grade analysis, grade combined, class list, ...) are FREE and
+ *   unlimited; the previous weekly quota is retired.
+ * - Per-student exports are metered against [ReportProperties.studentReportLifetimeCap]
+ *   for TEACHER accounts only. Learners, parents and platform admins download freely.
+ * - A multi-student bulk job (studentCount > 1) was already coverage-gated at
+ *   generation time; it is recorded as FREE because it is a school-level
+ *   entitlement, not a personal export.
  */
 @Service
 class ReportDownloadService(
@@ -31,7 +35,6 @@ class ReportDownloadService(
     private val downloadRepository: ReportDownloadRepository,
     private val userRepository: UserRepository,
     private val clock: Clock,
-    @Value("\${app.school-zone:Africa/Nairobi}") private val schoolZone: String,
 ) {
 
     private val encoder: Base64.Encoder = Base64.getUrlEncoder().withoutPadding()
@@ -61,49 +64,71 @@ class ReportDownloadService(
 
     @Transactional(readOnly = true)
     fun quota(ownerId: UUID): ReportQuotaPayload {
-        val weekStart = weekStart()
-        val used = downloadRepository.countByOwnerIdAndDownloadedAtGreaterThanEqual(ownerId, weekStart).toInt()
-        val remaining = (properties.weeklyQuota - used).coerceAtLeast(0)
+        if (!isMetered(ownerId)) {
+            return ReportQuotaPayload(limit = 0, used = 0, remaining = 0, resetsAt = null, metered = false)
+        }
+        val limit = properties.studentReportLifetimeCap
+        val used = downloadRepository.sumStudentUnits(ownerId).toInt()
         return ReportQuotaPayload(
-            limit = properties.weeklyQuota,
+            limit = limit,
             used = used,
-            remaining = remaining,
-            resetsAt = weekStart.plus(Duration.ofDays(7)).toEpochMilli(),
+            remaining = (limit - used).coerceAtLeast(0),
+            resetsAt = null,
+            metered = true,
         )
     }
 
     /**
-     * Atomically consumes one export from [ownerId]'s weekly quota and records the
-     * download, returning the remaining count. The owner's row is locked for the
-     * transaction so two concurrent downloads (same node or different instances)
-     * cannot both pass the cap; without it the count and the insert race and the
-     * quota can be overshot. Throws [ApiErrorCode.TOO_MANY_REQUESTS] when exhausted.
+     * Records one download and returns the remaining lifetime allowance. The
+     * owner's row is locked for the transaction so two concurrent downloads (same
+     * node or different instances) cannot both pass the cap. Throws
+     * [ApiErrorCode.TOO_MANY_REQUESTS] when the metered allowance is exhausted.
      */
     @Transactional
-    fun reserve(ownerId: UUID, jobId: UUID): Int {
-        userRepository.findByIdForUpdate(ownerId)
+    fun reserve(ownerId: UUID, jobId: UUID, scope: ReportDownloadScope, studentCount: Int): Int {
+        val owner = userRepository.findByIdForUpdate(ownerId)
             ?: throw ApiException(ApiErrorCode.SERVICE_UNAVAILABLE, "Report owner no longer exists")
-        val used = downloadRepository
-            .countByOwnerIdAndDownloadedAtGreaterThanEqual(ownerId, weekStart())
-            .toInt()
-        if (used >= properties.weeklyQuota) {
-            throw ApiException(ApiErrorCode.TOO_MANY_REQUESTS, "Weekly report export limit reached")
+
+        if (scope == ReportDownloadScope.FREE || owner.role != Role.TEACHER || studentCount > 1) {
+            record(ownerId, jobId, "FREE", 0)
+            return lifetimeRemaining(ownerId)
         }
+
+        val units = studentCount.coerceAtLeast(1)
+        val limit = properties.studentReportLifetimeCap
+        val used = downloadRepository.sumStudentUnits(ownerId).toInt()
+        if (used + units > limit) {
+            throw ApiException(
+                ApiErrorCode.TOO_MANY_REQUESTS,
+                "Student report download limit reached (" + limit + " lifetime)",
+            )
+        }
+        record(ownerId, jobId, "STUDENT", units)
+        return (limit - used - units).coerceAtLeast(0)
+    }
+
+    private fun lifetimeRemaining(ownerId: UUID): Int =
+        if (!isMetered(ownerId)) {
+            0
+        } else {
+            (properties.studentReportLifetimeCap - downloadRepository.sumStudentUnits(ownerId).toInt())
+                .coerceAtLeast(0)
+        }
+
+    private fun record(ownerId: UUID, jobId: UUID, scope: String, studentCount: Int) {
         downloadRepository.save(
             ReportDownloadEntity().apply {
                 this.ownerId = ownerId
                 this.jobId = jobId
+                this.scope = scope
+                this.studentCount = studentCount
                 downloadedAt = clock.instant()
             }
         )
-        return (properties.weeklyQuota - used - 1).coerceAtLeast(0)
     }
 
-    private fun weekStart(): java.time.Instant {
-        val zone = runCatching { ZoneId.of(schoolZone) }.getOrDefault(ZoneId.of("Africa/Nairobi"))
-        val today = clock.instant().atZone(zone).toLocalDate()
-        return today.with(DayOfWeek.MONDAY).atStartOfDay(zone).toInstant()
-    }
+    private fun isMetered(ownerId: UUID): Boolean =
+        userRepository.findById(ownerId).map { it.role == Role.TEACHER }.orElse(false)
 
     private fun hmac(payload: String): ByteArray {
         val mac = Mac.getInstance("HmacSHA256")

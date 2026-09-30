@@ -5,7 +5,11 @@ import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.report.ReportDownloadService
+import com.afrithecus.brainbox.api.report.ReportDownloadScope
 import com.afrithecus.brainbox.api.report.ReportGenerationService
+import com.afrithecus.brainbox.api.report.ReportPolicy
+import com.afrithecus.brainbox.api.report.entity.ReportJobEntity
+import com.afrithecus.brainbox.api.report.web.ReportPolicyPayload
 import com.afrithecus.brainbox.api.report.ReportScheduleService
 import com.afrithecus.brainbox.api.report.ReportStorage
 import com.afrithecus.brainbox.api.report.repository.ReportJobRepository
@@ -75,6 +79,10 @@ class TeacherReportController(
     @GetMapping("/quota")
     fun quota(@AuthenticationPrincipal current: CurrentUser): ReportQuotaPayload = generation.quota(current)
 
+    /** Server-owned report policy: dispatch copy, free vs counted kinds, limits. */
+    @GetMapping("/policy")
+    fun policy(): ReportPolicyPayload = generation.policy()
+
     /** Blank, branded template PDF (server is the renderer of record). */
     @GetMapping("/template")
     fun template(
@@ -136,7 +144,7 @@ class TeacherReportController(
         // presigned GET, so the PDF comes straight from storage.
         val presigned = storage.presignedUrl(storageName)
         if (presigned != null) {
-            val remaining = downloads.reserve(job.ownerId, id)
+            val remaining = reserveDownload(job)
             return ResponseEntity.status(HttpStatus.FOUND)
                 .location(URI(presigned))
                 .header("X-Reports-Quota-Remaining", remaining.toString())
@@ -146,7 +154,7 @@ class TeacherReportController(
         // Reserve the quota slot only once the file is known to exist, and atomically:
         // a missing file must not consume an export, and two concurrent downloads
         // must not both pass the weekly cap.
-        val remaining = downloads.reserve(job.ownerId, id)
+        val remaining = reserveDownload(job)
         val fileName = (job.fileName ?: (id.toString() + ".pdf")).replace("\"", "")
         return ResponseEntity.ok()
             .header(HttpHeaders.CONTENT_TYPE, "application/pdf")
@@ -159,5 +167,16 @@ class TeacherReportController(
      * The base for signed download links. `app.public-base-url` wins when a CDN or
      * reverse proxy fronts the API; otherwise this is the request's own base.
      */
+    /**
+     * Records the export with the right scope and student units: aggregate kinds and
+     * coverage-gated bulk jobs are FREE, a single student export is metered.
+     */
+    private fun reserveDownload(job: ReportJobEntity): Int {
+        val scope = runCatching { ReportType.valueOf(job.reportType) }.getOrNull()
+            ?.let { ReportPolicy.scopeOf(it) }
+            ?: ReportDownloadScope.FREE
+        return downloads.reserve(job.ownerId, job.id, scope, job.studentCount)
+    }
+
     private fun baseUrl(): String = urls.baseUrl()
 }

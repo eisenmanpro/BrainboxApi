@@ -27,4 +27,12 @@ class ReportDownloadEntity {
 
     @Column(name = "downloaded_at", nullable = false, updatable = false)
     var downloadedAt: Instant = Instant.now()
+
+    /** FREE for aggregate kinds, STUDENT for metered per-student reports. */
+    @Column(nullable = false, length = 16)
+    var scope: String = "FREE"
+
+    /** Learners covered by this download (1 for a single student report). */
+    @Column(name = "student_count", nullable = false)
+    var studentCount: Int = 1
 }

@@ -131,7 +131,7 @@ class StudentReportWebTests(
                 .andExpect(status().isOk).andReturn().response.contentAsString,
             ReportQuotaPayload::class.java,
         )
-        check(quota.limit > 0)
+        check(!quota.metered) { "learner downloads are unmetered; only teacher accounts are capped" }
     }
 
     @Test

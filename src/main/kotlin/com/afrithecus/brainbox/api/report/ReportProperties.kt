@@ -18,8 +18,9 @@ data class ReportProperties(
     val downloadSecret: String = "dev-only-report-download-secret-change-me",
     /** Lifetime of a signed download URL. */
     val downloadTtl: Duration = Duration.ofMinutes(30),
-    /** Exports allowed per account per calendar week. */
-    val weeklyQuota: Int = 3,
+    // The weekly export quota was retired in favour of studentReportLifetimeCap:
+    // aggregate kinds (grade analysis, grade combined, class list, ...) are now
+    // unlimited. docs/ongoing/product_ops_roadmap.md item 1.
     /** Grade-wide tables larger than this many students are rendered asynchronously. */
     val syncThresholdRows: Int = 300,
     /** Student reports for more than this many students are rendered asynchronously. */
@@ -28,4 +29,14 @@ data class ReportProperties(
     val pollHintMillis: Long = 2000,
     /** Days a rendered report file is retained before pruning. */
     val retentionDays: Int = 90,
+    /**
+     * Lifetime per-student report exports allowed per account
+     * (docs/ongoing/product_ops_roadmap.md item 1). Aggregate kinds are not counted.
+     */
+    val studentReportLifetimeCap: Int = 10,
+    /**
+     * Mass student downloads require at least this fraction of the target
+     * class/grade on an active Explorer (or higher) plan.
+     */
+    val explorerCoverageThreshold: Double = 0.80,
 )

@@ -175,7 +175,12 @@ app:
     storage-dir: ${REPORT_STORAGE_DIR:./data/reports}
     download-secret: ${REPORT_DOWNLOAD_SECRET:dev-only-report-download-secret-change-me}
     download-ttl: 30m
-    weekly-quota: 3
+    # Lifetime per-student export allowance, counted for teacher accounts only;
+    # aggregate kinds and learner/parent downloads are unlimited. Multi-student
+    # jobs additionally require the Explorer coverage threshold below.
+    # docs/ongoing/product_ops_roadmap.md item 1.
+    student-report-lifetime-cap: ${REPORT_STUDENT_LIFETIME_CAP:10}
+    explorer-coverage-threshold: ${REPORT_EXPLORER_COVERAGE:0.80}
     sync-threshold-rows: 300
     sync-threshold-students: 5
     poll-hint-millis: 2000

@@ -78,5 +78,21 @@ data class ReportQuotaPayload(
     val limit: Int,
     val used: Int,
     val remaining: Int,
-    val resetsAt: Long,
+    /** Null: the student allowance is lifetime, not weekly. */
+    val resetsAt: Long? = null,
+    /** False for learners/parents/admins — only teacher accounts are metered. */
+    val metered: Boolean = true,
+)
+
+/**
+ * Server-owned report policy so both clients render identical copy, labels and
+ * limits (docs/ongoing/product_ops_roadmap.md item 1).
+ */
+data class ReportPolicyPayload(
+    val dispatchNotice: String,
+    val freeReportTypes: List<ReportType>,
+    val countedReportTypes: List<ReportType>,
+    val studentReportLifetimeLimit: Int,
+    val explorerCoverageThreshold: Double,
+    val massDownloadRequiresCoverage: Boolean = true,
 )

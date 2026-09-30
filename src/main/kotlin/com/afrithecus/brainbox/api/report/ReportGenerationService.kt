@@ -17,8 +17,10 @@ import com.afrithecus.brainbox.api.report.web.ReportGenerationRequestPayload
 import com.afrithecus.brainbox.api.report.web.ReportHistoryItemPayload
 import com.afrithecus.brainbox.api.report.web.ReportJobPayload
 import com.afrithecus.brainbox.api.report.web.ReportJobStatus
+import com.afrithecus.brainbox.api.report.web.ReportPolicyPayload
 import com.afrithecus.brainbox.api.report.web.ReportQuotaPayload
 import com.afrithecus.brainbox.api.report.web.ReportType
+import com.afrithecus.brainbox.api.subscription.SubscriptionCoverageService
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
@@ -41,6 +43,7 @@ class ReportGenerationService(
     private val data: ReportDataService,
     private val downloads: ReportDownloadService,
     private val userRepository: UserRepository,
+    private val coverage: SubscriptionCoverageService,
     private val properties: ReportProperties,
     private val mapper: ObjectMapper,
 ) {
@@ -48,6 +51,7 @@ class ReportGenerationService(
     fun submit(actor: CurrentUser, request: ReportGenerationRequestPayload, baseUrl: String?): ReportJobPayload {
         val user = requireCoordinator(actor)
         val schoolId = resolveSchool(user, request.schoolId)
+        requireBulkCoverage(request)
         val requestId = request.jobRequestId?.trim()?.takeIf { it.isNotEmpty() } ?: UUID.randomUUID().toString()
         state.byRequest(user.id, requestId)?.let { return payload(it, baseUrl) }
         val created = createAndDispatch(user, schoolId, request, requestId)
@@ -116,6 +120,16 @@ class ReportGenerationService(
     }
 
     fun quota(actor: CurrentUser): ReportQuotaPayload = downloads.quota(actor.userId)
+
+    /** Server-owned report policy: dispatch copy, free vs counted kinds, limits. */
+    @Transactional(readOnly = true)
+    fun policy(): ReportPolicyPayload = ReportPolicyPayload(
+        dispatchNotice = ReportPolicy.DISPATCH_NOTICE,
+        freeReportTypes = ReportPolicy.freeTypes(),
+        countedReportTypes = ReportPolicy.countedTypes(),
+        studentReportLifetimeLimit = properties.studentReportLifetimeCap,
+        explorerCoverageThreshold = properties.explorerCoverageThreshold,
+    )
 
     /**
      * Blank, branded template for the templates screen. The server is the renderer
@@ -232,9 +246,29 @@ class ReportGenerationService(
         runCatching { UUID.fromString(raw.trim()) }.getOrNull()
             ?: throw invalidArgument("jobId is not a valid identifier")
 
-    private fun isStudentType(type: ReportType): Boolean = when (type) {
-        ReportType.CBC_STUDENT, ReportType.DETAILED_CBC_STUDENT, ReportType.TRADITIONAL_STUDENT -> true
-        else -> false
+    private fun isStudentType(type: ReportType): Boolean = ReportPolicy.isStudentCounted(type)
+
+    /**
+     * A multi-student student-report job is a mass download and requires at least
+     * [ReportProperties.explorerCoverageThreshold] of the requested learners to sit
+     * on an active Explorer-or-higher plan (docs/ongoing/product_ops_roadmap.md item 1).
+     * Coordinators remain the only actors who reach this path.
+     */
+    private fun requireBulkCoverage(request: ReportGenerationRequestPayload) {
+        if (!ReportPolicy.isStudentCounted(request.reportType)) return
+        val learners = request.studentIds.filter { it.isNotBlank() }
+        if (learners.size <= 1) return
+        val ids = learners.mapNotNull { runCatching { UUID.fromString(it.trim()) }.getOrNull() }
+        val result = coverage.forStudents(ids)
+        if (!result.allowed) {
+            val needed = (result.threshold * 100).toInt()
+            val actual = (result.ratio * 100).toInt()
+            throw ApiException(
+                ApiErrorCode.FORBIDDEN,
+                "Mass download requires " + needed + "% of the class on an active Explorer plan " +
+                    "(currently " + actual + "%)",
+            )
+        }
     }
 
     private fun titleOf(type: ReportType): String = when (type) {
