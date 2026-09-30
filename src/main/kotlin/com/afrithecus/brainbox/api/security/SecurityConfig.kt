@@ -93,6 +93,8 @@ class SecurityConfig(
                         "/news/**",
                         "/landing/**",
                         "/media/**",
+                        // About + FAQ are fetched by both clients before any session exists.
+                        "/about/**",
                         // The app downloads the adaptive-difficulty model at startup,
                         // before a session exists; the manifest carries the SHA-256.
                         "/models/**",
