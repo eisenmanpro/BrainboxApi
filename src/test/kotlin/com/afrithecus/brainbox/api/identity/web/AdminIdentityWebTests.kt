@@ -3,6 +3,7 @@ package com.afrithecus.brainbox.api.identity.web
 import com.afrithecus.brainbox.api.auth.web.AuthResponse
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
+import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -34,8 +35,20 @@ class AdminIdentityWebTests(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val userRepository: UserRepository,
+    @Autowired private val schoolRepository: SchoolRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
 ) {
+
+    /**
+     * A school created by signup now awaits review and is inactive until approved
+     * (product_ops_roadmap item 5), so a test that needs a live school approves it first —
+     * exactly as the console would.
+     */
+    private fun approveSchool(schoolId: String) {
+        val school = schoolRepository.findById(UUID.fromString(schoolId)).orElseThrow()
+        school.isActive = true
+        schoolRepository.save(school)
+    }
 
     private fun json(path: String, method: (String) -> org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder, body: String): String =
         mockMvc.perform(method(path).contentType(MediaType.APPLICATION_JSON).content(body))
@@ -140,6 +153,7 @@ class AdminIdentityWebTests(
         val admin = newAdmin()
         val student = signup("0722000006", extra = """"schoolName":"CTC High"""")
         val schoolId = student.user.schoolId!!
+        approveSchool(schoolId)
 
         val created = mockMvc.perform(
             post("/admin/schools/${schoolId}/teachers").header("Authorization", bearer(admin.sessionToken))
@@ -159,6 +173,7 @@ class AdminIdentityWebTests(
         val admin = newAdmin()
         val student = signup("0722000008", extra = """"schoolName":"Revoke High"""")
         val schoolId = student.user.schoolId!!
+        approveSchool(schoolId)
         val created = mockMvc.perform(
             post("/admin/schools/${schoolId}/teachers").header("Authorization", bearer(admin.sessionToken))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -206,8 +221,10 @@ class AdminIdentityWebTests(
 
     @Test
     fun `public school discovery works without a token and detail needs auth`() {
-        signup("0722000012", extra = """"schoolName":"Discovery Academy"""")
-        signup("0722000013", extra = """"schoolName":"Other Academy"""")
+        val discovery = signup("0722000012", extra = """"schoolName":"Discovery Academy"""")
+        val other = signup("0722000013", extra = """"schoolName":"Other Academy"""")
+        approveSchool(discovery.user.schoolId!!)
+        approveSchool(other.user.schoolId!!)
 
         val all = mockMvc.perform(get("/schools/all")).andExpect(status().isOk)
             .andReturn().response.contentAsString
