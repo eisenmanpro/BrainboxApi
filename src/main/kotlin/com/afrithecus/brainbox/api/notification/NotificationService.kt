@@ -209,22 +209,57 @@ class NotificationService(
 
     // ------------------------------------------------------------ system reminders
 
-    private fun syncSystemNotifications(user: UserEntity) {
-        val active = linkedSetOf<String>()
+    private fun syncSystemNotifications(user: UserEntity, push: Boolean = false) {
+        val batch = ReminderBatch()
         when (user.role) {
-            Role.STUDENT, Role.PARENT -> subscriptionReminders(user, active)
-            Role.TEACHER -> teacherRenewalReminder(user, active)
+            Role.STUDENT, Role.PARENT -> subscriptionReminders(user, batch)
+            Role.TEACHER -> teacherRenewalReminder(user, batch)
             Role.ADMIN -> Unit
         }
         // Drop server-generated subscription reminders whose condition no longer
         // holds. Other keyed notifications (e.g. chat fan-out) are left in place.
         repository.findAllByUserIdAndDedupeKeyIsNotNull(user.id)
-            .filter { key -> REMINDER_KEY_PREFIXES.any { prefix -> key.dedupeKey!!.startsWith(prefix) } }
-            .filter { it.dedupeKey !in active }
+            .filter { row -> REMINDER_KEY_PREFIXES.any { prefix -> row.dedupeKey!!.startsWith(prefix) } }
+            .filter { it.dedupeKey !in batch.active }
             .forEach { repository.delete(it) }
+        if (push) batch.created.forEach(::dispatchPush)
     }
 
-    private fun subscriptionReminders(user: UserEntity, active: MutableSet<String>) {
+    /**
+     * Proactive renewal reminders (docs/ongoing/product_ops_roadmap.md item 2). The inbox
+     * already derives these on read, but a parent who never opens the app would never be
+     * reminded, so the daily sweep calls this: it materialises exactly what the inbox shows
+     * and pushes only the rows this run created. Idempotent through the dedupe key, so each
+     * threshold (14-day, 3-day, expired) notifies once rather than once per sweep.
+     */
+    @Transactional
+    fun materialiseAndPush(userId: UUID) {
+        val user = userRepository.findById(userId).orElse(null) ?: return
+        syncSystemNotifications(user, push = true)
+    }
+
+    private fun dispatchPush(row: NotificationEntity) {
+        pushFanout.dispatch(
+            row.userId,
+            PushMessage(
+                title = row.title,
+                message = row.message,
+                type = row.type.name,
+                actionRoute = row.actionRoute,
+                actionLabel = row.actionLabel,
+                urgency = row.urgency.name,
+                metadata = parseMap(row.metadata),
+            ),
+        )
+    }
+
+    /** Reminder keys seen this run, plus the rows this run created (for pushing). */
+    private class ReminderBatch {
+        val active = linkedSetOf<String>()
+        val created = mutableListOf<NotificationEntity>()
+    }
+
+    private fun subscriptionReminders(user: UserEntity, batch: ReminderBatch) {
         val targets = if (user.role == Role.PARENT) {
             userRepository.findByParentUserId(user.id).ifEmpty { listOf(user) }
         } else {
@@ -236,21 +271,21 @@ class NotificationService(
             val whose = if (user.role == Role.PARENT) target.name.ifBlank { "Your child" } + "'s" else "Your"
             val expiryKey = subscription.expiryDate?.let { Instant.ofEpochMilli(it).atZone(clock.zone).toLocalDate() } ?: LocalDate.now(clock)
             when {
-                subscription.tier == SubscriptionTier.BASE.name || subscription.status == "NONE" -> upsert(active = active, 
+                subscription.tier == SubscriptionTier.BASE.name || subscription.status == "NONE" -> upsert(batch = batch, 
                     userId = user.id,
                     key = "sub-free:" + target.id,
                     title = "Unlock full learning",
-                    message = whose + " account is on the free plan. Subscribe to unlock contests, analytics and unlimited practice.",
+                    message = whose + " account is on the free plan. Subscribe to keep exam analytics, homework and the attendance register working.",
                     urgency = NotificationUrgency.HIGH,
                     route = "subscription",
                     label = "View plans",
                     metadata = mapOf("studentId" to target.id.toString()),
                 )
-                subscription.status == "EXPIRED" || (subscription.expiryDate != null && subscription.expiryDate <= now.toEpochMilli()) -> upsert(active = active, 
+                subscription.status == "EXPIRED" || (subscription.expiryDate != null && subscription.expiryDate <= now.toEpochMilli()) -> upsert(batch = batch, 
                     userId = user.id,
                     key = "sub-expired:" + target.id + ":" + expiryKey,
                     title = "Subscription expired",
-                    message = whose + " " + subscription.tier + " plan has expired. Renew to restore full access without interruption.",
+                    message = whose + " " + subscription.tier + " monthly plan has expired. Renew to restore exam analytics, homework and the attendance register.",
                     urgency = NotificationUrgency.URGENT,
                     route = "subscription",
                     label = "Renew now",
@@ -259,27 +294,27 @@ class NotificationService(
                 else -> {
                     val daysLeft = subscription.expiryDate?.let { Duration.between(now, Instant.ofEpochMilli(it)).toDays() } ?: Long.MAX_VALUE
                     when {
-                        daysLeft <= URGENT_DAYS -> upsert(active = active, 
+                        daysLeft <= URGENT_DAYS -> upsert(batch = batch, 
                             userId = user.id,
                             key = "sub-expiring-urgent:" + target.id + ":" + expiryKey,
                             title = "Subscription renews in " + daysLeft + " days",
-                            message = whose + " " + subscription.tier + " plan expires soon. Renew now to keep learning uninterrupted.",
+                            message = whose + " " + subscription.tier + " monthly plan expires in " + daysLeft + " day(s). Renew now to keep exam analytics, homework and the attendance register running.",
                             urgency = NotificationUrgency.URGENT,
                             route = "subscription",
                             label = "Renew now",
                             metadata = mapOf("studentId" to target.id.toString(), "plan" to subscription.tier, "daysLeft" to daysLeft.toString()),
                         )
-                        daysLeft <= EXPIRING_DAYS -> upsert(active = active, 
+                        daysLeft <= EXPIRING_DAYS -> upsert(batch = batch, 
                             userId = user.id,
                             key = "sub-expiring:" + target.id + ":" + expiryKey,
                             title = "Subscription expires in " + daysLeft + " days",
-                            message = whose + " " + subscription.tier + " plan is nearing expiration. Renew early for a smooth experience.",
+                            message = whose + " " + subscription.tier + " monthly plan is nearing expiration. Renew early so school operations are not interrupted.",
                             urgency = NotificationUrgency.HIGH,
                             route = "subscription",
                             label = "Renew",
                             metadata = mapOf("studentId" to target.id.toString(), "plan" to subscription.tier, "daysLeft" to daysLeft.toString()),
                         )
-                        else -> upsert(active = active, 
+                        else -> upsert(batch = batch, 
                             userId = user.id,
                             key = "sub-active:" + target.id + ":" + expiryKey,
                             title = "You're on the " + subscription.tier + " plan",
@@ -295,7 +330,7 @@ class NotificationService(
         }
     }
 
-    private fun teacherRenewalReminder(teacher: UserEntity, active: MutableSet<String>) {
+    private fun teacherRenewalReminder(teacher: UserEntity, batch: ReminderBatch) {
         val now = clock.instant()
         val studentIds = linkedSetOf<UUID>()
         teacherClassRepository.findAllByTeacherUserIdAndIsActiveTrueOrderByNameAsc(teacher.id)
@@ -308,13 +343,13 @@ class NotificationService(
         if (needing.isEmpty()) return
         val expired = needing.count { (_, sub) -> sub.status == "EXPIRED" || (sub.expiryDate != null && sub.expiryDate <= now.toEpochMilli()) }
         val names = needing.keys.take(3).joinToString(", ") { it.name }
-        upsert(active = active, 
+        upsert(batch = batch, 
             userId = teacher.id,
             key = "teacher-sub-reminder",
             title = "Remind " + needing.size + " parent(s) to renew",
             message = needing.size.toString() + " of your learners need a subscription renewal (" + names +
                 (if (needing.size > 3) " and others" else "") +
-                "). Please remind their parents/guardians so learning continues uninterrupted.",
+                "). Please remind their parents/guardians so exam analytics, homework and the attendance register keep working.",
             urgency = if (expired > 0) NotificationUrgency.URGENT else NotificationUrgency.HIGH,
             route = "teacher_dashboard",
             label = "Open dashboard",
@@ -332,7 +367,7 @@ class NotificationService(
     }
 
     private fun upsert(
-        active: MutableSet<String>,
+        batch: ReminderBatch,
         userId: UUID,
         key: String,
         title: String,
@@ -342,15 +377,15 @@ class NotificationService(
         label: String,
         metadata: Map<String, String>,
     ) {
-        active.add(key)
+        batch.active.add(key)
         val existing = repository.findByUserIdAndDedupeKey(userId, key)
         val metaJson = mapper.writeValueAsString(metadata)
         if (existing == null) {
-            repository.save(NotificationEntity().apply {
+            val saved = repository.save(NotificationEntity().apply {
                 this.userId = userId
                 this.title = title
                 this.message = message
-                type = NotificationType.SYSTEM
+                type = NotificationType.SUBSCRIPTION
                 priority = NotificationPriority.SYSTEM
                 this.urgency = urgency
                 actionRoute = route
@@ -358,6 +393,7 @@ class NotificationService(
                 this.metadata = metaJson
                 dedupeKey = key
             })
+            batch.created += saved
             return
         }
         // Refresh content but keep read state and original timestamp.

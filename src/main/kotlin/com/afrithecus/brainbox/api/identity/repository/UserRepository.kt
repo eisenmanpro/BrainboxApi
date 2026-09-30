@@ -44,6 +44,9 @@ interface UserRepository : JpaRepository<UserEntity, UUID> {
 
     fun countBySchoolIdAndRole(schoolId: UUID, role: Role): Long
 
+    /** Active accounts by role; used by the renewal-reminder sweep. */
+    fun findAllByRoleAndIsActiveTrue(role: Role): List<UserEntity>
+
     fun findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId: UUID): List<UserEntity>
 
     fun findAllBySchoolIdAndGradeLevelAndRole(schoolId: UUID, gradeLevel: String, role: Role): List<UserEntity>

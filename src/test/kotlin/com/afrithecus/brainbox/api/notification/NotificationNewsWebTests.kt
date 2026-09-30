@@ -10,6 +10,7 @@ import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubscriptionStatus
 import com.afrithecus.brainbox.api.identity.model.SubscriptionTier
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
+import com.afrithecus.brainbox.api.notification.repository.NotificationRepository
 import com.afrithecus.brainbox.api.notification.web.AppNotificationPayload
 import com.afrithecus.brainbox.api.notification.web.CreateNewsRequest
 import com.afrithecus.brainbox.api.notification.web.CreateNotificationRequest
@@ -52,6 +53,8 @@ class NotificationNewsWebTests(
     @Autowired private val membershipRepository: ClassMembershipRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
     @Autowired private val clock: Clock,
+    @Autowired private val notificationService: NotificationService,
+    @Autowired private val notificationRepository: NotificationRepository,
 ) {
 
     private fun auth(token: String) = "Bearer " + token
@@ -153,14 +156,14 @@ class NotificationNewsWebTests(
         // free plan -> upgrade prompt
         val free = signup("0779000010")
         val freeRows = notifications(free.sessionToken!!, free.user.id)
-        val freeNotice = freeRows.first { it.type == "SYSTEM" }
+        val freeNotice = freeRows.first { it.type == "SUBSCRIPTION" }
         check(freeNotice.title == "Unlock full learning")
         check(freeNotice.actionRoute == "subscription")
 
         // active plan nearing expiry -> renewal reminder
         val expiring = signup("0779000011")
         setSubscription(UUID.fromString(expiring.user.id), SubscriptionTier.EXPLORER, SubscriptionStatus.ACTIVE, clock.instant().plus(5, ChronoUnit.DAYS))
-        val expiringNotice = notifications(expiring.sessionToken!!, expiring.user.id).first { it.type == "SYSTEM" }
+        val expiringNotice = notifications(expiring.sessionToken!!, expiring.user.id).first { it.type == "SUBSCRIPTION" }
         check(expiringNotice.title.contains("expires in"))
         check(expiringNotice.urgency == "HIGH")
         check(expiringNotice.metadata["plan"] == "EXPLORER")
@@ -168,20 +171,20 @@ class NotificationNewsWebTests(
         // healthy active plan -> informational
         val healthy = signup("0779000012")
         setSubscription(UUID.fromString(healthy.user.id), SubscriptionTier.PRO, SubscriptionStatus.ACTIVE, clock.instant().plus(60, ChronoUnit.DAYS))
-        val healthyNotice = notifications(healthy.sessionToken!!, healthy.user.id).first { it.type == "SYSTEM" }
+        val healthyNotice = notifications(healthy.sessionToken!!, healthy.user.id).first { it.type == "SUBSCRIPTION" }
         check(healthyNotice.title.contains("PRO"))
         check(healthyNotice.urgency == "LOW")
 
         // expired plan -> urgent renewal
         val expired = signup("0779000013")
         setSubscription(UUID.fromString(expired.user.id), SubscriptionTier.EXPLORER, SubscriptionStatus.EXPIRED, clock.instant().minus(2, ChronoUnit.DAYS))
-        val expiredNotice = notifications(expired.sessionToken!!, expired.user.id).first { it.type == "SYSTEM" }
+        val expiredNotice = notifications(expired.sessionToken!!, expired.user.id).first { it.type == "SUBSCRIPTION" }
         check(expiredNotice.title == "Subscription expired")
         check(expiredNotice.urgency == "URGENT")
 
         // reminders are deduplicated across reads
         val repeated = notifications(expiring.sessionToken!!, expiring.user.id)
-        check(repeated.count { it.type == "SYSTEM" } == 1)
+        check(repeated.count { it.type == "SUBSCRIPTION" } == 1)
     }
 
     @Test
@@ -193,7 +196,7 @@ class NotificationNewsWebTests(
         userRepository.save(childUser)
         setSubscription(parent.id, SubscriptionTier.BASE, SubscriptionStatus.NONE, null)
 
-        val parentNotice = notifications(parentToken, parent.id.toString()).first { it.type == "SYSTEM" }
+        val parentNotice = notifications(parentToken, parent.id.toString()).first { it.type == "SUBSCRIPTION" }
         check(parentNotice.message.contains(childUser.name))
         check(parentNotice.actionRoute == "subscription")
 
@@ -211,7 +214,7 @@ class NotificationNewsWebTests(
             studentId = childUser.id
         })
 
-        val teacherNotice = notifications(teacherToken, teacher.id.toString()).first { it.type == "SYSTEM" }
+        val teacherNotice = notifications(teacherToken, teacher.id.toString()).first { it.type == "SUBSCRIPTION" }
         check(teacherNotice.title.contains("Remind"))
         check(teacherNotice.actionRoute == "teacher_dashboard")
         check(teacherNotice.metadata["studentsNeedingRenewal"] == "1")
@@ -224,7 +227,7 @@ class NotificationNewsWebTests(
             classId = clazz.id
             studentId = UUID.fromString(healthyStudent.user.id)
         })
-        check(notifications(teacherToken, teacher.id.toString()).none { it.type == "SYSTEM" })
+        check(notifications(teacherToken, teacher.id.toString()).none { it.type == "SUBSCRIPTION" })
     }
 
     @Test
@@ -290,5 +293,34 @@ class NotificationNewsWebTests(
         ).andExpect(status().isBadRequest)
         mockMvc.perform(get("/news/not-a-uuid").header("Authorization", auth(student.sessionToken!!)))
             .andExpect(status().isBadRequest)
+    }
+
+    /**
+     * product_ops_roadmap item 2: a guardian who never opens the app must still be
+     * reminded, so the daily sweep materialises and pushes the reminder itself —
+     * exactly once per threshold, and the copy must name the operations that break.
+     */
+    @Test
+    fun `proactive renewal sweep pushes without an inbox read`() {
+        val learner = signup("0779000040")
+        val learnerId = UUID.fromString(learner.user.id)
+        setSubscription(learnerId, SubscriptionTier.EXPLORER, SubscriptionStatus.ACTIVE, clock.instant().plus(2, ChronoUnit.DAYS))
+
+        check(notificationRepository.findAllByUserIdOrderByCreatedAtDesc(learnerId).isEmpty()) {
+            "nothing should exist before the sweep runs"
+        }
+
+        notificationService.materialiseAndPush(learnerId)
+        val rows = notificationRepository.findAllByUserIdOrderByCreatedAtDesc(learnerId)
+        check(rows.size == 1) { "expected exactly one reminder, got " + rows.size }
+        check(rows.first().type.name == "SUBSCRIPTION")
+        check(rows.first().urgency.name == "URGENT")
+        check(rows.first().message.contains("attendance register")) {
+            "the reminder must name the operations that stop working"
+        }
+
+        // Re-running the sweep must not duplicate the reminder.
+        notificationService.materialiseAndPush(learnerId)
+        check(notificationRepository.findAllByUserIdOrderByCreatedAtDesc(learnerId).size == 1)
     }
 }
