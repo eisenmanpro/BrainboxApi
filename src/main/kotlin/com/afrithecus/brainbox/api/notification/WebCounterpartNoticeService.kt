@@ -31,7 +31,7 @@ class WebCounterpartNoticeService(
     private val notifications: NotificationRepository,
     private val notificationService: NotificationService,
     private val mapper: ObjectMapper,
-    @Value("\${app.web-app-url:https://app.brainbox.com}") private val webAppUrl: String,
+    @Value("\${app.web-app-url:}") private val webAppUrl: String,
 ) {
 
     @Transactional
@@ -39,10 +39,9 @@ class WebCounterpartNoticeService(
         if (user.role != Role.TEACHER) return
         if (notifications.findByUserIdAndDedupeKey(user.id, DEDUPE_KEY) != null) return
 
-        val url = webAppUrl.trim().ifEmpty { DEFAULT_URL }
-        val title = "Brainbox also has a web workspace"
-        val body = "You can run your classroom from a computer too — mark attendance, set homework, " +
-            "build exams and read reports at " + url + ". Sign in with the same account you use here."
+        val url = webAppUrl.trim()
+        val title = WebCounterpartCopy.TITLE
+        val body = WebCounterpartCopy.body(url)
 
         // One row per side of the exchange, sharing a group, so it reads as normal mail.
         val group = "web_counterpart_" + user.id
@@ -86,6 +85,5 @@ class WebCounterpartNoticeService(
 
     private companion object {
         const val DEDUPE_KEY = "web-counterpart"
-        const val DEFAULT_URL = "https://app.brainbox.com"
     }
 }
