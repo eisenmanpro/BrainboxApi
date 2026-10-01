@@ -85,6 +85,10 @@ class AboutService {
                 FaqItemPayload("what-is-brainbox", "What is BrainBox?", "BrainBox is a learning platform for Kenyan secondary schools. Learners practise and sit CBC and traditional exams, while teachers run their classroom — roster, attendance, homework, exams, reports and live classes — from one place."),
                 FaqItemPayload("where-can-i-use-it", "Can I use BrainBox on a phone and a computer?", "Yes. The Android app is the learner and teacher companion, and teachers also have a web workspace for marking, planning and reports. Sign in with the same account on both."),
                 FaqItemPayload("internet", "Does BrainBox need internet all the time?", "No. Most screens are offline-first: the app shows what it last loaded and queues your writes to sync when a connection returns. Reports, live classes and messaging are the parts that need the network."),
+                FaqItemPayload("signup", "How do I create an account as a learner or a parent?", "Sign up with your name, phone number and a password, choosing learner or parent. A learner who has the class teacher code (CTC) from their teacher enters it to join that class and school straight away. Pick your school from the list, or choose \"my school is not listed\" and give its name for review."),
+                FaqItemPayload("teacher-signup", "How does a teacher join?", "Teachers sign up with their own details, their school, and the classes and subjects they teach. The school verifies the account before it is fully active, and you receive a class teacher code (CTC) to share with your learners so they can join your class. Coordinator and ICT admin roles are assigned within the school rather than chosen at signup."),
+                FaqItemPayload("login", "How do I log in?", "Sign in with the phone number you registered, or your email address, and your password. Learners, parents and teachers use the same sign-in screen and BrainBox opens the workspace for your role. On a borrowed phone leave \"shared or borrowed device\" ticked, so your data is cleared when the session ends."),
+                FaqItemPayload("forgot-password", "What if I forget my password?", "Choose \"Forgot password\", enter your phone number, and use the one-time code we send you to set a new password. A school administrator can also reset a password for you."),
             )),
             FaqCategoryPayload("accounts-roles", "Accounts and roles", listOf(
                 FaqItemPayload("roles", "What is the difference between a class teacher and a grade coordinator?", "A class teacher (C.Teacher) looks after their own class and roster. A grade coordinator oversees a whole grade — results, analytics and grade transitions. An ICT admin manages school-wide settings."),
@@ -120,6 +124,6 @@ class AboutService {
 
     private companion object {
         /** Bump when the questions change so caches revalidate. */
-        const val FAQ_VERSION = "2026-09-30.1"
+        const val FAQ_VERSION = "2026-09-30.2"
     }
 }
