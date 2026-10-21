@@ -10,4 +10,6 @@ interface ContestRepository : JpaRepository<ContestEntity, UUID> {
     fun findAllByLifecycle(lifecycle: ContestLifecycle): List<ContestEntity>
 
     fun findAllByCreatedByOrderByStartTimeDesc(createdBy: UUID): List<ContestEntity>
+
+    fun findAllBySchoolIdOrderByStartTimeDesc(schoolId: UUID): List<ContestEntity>
 }

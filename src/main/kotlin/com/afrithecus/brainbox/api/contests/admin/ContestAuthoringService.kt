@@ -51,6 +51,7 @@ class ContestAuthoringService(
     private val userRepository: UserRepository,
     private val codec: QuestionCodec,
     private val notifications: NotificationService,
+    private val mapper: tools.jackson.databind.ObjectMapper,
     private val clock: Clock,
 ) {
 
@@ -84,6 +85,34 @@ class ContestAuthoringService(
         val contest = findContest(contestIdRaw)
         contest.lifecycle = ContestLifecycle.CANCELLED
         contestRepository.save(contest)
+    }
+
+    /** Admin/ICT oversight: every contest belonging to the admin's school, all lifecycles. */
+    @Transactional(readOnly = true)
+    fun schoolContestsForAdmin(adminUserId: UUID): List<ContestPayload> {
+        val admin = userRepository.findById(adminUserId).orElse(null)
+            ?: throw ApiException(ApiErrorCode.NOT_FOUND, "User not found")
+        val schoolId = admin.schoolId
+            ?: throw ApiException(ApiErrorCode.FORBIDDEN, "Your account has no school to moderate")
+        return contestRepository.findAllBySchoolIdOrderByStartTimeDesc(schoolId).map { toPayload(it) }
+    }
+
+    /** Admin moderation closes a school contest without changing its questions or author. */
+    @Transactional
+    fun adminFinalise(contestIdRaw: String, adminUserId: UUID): ContestPayload {
+        val admin = userRepository.findById(adminUserId).orElse(null)
+            ?: throw ApiException(ApiErrorCode.NOT_FOUND, "User not found")
+        val contest = findContest(contestIdRaw)
+        if (admin.role != Role.ADMIN || admin.schoolId == null || contest.schoolId != admin.schoolId) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "You can only moderate contests in your school")
+        }
+        if (contest.lifecycle != ContestLifecycle.PUBLISHED) throw conflict("Only a published contest can be finalised")
+        if (contest.finalisedAt == null) {
+            contest.finalisedAt = clock.instant()
+            if (contest.endTime.isAfter(clock.instant())) contest.endTime = clock.instant()
+            contestRepository.save(contest)
+        }
+        return toPayload(contest, true, true)
     }
 
     // ---------------------------------------------------------------- teacher (school + grade)
@@ -194,7 +223,14 @@ class ContestAuthoringService(
                 submittedAt = submission?.submittedAt?.toEpochMilli(),
                 score = submission?.score,
                 percentage = submission?.percentage,
-                integrityFlags = emptyList(),
+                integrityFlags = submission?.integrityFlags?.let { raw ->
+                    val flagsNode = runCatching { mapper.readTree(raw) }.getOrNull()
+                    if (flagsNode != null && flagsNode.isArray) {
+                        (0 until flagsNode.size()).map { flagsNode.get(it).asString() }
+                    } else {
+                        emptyList()
+                    }
+                }.orEmpty(),
             )
         }
     }
@@ -346,8 +382,10 @@ class ContestAuthoringService(
         }
     }
 
-    internal fun toQuestionPayload(question: ContestQuestionEntity, includeKeys: Boolean): QuestionPayload =
-        QuestionPayload(
+    internal fun toQuestionPayload(question: ContestQuestionEntity, includeKeys: Boolean): QuestionPayload {
+        val pairs = codec.parseMap(question.matchingPairs)
+        val live = !includeKeys && question.qType == QuestionType.MATCHING && !pairs.isNullOrEmpty()
+        return QuestionPayload(
             id = question.id.toString(),
             text = question.text,
             type = question.qType.name,
@@ -356,10 +394,17 @@ class ContestAuthoringService(
             explanation = if (includeKeys) question.explanation else null,
             points = question.points,
             difficulty = question.difficulty,
-            matchingPairs = if (includeKeys) codec.parseMap(question.matchingPairs) else null,
+            matchingPairs = if (includeKeys) pairs else null,
+            // A live matching question must not reveal the pairing; the UI gets the left items and
+            // a stable shuffle of the right options and submits an object of pairs.
+            matchingLeft = if (live) pairs!!.keys.toList() else null,
+            matchingRight = if (live) {
+                pairs!!.values.shuffled(kotlin.random.Random(question.id.hashCode()))
+            } else null,
             topic = question.topic,
             subtopic = question.subtopic,
         )
+    }
 
     internal fun questionsOf(contestId: UUID): List<ContestQuestionEntity> =
         questionRepository.findAllByContestIdOrderByOrderIndexAsc(contestId)

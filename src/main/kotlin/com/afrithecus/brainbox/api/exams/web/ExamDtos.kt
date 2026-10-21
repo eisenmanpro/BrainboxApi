@@ -25,6 +25,9 @@ data class CreateExamQuestionRequest(
     @field:Min(1) @field:Max(5)
     val difficulty: Int = 3,
     val matchingPairs: Map<String, String>? = null,
+    /** Live (key-withheld) matching UI: the left items and a stable shuffle of the right options. */
+    val matchingLeft: List<String>? = null,
+    val matchingRight: List<String>? = null,
     val topic: String? = null,
     val subtopic: String? = null,
 )
@@ -60,6 +63,9 @@ data class QuestionPayload(
     val points: Int,
     val difficulty: Int,
     val matchingPairs: Map<String, String>? = null,
+    /** Live (key-withheld) matching UI: the left items and a stable shuffle of the right options. */
+    val matchingLeft: List<String>? = null,
+    val matchingRight: List<String>? = null,
     val topic: String? = null,
     val subtopic: String? = null,
 )

@@ -33,6 +33,17 @@ class ContestAdminController(private val authoring: ContestAuthoringService) {
     @GetMapping("/{id}")
     fun get(@PathVariable id: String): ContestPayload = authoring.get(id)
 
+    /** Every contest in the admin's school, all lifecycles (moderation queue). */
+    @GetMapping("/school")
+    fun schoolContests(@AuthenticationPrincipal currentUser: CurrentUser): List<ContestPayload> =
+        authoring.schoolContestsForAdmin(currentUser.userId)
+
+    @PostMapping("/{id}/finalise")
+    fun finalise(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable id: String,
+    ): ContestPayload = authoring.adminFinalise(id, currentUser.userId)
+
     @DeleteMapping("/{id}")
     fun cancel(@PathVariable id: String): ResponseEntity<Void> {
         authoring.cancel(id)

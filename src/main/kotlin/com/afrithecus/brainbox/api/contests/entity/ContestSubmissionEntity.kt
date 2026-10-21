@@ -41,4 +41,12 @@ class ContestSubmissionEntity : BaseEntity() {
 
     @Column(name = "question_results", columnDefinition = "text")
     var questionResults: String? = null
+
+    /** Server-computed from telemetry; the client never overwrites this. */
+    @Column(name = "integrity_score", nullable = false)
+    var integrityScore: Int = 100
+
+    /** JSON array of stable flag tokens (ABNORMALLY_FAST, TAB_OUT, ABNORMAL_VELOCITY). */
+    @Column(name = "integrity_flags", columnDefinition = "text")
+    var integrityFlags: String? = null
 }

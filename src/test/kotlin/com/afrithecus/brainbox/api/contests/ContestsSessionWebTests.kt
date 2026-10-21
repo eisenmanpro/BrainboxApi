@@ -232,6 +232,78 @@ class ContestsSessionWebTests(
         check(payload.userEntry?.score == 0)
     }
 
+    @Test
+    fun `multi-select and matching answers grade and telemetry becomes integrity flags`() {
+        val student = entitled("0781000006")
+        val now = Instant.now()
+        val request = CreateContestRequest(
+            title = "Shapes Cup",
+            subject = "Science & Technology",
+            grade = "Form 3",
+            startTime = now.minusSeconds(3600).toEpochMilli(),
+            endTime = now.plusSeconds(3600).toEpochMilli(),
+            questions = listOf(
+                CreateContestQuestionRequest(
+                    text = "Select the gases plants absorb.",
+                    type = "MULTI_SELECT",
+                    options = listOf("Oxygen", "Carbon dioxide", "Nitrogen"),
+                    correctAnswer = "Carbon dioxide",
+                    points = 2,
+                ),
+                CreateContestQuestionRequest(
+                    text = "Match the organ to its job.",
+                    type = "MATCHING",
+                    matchingPairs = mapOf("Heart" to "Pumps blood", "Lungs" to "Exchange gases"),
+                    points = 3,
+                ),
+            ),
+        )
+        val created = mockMvc.perform(
+            post("/admin/contests").header("Authorization", auth(adminToken()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val contestId = objectMapper.readValue(created, ContestPayload::class.java).id
+
+        val session = registerAndStart(student, contestId)
+        check(!objectMapper.writeValueAsString(session).contains("matchingPairs"))
+        val matchingQ = session.questions.first { it.type == "MATCHING" }
+        check(matchingQ.matchingLeft?.size == 2)
+        check(matchingQ.matchingRight?.size == 2)
+        val multi = session.questions.first { it.type == "MULTI_SELECT" }
+
+        val answers = mapOf(
+            multi.id to listOf("Carbon dioxide"),
+            matchingQ.id to mapOf("Heart" to "Pumps blood", "Lungs" to "Exchange gases"),
+        )
+        val body = objectMapper.writeValueAsString(
+            mapOf(
+                "answers" to answers,
+                "telemetry" to mapOf(
+                    "tabOutCount" to 3,
+                    "answerVelocities" to listOf(80.0, 90.0, 70.0),
+                    "submittedAtMs" to now.toEpochMilli(),
+                ),
+            )
+        )
+        val resultBody = mockMvc.perform(
+            post("/contests/" + contestId + "/submit").header("Authorization", auth(student.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON).content(body)
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val result = objectMapper.readValue(resultBody, ContestResultPayload::class.java)
+        check(result.score == 5) { "expected 5 points, got " + result.score }
+        check(result.integrityFlags.contains("TAB_OUT"))
+        check(result.integrityFlags.contains("ABNORMAL_VELOCITY"))
+        check(result.integrityScore == (100 - result.integrityFlags.size * 25).coerceAtLeast(0))
+
+        val durable = mockMvc.perform(
+            get("/contests/" + contestId + "/result").header("Authorization", auth(student.sessionToken!!))
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val stored = objectMapper.readValue(durable, ContestResultPayload::class.java)
+        check(stored.score == 5)
+        check(stored.integrityFlags.contains("TAB_OUT"))
+    }
+
     private companion object {
         val nextAdmin = AtomicInteger(0)
     }

@@ -90,6 +90,10 @@ class ContestSessionService(
     @Transactional
     fun submit(userId: UUID, contestIdRaw: String, answersBody: JsonNode): ContestResultPayload {
         if (!answersBody.isObject) throw invalidArgument("submit body must be a JSON object of answers")
+        // Two accepted shapes: the flat questionId->answer map (old clients) and
+        // {answers:{...}, telemetry:{...}} (current). Telemetry is graded server-side.
+        val answerNode = answersBody.get("answers")?.takeIf { it.isObject } ?: answersBody
+        val telemetry = answersBody.get("telemetry")?.takeIf { it.isObject }
         val contest = activeContest(userId, contestIdRaw, requireRegistered = true)
         val now = clock.instant()
         val session = sessionRepository.findByUserIdAndContestId(userId, contest.id)
@@ -101,7 +105,7 @@ class ContestSessionService(
         var score = 0
         var correctCount = 0
         val results = questions.map { question ->
-            val userValue = answersBody.get(question.id.toString())
+            val userValue = answerNode.get(question.id.toString())
             val outcome = autoGrader.grade(
                 question.qType, question.correctAnswer, question.matchingPairs, question.points, userValue
             )
@@ -120,6 +124,17 @@ class ContestSessionService(
         val timeTaken = java.time.Duration.between(session.startedAt, now).seconds.toInt().coerceAtLeast(0)
         val flags = mutableListOf<String>()
         if (timeTaken < minimumSecondsFor(questions.size)) flags.add("ABNORMALLY_FAST")
+        val tabOutCount = telemetry?.get("tabOutCount")?.asInt() ?: 0
+        if (tabOutCount >= TAB_OUT_THRESHOLD) flags.add("TAB_OUT")
+        val velocityNode = telemetry?.get("answerVelocities")
+        val velocities: List<Double> = if (velocityNode != null && velocityNode.isArray) {
+            (0 until velocityNode.size()).map { velocityNode.get(it).asDouble() }
+        } else {
+            emptyList()
+        }
+        if (velocities.size >= 3 && velocities.count { it > ABNORMAL_VELOCITY } * 2 > velocities.size) {
+            flags.add("ABNORMAL_VELOCITY")
+        }
         val integrityScore = (100 - flags.size * INTEGRITY_FLAG_PENALTY).coerceAtLeast(0)
 
         val previous = submissionRepository.findByUserIdAndContestId(userId, contest.id)
@@ -133,15 +148,17 @@ class ContestSessionService(
             this.correctCount = correctCount
             this.questionCount = questions.size
             submittedAt = now
-            answers = mapper.writeValueAsString(answersBody)
+            answers = mapper.writeValueAsString(answerNode)
             questionResults = mapper.writeValueAsString(results)
+            this.integrityScore = integrityScore
+            this.integrityFlags = mapper.writeValueAsString(flags)
         }
         submissionRepository.save(submission)
 
         session.status = SessionStatus.COMPLETED
         session.completedAt = now
         session.updatedAt = now
-        session.answers = mapper.writeValueAsString(answersBody)
+        session.answers = mapper.writeValueAsString(answerNode)
         sessionRepository.save(session)
 
         return ContestResultPayload(
@@ -156,7 +173,7 @@ class ContestSessionService(
             submittedAt = now.toEpochMilli(),
             integrityScore = integrityScore,
             integrityFlags = flags,
-            answers = answersBody,
+            answers = answerNode,
             questionResults = results,
         )
     }
@@ -205,5 +222,7 @@ class ContestSessionService(
     private companion object {
         const val INTEGRITY_FLAG_PENALTY = 25
         const val MIN_SECONDS_PER_QUESTION = 3
+        const val TAB_OUT_THRESHOLD = 3
+        const val ABNORMAL_VELOCITY = 50.0
     }
 }

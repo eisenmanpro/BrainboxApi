@@ -105,6 +105,7 @@ data class LeaderboardEntry(
     val rank: Int,
     val studentName: String,
     val score: Int,
+    val schoolName: String? = null,
 )
 
 data class LeaderboardPayload(

@@ -38,6 +38,7 @@ class ContestService(
     private val authoring: ContestAuthoringService,
     private val userRepository: UserRepository,
     private val subscriptionService: SubscriptionService,
+    private val schoolRepository: com.afrithecus.brainbox.api.identity.repository.SchoolRepository,
     private val mapper: tools.jackson.databind.ObjectMapper,
     private val clock: Clock,
 ) {
@@ -158,11 +159,14 @@ class ContestService(
             )
         var userEntry: com.afrithecus.brainbox.api.contests.web.LeaderboardEntry? = null
         val entries = ranked.mapIndexed { index, submission ->
-            val name = userRepository.findById(submission.userId).map { it.name }.orElse("Student")
+            val user = userRepository.findById(submission.userId).orElse(null)
+            val name = user?.name ?: "Student"
+            val schoolName = user?.schoolId?.let { schoolRepository.findById(it).orElse(null)?.name }
             val entry = com.afrithecus.brainbox.api.contests.web.LeaderboardEntry(
                 rank = index + 1,
                 studentName = name,
                 score = submission.score,
+                schoolName = schoolName,
             )
             if (submission.userId == userId) userEntry = entry
             entry
@@ -219,8 +223,10 @@ class ContestService(
             totalQuestions = questionCount,
             timeTakenSeconds = 0,
             submittedAt = submittedAt.toEpochMilli(),
-            integrityScore = 100,
-            integrityFlags = emptyList(),
+            integrityScore = integrityScore,
+            integrityFlags = integrityFlags?.let {
+                runCatching { mapper.readValue(it, Array<String>::class.java).toList() }.getOrNull()
+            }.orEmpty(),
             answers = answers,
             questionResults = questionResults,
         )
