@@ -8,4 +8,6 @@ import java.util.UUID
 interface ContestRepository : JpaRepository<ContestEntity, UUID> {
 
     fun findAllByLifecycle(lifecycle: ContestLifecycle): List<ContestEntity>
+
+    fun findAllByCreatedByOrderByStartTimeDesc(createdBy: UUID): List<ContestEntity>
 }

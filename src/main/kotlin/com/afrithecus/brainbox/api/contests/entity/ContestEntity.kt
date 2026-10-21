@@ -2,6 +2,7 @@ package com.afrithecus.brainbox.api.contests.entity
 
 import com.afrithecus.brainbox.api.common.jpa.BaseEntity
 import com.afrithecus.brainbox.api.contests.model.ContestLifecycle
+import com.afrithecus.brainbox.api.contests.model.ContestScope
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
@@ -48,4 +49,25 @@ class ContestEntity : BaseEntity() {
 
     @Column(name = "created_by", nullable = false)
     var createdBy: UUID = UUID.randomUUID()
+
+    /** Visibility; see ContestScope. Teacher-authored contests are SCHOOL_GRADE. */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    var scope: ContestScope = ContestScope.GLOBAL
+
+    /** The author's school for SCHOOL/SCHOOL_GRADE; null for a global BrainBox contest. */
+    @Column(name = "school_id")
+    var schoolId: UUID? = null
+
+    /** Optional teacher-supplied rules; the app shows its generic rules when null. */
+    @Column(columnDefinition = "text")
+    var rules: String? = null
+
+    /** Set when the author closes the window early; results become publishable. */
+    @Column(name = "finalised_at")
+    var finalisedAt: Instant? = null
+
+    /** Set by publish-results; the learner notice is emitted here, not inferred client-side. */
+    @Column(name = "results_published_at")
+    var resultsPublishedAt: Instant? = null
 }

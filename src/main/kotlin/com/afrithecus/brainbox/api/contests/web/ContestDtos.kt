@@ -43,8 +43,13 @@ data class CreateContestRequest(
     val maxParticipants: Int? = null,
     @field:Min(1) @field:Max(5)
     val difficulty: Int = 3,
-    @field:NotEmpty
-    val questions: List<CreateContestQuestionRequest>,
+    /** Optional at create: a DRAFT may be filled in later; publish refuses an empty paper. */
+    val questions: List<CreateContestQuestionRequest> = emptyList(),
+    /** GLOBAL | SCHOOL | SCHOOL_GRADE. Admin defaults to GLOBAL; a teacher request is forced to SCHOOL_GRADE. */
+    val scope: String? = null,
+    val rules: String? = null,
+    /** Idempotency key for a retried create (teacher authoring). */
+    val clientId: String? = null,
 )
 
 /** Contest row (doc 05 §1.1); questions included only where the flow reveals them. */
@@ -64,6 +69,30 @@ data class ContestPayload(
     val userRank: Int? = null,
     val userScore: Int? = null,
     val isUserRegistered: Boolean,
+    // --- F4 authoring/visibility block ---
+    val lifecycle: String = "PUBLISHED",
+    val scope: String = "GLOBAL",
+    val schoolId: String? = null,
+    val schoolName: String? = null,
+    val authorName: String? = null,
+    val authorRole: String? = null,
+    val questionCount: Int = 0,
+    val totalPoints: Int = 0,
+    val rules: String? = null,
+    val resultsPublished: Boolean = false,
+    val finalised: Boolean = false,
+)
+
+/** One author-visible participant row (registered, maybe submitted). */
+data class ContestParticipantPayload(
+    val userId: String,
+    val name: String,
+    val grade: String? = null,
+    val registeredAt: Long,
+    val submittedAt: Long? = null,
+    val score: Int? = null,
+    val percentage: Int? = null,
+    val integrityFlags: List<String> = emptyList(),
 )
 
 data class RegistrationResponse(

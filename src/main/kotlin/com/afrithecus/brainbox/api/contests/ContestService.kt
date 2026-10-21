@@ -9,6 +9,7 @@ import com.afrithecus.brainbox.api.contests.admin.ContestAuthoringService
 import com.afrithecus.brainbox.api.contests.entity.ContestEntity
 import com.afrithecus.brainbox.api.contests.entity.ContestRegistrationEntity
 import com.afrithecus.brainbox.api.contests.model.ContestLifecycle
+import com.afrithecus.brainbox.api.contests.model.ContestScope
 import com.afrithecus.brainbox.api.contests.model.ContestStatus
 import com.afrithecus.brainbox.api.contests.repository.ContestRegistrationRepository
 import com.afrithecus.brainbox.api.contests.repository.ContestRepository
@@ -37,20 +38,27 @@ class ContestService(
     private val authoring: ContestAuthoringService,
     private val userRepository: UserRepository,
     private val subscriptionService: SubscriptionService,
+    private val mapper: tools.jackson.databind.ObjectMapper,
     private val clock: Clock,
 ) {
 
     @Transactional(readOnly = true)
-    fun listByWindow(userId: UUID, status: ContestStatus): List<ContestPayload> =
-        published().filter { authoring.statusOf(it) == status }
+    fun listByWindow(userId: UUID, status: ContestStatus): List<ContestPayload> {
+        val user = userRepository.findById(userId).orElseThrow { notFound("User not found") }
+        return published()
+            .filter { visibleTo(user, it) }
+            .filter { authoring.statusOf(it) == status }
             .sortedBy { it.startTime }
             .map { enrich(it, userId) }
+    }
 
     @Transactional(readOnly = true)
     fun detail(userId: UUID, contestIdRaw: String): ContestPayload {
         val contest = findPublished(contestIdRaw)
-        val base = authoring.toPayload(contest, includeQuestions = false, includeKeys = false)
         val user = userRepository.findById(userId).orElseThrow { notFound("User not found") }
+        // A contest outside the caller's grade/school answers 404: existence must not leak.
+        if (!visibleTo(user, contest)) throw notFound("Contest not found")
+        val base = authoring.toPayload(contest, includeQuestions = false, includeKeys = false)
         val registered = registrationRepository.findByStudentIdAndContestId(userId, contest.id) != null
         val withUser = enrich(contest, userId)
         val reveal = registered && authoring.statusOf(contest) == ContestStatus.ONGOING && user.role == Role.STUDENT
@@ -72,7 +80,18 @@ class ContestService(
         val contest = findPublished(contestIdRaw)
         val user = userRepository.findById(userId).orElseThrow { notFound("User not found") }
         if (user.role != Role.STUDENT) {
-            throw ApiException(ApiErrorCode.FORBIDDEN, "Only students can register for contests")
+            throw ApiException(
+                ApiErrorCode.FORBIDDEN,
+                "Only students can register for contests",
+                mapOf("reason" to "ROLE_NOT_ALLOWED"),
+            )
+        }
+        if (!visibleTo(user, contest)) {
+            throw ApiException(
+                ApiErrorCode.FORBIDDEN,
+                "This contest is not for your grade",
+                mapOf("reason" to "GRADE_MISMATCH"),
+            )
         }
         val subscription = subscriptionService.view(userId)
         val tier = SubscriptionTier.valueOf(subscription.tier)
@@ -101,9 +120,37 @@ class ContestService(
         return RegistrationResponse(success = true, message = "Registered", registrationId = registration.id.toString())
     }
 
+    /**
+     * The learner withdraws before the window opens. This is a real delete of the registration, not
+     * a hidden flag, so capacity is returned to other students.
+     */
+    @Transactional
+    fun withdraw(userId: UUID, contestIdRaw: String) {
+        val contest = findPublished(contestIdRaw)
+        val user = userRepository.findById(userId).orElseThrow { notFound("User not found") }
+        if (user.role != Role.STUDENT) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "Only students can withdraw from contests")
+        }
+        if (authoring.statusOf(contest) != ContestStatus.UPCOMING) {
+            throw conflict("You can only withdraw before the contest starts")
+        }
+        registrationRepository.deleteByStudentIdAndContestId(userId, contest.id)
+    }
+
+    /** The learner's own durable result (survives beyond the submit screen). */
+    @Transactional(readOnly = true)
+    fun result(userId: UUID, contestIdRaw: String): com.afrithecus.brainbox.api.contests.web.ContestResultPayload {
+        val contest = findPublished(contestIdRaw)
+        val submission = submissionRepository.findByUserIdAndContestId(userId, contest.id)
+            ?: throw notFound("No result for this contest")
+        return submission.toResultPayload()
+    }
+
     @Transactional(readOnly = true)
     fun leaderboard(userId: UUID, contestIdRaw: String): com.afrithecus.brainbox.api.contests.web.LeaderboardPayload {
         val contest = findPublished(contestIdRaw)
+        val user = userRepository.findById(userId).orElseThrow { notFound("User not found") }
+        if (!visibleTo(user, contest)) throw notFound("Contest not found")
         val ranked = submissionRepository.findAllByContestId(contest.id)
             .sortedWith(
                 compareByDescending<com.afrithecus.brainbox.api.contests.entity.ContestSubmissionEntity> { it.score }
@@ -131,6 +178,53 @@ class ContestService(
 
     private fun published(): List<ContestEntity> =
         contestRepository.findAllByLifecycle(ContestLifecycle.PUBLISHED)
+
+    /**
+     * A contest is a grade-level resource. Global BrainBox contests and school contests are still
+     * grade-filtered; SCHOOL/SCHOOL_GRADE additionally require the caller's school. If a contest has
+     * no grade token it is treated as open (legacy rows), never as a different grade.
+     */
+    private fun visibleTo(user: com.afrithecus.brainbox.api.identity.entity.UserEntity, contest: ContestEntity): Boolean {
+        val sameSchool = contest.scope == ContestScope.GLOBAL ||
+            (user.schoolId != null && user.schoolId == contest.schoolId)
+        if (!sameSchool) return false
+        val contestGrade = contest.grade.trim()
+        val userGrade = user.gradeLevel?.trim()
+        if (contestGrade.isEmpty()) return true
+        // A learner with no known grade cannot be proven eligible; do not leak a grade contest.
+        if (userGrade.isNullOrEmpty()) return false
+        return normaliseGrade(contestGrade) == normaliseGrade(userGrade)
+    }
+
+    private fun normaliseGrade(raw: String): String {
+        val digits = Regex("\\d+").find(raw)?.value
+        return digits ?: raw.trim().lowercase()
+    }
+
+    private fun com.afrithecus.brainbox.api.contests.entity.ContestSubmissionEntity.toResultPayload():
+        com.afrithecus.brainbox.api.contests.web.ContestResultPayload {
+        val answers = answers?.let { runCatching { mapper.readTree(it) }.getOrNull() }
+        val questionResults = questionResults?.let {
+            runCatching {
+                mapper.readValue(it, Array<com.afrithecus.brainbox.api.exams.web.QuestionResultPayload>::class.java).toList()
+            }.getOrNull()
+        }.orEmpty()
+        return com.afrithecus.brainbox.api.contests.web.ContestResultPayload(
+            contestId = contestId.toString(),
+            userId = userId.toString(),
+            score = score,
+            totalPoints = totalPoints,
+            percentage = percentage,
+            correctAnswers = correctCount,
+            totalQuestions = questionCount,
+            timeTakenSeconds = 0,
+            submittedAt = submittedAt.toEpochMilli(),
+            integrityScore = 100,
+            integrityFlags = emptyList(),
+            answers = answers,
+            questionResults = questionResults,
+        )
+    }
 
     private fun findPublished(raw: String): ContestEntity {
         val id = runCatching { UUID.fromString(raw) }.getOrNull()

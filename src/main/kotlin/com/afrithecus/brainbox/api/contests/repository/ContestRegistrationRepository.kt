@@ -11,4 +11,8 @@ interface ContestRegistrationRepository : JpaRepository<ContestRegistrationEntit
     fun countByContestId(contestId: UUID): Long
 
     fun findAllByStudentId(studentId: UUID): List<ContestRegistrationEntity>
+
+    fun findAllByContestId(contestId: UUID): List<ContestRegistrationEntity>
+
+    fun deleteByStudentIdAndContestId(studentId: UUID, contestId: UUID): Long
 }

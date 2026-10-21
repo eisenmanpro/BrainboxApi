@@ -45,7 +45,13 @@ class ContestsWebTests(
             post("/auth/signup").header("X-Device-Id", "dev")
                 .contentType(MediaType.APPLICATION_JSON).content(body)
         ).andExpect(status().isOk).andReturn().response.contentAsString
-        return objectMapper.readValue(response, AuthResponse::class.java)
+        val auth = objectMapper.readValue(response, AuthResponse::class.java)
+        // Contest visibility is grade-level; give the fixture the grade its contests use.
+        userRepository.findById(java.util.UUID.fromString(auth.user.id)).ifPresent {
+            it.gradeLevel = "Form 3"
+            userRepository.save(it)
+        }
+        return auth
     }
 
     private fun adminToken(): String {

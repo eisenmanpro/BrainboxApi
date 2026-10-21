@@ -6,7 +6,9 @@ import com.afrithecus.brainbox.api.contests.model.ContestStatus
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
+import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -73,6 +75,21 @@ class ContestController(
         @PathVariable contestId: String,
         @RequestBody answers: JsonNode,
     ): ContestResultPayload = sessions.submit(currentUser.userId, contestId, answers)
+
+    @DeleteMapping("/{contestId}/registration")
+    fun withdraw(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable contestId: String,
+    ): ResponseEntity<Void> {
+        service.withdraw(currentUser.userId, contestId)
+        return ResponseEntity.noContent().build()
+    }
+
+    @GetMapping("/{contestId}/result")
+    fun result(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable contestId: String,
+    ): ContestResultPayload = service.result(currentUser.userId, contestId)
 
     @GetMapping("/{contestId}/leaderboard")
     fun leaderboard(
