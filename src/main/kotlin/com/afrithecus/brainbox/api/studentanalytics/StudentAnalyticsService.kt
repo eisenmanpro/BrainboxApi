@@ -261,6 +261,16 @@ class StudentAnalyticsService(
         return achievementsService.forUser(student.id)
     }
 
+    @Transactional(readOnly = true)
+    fun contestHistory(
+        teacher: UserEntity,
+        studentIdRaw: String,
+    ): List<com.afrithecus.brainbox.api.achievements.web.ContestHistoryEntryPayload> {
+        requireTeacher(teacher)
+        val student = requireStudent(teacher, studentIdRaw)
+        return achievementsService.contestHistoryForUser(student.id)
+    }
+
     // ------------------------------------------------------------ internals
 
     private fun weeklyEngagement(studentId: UUID): List<Int> {

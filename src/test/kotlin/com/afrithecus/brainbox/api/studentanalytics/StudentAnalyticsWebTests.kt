@@ -186,6 +186,16 @@ class StudentAnalyticsWebTests(
         )
         check(achievements.userId == student.id.toString())
 
+        // F5: the teacher's achievements screen promises contest history; the endpoint must exist
+        // and be scoped like the rest of student analytics (empty is a valid, honest answer).
+        val contestHistory = objectMapper.readValue(
+            mockMvc.perform(get("/teacher/analytics/student/" + student.id + "/contest-history")
+                .header("Authorization", auth(t)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<com.afrithecus.brainbox.api.achievements.web.ContestHistoryEntryPayload>::class.java,
+        )
+        check(contestHistory.isEmpty())
+
         mockMvc.perform(get("/teacher/analytics/student/" + student.id).header("Authorization", auth(token(other))))
             .andExpect(status().isForbidden)
     }

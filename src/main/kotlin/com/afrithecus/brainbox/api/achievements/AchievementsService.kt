@@ -80,8 +80,12 @@ class AchievementsService(
     fun forUser(userId: UUID): UserAchievementsPayload = build(userId)
 
     @Transactional(readOnly = true)
-    fun contestHistory(current: CurrentUser, userIdRaw: String): List<ContestHistoryEntryPayload> {
-        val userId = requireSelf(current, userIdRaw)
+    fun contestHistory(current: CurrentUser, userIdRaw: String): List<ContestHistoryEntryPayload> =
+        contestHistoryForUser(requireSelf(current, userIdRaw))
+
+    /** Staff-facing read: a class teacher/coordinator can see a learner's contest history. */
+    @Transactional(readOnly = true)
+    fun contestHistoryForUser(userId: UUID): List<ContestHistoryEntryPayload> {
         return contestSubmissionRepository.findAllByUserId(userId).sortedByDescending { it.submittedAt }
             .mapNotNull { submission ->
                 val contest = contestRepository.findById(submission.contestId).orElse(null) ?: return@mapNotNull null

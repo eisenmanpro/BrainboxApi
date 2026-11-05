@@ -95,4 +95,11 @@ class StudentAnalyticsController(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @PathVariable studentId: String,
     ): UserAchievementsPayload = service.achievements(teacher(currentUser), studentId)
+
+    @GetMapping("/student/{studentId}/contest-history")
+    fun contestHistory(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable studentId: String,
+    ): List<com.afrithecus.brainbox.api.achievements.web.ContestHistoryEntryPayload> =
+        service.contestHistory(teacher(currentUser), studentId)
 }
