@@ -28,6 +28,7 @@ import com.afrithecus.brainbox.api.cbc.web.PublicTrackRequestPayload
 import com.afrithecus.brainbox.api.cbc.web.PublicTrackResponsePayload
 import com.afrithecus.brainbox.api.cbc.web.PublicVoteResponsePayload
 import com.afrithecus.brainbox.api.cbc.web.SubmitCbcProjectRequest
+import com.afrithecus.brainbox.api.cbc.web.UpdateCbcProjectRequest
 import com.afrithecus.brainbox.api.cbc.web.UpdateProjectStatusRequest
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
@@ -83,8 +84,18 @@ class CbcProjectService(
     ): ProjectListResponsePayload {
         val status = runCatching { ProjectStatus.valueOf(statusRaw.trim().uppercase()) }.getOrNull()
             ?: throw invalidArgument("Unknown project status: " + statusRaw)
+        val staff = isStaff(current)
+        // School-scoped moderation reads: PENDING/REMOVED belong to the caller's own school. Without
+        // this any staff account could list every school's queue and act on another school's work.
+        val baseRows = if (staff && (status == ProjectStatus.PENDING || status == ProjectStatus.REMOVED)) {
+            user(current.userId).schoolId?.let { school ->
+                projectRepository.findAllBySchoolIdOrderByCreatedAtDesc(school).filter { it.status == status }
+            } ?: emptyList()
+        } else {
+            projectRepository.findAllByStatusOrderByCreatedAtDesc(status)
+        }
         return paged(
-            rows = projectRepository.findAllByStatusOrderByCreatedAtDesc(status),
+            rows = baseRows,
             voterKey = keyForUser(current.userId),
             schoolId = schoolId,
             gradeBand = gradeBand,
@@ -94,6 +105,7 @@ class CbcProjectService(
             sort = sort,
             pageRaw = pageRaw,
             limitRaw = limitRaw,
+            redact = !staff,
         )
     }
 
@@ -102,12 +114,19 @@ class CbcProjectService(
         val limit = limitRaw.coerceIn(1, 50)
         val rows = projectRepository.findAllByStatusOrderByCreatedAtDesc(ProjectStatus.FEATURED).take(limit)
         val votes = votesFor(current?.let { keyForUser(it.userId) }, rows.map { it.id })
-        return rows.map { payload(it, votes[it.id]) }
+        val redact = current == null || !isStaff(current)
+        return rows.map { payload(it, votes[it.id], redact = redact) }
     }
 
     @Transactional(readOnly = true)
     fun mine(current: CurrentUser, pageRaw: Int, limitRaw: Int): ProjectListResponsePayload {
-        val rows = projectRepository.findAllByStudentIdOrderByCreatedAtDesc(current.userId)
+        // Staff read their school's submissions (the web teacher workspace defines "mine" this way);
+        // learners read their own work.
+        val rows = if (isStaff(current)) {
+            user(current.userId).schoolId?.let { projectRepository.findAllBySchoolIdOrderByCreatedAtDesc(it) } ?: emptyList()
+        } else {
+            projectRepository.findAllByStudentIdOrderByCreatedAtDesc(current.userId)
+        }
         val page = pageRaw.coerceAtLeast(1)
         val limit = limitRaw.coerceIn(1, 100)
         val start = (page - 1) * limit
@@ -127,7 +146,12 @@ class CbcProjectService(
         if (project.status == ProjectStatus.REMOVED && project.studentId != current.userId && !isStaff(current)) {
             throw notFound("Project not found")
         }
-        return payload(project, votesFor(keyForUser(current.userId), listOf(project.id))[project.id])
+        val owner = project.studentId == current.userId || project.submitterId == current.userId
+        return payload(
+            project,
+            votesFor(keyForUser(current.userId), listOf(project.id))[project.id],
+            redact = !isStaff(current) && !owner,
+        )
     }
 
     // ------------------------------------------------------ authenticated writes
@@ -137,9 +161,30 @@ class CbcProjectService(
         val user = user(current.userId)
         val school = user.schoolId?.let { schoolRepository.findById(it).orElse(null) }
         val media = request.mediaUrls.map { it.trim() }.filter { it.isNotEmpty() }
+        val staff = isStaff(current)
+        val creditedIds = if (staff) request.studentIds.map { parseUuid(it, "student id") }.distinct() else emptyList()
+        if (staff && creditedIds.isEmpty()) {
+            throw invalidArgument("A staff upload must credit at least one learner")
+        }
+        val credited = if (staff) {
+            val users = userRepository.findAllById(creditedIds)
+            if (users.size != creditedIds.size) throw invalidArgument("One or more credited learners do not exist")
+            if (users.any { it.schoolId != user.schoolId }) {
+                throw invalidArgument("Credited learners must belong to the uploader's school")
+            }
+            users
+        } else {
+            emptyList()
+        }
+        val consentedIds = if (staff) request.showLearnerNames.map { parseUuid(it, "learner id") }
+            .filter { it in creditedIds }.distinct() else emptyList()
+        val consentedNames = credited.filter { it.id in consentedIds }.map { it.name }
         val project = projectRepository.save(CbcProjectEntity().apply {
-            studentId = user.id
-            studentName = user.name
+            // A learner submits their own work; staff upload on behalf of credited learners.
+            studentId = if (staff) creditedIds.first() else user.id
+            studentName = if (staff) (consentedNames.ifEmpty { listOf("Learner") }).joinToString(", ")
+            else user.name
+            submitterId = user.id
             schoolId = user.schoolId
             schoolName = school?.name ?: ""
             schoolLogoUrl = school?.logoUrl
@@ -155,6 +200,8 @@ class CbcProjectService(
             status = ProjectStatus.PENDING
             rubricScores = mapper.writeValueAsString(request.rubricScores)
             tags = mapper.writeValueAsString(request.tags)
+            studentIds = if (staff) mapper.writeValueAsString(creditedIds.map { it.toString() }) else null
+            showLearnerNames = if (staff) mapper.writeValueAsString(consentedIds.map { it.toString() }) else null
         })
         return payload(project, null)
     }
@@ -163,9 +210,67 @@ class CbcProjectService(
     fun updateStatus(current: CurrentUser, projectIdRaw: String, request: UpdateProjectStatusRequest): CbcProjectPayload {
         if (!isStaff(current)) throw ApiException(ApiErrorCode.FORBIDDEN, "Only staff can moderate projects")
         val project = requireProject(projectIdRaw)
+        val staff = user(current.userId)
+        // A school can only moderate its own submissions: otherwise any staff token can take down
+        // another school's work by id.
+        if (staff.schoolId != null && project.schoolId != null && project.schoolId != staff.schoolId) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "This project belongs to another school")
+        }
         project.status = runCatching { ProjectStatus.valueOf(request.status.trim().uppercase()) }.getOrNull()
             ?: throw invalidArgument("Unknown project status: " + request.status)
+        if (!request.note.isNullOrBlank()) project.moderationNote = request.note.trim().take(1000)
         return payload(projectRepository.save(project), null)
+    }
+
+    /** Author edit while the submission is still PENDING; approval state is untouched. */
+    @Transactional
+    fun updateProject(current: CurrentUser, projectIdRaw: String, request: UpdateCbcProjectRequest): CbcProjectPayload {
+        val project = requireProject(projectIdRaw)
+        requireAuthor(current, project)
+        if (project.status != ProjectStatus.PENDING) throw conflict("Only a pending project can be edited")
+        project.title = request.title.trim()
+        project.description = request.description.trim()
+        project.subject = request.subject.trim()
+        project.cbcStrand = request.cbcStrand.trim()
+        project.cbcSubStrand = request.cbcSubStrand.trim()
+        project.gradeBand = request.gradeBand.trim().uppercase()
+        val media = request.mediaUrls.map { it.trim() }.filter { it.isNotEmpty() }
+        project.mediaUrls = mapper.writeValueAsString(media)
+        project.coverImageUrl = media.firstOrNull { isImage(it) }
+        project.thumbnailUrl = media.firstOrNull { isImage(it) }
+        project.rubricScores = mapper.writeValueAsString(request.rubricScores)
+        project.tags = mapper.writeValueAsString(request.tags)
+        if (isStaff(current)) {
+            val creditedIds = request.studentIds.map { parseUuid(it, "student id") }.distinct()
+            if (creditedIds.isEmpty()) throw invalidArgument("A staff upload must credit at least one learner")
+            val credited = userRepository.findAllById(creditedIds)
+            if (credited.size != creditedIds.size) throw invalidArgument("One or more credited learners do not exist")
+            val consentedIds = request.showLearnerNames.map { parseUuid(it, "learner id") }
+                .filter { it in creditedIds }.distinct()
+            project.studentId = creditedIds.first()
+            project.studentName = credited.filter { it.id in consentedIds }.map { it.name }
+                .ifEmpty { listOf("Learner") }.joinToString(", ")
+            project.studentIds = mapper.writeValueAsString(creditedIds.map { it.toString() })
+            project.showLearnerNames = mapper.writeValueAsString(consentedIds.map { it.toString() })
+        }
+        return payload(projectRepository.save(project), null)
+    }
+
+    /** Author withdraws a pending submission (never a hard delete: moderation history stays intact). */
+    @Transactional
+    fun deleteProject(current: CurrentUser, projectIdRaw: String) {
+        val project = requireProject(projectIdRaw)
+        requireAuthor(current, project)
+        if (project.status != ProjectStatus.PENDING) throw conflict("Only a pending project can be withdrawn")
+        project.status = ProjectStatus.REMOVED
+        project.moderationNote = "Withdrawn by the publisher"
+        projectRepository.save(project)
+    }
+
+    private fun requireAuthor(current: CurrentUser, project: CbcProjectEntity) {
+        if (project.studentId != current.userId && project.submitterId != current.userId) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "Only the publisher can change this project")
+        }
     }
 
     @Transactional
@@ -231,6 +336,7 @@ class CbcProjectService(
             sort = sort,
             pageRaw = pageRaw,
             limitRaw = limitRaw,
+            redact = true,
         )
     }
 
@@ -239,14 +345,14 @@ class CbcProjectService(
         val limit = limitRaw.coerceIn(1, 50)
         val rows = projectRepository.findAllByStatusOrderByCreatedAtDesc(ProjectStatus.FEATURED).take(limit)
         val votes = votesFor(guestId?.let(::requireGuestId)?.let(::keyForGuest), rows.map { it.id })
-        return rows.map { payload(it, votes[it.id]) }
+        return rows.map { payload(it, votes[it.id], redact = true) }
     }
 
     @Transactional(readOnly = true)
     fun detailPublic(guestId: String?, projectIdRaw: String): CbcProjectPayload {
         val project = requirePublicProject(projectIdRaw)
         val vote = guestId?.let(::requireGuestId)?.let { votesFor(keyForGuest(it), listOf(project.id))[project.id] }
-        return payload(project, vote)
+        return payload(project, vote, redact = true)
     }
 
     @Transactional
@@ -345,6 +451,7 @@ class CbcProjectService(
         sort: String,
         pageRaw: Int,
         limitRaw: Int,
+        redact: Boolean = false,
     ): ProjectListResponsePayload {
         val page = pageRaw.coerceAtLeast(1)
         val limit = limitRaw.coerceIn(1, 50)
@@ -370,7 +477,7 @@ class CbcProjectService(
         val paged = filtered.drop(start).take(limit)
         val votes = votesFor(voterKey, paged.map { it.id })
         return ProjectListResponsePayload(
-            projects = paged.map { payload(it, votes[it.id]) },
+            projects = paged.map { payload(it, votes[it.id], redact = redact) },
             total = filtered.size,
             page = page,
             hasMore = start + limit < filtered.size,
@@ -458,8 +565,9 @@ class CbcProjectService(
         projectRepository.save(project)
     }
 
-    private fun payload(project: CbcProjectEntity, myVote: String?): CbcProjectPayload {
+    private fun payload(project: CbcProjectEntity, myVote: String?, redact: Boolean = false): CbcProjectPayload {
         val media = parseList(project.mediaUrls)
+        val label = authorLabel(project)
         return CbcProjectPayload(
             id = project.id.toString(),
             title = project.title,
@@ -468,8 +576,8 @@ class CbcProjectService(
             cbcStrand = project.cbcStrand,
             cbcSubStrand = project.cbcSubStrand,
             gradeBand = project.gradeBand,
-            studentId = project.studentId.toString(),
-            studentName = project.studentName,
+            studentId = if (redact) "" else project.studentId.toString(),
+            studentName = if (redact) label else project.studentName,
             schoolId = project.schoolId?.toString() ?: "",
             schoolName = project.schoolName,
             schoolLogoUrl = project.schoolLogoUrl,
@@ -484,11 +592,22 @@ class CbcProjectService(
             status = project.status.name,
             rubricScores = parseIntMap(project.rubricScores),
             tags = parseList(project.tags),
+            authorLabel = label,
+            studentIds = if (redact) emptyList() else parseList(project.studentIds),
+            showLearnerNames = if (redact) emptyList() else parseList(project.showLearnerNames),
+            moderationNote = if (redact) null else project.moderationNote,
             isLiked = myVote == VoteType.UPVOTE.name,
             isDisliked = myVote == VoteType.DOWNVOTE.name,
             createdAt = project.createdAt.toEpochMilli(),
             updatedAt = project.updatedAt.toEpochMilli(),
         )
+    }
+
+    /** Public credit: a consented name, otherwise a school-scoped anonymised label. */
+    private fun authorLabel(project: CbcProjectEntity): String {
+        val consented = parseList(project.showLearnerNames)
+        if (consented.isNotEmpty() && project.studentName.isNotBlank()) return project.studentName
+        return project.schoolName.takeIf { it.isNotBlank() }?.let { "A learner at " + it } ?: "A learner"
     }
 
     private fun commentPayload(comment: CbcProjectCommentEntity, replies: List<ProjectCommentPayload>): ProjectCommentPayload =

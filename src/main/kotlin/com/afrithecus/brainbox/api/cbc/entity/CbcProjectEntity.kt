@@ -77,6 +77,22 @@ class CbcProjectEntity : BaseEntity() {
     @Column(name = "rubric_scores", columnDefinition = "text")
     var rubricScores: String? = null
 
+    /** JSON array of learner ids credited when staff upload on learners' behalf. */
+    @Column(name = "student_ids", columnDefinition = "text")
+    var studentIds: String? = null
+
+    /** JSON array of the credited learner ids whose names the publisher consented to show. */
+    @Column(name = "show_learner_names", columnDefinition = "text")
+    var showLearnerNames: String? = null
+
+    /** The account that uploaded the project (staff for teacher-mediated work). */
+    @Column(name = "submitter_id")
+    var submitterId: UUID? = null
+
+    /** Reviewer note shown to the publisher when a school admin takes a project down. */
+    @Column(name = "moderation_note", columnDefinition = "text")
+    var moderationNote: String? = null
+
     /** JSON array string of tags. */
     @Column(columnDefinition = "text")
     var tags: String? = null

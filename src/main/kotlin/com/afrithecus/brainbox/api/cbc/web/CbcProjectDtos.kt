@@ -31,6 +31,14 @@ data class CbcProjectPayload(
     val status: String = "PENDING",
     val rubricScores: Map<String, Int> = emptyMap(),
     val tags: List<String> = emptyList(),
+    /** Public credit: a consented learner name or "A learner at <school>". */
+    val authorLabel: String = "",
+    /** Credited learner ids — staff/author reads only; blank on public payloads. */
+    val studentIds: List<String> = emptyList(),
+    /** The credited ids whose names may be published (consent). */
+    val showLearnerNames: List<String> = emptyList(),
+    /** Reviewer note when a school admin took the project down; publisher reads it. */
+    val moderationNote: String? = null,
     val isLiked: Boolean = false,
     val isDisliked: Boolean = false,
     val createdAt: Long = 0L,
@@ -82,9 +90,32 @@ data class SubmitCbcProjectRequest(
     val mediaUrls: List<String> = emptyList(),
     val rubricScores: Map<String, Int> = emptyMap(),
     val tags: List<String> = emptyList(),
+    /** Staff only: learners credited for this submission (one or more for group work). */
+    val studentIds: List<String> = emptyList(),
+    /** Staff only: subset of [studentIds] whose names the publisher consented to publish. */
+    val showLearnerNames: List<String> = emptyList(),
 )
 
-data class UpdateProjectStatusRequest(@field:NotBlank val status: String)
+/** Author edit while the submission is still PENDING (keys never change hands). */
+data class UpdateCbcProjectRequest(
+    @field:NotBlank val title: String,
+    @field:NotBlank val description: String,
+    @field:NotBlank val subject: String,
+    val cbcStrand: String = "",
+    val cbcSubStrand: String = "",
+    @field:NotBlank val gradeBand: String,
+    val mediaUrls: List<String> = emptyList(),
+    val rubricScores: Map<String, Int> = emptyMap(),
+    val tags: List<String> = emptyList(),
+    val studentIds: List<String> = emptyList(),
+    val showLearnerNames: List<String> = emptyList(),
+)
+
+data class UpdateProjectStatusRequest(
+    @field:NotBlank val status: String,
+    /** Reviewer note retained on REMOVED and shown to the publisher. */
+    val note: String? = null,
+)
 
 data class CbcVoteRequest(@field:NotBlank val voteType: String)
 

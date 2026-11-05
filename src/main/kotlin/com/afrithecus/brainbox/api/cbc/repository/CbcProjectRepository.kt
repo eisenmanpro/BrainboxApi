@@ -10,4 +10,7 @@ interface CbcProjectRepository : JpaRepository<CbcProjectEntity, UUID> {
     fun findAllByStatusOrderByCreatedAtDesc(status: ProjectStatus): List<CbcProjectEntity>
 
     fun findAllByStudentIdOrderByCreatedAtDesc(studentId: UUID): List<CbcProjectEntity>
+
+    /** Every submission from a school's staff/learners, for the staff dashboard and approvals. */
+    fun findAllBySchoolIdOrderByCreatedAtDesc(schoolId: UUID): List<CbcProjectEntity>
 }

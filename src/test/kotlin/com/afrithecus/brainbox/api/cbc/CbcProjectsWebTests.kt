@@ -8,8 +8,10 @@ import com.afrithecus.brainbox.api.cbc.web.CommentListResponsePayload
 import com.afrithecus.brainbox.api.cbc.web.ProjectListResponsePayload
 import com.afrithecus.brainbox.api.cbc.web.ProjectVotePayload
 import com.afrithecus.brainbox.api.cbc.web.SubmitCbcProjectRequest
+import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
+import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -41,6 +43,7 @@ class CbcProjectsWebTests(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val userRepository: UserRepository,
+    @Autowired private val schoolRepository: SchoolRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
 ) {
 
@@ -99,6 +102,121 @@ class CbcProjectsWebTests(
                 .contentType(MediaType.APPLICATION_JSON).content("""{"status":"${status}"}""")
         ).andExpect(status().isOk).andReturn().response.contentAsString
         return objectMapper.readValue(response, CbcProjectPayload::class.java)
+    }
+
+    private fun school(name: String): SchoolEntity = schoolRepository.save(SchoolEntity().apply { this.name = name })
+
+    private fun userInSchool(phone: String, email: String, role: Role, schoolId: UUID): UserEntity =
+        userRepository.save(UserEntity().apply {
+            this.phoneNumber = phone
+            this.email = email
+            this.role = role
+            this.schoolId = schoolId
+            passwordHash = passwordEncoder.encode("password123") ?: error("encode")
+            name = "Cbc " + phone
+            isActive = true
+            isVerified = true
+        })
+
+    @Test
+    fun `staff upload credits school learners, edits while pending, and withdraws`() {
+        val school = school("Project School")
+        val otherSchool = school("Other School")
+        userInSchool("0778910001", "project.teacher@test", Role.TEACHER, school.id)
+        val learner = userInSchool("0778910002", "project.learner@test", Role.STUDENT, school.id)
+        userInSchool("0778910003", "other.teacher@test", Role.TEACHER, otherSchool.id)
+        val teacher = login("project.teacher@test")
+        val otherTeacher = login("other.teacher@test")
+
+        val request = mapOf(
+            "title" to "Water filter",
+            "description" to "A learner-built filter project.",
+            "subject" to "Science",
+            "cbcStrand" to "CS3",
+            "cbcSubStrand" to "SS-CS3-1",
+            "gradeBand" to "JUNIOR",
+            "rubricScores" to mapOf("Research" to 4),
+            "studentIds" to listOf(learner.id.toString()),
+            "showLearnerNames" to listOf(learner.id.toString()),
+        )
+        val createdBody = mockMvc.perform(
+            post("/cbc/projects").header("Authorization", auth(teacher))
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request))
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val created = objectMapper.readValue(createdBody, CbcProjectPayload::class.java)
+        check(created.studentIds == listOf(learner.id.toString()))
+        check(created.showLearnerNames == listOf(learner.id.toString()))
+        check(created.studentName == learner.name)
+
+        // Staff "mine" is the school's submission lane.
+        val mine = mockMvc.perform(get("/cbc/projects/mine").header("Authorization", auth(teacher)))
+            .andExpect(status().isOk).andReturn().response.contentAsString
+        check(objectMapper.readValue(mine, ProjectListResponsePayload::class.java).projects.any { it.id == created.id })
+
+        // Edit while PENDING.
+        val editedBody = mockMvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/cbc/projects/" + created.id)
+                .header("Authorization", auth(teacher))
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request + ("title" to "Water filter v2")))
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        check(objectMapper.readValue(editedBody, CbcProjectPayload::class.java).title == "Water filter v2")
+
+        // Another school cannot moderate it.
+        mockMvc.perform(
+            patch("/cbc/projects/" + created.id + "/status").header("Authorization", auth(otherTeacher))
+                .contentType(MediaType.APPLICATION_JSON).content("""{"status":"REMOVED","note":"not yours"}""")
+        ).andExpect(status().isForbidden)
+
+        // The school's own staff can take it down with a reviewer note.
+        val removedBody = mockMvc.perform(
+            patch("/cbc/projects/" + created.id + "/status").header("Authorization", auth(teacher))
+                .contentType(MediaType.APPLICATION_JSON).content("""{"status":"REMOVED","note":"Please blur the faces"}""")
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val removed = objectMapper.readValue(removedBody, CbcProjectPayload::class.java)
+        check(removed.moderationNote == "Please blur the faces")
+
+        // Author withdraws only while PENDING; after removal it is already terminal.
+        mockMvc.perform(delete("/cbc/projects/" + created.id).header("Authorization", auth(teacher)))
+            .andExpect(status().isConflict)
+    }
+
+    @Test
+    fun `public payload never exposes credited learner identity`() {
+        val school = school("Privacy School")
+        val teacher = userInSchool("0778910010", "privacy.teacher@test", Role.TEACHER, school.id)
+        val learner = userInSchool("0778910011", "privacy.learner@test", Role.STUDENT, school.id)
+        val token = login("privacy.teacher@test")
+        val request = mapOf(
+            "title" to "Private credit",
+            "description" to "A project whose learner is not named publicly.",
+            "subject" to "Science",
+            "cbcStrand" to "CS3",
+            "cbcSubStrand" to "SS-CS3-1",
+            "gradeBand" to "JUNIOR",
+            "studentIds" to listOf(learner.id.toString()),
+            "showLearnerNames" to emptyList<String>(),
+        )
+        val body = mockMvc.perform(
+            post("/cbc/projects").header("Authorization", auth(token))
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request))
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val created = objectMapper.readValue(body, CbcProjectPayload::class.java)
+        check(created.authorLabel == "A learner at Privacy School")
+
+        mockMvc.perform(
+            patch("/cbc/projects/" + created.id + "/status").header("Authorization", auth(token))
+                .contentType(MediaType.APPLICATION_JSON).content("""{"status":"APPROVED"}""")
+        ).andExpect(status().isOk)
+
+        val publicBody = mockMvc.perform(get("/cbc/public/projects/" + created.id))
+            .andExpect(status().isOk).andReturn().response.contentAsString
+        val public = objectMapper.readValue(publicBody, CbcProjectPayload::class.java)
+        check(public.studentId.isEmpty())
+        check(public.studentName == "A learner at Privacy School")
+        check(public.studentIds.isEmpty())
+        check(public.showLearnerNames.isEmpty())
+        check(public.authorLabel == "A learner at Privacy School")
+        check(!publicBody.contains(learner.id.toString()))
     }
 
     @Test

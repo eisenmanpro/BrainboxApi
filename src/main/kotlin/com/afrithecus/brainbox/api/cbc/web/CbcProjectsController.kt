@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -69,6 +70,22 @@ class CbcProjectsController(
 
     @PostMapping("/media")
     fun uploadMedia(@RequestPart("file") file: MultipartFile): MediaUploadResponsePayload = mediaService.store(file)
+
+    @PutMapping("/{projectId}")
+    fun update(
+        @AuthenticationPrincipal current: CurrentUser,
+        @PathVariable projectId: String,
+        @Valid @RequestBody request: UpdateCbcProjectRequest,
+    ): CbcProjectPayload = service.updateProject(current, projectId, request)
+
+    @DeleteMapping("/{projectId}")
+    fun withdraw(
+        @AuthenticationPrincipal current: CurrentUser,
+        @PathVariable projectId: String,
+    ): ResponseEntity<Void> {
+        service.deleteProject(current, projectId)
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build()
+    }
 
     @PatchMapping("/{projectId}/status")
     fun updateStatus(
