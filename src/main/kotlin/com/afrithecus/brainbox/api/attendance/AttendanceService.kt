@@ -53,8 +53,9 @@ import java.util.UUID
  * A register is bucketed by its calendar day in the school zone and keyed on
  * (class, day, student), so an offline replay converges instead of duplicating.
  * Mark-by-exception is preserved: roster learners missing from a full-register
- * post are recorded ABSENT defensively. Absent/late learners fan out a push to
- * their linked parent (the client also writes a same-device local alert).
+ * post are recorded ABSENT defensively. Every status transition fans out to the
+ * learner's linked parent AND the learner (absence URGENT, late HIGH, present
+ * NORMAL); the client also writes a same-device parent alert for absence/late.
  */
 @Service
 class AttendanceService(
@@ -108,7 +109,7 @@ class AttendanceService(
                 val saved = recordRepository.save(row)
                 persisted += saved
                 if (saved.status in NOTIFIABLE && (isNew || previous != saved.status)) {
-                    notifyParent(studentId, clazz, saved)
+                    notifyAttendanceAudience(studentId, clazz, saved)
                 }
             }
             // Defensive mark-by-exception: anyone absent from the full register is ABSENT.
@@ -123,7 +124,7 @@ class AttendanceService(
                 apply(row, AttendanceStatus.ABSENT.name, null, clazz, user)
                 val saved = recordRepository.save(row)
                 persisted += saved
-                if (previous != AttendanceStatus.ABSENT) notifyParent(missing, clazz, saved)
+                if (previous != AttendanceStatus.ABSENT) notifyAttendanceAudience(missing, clazz, saved)
             }
         }
         val byClassDay = persisted.groupBy { it.classId to it.attendanceDate }
@@ -566,44 +567,66 @@ class AttendanceService(
         }
     }
 
-    private fun notifyParent(studentId: UUID, clazz: TeacherClassEntity, row: AttendanceRecordEntity) {
+    /**
+     * Fans the register mark to the learner's guardians AND the learner. The student side is
+     * deliberately included: the product requires a parent/student attendance notification on
+     * every recorded mark, and the FCM payload's urgency is what makes an absence surface as a
+     * heads-up system notification rather than a silent in-app row.
+     */
+    private fun notifyAttendanceAudience(studentId: UUID, clazz: TeacherClassEntity, row: AttendanceRecordEntity) {
         val student = userRepository.findById(studentId).orElse(null) ?: return
-        val parentId = student.parentUserId ?: return
         val dayLabel = DATE_FORMAT.format(row.attendanceDate)
-        // Product decision: a parent gets a real-time absence AND present alert
-        // (server push + the client's local alert), so time-in-class is visible.
-        val (title, message, urgency) = when (row.status) {
-            AttendanceStatus.ABSENT -> Triple(
-                "Absence Alert: " + student.name,
-                student.name + " was marked absent on " + dayLabel + ". Please follow up.",
-                NotificationUrgency.HIGH,
-            )
-            AttendanceStatus.LATE -> Triple(
-                "Late Arrival: " + student.name,
-                student.name + " was marked late on " + dayLabel + ".",
-                NotificationUrgency.NORMAL,
-            )
-            else -> Triple(
-                "Arrival Confirmed: " + student.name,
-                student.name + " was marked present on " + dayLabel + ".",
-                NotificationUrgency.NORMAL,
+        val urgency = when (row.status) {
+            AttendanceStatus.ABSENT -> NotificationUrgency.URGENT
+            AttendanceStatus.LATE -> NotificationUrgency.HIGH
+            else -> NotificationUrgency.NORMAL
+        }
+        // Parent/guardian first, then the learner. Linked-set de-duplicates today (parent != student)
+        // and remains correct after F9 unifies student and guardian accounts.
+        val recipients = linkedSetOf<UUID>()
+        student.parentUserId?.let(recipients::add)
+        recipients.add(student.id)
+        for (recipientId in recipients) {
+            val isLearner = recipientId == student.id
+            val (title, message) = when (row.status) {
+                AttendanceStatus.ABSENT -> if (isLearner) {
+                    "Attendance Alert: " + student.name to
+                        "You were marked absent on " + dayLabel + ". If this is wrong, speak to your class teacher."
+                } else {
+                    "Absence Alert: " + student.name to
+                        student.name + " was marked absent on " + dayLabel + ". Please follow up."
+                }
+                AttendanceStatus.LATE -> if (isLearner) {
+                    "Late Arrival: " + student.name to "You were marked late on " + dayLabel + "."
+                } else {
+                    "Late Arrival: " + student.name to
+                        student.name + " was marked late on " + dayLabel + "."
+                }
+                else -> if (isLearner) {
+                    "Attendance Recorded: " + student.name to
+                        "Your attendance was recorded as present on " + dayLabel + "."
+                } else {
+                    "Arrival Confirmed: " + student.name to
+                        student.name + " was marked present on " + dayLabel + "."
+                }
+            }
+            notificationService.notifyUser(
+                userId = recipientId,
+                title = title,
+                message = message,
+                type = NotificationType.ATTENDANCE,
+                urgency = urgency,
+                priority = NotificationPriority.HIGH,
+                actionRoute = "student_report/" + studentId,
+                actionLabel = "View report",
+                metadata = mapOf(
+                    "studentId" to studentId.toString(),
+                    "classId" to clazz.id.toString(),
+                    "status" to row.status.name,
+                    "audience" to if (isLearner) "STUDENT" else "PARENT",
+                ),
             )
         }
-        notificationService.notifyUser(
-            userId = parentId,
-            title = title,
-            message = message,
-            type = NotificationType.ATTENDANCE,
-            urgency = urgency,
-            priority = NotificationPriority.HIGH,
-            actionRoute = "student_report/" + studentId,
-            actionLabel = "View report",
-            metadata = mapOf(
-                "studentId" to studentId.toString(),
-                "classId" to clazz.id.toString(),
-                "status" to row.status.name,
-            ),
-        )
     }
 
     private fun readableClass(user: UserEntity, classIdRaw: String): TeacherClassEntity {

@@ -191,6 +191,18 @@ class AttendanceWebTests(
         ).filter { it.type == "ATTENDANCE" }
         check(alerts.size == 1)
         check(alerts.single().actionRoute == "student_report/" + alice.id.toString())
+        check(alerts.single().urgency == "URGENT") { "an absence must be urgent so it reaches the device tray" }
+
+        // The learner side gets the same mark: the requirement is parent/student, not parent-only.
+        val learnerAlerts = objectMapper.readValue(
+            mockMvc.perform(get("/notifications").param("userId", alice.id.toString()).header("Authorization", auth(token(alice))))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<AppNotificationPayload>::class.java,
+        ).filter { it.type == "ATTENDANCE" }
+        check(learnerAlerts.size == 1)
+        check(learnerAlerts.single().metadata["audience"] == "STUDENT")
+        check(learnerAlerts.single().metadata["status"] == "ABSENT")
+        check(learnerAlerts.single().actionRoute == "student_report/" + alice.id.toString())
 
         // Alice becomes PRESENT: the parent also gets the arrival alert (product decision).
         val corrected = objectMapper.writeValueAsString(listOf(record(clazz, alice, "PRESENT", day), record(clazz, bob, "PRESENT", day)))
