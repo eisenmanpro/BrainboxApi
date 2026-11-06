@@ -3,12 +3,14 @@ package com.afrithecus.brainbox.api.traditional.web
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.traditional.TraditionalExamService
 import com.afrithecus.brainbox.api.traditional.model.ExamTerm
+import com.afrithecus.brainbox.api.traditional.model.TraditionalOmitPolicy
 import jakarta.validation.Valid
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -45,6 +47,19 @@ class TraditionalExamController(
         @Valid @RequestBody request: CreateTraditionalExamRequest,
     ): TraditionalExamDto = service.createExam(currentUser, request)
 
+    @PutMapping("/exams/{examId}")
+    fun updateExam(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable examId: String,
+        @Valid @RequestBody request: UpdateTraditionalExamRequest,
+    ): TraditionalExamDto = service.updateExam(currentUser, examId, request)
+
+    @GetMapping("/exams/{examId}/capture-classes")
+    fun captureClasses(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable examId: String,
+    ): List<TraditionalClassDto> = service.captureClasses(currentUser, examId)
+
     @PostMapping("/exams/generate")
     fun generateExams(
         @AuthenticationPrincipal currentUser: CurrentUser,
@@ -79,7 +94,22 @@ class TraditionalExamController(
         @PathVariable examId: String,
         @RequestParam(required = false) coordinatorId: String?,
         @RequestParam(required = false) remarks: String?,
-    ): TraditionalExamDto = service.finalize(currentUser, examId, coordinatorId, remarks)
+        @RequestParam(required = false) omitPolicy: TraditionalOmitPolicy?,
+    ): TraditionalExamDto = service.finalize(currentUser, examId, coordinatorId, remarks, omitPolicy)
+
+    @GetMapping("/exams/{examId}/capture-summary")
+    fun captureSummary(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable examId: String,
+    ): CaptureSummaryDto = service.captureSummary(currentUser, examId)
+
+    /** The web paper-exam screen calls this before opening mark entry; it must not 404. */
+    @PostMapping("/exams/{examId}/validate-access")
+    fun validateAccess(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable examId: String,
+        @RequestBody(required = false) request: ValidateAccessRequest?,
+    ): ValidateAccessResponse = service.validateAccess(currentUser, examId, request)
 
     @PostMapping("/exams/{examId}/publish")
     fun publishResults(

@@ -3,6 +3,7 @@ package com.afrithecus.brainbox.api.traditional.entity
 import com.afrithecus.brainbox.api.common.jpa.BaseEntity
 import com.afrithecus.brainbox.api.traditional.model.ExamTerm
 import com.afrithecus.brainbox.api.traditional.model.TraditionalExamStatus
+import com.afrithecus.brainbox.api.traditional.model.TraditionalOmitPolicy
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
@@ -58,6 +59,15 @@ class TraditionalExamEntity : BaseEntity() {
 
     @Column(name = "finalized_by")
     var finalizedBy: UUID? = null
+
+    /** Session-capture instructions shown when the session is created, e.g. the auto remark. */
+    @Column(name = "session_remarks", columnDefinition = "text")
+    var sessionRemarks: String? = null
+
+    /** Applied when the coordinator finalizes; controls which learners reach analytics. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "omit_policy", nullable = false, length = 32)
+    var omitPolicy: TraditionalOmitPolicy = TraditionalOmitPolicy.OMIT_ALL_INCOMPLETE
 
     @Column(name = "coordinator_remarks", columnDefinition = "text")
     var coordinatorRemarks: String? = null
