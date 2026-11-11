@@ -12,6 +12,7 @@ import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.notification.web.AppNotificationPayload
+import com.afrithecus.brainbox.api.traditional.repository.TraditionalExamRepository
 import com.afrithecus.brainbox.api.traditional.model.ExamTerm
 import com.afrithecus.brainbox.api.traditional.model.TraditionalEditStatus
 import com.afrithecus.brainbox.api.traditional.model.TraditionalExamStatus
@@ -71,6 +72,7 @@ class TraditionalExamWebTests(
     @Autowired private val passwordEncoder: PasswordEncoder,
     @Autowired private val teacherClassRepository: TeacherClassRepository,
     @Autowired private val classMembershipRepository: ClassMembershipRepository,
+    @Autowired private val examRepository: TraditionalExamRepository,
 ) {
 
     private lateinit var schoolId: UUID
@@ -744,10 +746,24 @@ class TraditionalExamWebTests(
         ).andExpect(status().isForbidden)
         // Other classes in the same grade remain capturable.
         mockMvc.perform(
-            post("/traditional/exams/${exam.examId}/marks").header("Authorization", auth(teacherToken))
+            post("/traditional/exams/" + exam.examId + "/marks").header("Authorization", auth(teacherToken))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(listOf(MarkEntryDto(otherStudent.id.toString(), "MAT", 70))))
+                .content(
+                    objectMapper.writeValueAsString(
+                        listOf(MarkEntryDto(otherStudent.id.toString(), "MAT", 70, classId = otherClass.id.toString()))
+                    )
+                )
         ).andExpect(status().isOk)
+        // A supplied classId is authoritative: a learner who is not in that class is rejected.
+        mockMvc.perform(
+            post("/traditional/exams/" + exam.examId + "/marks").header("Authorization", auth(teacherToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        listOf(MarkEntryDto(otherStudent.id.toString(), "MAT", 70, classId = ownedClass.id.toString()))
+                    )
+                )
+        ).andExpect(status().isBadRequest)
 
         // The class picker lists other classes, marks the own class not allowed, and
         // the own roster cannot be opened for capture.
@@ -871,7 +887,10 @@ class TraditionalExamWebTests(
                 .andExpect(status().isOk).andReturn().response.contentAsString,
             Array<AppNotificationPayload>::class.java,
         )
-        check(notifications.any { it.title.contains("New paper exam session") })
+        val sessionNote = notifications.first { it.title.contains("New paper exam session") }
+        check(sessionNote.actionRoute == "exam_status/" + created.examId) {
+            "paper-exam notification must open the session, was " + sessionNote.actionRoute
+        }
 
         // Grade-aware defaults replace the old hard-coded four-subject fallback.
         val lower = objectMapper.readValue(
@@ -960,6 +979,14 @@ class TraditionalExamWebTests(
             CaptureSummaryDto::class.java,
         )
         check(confirmedSummary.myConfirmed)
+        val confirmedExam = objectMapper.readValue(
+            mockMvc.perform(get("/traditional/exams/" + exam.examId).header("Authorization", auth(token)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            TraditionalExamDto::class.java,
+        )
+        check(confirmedExam.submittedAt != null)
+        val stored = examRepository.findById(UUID.fromString(exam.examId)).orElseThrow()
+        check(stored.broadcastAt != null)
     }
 
     @Test
@@ -1002,6 +1029,8 @@ class TraditionalExamWebTests(
         check(analytics.totalStudents == 11)
         check(analytics.subjectAverages.keys == setOf("MAT"))
         check(analytics.excludedSubjects.contains("Social Studies"))
+        val stored = examRepository.findById(UUID.fromString(exam.examId)).orElseThrow()
+        check(stored.analyticsSnapshot != null) { "finalize must persist a durable analytics snapshot" }
 
         // Finalize signals the coordinator/admin that analytics are ready.
         val notifications = objectMapper.readValue(

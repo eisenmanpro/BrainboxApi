@@ -71,6 +71,7 @@ class AttendanceWebTests(
     @Autowired private val liveAttendanceRepository: LiveAttendanceRepository,
     @Autowired private val examSubmissionRepository: ExamSubmissionRepository,
     @Autowired private val examRepository: ExamRepository,
+    @Autowired private val attendanceService: AttendanceService,
     @Autowired private val passwordEncoder: PasswordEncoder,
 ) {
 
@@ -550,6 +551,40 @@ class AttendanceWebTests(
             .andExpect(status().isOk).andReturn().response.contentAsByteArray
         check(bytes.size.toLong() == pdf.fileSize)
         check(bytes.decodeToString(0, 5) == "%PDF-")
+    }
+
+    @Test
+    fun `absence escalation is one reminder per record and reaches parent and learner`() {
+        val parent = user(Role.PARENT, "Escalation Parent", "0722000700")
+        val alice = user(Role.STUDENT, "Escalation Learner", "0722000701", parentId = parent.id)
+        val teacher = user(Role.TEACHER, "Escalation Teacher", "0722000702", subRole = SubRole.CTEACHER)
+        val clazz = teacherClass(teacher, "Grade 8 East")
+        enroll(clazz, alice)
+        val teacherToken = token(teacher)
+        val parentToken = token(parent)
+        val learnerToken = token(alice)
+        val day = midnightToday()
+        val body = objectMapper.writeValueAsString(listOf(record(clazz, alice, "ABSENT", day + 9 * 60 * 60 * 1000)))
+        mockMvc.perform(
+            post("/teacher/attendance").header("Authorization", auth(teacherToken))
+                .contentType(MediaType.APPLICATION_JSON).content(body)
+        ).andExpect(status().isOk)
+
+        check(attendanceService.escalateAbsentees() == 1)
+        val parentFeed = objectMapper.readValue(
+            mockMvc.perform(get("/notifications").param("userId", parent.id.toString()).header("Authorization", auth(parentToken)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<AppNotificationPayload>::class.java,
+        )
+        check(parentFeed.any { it.title == "Absence reminder: " + alice.name })
+        val learnerFeed = objectMapper.readValue(
+            mockMvc.perform(get("/notifications").param("userId", alice.id.toString()).header("Authorization", auth(learnerToken)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<AppNotificationPayload>::class.java,
+        )
+        check(learnerFeed.any { it.title == "Still marked absent" })
+        // The unique escalation row makes a repeated sweep a no-op.
+        check(attendanceService.escalateAbsentees() == 0)
     }
 }
 

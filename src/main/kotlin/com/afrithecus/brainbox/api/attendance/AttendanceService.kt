@@ -1,7 +1,9 @@
 package com.afrithecus.brainbox.api.attendance
 
+import com.afrithecus.brainbox.api.attendance.entity.AttendanceEscalationEntity
 import com.afrithecus.brainbox.api.attendance.entity.AttendanceRecordEntity
 import com.afrithecus.brainbox.api.attendance.model.AttendanceStatus
+import com.afrithecus.brainbox.api.attendance.repository.AttendanceEscalationRepository
 import com.afrithecus.brainbox.api.attendance.repository.AttendanceRecordRepository
 import com.afrithecus.brainbox.api.attendance.web.AttendanceAnalyticsPayload
 import com.afrithecus.brainbox.api.attendance.web.AttendancePerformanceAnalyticsPayload
@@ -42,6 +44,7 @@ import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -60,6 +63,7 @@ import java.util.UUID
 @Service
 class AttendanceService(
     private val recordRepository: AttendanceRecordRepository,
+    private val escalationRepository: AttendanceEscalationRepository,
     private val classRepository: TeacherClassRepository,
     private val membershipRepository: ClassMembershipRepository,
     private val liveAttendanceRepository: LiveAttendanceRepository,
@@ -71,9 +75,12 @@ class AttendanceService(
     private val notificationService: NotificationService,
     private val clock: Clock,
     @Value("\${app.school-zone:Africa/Nairobi}") private val schoolZoneId: String,
+    @Value("\${app.attendance.escalation-time:10:00}") private val escalationTimeRaw: String,
 ) {
 
     private val zone: ZoneId get() = ZoneId.of(schoolZoneId)
+    private val escalationTime: LocalTime get() =
+        runCatching { LocalTime.parse(escalationTimeRaw) }.getOrDefault(LocalTime.of(10, 0))
 
     @Transactional(readOnly = true)
     fun register(current: CurrentUser, classIdRaw: String, dateMillis: Long): List<AttendanceRecordPayload> {
@@ -573,6 +580,65 @@ class AttendanceService(
      * every recorded mark, and the FCM payload's urgency is what makes an absence surface as a
      * heads-up system notification rather than a silent in-app row.
      */
+    /**
+     * F8-A2: one scheduled re-notification for a learner still marked ABSENT after the
+     * school's escalation hour. The unique escalation row makes the sweep idempotent across
+     * runs and process restarts; the first mark notification is unaffected.
+     */
+    @Transactional
+    fun escalateAbsentees(): Int = escalateAbsentees(clock.instant())
+
+    /** Explicit-time overload used by the sweep tests and by any future admin repair. */
+    @Transactional
+    fun escalateAbsentees(now: Instant): Int {
+        val today = LocalDate.ofInstant(now, zone)
+        if (LocalTime.ofInstant(now, zone).isBefore(escalationTime)) return 0
+        var sent = 0
+        for (row in recordRepository.findAllByAttendanceDateAndStatus(today, AttendanceStatus.ABSENT)) {
+            if (escalationRepository.existsByRecordId(row.id)) continue
+            val student = userRepository.findById(row.studentId).orElse(null) ?: continue
+            val classRow = classRepository.findById(row.classId).orElse(null) ?: continue
+            notifyAbsenceEscalation(student, classRow, row)
+            escalationRepository.save(AttendanceEscalationEntity().apply {
+                this.recordId = row.id
+                this.notifiedAt = now
+            })
+            sent++
+        }
+        return sent
+    }
+
+    private fun notifyAbsenceEscalation(student: UserEntity, clazz: TeacherClassEntity, row: AttendanceRecordEntity) {
+        val dayLabel = DATE_FORMAT.format(row.attendanceDate)
+        val recipients = linkedSetOf<UUID>()
+        student.parentUserId?.let(recipients::add)
+        recipients.add(student.id)
+        for (recipientId in recipients) {
+            val isLearner = recipientId == student.id
+            notificationService.notifyUser(
+                userId = recipientId,
+                title = if (isLearner) "Still marked absent" else "Absence reminder: " + student.name,
+                message = if (isLearner) {
+                    "You are still marked absent on " + dayLabel + ". Speak to your class teacher if this is wrong."
+                } else {
+                    student.name + " is still marked absent on " + dayLabel + ". Please follow up with the school."
+                },
+                type = NotificationType.ATTENDANCE,
+                urgency = NotificationUrgency.URGENT,
+                priority = NotificationPriority.HIGH,
+                actionRoute = "student_report/" + student.id,
+                actionLabel = "View report",
+                metadata = mapOf(
+                    "studentId" to student.id.toString(),
+                    "classId" to clazz.id.toString(),
+                    "status" to row.status.name,
+                    "audience" to if (isLearner) "STUDENT" else "PARENT",
+                    "escalation" to "true",
+                ),
+            )
+        }
+    }
+
     private fun notifyAttendanceAudience(studentId: UUID, clazz: TeacherClassEntity, row: AttendanceRecordEntity) {
         val student = userRepository.findById(studentId).orElse(null) ?: return
         val dayLabel = DATE_FORMAT.format(row.attendanceDate)

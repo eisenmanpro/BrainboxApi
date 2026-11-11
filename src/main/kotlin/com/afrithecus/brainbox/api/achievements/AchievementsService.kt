@@ -1,25 +1,33 @@
 package com.afrithecus.brainbox.api.achievements
 
+import com.afrithecus.brainbox.api.achievements.entity.StreakCreditEntity
 import com.afrithecus.brainbox.api.achievements.entity.UserAchievementsEntity
 import com.afrithecus.brainbox.api.achievements.entity.UserBadgeEntity
 import com.afrithecus.brainbox.api.achievements.entity.UserRewardEntity
 import com.afrithecus.brainbox.api.achievements.entity.XpEventEntity
 import com.afrithecus.brainbox.api.achievements.repository.BadgeRepository
 import com.afrithecus.brainbox.api.achievements.repository.RewardRepository
+import com.afrithecus.brainbox.api.achievements.repository.StreakCreditRepository
 import com.afrithecus.brainbox.api.achievements.repository.UserAchievementsRepository
 import com.afrithecus.brainbox.api.achievements.repository.UserBadgeRepository
 import com.afrithecus.brainbox.api.achievements.repository.UserRewardRepository
 import com.afrithecus.brainbox.api.achievements.repository.XpEventRepository
 import com.afrithecus.brainbox.api.achievements.web.BadgePayload
 import com.afrithecus.brainbox.api.achievements.web.ContestHistoryEntryPayload
+import com.afrithecus.brainbox.api.achievements.web.DailyActivityPayload
 import com.afrithecus.brainbox.api.achievements.web.LeaderboardEntryPayload
 import com.afrithecus.brainbox.api.achievements.web.LeaderboardResponsePayload
 import com.afrithecus.brainbox.api.achievements.web.MasteryNodePayload
 import com.afrithecus.brainbox.api.achievements.web.MasteryTreePayload
+import com.afrithecus.brainbox.api.achievements.web.MonthlyDigestPayload
 import com.afrithecus.brainbox.api.achievements.web.RewardItemPayload
 import com.afrithecus.brainbox.api.achievements.web.ScholarshipFlagPayload
+import com.afrithecus.brainbox.api.achievements.web.StreakAdjustmentRequest
+import com.afrithecus.brainbox.api.achievements.web.StreakCreditPayload
 import com.afrithecus.brainbox.api.achievements.web.UserAchievementsPayload
 import com.afrithecus.brainbox.api.career.repository.ScholarshipRepository
+import com.afrithecus.brainbox.api.cbc.model.ProjectStatus
+import com.afrithecus.brainbox.api.cbc.repository.CbcProjectRepository
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.conflict
@@ -28,28 +36,42 @@ import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.contests.repository.ContestRegistrationRepository
 import com.afrithecus.brainbox.api.contests.repository.ContestRepository
 import com.afrithecus.brainbox.api.contests.repository.ContestSubmissionRepository
+import com.afrithecus.brainbox.api.doubt.repository.DoubtAnswerRepository
+import com.afrithecus.brainbox.api.exams.repository.ExamRepository
 import com.afrithecus.brainbox.api.exams.repository.ExamSubmissionRepository
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
+import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
+import com.afrithecus.brainbox.api.learning.repository.LearningProgressRepository
 import com.afrithecus.brainbox.api.mastery.MasteryService
 import com.afrithecus.brainbox.api.mastery.model.MasteryLevel
 import com.afrithecus.brainbox.api.mastery.repository.TopicMasteryRepository
+import com.afrithecus.brainbox.api.notification.NotificationService
+import com.afrithecus.brainbox.api.notification.model.NotificationPriority
+import com.afrithecus.brainbox.api.notification.model.NotificationType
+import com.afrithecus.brainbox.api.notification.model.NotificationUrgency
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.security.SecureRandom
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.util.UUID
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /**
  * Achievements, XP, badges, leaderboards and the rewards store (doc 03 §7/§8).
  * XP is event-sourced (xp_events) so weekly leaderboards are server-computed;
- * streaks are derived from real activity dates.
+ * streaks are derived from real activity dates plus persisted freeze/grace credits.
+ *
+ * F5-A1: badge criteria are server-owned. [awardEligibleBadges] is called by the
+ * scheduled sweeper and after an XP award; the client never decides a badge.
  */
 @Service
 class AchievementsService(
@@ -59,15 +81,21 @@ class AchievementsService(
     private val userBadgeRepository: UserBadgeRepository,
     private val rewardRepository: RewardRepository,
     private val userRewardRepository: UserRewardRepository,
+    private val streakCreditRepository: StreakCreditRepository,
     private val scholarshipRepository: ScholarshipRepository,
     private val userRepository: UserRepository,
     private val schoolRepository: SchoolRepository,
+    private val examRepository: ExamRepository,
     private val examSubmissionRepository: ExamSubmissionRepository,
     private val contestSubmissionRepository: ContestSubmissionRepository,
     private val contestRegistrationRepository: ContestRegistrationRepository,
     private val contestRepository: ContestRepository,
+    private val doubtAnswerRepository: DoubtAnswerRepository,
+    private val cbcProjectRepository: CbcProjectRepository,
+    private val learningProgressRepository: LearningProgressRepository,
     private val topicMasteryRepository: TopicMasteryRepository,
     private val masteryService: MasteryService,
+    private val notificationService: NotificationService,
     private val clock: Clock,
 ) {
 
@@ -231,6 +259,7 @@ class AchievementsService(
             this.amount = amount
             this.activityType = activityType.trim().ifBlank { "GENERAL" }.uppercase()
         })
+        awardEligibleBadges(userId)
         return build(userId)
     }
 
@@ -246,6 +275,142 @@ class AchievementsService(
             })
         }
         return build(userId)
+    }
+
+    /**
+     * Buy or spend a streak freeze/grace day (F5-A3). A credit covers exactly one
+     * missed local day; the streak derivation treats that day as active. Buying uses
+     * the learner's XP balance but does not create a negative XP event, so weekly
+     * leaderboard totals stay "earned this week" rather than falling after a purchase.
+     */
+    @Transactional
+    fun adjustStreak(current: CurrentUser, userIdRaw: String, request: StreakAdjustmentRequest): UserAchievementsPayload {
+        val userId = requireSelf(current, userIdRaw)
+        val row = ensure(userId)
+        val action = request.action.trim().uppercase()
+        val kind = when (request.kind.trim().uppercase()) {
+            "FREEZE" -> "FREEZE"
+            "GRACE" -> "GRACE"
+            else -> throw invalidArgument("kind must be FREEZE or GRACE")
+        }
+        when (action) {
+            "BUY" -> {
+                val (cost, cap) = if (kind == "FREEZE") FREEZE_COST to MAX_FREEZES else GRACE_COST to MAX_GRACE_DAYS
+                val owned = if (kind == "FREEZE") row.streakFreezes else row.graceDays
+                if (owned >= cap) throw conflict("You already hold the maximum number of " + kind.lowercase() + " days")
+                if (row.totalXp < cost) throw conflict("Not enough XP to buy this streak credit")
+                row.totalXp -= cost
+                if (kind == "FREEZE") row.streakFreezes += 1 else row.graceDays += 1
+                userAchievementsRepository.save(row)
+            }
+            "USE" -> {
+                val today = LocalDate.now(clock)
+                val date = request.date?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                    runCatching { LocalDate.parse(it) }.getOrNull() ?: throw invalidArgument("date must be ISO yyyy-MM-dd")
+                } ?: today.minusDays(1)
+                if (date.isAfter(today.minusDays(1))) throw invalidArgument("A credit can only cover a completed day")
+                if (date.isBefore(today.minusDays(MAX_CREDIT_LOOKBACK_DAYS))) {
+                    throw invalidArgument("A credit can only cover the last " + MAX_CREDIT_LOOKBACK_DAYS + " days")
+                }
+                if (date in activityDates(userId)) throw conflict("That day already counts as activity")
+                if (streakCreditRepository.findByUserIdAndCreditDate(userId, date) != null) {
+                    throw conflict("That day is already covered by a streak credit")
+                }
+                val owned = if (kind == "FREEZE") row.streakFreezes else row.graceDays
+                if (owned <= 0) throw conflict("No " + kind.lowercase() + " days left")
+                if (kind == "FREEZE") row.streakFreezes -= 1 else row.graceDays -= 1
+                userAchievementsRepository.save(row)
+                streakCreditRepository.save(StreakCreditEntity().apply {
+                    this.userId = userId
+                    this.creditDate = date
+                    this.kind = kind
+                })
+            }
+            else -> throw invalidArgument("action must be BUY or USE")
+        }
+        return build(userId)
+    }
+
+    // ------------------------------------------------------------ badge awarding
+
+    /**
+     * Awards every badge whose rule the learner now satisfies. Safe to call repeatedly:
+     * a badge already in user_badges is never inserted twice. Returns the newly awarded
+     * badges and sends one in-app notification per badge.
+     */
+    @Transactional
+    fun awardEligibleBadges(userId: UUID): List<BadgePayload> {
+        val user = userRepository.findById(userId).orElse(null) ?: return emptyList()
+        if (user.role != Role.STUDENT) return emptyList()
+        val earned = userBadgeRepository.findAllByUserId(userId).map { it.badgeId }.toSet()
+        val dates = activityDates(userId)
+        val submissions = examSubmissionRepository.findAllByUserId(userId)
+        val submissionsEightyPlus = submissions.count { it.percentage >= 80 }
+        val earlyBird = submissions.any { submission ->
+            java.time.LocalTime.ofInstant(submission.submittedAt, clock.zone).hour < 8
+        }
+        val examDurations = examRepository.findAllById(submissions.map { it.examId }).associateBy { it.id }
+        val speedDemon = submissions.any { submission ->
+            val duration = examDurations[submission.examId]?.durationMinutes ?: 0
+            duration > 0 && submission.timeTakenSeconds > 0 &&
+                submission.timeTakenSeconds * 2 <= duration * 60
+        }
+        val answers = doubtAnswerRepository.findAllByAuthorId(userId)
+        val completedPosts = learningProgressRepository.findAllByUserId(userId).count { it.completed }
+        val projectApproved = cbcProjectRepository.findAllByStudentIdOrderByCreatedAtDesc(userId)
+            .any { it.status == ProjectStatus.APPROVED || it.status == ProjectStatus.FEATURED }
+        val submissionsForContest = contestSubmissionRepository.findAllByUserId(userId)
+        val contestsWon = submissionsForContest.count {
+            contestSubmissionRepository.countStrictlyBetter(it.contestId, it.score) == 0L
+        }
+        val xpRow = userAchievementsRepository.findByUserId(userId)
+        val rank = xpRow?.let { (userAchievementsRepository.countByTotalXpGreaterThan(it.totalXp) + 1).toInt() } ?: 0
+        val totalRanked = userAchievementsRepository.count().coerceAtLeast(1).toInt()
+        val newlyAwarded = mutableListOf<BadgePayload>()
+        for (badge in badgeRepository.findAll()) {
+            if (badge.id in earned) continue
+            val earnedNow = when (badge.title) {
+                "Early Bird" -> earlyBird
+                "Quiz Master" -> submissionsEightyPlus >= 5
+                "Speed Demon" -> speedDemon
+                "Collaboration Star" -> answers.any { it.isAccepted }
+                "Creative Thinker" -> projectApproved
+                "Digital Explorer" -> completedPosts >= 10
+                "Helper" -> answers.size >= 5
+                "Contest Winner" -> contestsWon >= 1
+                "Perfect Week" -> longestStreak(dates) >= 7
+                // A percentile needs a population; with fewer than ten ranked learners
+                // every learner would otherwise receive it on their first XP award.
+                "Top 10%" -> rank > 0 && totalRanked >= 10 &&
+                    rank <= ceil(totalRanked * 0.10).toInt().coerceAtLeast(1)
+                else -> false
+            }
+            if (!earnedNow) continue
+            userBadgeRepository.save(UserBadgeEntity().apply {
+                this.userId = userId
+                this.badgeId = badge.id
+            })
+            notificationService.notifyUser(
+                userId = userId,
+                title = "Badge unlocked: " + badge.title,
+                message = "You earned the " + badge.title + " badge. Open Achievements to see it.",
+                type = NotificationType.REWARD,
+                urgency = NotificationUrgency.LOW,
+                priority = NotificationPriority.NORMAL,
+                actionRoute = "achievements",
+                actionLabel = "View achievements",
+                metadata = mapOf("badgeId" to badge.id.toString()),
+            )
+            newlyAwarded += BadgePayload(
+                id = badge.id.toString(),
+                title = badge.title,
+                icon = badge.icon,
+                isUnlocked = true,
+                tier = badge.tier,
+                cbcStrand = badge.cbcStrand,
+            )
+        }
+        return newlyAwarded
     }
 
     // ------------------------------------------------------------ internals
@@ -266,6 +431,7 @@ class AchievementsService(
                 cbcStrand = badge.cbcStrand,
             )
         }.sortedByDescending { it.isUnlocked }
+        val credits = streakCreditRepository.findAllByUserIdOrderByCreditDateAsc(userId)
         val dates = activityDates(userId)
         val rank = (userAchievementsRepository.countByTotalXpGreaterThan(xp) + 1).toInt()
         val total = userAchievementsRepository.count().coerceAtLeast(1).toInt()
@@ -283,8 +449,6 @@ class AchievementsService(
             currentStreak = currentStreak(dates),
             longestStreak = longestStreak(dates),
             badges = badges,
-            completedChallenges = 0,
-            totalChallenges = 0,
             contestsParticipated = contestsParticipated,
             contestsWon = contestsWon,
             rankPosition = rank,
@@ -293,7 +457,56 @@ class AchievementsService(
             masteryLevel = MasteryLevel.fromScore(overall).name,
             streakFreezes = row.streakFreezes,
             graceDays = row.graceDays,
+            streakCredits = credits.map { StreakCreditPayload(millisOf(it.creditDate), it.kind) },
+            dailyActivity = dailyActivity(userId, dates),
+            monthlyDigest = monthlyDigest(userId, dates),
             scholarshipFlags = scholarshipFlags(overall),
+        )
+    }
+
+    private fun dailyActivity(userId: UUID, dates: Set<LocalDate>): List<DailyActivityPayload> {
+        val today = LocalDate.now(clock)
+        val start = today.minusDays(6)
+        val events = xpEventRepository.findAllByUserIdAndCreatedAtAfterOrderByCreatedAtDesc(
+            userId,
+            start.atStartOfDay(clock.zone).toInstant(),
+        )
+        val xpByDay = events.groupBy { LocalDate.ofInstant(it.createdAt, clock.zone) }
+            .mapValues { (_, rows) -> rows.sumOf { it.amount } }
+        return (0..6).map { offset ->
+            val day = start.plusDays(offset.toLong())
+            DailyActivityPayload(
+                date = millisOf(day),
+                active = day in dates,
+                xpEarned = xpByDay[day] ?: 0,
+            )
+        }
+    }
+
+    private fun monthlyDigest(userId: UUID, dates: Set<LocalDate>): MonthlyDigestPayload {
+        val today = LocalDate.now(clock)
+        val monthStart = today.withDayOfMonth(1)
+        val monthStartInstant = monthStart.atStartOfDay(clock.zone).toInstant()
+        val events = xpEventRepository.findAllByUserIdAndCreatedAtAfterOrderByCreatedAtDesc(userId, monthStartInstant)
+        val xpGained = events.sumOf { it.amount }
+        val monthMillis = monthStartInstant.toEpochMilli()
+        val contestsWon = contestHistoryForUser(userId).count { it.date >= monthMillis && it.rank == 1 }
+        val activeDays = dates.count { !it.isBefore(monthStart) && !it.isAfter(today) }
+        val strongest = topicMasteryRepository.findAllByUserIdOrderByScoreAsc(userId)
+            .maxByOrNull { it.score }?.subject?.takeIf { it.isNotBlank() }
+        val recommendation = when {
+            xpGained <= 0 && activeDays == 0 -> "Start with one short practice session this week to build momentum."
+            currentStreak(dates) >= 7 -> "Your streak is strong. Keep one short session a day to protect it."
+            strongest != null -> "Your strongest subject is " + strongest + ". Spend one session on a weaker topic this week."
+            else -> "Aim for three active days this week; consistency beats one long session."
+        }
+        return MonthlyDigestPayload(
+            month = YearMonth.from(today).toString(),
+            xpGained = xpGained,
+            contestsWon = contestsWon,
+            strongestSubject = strongest,
+            activeDays = activeDays,
+            recommendation = recommendation,
         )
     }
 
@@ -313,6 +526,10 @@ class AchievementsService(
                     isEligible = progress >= 1f,
                     organization = scholarship.provider,
                     deadline = scholarship.deadline.toEpochMilli(),
+                    applicationUrl = scholarship.externalUrl.takeIf { it.isNotBlank() },
+                    // No scholarship_applications table exists yet; null is honest and the
+                    // client must not render a fabricated "not applied" state.
+                    applicationStatus = null,
                 )
             }
     }
@@ -351,6 +568,8 @@ class AchievementsService(
         examSubmissionRepository.findAllByUserId(userId).forEach { dates += LocalDate.ofInstant(it.submittedAt, clock.zone) }
         contestSubmissionRepository.findAllByUserId(userId).forEach { dates += LocalDate.ofInstant(it.submittedAt, clock.zone) }
         topicMasteryRepository.findAllByUserIdOrderByScoreAsc(userId).forEach { dates += LocalDate.ofInstant(it.lastPracticed, clock.zone) }
+        xpEventRepository.findAllByUserId(userId).forEach { dates += LocalDate.ofInstant(it.createdAt, clock.zone) }
+        streakCreditRepository.findAllByUserIdOrderByCreditDateAsc(userId).forEach { dates += it.creditDate }
         return dates
     }
 
@@ -387,6 +606,8 @@ class AchievementsService(
 
     private fun nodeId(topicId: String): String = "topic-" + topicId
 
+    private fun millisOf(day: LocalDate): Long = day.atStartOfDay(clock.zone).toInstant().toEpochMilli()
+
     private fun requireSelf(current: CurrentUser, userIdRaw: String): UUID {
         if (userIdRaw != current.userId.toString()) {
             throw ApiException(ApiErrorCode.FORBIDDEN, "Cannot access another user's achievements")
@@ -399,6 +620,11 @@ class AchievementsService(
 
     private companion object {
         const val LEVEL_XP = 1000
+        const val FREEZE_COST = 300
+        const val GRACE_COST = 600
+        const val MAX_FREEZES = 5
+        const val MAX_GRACE_DAYS = 3
+        const val MAX_CREDIT_LOOKBACK_DAYS = 30L
         val SECURE_RANDOM = SecureRandom()
         val LEVEL_TITLES = listOf(
             "Novice", "Learner", "Explorer", "Achiever", "Scholar",

@@ -48,6 +48,8 @@ data class TraditionalExamDto(
     val omitPolicy: TraditionalOmitPolicy = TraditionalOmitPolicy.OMIT_ALL_INCOMPLETE,
     /** True when the caller themself has already submitted/confirmed this exam. */
     val confirmedByMe: Boolean = false,
+    /** When the caller's confirmation was recorded; null when they have not submitted (F7-A4). */
+    val submittedAt: Long? = null,
     val createdAt: Long,
     val finalizedAt: Long? = null,
     val finalizedBy: String? = null,
@@ -77,6 +79,8 @@ data class MarkEntryDto(
     val subjectId: String,
     val rawScore: Int,
     val componentScores: Map<String, Int>? = null,
+    /** Stable class id for the capture row (F7-A6); optional for older clients. */
+    val classId: String? = null,
 )
 
 data class ExamConfirmationStatusDto(

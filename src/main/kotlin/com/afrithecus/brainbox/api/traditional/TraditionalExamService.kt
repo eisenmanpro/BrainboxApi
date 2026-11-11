@@ -157,7 +157,16 @@ class TraditionalExamService(
         // device stores locally.
         val clientExamId = request.examId?.trim()?.takeIf { it.isNotBlank() && parseUuidOrNull(it) == null }
         if (clientExamId != null) {
-            examRepository.findBySchoolIdAndClientExamId(user.schoolId, clientExamId)?.let { return examDto(it, current) }
+            examRepository.findBySchoolIdAndClientExamId(user.schoolId, clientExamId)?.let { existing ->
+                // An outbox replay may follow a first attempt whose broadcast failed. The
+                // exam row is already idempotent; retry the one side effect it has not recorded.
+                if (existing.broadcastAt == null) {
+                    broadcastSession(existing, user)
+                    existing.broadcastAt = clock.instant()
+                    examRepository.save(existing)
+                }
+                return examDto(existing, current)
+            }
         }
         val exam = TraditionalExamEntity().apply {
             title = request.title.trim()
@@ -177,6 +186,8 @@ class TraditionalExamService(
         examRepository.save(exam)
         saveSubjects(exam.id, request.subjects)
         broadcastSession(exam, user)
+        exam.broadcastAt = clock.instant()
+        examRepository.save(exam)
         return examDto(exam, current)
     }
 
@@ -455,6 +466,7 @@ class TraditionalExamService(
         exam.finalizedBy = coordinator
         exam.coordinatorRemarks = remarks
         if (omitPolicy != null) exam.omitPolicy = omitPolicy
+        snapshotAnalytics(exam)
         examRepository.save(exam)
         notifyAnalyticsCompleted(exam, current)
         return examDto(exam, current)
@@ -472,7 +484,7 @@ class TraditionalExamService(
         exam.publishedBy = coordinator
         examRepository.save(exam)
         fanOutResults(exam)
-        notify(current.userId, "Results published", exam.title + " results are now visible to learners and parents.", "teacher_exams", "View exam", "NORMAL", "NORMAL")
+        notify(current.userId, "Results published", exam.title + " results are now visible to learners and parents.", examRoute(exam), "View exam", "NORMAL", "NORMAL")
         return examDto(exam, current)
     }
 
@@ -486,7 +498,7 @@ class TraditionalExamService(
             userId = teacher.id,
             title = "Mark entry reminder",
             message = "Please enter and confirm the marks for " + exam.title + ".",
-            route = "teacher_exams",
+            route = examRoute(exam),
             label = "Open exam",
             urgency = "HIGH",
             priority = "HIGH",
@@ -588,6 +600,20 @@ class TraditionalExamService(
         for (entry in entries) {
             val subject = subjects[entry.subjectId] ?: throw invalidArgument("Unknown subject " + entry.subjectId)
             val studentId = parseUuid(entry.studentId, "student id")
+            entry.classId?.takeIf { it.isNotBlank() }?.let { classIdRaw ->
+                val classId = parseUuid(classIdRaw, "class id")
+                val clazz = teacherClassRepository.findById(classId).orElse(null)
+                    ?: throw invalidArgument("Unknown class " + classIdRaw)
+                if (exam.schoolId != null && clazz.schoolId != null && clazz.schoolId != exam.schoolId) {
+                    throw invalidArgument("That class is not in this exam's school")
+                }
+                if (!clazz.gradeLevel.equals(exam.gradeLevel, ignoreCase = true)) {
+                    throw invalidArgument("That class is not in the exam's grade")
+                }
+                if (classMembershipRepository.findByClassIdAndStudentId(classId, studentId) == null) {
+                    throw invalidArgument("The learner is not a member of that class")
+                }
+            }
             if (ownClasses.isNotEmpty()) {
                 val student = userRepository.findById(studentId).orElse(null)
                 if (student != null && ownClasses.any { it.equals(classTagOf(student, exam), ignoreCase = true) }) {
@@ -633,6 +659,7 @@ class TraditionalExamService(
             markRepository.save(row)
             saved += row
         }
+        if (exam.analyticsSnapshot != null) exam.analyticsSnapshot = null
         if (exam.status == TraditionalExamStatus.PENDING || exam.status == TraditionalExamStatus.CONFIRMED) {
             if (exam.status == TraditionalExamStatus.CONFIRMED) {
                 val confirmations = confirmationRepository.findAllByExamId(exam.id)
@@ -703,6 +730,15 @@ class TraditionalExamService(
     fun analytics(current: CurrentUser, examIdRaw: String): TraditionalExamAnalyticsDto {
         requireStaffReader(current)
         val exam = exam(current, examIdRaw)
+        exam.analyticsSnapshot?.takeIf { it.isNotBlank() }?.let { snapshot ->
+            return runCatching { mapper.readValue(snapshot, TraditionalExamAnalyticsDto::class.java) }
+                .getOrElse { analyticsFor(exam) }
+        }
+        return analyticsFor(exam)
+    }
+
+    /** Compute the analytics exactly as the live read does; also used to capture the final snapshot. */
+    private fun analyticsFor(exam: TraditionalExamEntity): TraditionalExamAnalyticsDto {
         if (markRepository.findAllByExamId(exam.id).isEmpty()) throw notFound("No marks recorded for this exam")
         val view = analysisView(exam)
         val marks = view.marks
@@ -900,6 +936,8 @@ class TraditionalExamService(
         val exam = examRepository.findById(row.examId).orElse(null)
         if (exam != null && exam.status != TraditionalExamStatus.PUBLISHED) {
             exam.status = TraditionalExamStatus.IN_PROGRESS
+            // Reopening invalidates the finalize snapshot; the next finalize takes a fresh one.
+            exam.analyticsSnapshot = null
             examRepository.save(exam)
             confirmationRepository.findAllByExamId(exam.id)
                 .filter { it.teacherId == row.requesterId }
@@ -911,7 +949,7 @@ class TraditionalExamService(
             row.requesterId,
             "Edit request approved",
             "Your edit request for " + row.subjectId + " was approved. The exam is open again; correct the mark and submit it.",
-            "teacher_exams",
+            if (exam != null) examRoute(exam) else examRoute(row.examId),
             "Open exam",
             "HIGH",
             "HIGH",
@@ -931,7 +969,7 @@ class TraditionalExamService(
         row.reviewedAt = clock.instant()
         row.coordinatorComment = reason
         editRequestRepository.save(row)
-        notify(row.requesterId, "Edit request denied", "Your edit request was denied" + (reason?.let { ": " + it } ?: "."), "teacher_exams", "View exam", "HIGH", "HIGH")
+        notify(row.requesterId, "Edit request denied", "Your edit request was denied" + (reason?.let { ": " + it } ?: "."), examRoute(row.examId), "View exam", "HIGH", "HIGH")
         return editRequestDto(row, publicExamId(row.examId))
     }
 
@@ -1466,6 +1504,11 @@ class TraditionalExamService(
         omitPolicy = exam.omitPolicy,
         confirmedByMe = current != null && confirmationRepository.findAllByExamId(exam.id)
             .any { it.teacherId == current.userId && it.confirmedAt != null },
+        submittedAt = current?.let { caller ->
+            confirmationRepository.findAllByExamId(exam.id)
+                .firstOrNull { it.teacherId == caller.userId && it.confirmedAt != null }
+                ?.confirmedAt?.toEpochMilli()
+        },
         createdAt = exam.createdAt.toEpochMilli(),
         finalizedAt = exam.finalizedAt?.toEpochMilli(),
         finalizedBy = exam.finalizedBy?.toString(),
@@ -1650,6 +1693,16 @@ class TraditionalExamService(
         }
     }
 
+    /** Persist the finalized analytics once, so a later read cannot drift from the published state. */
+    private fun snapshotAnalytics(exam: TraditionalExamEntity) {
+        exam.analyticsSnapshot = runCatching { mapper.writeValueAsString(analyticsFor(exam)) }.getOrNull()
+    }
+
+    /** Direct notification route for one capture session (F7-A5). */
+    private fun examRoute(exam: TraditionalExamEntity): String = "exam_status/" + publicExamId(exam)
+
+    private fun examRoute(examId: UUID): String = "exam_status/" + publicExamId(examId)
+
     /**
      * Tells the class teachers of the grade that a coordinator has opened a capture
      * session. This is the "broadcasted to all class teachers" half of the owner's
@@ -1675,7 +1728,7 @@ class TraditionalExamService(
                 title = "New paper exam session: " + exam.title,
                 message = (exam.sessionRemarks ?: "Capture scores for " + exam.title + ".") +
                     " Open Paper Exams to enter and submit your class marks.",
-                route = "teacher_exams",
+                route = examRoute(exam),
                 label = "Open paper exams",
                 urgency = "HIGH",
                 priority = "HIGH",
@@ -1697,7 +1750,7 @@ class TraditionalExamService(
                 userId = userId,
                 title = "Analytics have been completed",
                 message = exam.title + " was finalized. Review the analytics, download reports or publish the results.",
-                route = "teacher_exams",
+                route = examRoute(exam),
                 label = "Open paper exams",
                 urgency = "HIGH",
                 priority = "HIGH",
@@ -1725,7 +1778,7 @@ class TraditionalExamService(
                 title = "Score edited by grade coordinator",
                 message = "The scores for " + student.name + " were edited by the grade coordinator (" +
                     coordinator.name + "). Please review the exam.",
-                route = "teacher_exams",
+                route = examRoute(exam),
                 label = "Open exam",
                 urgency = "HIGH",
                 priority = "HIGH",

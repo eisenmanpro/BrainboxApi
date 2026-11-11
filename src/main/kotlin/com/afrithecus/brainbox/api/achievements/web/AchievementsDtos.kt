@@ -21,6 +21,44 @@ data class ScholarshipFlagPayload(
     val isEligible: Boolean,
     val organization: String,
     val deadline: Long? = null,
+    /** The provider's application page, when the catalogue exposes one (F5-A6). */
+    val applicationUrl: String? = null,
+    /** Null means "this server does not track applications yet"; never invent a state. */
+    val applicationStatus: String? = null,
+)
+
+/** One day in the seven-day activity series used by the achievements heatmap (F5-A4). */
+data class DailyActivityPayload(
+    val date: Long,
+    val active: Boolean,
+    val xpEarned: Int,
+)
+
+/** Server-computed monthly digest; replaces the deleted client-side fabrication (F5-A5). */
+data class MonthlyDigestPayload(
+    val month: String,
+    val xpGained: Int,
+    val contestsWon: Int,
+    val strongestSubject: String? = null,
+    val activeDays: Int,
+    val recommendation: String,
+)
+
+/** One persisted freeze/grace credit (F5-A3). */
+data class StreakCreditPayload(
+    val date: Long,
+    val kind: String,
+)
+
+/**
+ * Streak credit request. ACTION is BUY or USE; KIND is FREEZE or GRACE. For USE,
+ * [date] is an ISO local date (defaults to yesterday). A used credit covers that
+ * missed day in the derived current/longest streak.
+ */
+data class StreakAdjustmentRequest(
+    val action: String,
+    val kind: String = "FREEZE",
+    val date: String? = null,
 )
 
 data class UserAchievementsPayload(
@@ -33,8 +71,6 @@ data class UserAchievementsPayload(
     val currentStreak: Int,
     val longestStreak: Int,
     val badges: List<BadgePayload>,
-    val completedChallenges: Int,
-    val totalChallenges: Int,
     val contestsParticipated: Int,
     val contestsWon: Int,
     val rankPosition: Int,
@@ -43,6 +79,9 @@ data class UserAchievementsPayload(
     val masteryLevel: String = "NOVICE",
     val streakFreezes: Int = 0,
     val graceDays: Int = 0,
+    val streakCredits: List<StreakCreditPayload> = emptyList(),
+    val dailyActivity: List<DailyActivityPayload> = emptyList(),
+    val monthlyDigest: MonthlyDigestPayload? = null,
     val scholarshipFlags: List<ScholarshipFlagPayload> = emptyList(),
 )
 

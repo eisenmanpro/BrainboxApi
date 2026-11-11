@@ -18,6 +18,8 @@ interface XpEventRepository : JpaRepository<XpEventEntity, UUID> {
 
     fun findAllByUserIdAndCreatedAtAfterOrderByCreatedAtDesc(userId: UUID, since: Instant): List<XpEventEntity>
 
+    fun findAllByUserId(userId: UUID): List<XpEventEntity>
+
     @Query(
         "SELECT e.userId AS userId, SUM(e.amount) AS total FROM XpEventEntity e " +
             "WHERE e.createdAt >= :since GROUP BY e.userId ORDER BY SUM(e.amount) DESC"

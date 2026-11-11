@@ -77,4 +77,12 @@ class TraditionalExamEntity : BaseEntity() {
 
     @Column(name = "published_by")
     var publishedBy: UUID? = null
+
+    /** JSON snapshot of the finalized analytics (F7-A1), served instead of recomputing. */
+    @Column(name = "analytics_snapshot", columnDefinition = "text")
+    var analyticsSnapshot: String? = null
+
+    /** When the class-teacher broadcast was sent; an outbox replay retries a missing one (F7-A7). */
+    @Column(name = "broadcast_at")
+    var broadcastAt: Instant? = null
 }

@@ -8,6 +8,8 @@ interface DoubtAnswerRepository : JpaRepository<DoubtAnswerEntity, UUID> {
 
     fun findAllByQuestionId(questionId: UUID): List<DoubtAnswerEntity>
 
+    fun findAllByAuthorId(authorId: UUID): List<DoubtAnswerEntity>
+
     fun countByQuestionId(questionId: UUID): Long
 
     fun findByQuestionIdAndIsAcceptedTrue(questionId: UUID): DoubtAnswerEntity?

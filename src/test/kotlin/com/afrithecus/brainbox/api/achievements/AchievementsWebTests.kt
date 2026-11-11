@@ -6,6 +6,10 @@ import com.afrithecus.brainbox.api.achievements.web.MasteryTreePayload
 import com.afrithecus.brainbox.api.achievements.web.RewardItemPayload
 import com.afrithecus.brainbox.api.achievements.web.UserAchievementsPayload
 import com.afrithecus.brainbox.api.auth.web.AuthResponse
+import com.afrithecus.brainbox.api.exams.entity.ExamEntity
+import com.afrithecus.brainbox.api.exams.entity.ExamSubmissionEntity
+import com.afrithecus.brainbox.api.exams.repository.ExamRepository
+import com.afrithecus.brainbox.api.exams.repository.ExamSubmissionRepository
 import com.afrithecus.brainbox.api.contests.entity.ContestEntity
 import com.afrithecus.brainbox.api.contests.entity.ContestSubmissionEntity
 import com.afrithecus.brainbox.api.contests.model.ContestLifecycle
@@ -45,6 +49,8 @@ class AchievementsWebTests(
     @Autowired private val topicMasteryRepository: TopicMasteryRepository,
     @Autowired private val contestRepository: ContestRepository,
     @Autowired private val contestSubmissionRepository: ContestSubmissionRepository,
+    @Autowired private val examRepository: ExamRepository,
+    @Autowired private val examSubmissionRepository: ExamSubmissionRepository,
 ) {
 
     private val premiumReward = "77777777-7777-7777-7777-000000000001"
@@ -241,6 +247,85 @@ class AchievementsWebTests(
         check(tree.nodes.size == 2)
         check(tree.recommendedPath.contains("topic-Algebra"))
         check(tree.nodes.first { it.nodeId == "topic-Algebra" }.masteryPercent == 40f)
+    }
+
+    @Test
+    fun `automatic badge criteria, streak credits, daily series and monthly digest are server-computed`() {
+        val student = signup("0778700008")
+        val studentId = UUID.fromString(student.user.id)
+        val exams = (0 until 5).map { index ->
+            examRepository.save(ExamEntity().apply {
+                title = "Achievement quiz " + index
+                subject = "Mathematics"
+                durationMinutes = 20
+                questionCount = 20
+                totalPoints = 100
+                createdBy = studentId
+            })
+        }
+        repeat(5) { index ->
+            examSubmissionRepository.save(ExamSubmissionEntity().apply {
+                this.examId = exams[index].id
+                this.userId = studentId
+                score = 85
+                totalPoints = 100
+                percentage = 85
+                correctCount = 17
+                questionCount = 20
+                timeTakenSeconds = 300
+                submittedAt = Instant.now().minusSeconds(index * 60L)
+            })
+        }
+        // XP award is an event boundary: badge rules run there before the payload is built.
+        val awardResult = mockMvc.perform(
+            post("/achievements/xp/award?userId=" + student.user.id + "&amount=1000&activityType=quiz")
+                .header("Authorization", auth(student.sessionToken!!))
+        ).andReturn()
+        check(awardResult.response.status == 200) { "award failed: " + awardResult.response.status + " " + awardResult.response.contentAsString }
+
+        val initial = achievements(student)
+        check(initial.badges.first { it.title == "Quiz Master" }.isUnlocked)
+        check(initial.dailyActivity.size == 7)
+        check(initial.dailyActivity.last().active)
+        check(initial.monthlyDigest != null)
+        check(initial.monthlyDigest!!.xpGained >= 1000)
+        // The catalogue's seed rows have no provider URLs, so null is the honest value;
+        // applicationStatus stays null because this server does not track applications yet.
+        check(initial.scholarshipFlags.isNotEmpty())
+        check(initial.scholarshipFlags.all { it.applicationStatus == null })
+
+        val buy = objectMapper.readValue(
+            mockMvc.perform(
+                post("/achievements/streak/freeze?userId=" + student.user.id)
+                    .header("Authorization", auth(student.sessionToken!!))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"action":"BUY","kind":"FREEZE"}""")
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            UserAchievementsPayload::class.java,
+        )
+        check(buy.streakFreezes == 1)
+        check(buy.totalXP == 700)
+
+        val yesterday = java.time.LocalDate.now().minusDays(1).toString()
+        val used = objectMapper.readValue(
+            mockMvc.perform(
+                post("/achievements/streak/freeze?userId=" + student.user.id)
+                    .header("Authorization", auth(student.sessionToken!!))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"action\":\"USE\",\"kind\":\"FREEZE\",\"date\":\"" + yesterday + "\"}")
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            UserAchievementsPayload::class.java,
+        )
+        check(used.streakFreezes == 0)
+        check(used.streakCredits.size == 1)
+        check(used.currentStreak >= 1)
+
+        mockMvc.perform(
+            post("/achievements/streak/freeze?userId=" + student.user.id)
+                .header("Authorization", auth(student.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"action\":\"USE\",\"kind\":\"FREEZE\",\"date\":\"" + yesterday + "\"}")
+        ).andExpect(status().isConflict)
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.afrithecus.brainbox.api.achievements.web
 import com.afrithecus.brainbox.api.achievements.AchievementsService
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -64,4 +65,12 @@ class AchievementsController(private val service: AchievementsService) {
         @RequestParam userId: String,
         @RequestParam badgeId: String,
     ): UserAchievementsPayload = service.unlockBadge(current, userId, badgeId)
+
+    /** F5-A3: buy or spend a streak freeze/grace day. */
+    @PostMapping("/streak/freeze")
+    fun adjustStreak(
+        @AuthenticationPrincipal current: CurrentUser,
+        @RequestParam userId: String,
+        @RequestBody request: StreakAdjustmentRequest,
+    ): UserAchievementsPayload = service.adjustStreak(current, userId, request)
 }

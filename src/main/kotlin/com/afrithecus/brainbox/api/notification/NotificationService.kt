@@ -18,6 +18,7 @@ import com.afrithecus.brainbox.api.notification.model.NotificationUrgency
 import com.afrithecus.brainbox.api.notification.repository.NotificationRepository
 import com.afrithecus.brainbox.api.notification.web.AppNotificationPayload
 import com.afrithecus.brainbox.api.notification.web.CreateNotificationRequest
+import com.afrithecus.brainbox.api.profile.repository.UserSettingsRepository
 import com.afrithecus.brainbox.api.push.PushFanoutService
 import com.afrithecus.brainbox.api.push.PushMessage
 import com.afrithecus.brainbox.api.subscription.SubscriptionService
@@ -49,6 +50,7 @@ class NotificationService(
     private val subscriptionService: SubscriptionService,
     private val teacherClassRepository: TeacherClassRepository,
     private val classMembershipRepository: ClassMembershipRepository,
+    private val userSettingsRepository: UserSettingsRepository,
     private val pushFanout: PushFanoutService,
     private val mapper: ObjectMapper,
     private val clock: Clock,
@@ -119,18 +121,20 @@ class NotificationService(
             this.actionLabel = actionLabel
             this.metadata = mapper.writeValueAsString(metadata)
         })
-        pushFanout.dispatch(
-            userId,
-            PushMessage(
-                title = saved.title,
-                message = saved.message,
-                type = saved.type.name,
-                actionRoute = saved.actionRoute,
-                actionLabel = saved.actionLabel,
-                urgency = saved.urgency.name,
-                metadata = metadata,
-            ),
-        )
+        if (shouldPush(userId, saved.type, saved.urgency)) {
+            pushFanout.dispatch(
+                userId,
+                PushMessage(
+                    title = saved.title,
+                    message = saved.message,
+                    type = saved.type.name,
+                    actionRoute = saved.actionRoute,
+                    actionLabel = saved.actionLabel,
+                    urgency = saved.urgency.name,
+                    metadata = metadata,
+                ),
+            )
+        }
         return payload(saved)
     }
 
@@ -150,6 +154,7 @@ class NotificationService(
         actionLabel: String? = null,
         metadata: Map<String, String> = emptyMap(),
     ) {
+        if (!shouldPush(userId, type, urgency)) return
         pushFanout.dispatch(
             userId,
             PushMessage(
@@ -239,6 +244,7 @@ class NotificationService(
     }
 
     private fun dispatchPush(row: NotificationEntity) {
+        if (!shouldPush(row.userId, row.type, row.urgency)) return
         pushFanout.dispatch(
             row.userId,
             PushMessage(
@@ -407,6 +413,25 @@ class NotificationService(
     }
 
     // ------------------------------------------------------------ internals
+
+    /**
+     * F8-A1: the persisted settings row is authoritative for push delivery, not just the
+     * in-app feed. An urgent absence is always delivered (the owner's safety choice); every
+     * other type honours the global switch plus its category switch. In-app rows are still
+     * written when a push is suppressed, so the notification centre remains complete.
+     */
+    private fun shouldPush(userId: UUID, type: NotificationType, urgency: NotificationUrgency): Boolean {
+        if (type == NotificationType.ATTENDANCE && urgency == NotificationUrgency.URGENT) return true
+        val settings = userSettingsRepository.findByUserId(userId) ?: return true
+        if (!settings.pushNotificationsEnabled) return false
+        return when (type) {
+            NotificationType.HOMEWORK -> settings.pushAssignmentDue
+            NotificationType.EXAM -> settings.pushQuizResults
+            NotificationType.REWARD -> settings.pushBadges
+            NotificationType.SUBSCRIPTION -> settings.pushWeeklyReport
+            else -> true
+        }
+    }
 
     private fun payload(row: NotificationEntity): AppNotificationPayload {
         val created = row.createdAt.toEpochMilli()
