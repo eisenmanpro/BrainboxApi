@@ -133,7 +133,9 @@ class CbcProjectService(
         val paged = rows.drop(start).take(limit)
         val votes = votesFor(keyForUser(current.userId), paged.map { it.id })
         return ProjectListResponsePayload(
-            projects = paged.map { payload(it, votes[it.id]) },
+            // canEdit is computed here because a staff read spans the whole school: the client
+            // cannot derive authorship from the credited learner ids it is sent.
+            projects = paged.map { payload(it, votes[it.id]).copy(canEdit = canEdit(current, it)) },
             total = rows.size,
             page = page,
             hasMore = start + limit < rows.size,
@@ -151,8 +153,13 @@ class CbcProjectService(
             project,
             votesFor(keyForUser(current.userId), listOf(project.id))[project.id],
             redact = !isStaff(current) && !owner,
-        )
+        ).copy(canEdit = canEdit(current, project))
     }
+
+    /** The author may change a submission only while it is still PENDING (server rule, mirrored). */
+    private fun canEdit(current: CurrentUser, project: CbcProjectEntity): Boolean =
+        project.status == ProjectStatus.PENDING &&
+            (project.studentId == current.userId || project.submitterId == current.userId)
 
     // ------------------------------------------------------ authenticated writes
 

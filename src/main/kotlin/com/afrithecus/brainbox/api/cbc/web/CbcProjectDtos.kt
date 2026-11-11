@@ -39,6 +39,13 @@ data class CbcProjectPayload(
     val showLearnerNames: List<String> = emptyList(),
     /** Reviewer note when a school admin took the project down; publisher reads it. */
     val moderationNote: String? = null,
+    /**
+     * Whether the *caller* may edit/withdraw this submission right now (author, still PENDING).
+     * Computed server-side: a staff read of `mine` includes the whole school's work, and a client
+     * cannot tell which PENDING rows it may act on from learner ids alone. Always false on public
+     * payloads and on rows the caller did not publish.
+     */
+    val canEdit: Boolean = false,
     val isLiked: Boolean = false,
     val isDisliked: Boolean = false,
     val createdAt: Long = 0L,

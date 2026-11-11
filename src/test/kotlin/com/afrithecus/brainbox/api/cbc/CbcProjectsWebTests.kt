@@ -124,8 +124,10 @@ class CbcProjectsWebTests(
         val otherSchool = school("Other School")
         userInSchool("0778910001", "project.teacher@test", Role.TEACHER, school.id)
         val learner = userInSchool("0778910002", "project.learner@test", Role.STUDENT, school.id)
+        userInSchool("0778910004", "project.colleague@test", Role.TEACHER, school.id)
         userInSchool("0778910003", "other.teacher@test", Role.TEACHER, otherSchool.id)
         val teacher = login("project.teacher@test")
+        val colleague = login("project.colleague@test")
         val otherTeacher = login("other.teacher@test")
 
         val request = mapOf(
@@ -148,10 +150,19 @@ class CbcProjectsWebTests(
         check(created.showLearnerNames == listOf(learner.id.toString()))
         check(created.studentName == learner.name)
 
-        // Staff "mine" is the school's submission lane.
+        // Staff "mine" is the school's submission lane, and rows the caller authored say so.
         val mine = mockMvc.perform(get("/cbc/projects/mine").header("Authorization", auth(teacher)))
             .andExpect(status().isOk).andReturn().response.contentAsString
-        check(objectMapper.readValue(mine, ProjectListResponsePayload::class.java).projects.any { it.id == created.id })
+        val mineRow = objectMapper.readValue(mine, ProjectListResponsePayload::class.java)
+            .projects.first { it.id == created.id }
+        check(mineRow.canEdit) { "the publishing teacher must be able to edit a pending upload" }
+
+        // A colleague sees the same school lane but may not edit the teacher's upload.
+        val colleagueMine = mockMvc.perform(get("/cbc/projects/mine").header("Authorization", auth(colleague)))
+            .andExpect(status().isOk).andReturn().response.contentAsString
+        val colleagueRow = objectMapper.readValue(colleagueMine, ProjectListResponsePayload::class.java)
+            .projects.first { it.id == created.id }
+        check(!colleagueRow.canEdit) { "a non-author must not be offered edit/withdraw" }
 
         // Edit while PENDING.
         val editedBody = mockMvc.perform(
