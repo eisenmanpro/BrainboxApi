@@ -18,4 +18,6 @@ data class SchoolConfigPayload(
     val cbcStrands: List<String> = emptyList(),
     /** Server-owned room list for the timetable/room pickers (TT-3). */
     val rooms: List<String> = emptyList(),
+    /** The school's class catalogue; teacher settings pick classes/grades from it (N3). */
+    val classes: List<SchoolClassPayload> = emptyList(),
 )

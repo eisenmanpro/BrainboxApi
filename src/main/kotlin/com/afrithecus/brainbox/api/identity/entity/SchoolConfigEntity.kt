@@ -56,6 +56,10 @@ class SchoolConfigEntity {
     @Column(columnDefinition = "text")
     var rooms: String? = null
 
+    /** JSON array of {name, gradeLevel, stream?} — the class catalogue teachers pick from (N3). */
+    @Column(columnDefinition = "text")
+    var classes: String? = null
+
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant = Instant.now()
 

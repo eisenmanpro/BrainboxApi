@@ -7,9 +7,11 @@ import com.afrithecus.brainbox.api.identity.entity.SchoolConfigEntity
 import com.afrithecus.brainbox.api.identity.repository.SchoolConfigRepository
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
+import com.afrithecus.brainbox.api.identity.web.SchoolClassPayload
 import com.afrithecus.brainbox.api.identity.web.SchoolConfigPayload
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import tools.jackson.databind.ObjectMapper
 import java.time.Clock
 import java.util.UUID
 
@@ -23,6 +25,7 @@ class SchoolConfigService(
     private val repository: SchoolConfigRepository,
     private val schoolRepository: SchoolRepository,
     private val codec: QuestionCodec,
+    private val mapper: ObjectMapper,
     private val access: AdminSchoolAccess,
     private val auditLogService: AuditLogService,
     private val clock: Clock,
@@ -53,6 +56,7 @@ class SchoolConfigService(
         entity.academicCalendar = codec.toJson(request.academicCalendar.filter { it.isNotBlank() })
         entity.cbcStrands = codec.toJson(request.cbcStrands.filter { it.isNotBlank() })
         entity.rooms = codec.toJson(cleanRooms(request.rooms))
+        entity.classes = mapper.writeValueAsString(cleanClasses(request.classes))
         entity.updatedAt = clock.instant()
         repository.saveAndFlush(entity)
         auditLogService.record(schoolId, actor, "Updated school config")
@@ -107,6 +111,51 @@ class SchoolConfigService(
         request.rooms.filter { it.isNotBlank() }.forEach {
             if (it.trim().length > MAX_ROOM_NAME) throw invalidArgument("room names must be at most " + MAX_ROOM_NAME + " characters")
         }
+        if (request.classes.size > MAX_CLASSES) {
+            throw invalidArgument("classes must have at most " + MAX_CLASSES + " entries")
+        }
+        request.classes.forEach { row ->
+            if (row.name.trim().isEmpty()) throw invalidArgument("every class needs a name")
+            if (row.name.trim().length > MAX_CLASS_NAME) throw invalidArgument("class names must be at most " + MAX_CLASS_NAME + " characters")
+            if (row.gradeLevel.trim().isEmpty()) throw invalidArgument("every class needs a grade level")
+            if (row.gradeLevel.trim().length > MAX_GRADE_NAME) throw invalidArgument("grade levels must be at most " + MAX_GRADE_NAME + " characters")
+            row.stream?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                if (it.length > MAX_STREAM_NAME) throw invalidArgument("streams must be at most " + MAX_STREAM_NAME + " characters")
+            }
+        }
+    }
+
+    /** Trim, drop incomplete rows and de-duplicate by class name (case-insensitive). */
+    private fun cleanClasses(rows: List<SchoolClassPayload>): List<SchoolClassPayload> {
+        val seen = HashSet<String>()
+        return rows.mapNotNull { row ->
+            val name = row.name.trim()
+            val grade = row.gradeLevel.trim()
+            if (name.isEmpty() || grade.isEmpty() || !seen.add(name.lowercase())) return@mapNotNull null
+            SchoolClassPayload(name = name, gradeLevel = grade, stream = row.stream?.trim()?.takeIf { it.isNotEmpty() })
+        }.take(MAX_CLASSES)
+    }
+
+    /** Parse the stored class catalogue; a malformed/legacy value degrades to empty, never throws. */
+    private fun parseClasses(raw: String?): List<SchoolClassPayload> {
+        if (raw.isNullOrBlank()) return emptyList()
+        val node = runCatching { mapper.readTree(raw) }.getOrNull() ?: return emptyList()
+        if (!node.isArray) return emptyList()
+        val out = ArrayList<SchoolClassPayload>()
+        for (index in 0 until node.size()) {
+            val row = node.get(index)
+            val name = row.get("name")?.asString()?.trim().orEmpty()
+            val grade = row.get("gradeLevel")?.asString()?.trim().orEmpty()
+            if (name.isEmpty() || grade.isEmpty()) continue
+            out.add(
+                SchoolClassPayload(
+                    name = name,
+                    gradeLevel = grade,
+                    stream = row.get("stream")?.asString()?.trim()?.takeIf { it.isNotEmpty() },
+                ),
+            )
+        }
+        return out
     }
 
     /** Trim, drop blanks and de-duplicate while preserving the caller's order. */
@@ -128,6 +177,7 @@ class SchoolConfigService(
             academicCalendar = codec.parseList(entity?.academicCalendar).orEmpty(),
             cbcStrands = codec.parseList(entity?.cbcStrands).orEmpty(),
             rooms = codec.parseList(entity?.rooms).orEmpty(),
+            classes = parseClasses(entity?.classes),
         )
     }
 
@@ -139,6 +189,10 @@ class SchoolConfigService(
         const val MAX_CALENDAR_TERMS = 12
         const val MAX_ROOMS = 100
         const val MAX_ROOM_NAME = 120
+        const val MAX_CLASSES = 200
+        const val MAX_CLASS_NAME = 120
+        const val MAX_GRADE_NAME = 64
+        const val MAX_STREAM_NAME = 64
         val HEX_COLOR = Regex("^#[0-9A-Fa-f]{6}$")
         val EMAIL = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
     }

@@ -4,6 +4,7 @@ import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
+import com.afrithecus.brainbox.api.common.error.conflict
 import com.afrithecus.brainbox.api.exams.QuestionCodec
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
@@ -49,6 +50,14 @@ class TeacherSettingsService(
         requireTeacher(teacher)
         val entity = settingsRepository.findByTeacherId(teacher.id)
             ?: TeacherSettingsEntity().apply { teacherId = teacher.id }
+        // N3: subjects are an admin-governed field. A first-time value is allowed
+        // (onboarding), but changing an existing value must go through the change
+        // request so the school admin decides it.
+        val storedSubjects = codec.parseList(entity.subjectsTaught).orEmpty().toSet()
+        val nextSubjects = request.subjectsTaught.map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        if (storedSubjects.isNotEmpty() && storedSubjects != nextSubjects) {
+            throw conflict("Subject changes need your school admin's approval. Send a change request instead.")
+        }
         applySettings(entity, request)
         settingsRepository.saveAndFlush(entity)
         val name = request.name.trim()
@@ -68,21 +77,36 @@ class TeacherSettingsService(
     @Transactional
     fun updateProfile(teacher: UserEntity, request: TeacherProfilePayload): TeacherProfilePayload {
         requireTeacher(teacher)
+        // N3: class, grades, school and subjects are governed fields. The client
+        // submits them through /teacher/change-requests; echoing the current value
+        // is tolerated so an unchanged save still works, but a real change is
+        // refused here so the approval gate cannot be bypassed.
+        val current = profilePayload(teacher)
+        val nextSubjects = request.subjects?.map { it.trim() }?.filter { it.isNotEmpty() }
+        if (nextSubjects != null && nextSubjects.toSet() != current.subjects.orEmpty().toSet()) {
+            if (!current.subjects.isNullOrEmpty()) {
+                throw conflict("Subject changes need your school admin's approval. Send a change request instead.")
+            }
+        }
+        if (!request.className.isNullOrBlank() && request.className != current.className) {
+            throw conflict("Class assignment changes need your school admin's approval. Send a change request instead.")
+        }
+        val nextGrades = request.gradesTaught?.map { it.trim() }?.filter { it.isNotEmpty() }
+        if (nextGrades != null && nextGrades.toSet() != current.gradesTaught.orEmpty().toSet()) {
+            throw conflict("Grades taught need your school admin's approval. Send a change request instead.")
+        }
+        if (!request.schoolId.isNullOrBlank() && request.schoolId != current.schoolId) {
+            throw conflict("School changes need the destination school admin's approval. Send a change request instead.")
+        }
+
         val name = request.name.trim()
         if (name.isNotEmpty()) teacher.name = name
         userRepository.save(teacher)
 
         val settings = settingsRepository.findByTeacherId(teacher.id)
             ?: TeacherSettingsEntity().apply { teacherId = teacher.id }
-        request.subjects?.let { settings.subjectsTaught = codec.toJson(it.filter { s -> s.isNotBlank() }) }
+        nextSubjects?.let { settings.subjectsTaught = codec.toJson(it) }
         request.tscNumber?.let { settings.tscNumber = it.trim().takeIf { value -> value.isNotEmpty() } }
-        request.gradesTaught?.let { grades ->
-            if (settings.defaultGradeLevel == null) {
-                settings.defaultGradeLevel = grades.firstOrNull()?.let { raw ->
-                    Regex("""\d{1,2}""").find(raw)?.value?.toIntOrNull()
-                }
-            }
-        }
         settingsRepository.saveAndFlush(settings)
         return profilePayload(teacher)
     }
@@ -140,7 +164,12 @@ class TeacherSettingsService(
         val studentCount = classes.sumOf { membershipRepository.countByClassId(it.id).toInt() }
         val subjects = codec.parseList(settings?.subjectsTaught).orEmpty()
             .ifEmpty { classes.map { it.subject }.distinct() }
+        // N3: an approved class assignment is explicit and wins over the derived
+        // first-class values; without one the old derived behaviour is kept.
+        val approvedClassName = settings?.primaryClassName?.takeIf { it.isNotBlank() }
+        val approvedGrades = codec.parseList(settings?.gradesTaught).orEmpty()
         val grades = classes.map { it.gradeLevel }.distinct()
+        val effectiveGrades = if (approvedGrades.isNotEmpty()) approvedGrades else grades
         return TeacherProfilePayload(
             id = teacher.id.toString(),
             phoneNumber = teacher.phoneNumber.orEmpty(),
@@ -155,8 +184,8 @@ class TeacherSettingsService(
             lastLogin = teacher.lastLogin?.toEpochMilli() ?: 0,
             isActive = teacher.isActive,
             teacherCode = code,
-            gradesTaught = grades.ifEmpty { null },
-            className = classes.firstOrNull()?.name,
+            gradesTaught = effectiveGrades.ifEmpty { null },
+            className = approvedClassName ?: classes.firstOrNull()?.name,
             studentCount = studentCount.takeIf { classes.isNotEmpty() },
             subjects = subjects.ifEmpty { null },
             tscNumber = settings?.tscNumber,

@@ -24,6 +24,14 @@ class TeacherSettingsEntity : BaseEntity() {
     @Column(name = "default_grade_level")
     var defaultGradeLevel: Int? = null
 
+    /** N3: the class the school admin approved for this teacher (wins over a derived first class). */
+    @Column(name = "primary_class_name", length = 255)
+    var primaryClassName: String? = null
+
+    /** N3: JSON array of grades the school admin approved for this teacher. */
+    @Column(name = "grades_taught", columnDefinition = "text")
+    var gradesTaught: String? = null
+
     @Column(name = "language_preference", nullable = false, length = 16)
     var languagePreference: String = "en"
 
