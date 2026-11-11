@@ -1183,7 +1183,8 @@ class TraditionalExamService(
                 val childId = requested ?: primaryChild(current)?.id
                     ?: throw notFound("No linked child")
                 val child = userRepository.findById(childId).orElse(null) ?: throw notFound("Child not found")
-                if (child.parentUserId != current.userId) {
+                // F9/N6: a learner account is its own guardian context.
+                if (child.parentUserId != current.userId && child.id != current.userId) {
                     throw ApiException(ApiErrorCode.FORBIDDEN, "Not your linked child")
                 }
                 child

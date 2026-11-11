@@ -65,6 +65,24 @@ class AdminIdentityWebTests(
         return objectMapper.readValue(response, AuthResponse::class.java)
     }
 
+    /** F9 removed PARENT signup; a legacy guardian-of-record row is created as the console would. */
+    private fun legacyParent(phone: String): AuthResponse {
+        userRepository.save(UserEntity().apply {
+            phoneNumber = phone
+            email = phone + "@legacy-parent.test"
+            passwordHash = passwordEncoder.encode("password123") ?: error("encode")
+            name = "Legacy Parent"
+            role = Role.PARENT
+            isActive = true
+            isVerified = true
+        })
+        val response = mockMvc.perform(
+            post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("""{"identifier":"${phone}","password":"password123"}""")
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        return objectMapper.readValue(response, AuthResponse::class.java)
+    }
+
     private fun newAdmin(): AuthResponse {
         val admin = UserEntity().apply {
             phoneNumber = "0799000000"
@@ -131,7 +149,7 @@ class AdminIdentityWebTests(
     @Test
     fun `admin links a parent to a child and the parent sees children`() {
         val admin = newAdmin()
-        val parent = signup("0722000004", role = "PARENT")
+        val parent = legacyParent("0722000004")
         val child = signup("0722000005")
 
         mockMvc.perform(

@@ -208,9 +208,11 @@ class AnnouncementService(
             // A provisioned learner is not reachable by any app feature, including
             // announcements and its notification fan-out.
             .filter { it.accountKind == AccountKind.FULL }
-        if (entity.audience != "PARENT") return students
-        val parentIds = students.mapNotNull { it.parentUserId }.toSet()
-        return userRepository.findAllById(parentIds).filter { it.isActive }
+        // F9/N6: a guardian audience is delivered to the LEARNER's own account (the
+        // account is the guardian context) — a legacy parent row is an alias, not the
+        // recipient. This is what makes a PARENT-audience announcement visible to the
+        // learner instead of going silent.
+        return students
     }
 
     private fun ownEntity(teacher: UserEntity, raw: String): TeacherAnnouncementEntity? {
@@ -261,7 +263,18 @@ class AnnouncementService(
         if (explicitStudents.isNotEmpty()) return explicitStudents.any { it in subjectIds }
         return when (entity.audience) {
             "SCHOOL" -> true
-            "PARENT" -> user.role == Role.PARENT
+            // F9: delivered to the learner account, so the learner may see it; when the
+            // announcement was targeted, the same grade/class targeting still applies.
+            "PARENT" -> {
+                val gradesTargeted = codec.parseList(entity.targetGradeLevels).orEmpty()
+                    .mapNotNull { it.toIntOrNull() }
+                val classesTargeted = codec.parseList(entity.targetClassIds).orEmpty()
+                when {
+                    gradesTargeted.isNotEmpty() -> gradesTargeted.any { it in grades }
+                    classesTargeted.isNotEmpty() -> classesTargeted.any { it in classIds }
+                    else -> true
+                }
+            }
             "TEACHER" -> user.role == Role.TEACHER
             "GRADE" -> codec.parseList(entity.targetGradeLevels).orEmpty()
                 .mapNotNull { it.toIntOrNull() }

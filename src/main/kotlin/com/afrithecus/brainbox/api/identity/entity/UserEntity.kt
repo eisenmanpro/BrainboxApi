@@ -81,6 +81,10 @@ class UserEntity : BaseEntity() {
     @Column(name = "verification_status", nullable = false, length = 24)
     var verificationStatus: AccountStatus = AccountStatus.VERIFIED
 
+    /** F9/N6: PIN (learner, 4 digits) or PASSWORD (staff). Legacy rows default to PASSWORD. */
+    @Column(name = "credential_kind", nullable = false, length = 16)
+    var credentialKind: String = "PASSWORD"
+
     @Column(name = "last_login")
     var lastLogin: Instant? = null
 

@@ -298,8 +298,12 @@ class AdminSchoolWebTests(
             ).andExpect(status().isOk).andReturn().response.contentAsString,
             Array<AuditLogEntryPayload>::class.java,
         )
-        check(secondPage.size == 1) { "expected the remaining entry, got " + secondPage.size }
+        // N4 pins the school's first administrator on the first settings write, which is an
+        // audited event too: three settings updates plus that pin = four rows.
+        check(secondPage.size == 2) { "expected the remaining entries, got " + secondPage.size }
         check(firstPage.map { it.logId }.intersect(secondPage.map { it.logId }.toSet()).isEmpty())
         check((firstPage + secondPage).all { it.actorName == "ICT Admin" })
+        check((firstPage + secondPage).count { it.action.startsWith("Updated system settings") } == 3)
+        check((firstPage + secondPage).any { it.action.startsWith("Pinned first school administrator") })
     }
 }

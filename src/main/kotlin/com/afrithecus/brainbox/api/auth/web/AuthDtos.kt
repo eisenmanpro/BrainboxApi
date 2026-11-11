@@ -25,8 +25,13 @@ data class SignupRequest(
     @field:Pattern(regexp = "^\\+?[0-9]{9,15}$", message = "invalid phone number")
     val phoneNumber: String,
     @field:NotBlank
-    @field:Size(min = 8, max = 128, message = "password must be 8-128 characters")
+    @field:Size(min = 4, max = 128, message = "credential must be 4-128 characters")
     val password: String,
+    /**
+     * F9/N6: PIN (4 digits, for a learner) or PASSWORD. Omitted = role default; the exact
+     * shape is validated by CredentialRules so a legacy learner password keeps working.
+     */
+    val credentialKind: String? = null,
     val schoolId: String? = null,
     val schoolName: String? = null,
     @field:Size(max = 8)

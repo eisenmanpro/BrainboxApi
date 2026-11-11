@@ -344,7 +344,8 @@ class AttendanceService(
     private fun linkedChild(current: CurrentUser, childIdRaw: String): UserEntity {
         val child = userRepository.findById(parseUuid(childIdRaw, "childId")).orElse(null)
             ?: throw notFound("Child not found")
-        if (current.role != Role.ADMIN && child.parentUserId != current.userId) {
+        // F9/N6: a learner account is its own guardian context.
+        if (current.role != Role.ADMIN && child.parentUserId != current.userId && child.id != current.userId) {
             throw ApiException(ApiErrorCode.FORBIDDEN, "Not your linked child")
         }
         return child

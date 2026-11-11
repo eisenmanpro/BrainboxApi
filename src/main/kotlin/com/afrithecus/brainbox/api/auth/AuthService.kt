@@ -65,6 +65,7 @@ class AuthService(
     private val userPayloadFactory: UserPayloadFactory,
     private val authThrottle: AuthThrottle,
     private val webCounterpart: WebCounterpartNoticeService,
+    private val adminSignInPolicy: com.afrithecus.brainbox.api.identity.AdminSignInPolicyService,
     private val clock: Clock,
 ) {
 
@@ -73,7 +74,12 @@ class AuthService(
     @Transactional
     fun signup(request: SignupRequest, deviceId: String?): AuthResponse {
         val role = parseSignupRole(request.role)
-        val phone = request.phoneNumber.trim()
+        // F9/N6: one canonical phone format, and a learner's credential is a 4-digit PIN
+        // when the client names that kind (legacy learner passwords keep working).
+        val phone = PhoneNumbers.normalize(request.phoneNumber)
+            ?: throw invalidArgument("phoneNumber is not a valid Kenyan phone number")
+        val credentialKind = CredentialRules.kindOr(request.credentialKind, role)
+        CredentialRules.validate(credentialKind, request.password)?.let { throw invalidArgument(it) }
 
         if (userRepository.existsByPhoneNumber(phone)) {
             throw conflict("An account with this phone number already exists")
@@ -107,13 +113,16 @@ class AuthService(
             passwordHash = passwordEncoder.encode(request.password)
                 ?: throw IllegalStateException("Password encoding failed")
             this.role = role
+            this.credentialKind = credentialKind
             this.schoolId = resolvedSchoolId
             studentAdmissionNumber = if (role == Role.STUDENT) generateAdmissionNumber() else null
             this.joinedTeacherId = joinedTeacher
             referredByTeacherCode = referredCode
             isActive = true
-            isVerified = role == Role.PARENT
-            verificationStatus = if (role == Role.PARENT) AccountStatus.VERIFIED else AccountStatus.PENDING_VERIFICATION
+            // F9/N6: no role signs up already verified. Learners and teachers both follow
+            // the school's approval pattern; there is no PARENT signup path any more.
+            isVerified = false
+            verificationStatus = AccountStatus.PENDING_VERIFICATION
         }
         userRepository.save(user)
 
@@ -134,6 +143,9 @@ class AuthService(
         if (!user.isActive) failLogin(identifier)
         if (!passwordEncoder.matches(request.password, user.passwordHash)) failLogin(identifier)
 
+        // N4: a school may restrict administrator sign-in. The owner is exempt, and the
+        // refusal happens AFTER the password check so it is not an account-enumeration oracle.
+        adminSignInPolicy.enforceAllowed(user)
         authThrottle.clear(LOGIN_THROTTLE_PREFIX + identifier)
         user.lastLogin = clock.instant()
         userRepository.save(user)
@@ -180,6 +192,8 @@ class AuthService(
         if (!user.isActive) {
             throw unauthorized("Invalid refresh token")
         }
+        // N4: defence in depth for a token minted between the switch write and its revoke.
+        adminSignInPolicy.enforceAllowed(user)
         stored.sessionId?.let { sessionId ->
             val session = sessionRepository.findByIdAndIsActiveTrue(sessionId)
             if (session == null) {
@@ -283,9 +297,8 @@ class AuthService(
         val user = userRepository.findById(currentUser.userId).orElse(null)
             ?: throw ApiException(ApiErrorCode.UNAUTHORIZED, "Account no longer exists")
         if (request.currentPassword.isBlank()) return failure(user, "Current password is required.")
-        if (request.newPassword.length < MIN_PASSWORD_LENGTH) {
-            return failure(user, "New password must be at least " + MIN_PASSWORD_LENGTH + " characters long.")
-        }
+        // F9/N6: enforce the account's stored credential kind (PIN = 4 digits, PASSWORD = 8+).
+        CredentialRules.validate(user.credentialKind, request.newPassword)?.let { return failure(user, it) }
         if (!passwordEncoder.matches(request.currentPassword, user.passwordHash)) {
             return failure(user, "Current password is incorrect.")
         }
@@ -303,6 +316,13 @@ class AuthService(
         accountResponse(user, message).copy(success = false)
 
     /** A password change signs every other device out, keeping the caller's session. */
+    /** Signs out a user everywhere (approval freeze/reject, password change). */
+    @Transactional
+    fun revokeAllUserSessions(userId: UUID) {
+        refreshRepository.findAllByUserIdAndRevokedFalse(userId).forEach { it.revoked = true }
+        sessionRepository.findAllByUserIdAndIsActiveTrue(userId).forEach { it.isActive = false }
+    }
+
     private fun revokeOtherSessions(currentUser: CurrentUser, userId: UUID) {
         val keep = currentUser.sessionId
         val tokens = refreshRepository.findAllByUserIdAndRevokedFalse(userId)
@@ -427,7 +447,9 @@ class AuthService(
 
     private fun resolveByIdentifier(identifier: String): UserEntity? {
         if (identifier.isBlank()) return null
+        // Legacy rows may hold a different formatting of the same number; try both.
         val phone = userRepository.findByPhoneNumber(identifier)
+            ?: PhoneNumbers.normalize(identifier)?.let { userRepository.findByPhoneNumber(it) }
         if (phone != null) return phone
         if (identifier.contains('@')) {
             return userRepository.findByEmail(identifier.lowercase())
@@ -437,8 +459,11 @@ class AuthService(
 
     private fun parseSignupRole(value: String): Role {
         val role = runCatching { Role.valueOf(value.trim().uppercase()) }.getOrNull()
-        if (role == null || role == Role.ADMIN) {
-            throw invalidArgument("role must be one of STUDENT, TEACHER, PARENT")
+        // F9/N6: one account per person — a learner's account is also the guardian account,
+        // and administrators are created by the platform console. PARENT/ADMIN signup would
+        // mint a second row or a privileged one, so both are refused.
+        if (role == null || role == Role.ADMIN || role == Role.PARENT) {
+            throw invalidArgument("role must be one of STUDENT, TEACHER")
         }
         return role
     }
@@ -525,7 +550,6 @@ class AuthService(
     private companion object {
         const val STUDENT_SESSION_CAP = 3
         const val MAX_ADMISSION_ATTEMPTS = 20
-        const val MIN_PASSWORD_LENGTH = 8
         val WHITESPACE = Regex("\\s+")
         const val LOGIN_THROTTLE_PREFIX = "login:"
         val random = SecureRandom()

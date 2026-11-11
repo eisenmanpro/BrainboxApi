@@ -56,7 +56,7 @@ class SchoolConfigService(
         entity.academicCalendar = codec.toJson(request.academicCalendar.filter { it.isNotBlank() })
         entity.cbcStrands = codec.toJson(request.cbcStrands.filter { it.isNotBlank() })
         entity.rooms = codec.toJson(cleanRooms(request.rooms))
-        entity.classes = mapper.writeValueAsString(cleanClasses(request.classes))
+        request.classes?.let { entity.classes = mapper.writeValueAsString(cleanClasses(it)) }
         entity.updatedAt = clock.instant()
         repository.saveAndFlush(entity)
         auditLogService.record(schoolId, actor, "Updated school config")
@@ -111,10 +111,11 @@ class SchoolConfigService(
         request.rooms.filter { it.isNotBlank() }.forEach {
             if (it.trim().length > MAX_ROOM_NAME) throw invalidArgument("room names must be at most " + MAX_ROOM_NAME + " characters")
         }
-        if (request.classes.size > MAX_CLASSES) {
+        val classes = request.classes ?: return
+        if (classes.size > MAX_CLASSES) {
             throw invalidArgument("classes must have at most " + MAX_CLASSES + " entries")
         }
-        request.classes.forEach { row ->
+        classes.forEach { row ->
             if (row.name.trim().isEmpty()) throw invalidArgument("every class needs a name")
             if (row.name.trim().length > MAX_CLASS_NAME) throw invalidArgument("class names must be at most " + MAX_CLASS_NAME + " characters")
             if (row.gradeLevel.trim().isEmpty()) throw invalidArgument("every class needs a grade level")

@@ -116,20 +116,32 @@ class ParentPortalWebTests(
     }
 
     @Test
-    fun `only a parent account manages linked children`() {
+    fun `a learner account is its own guardian context`() {
         val school = school()
         val student = account(Role.STUDENT, "Pupil Three", school.id, admission = "ADM-P4-" + suffix())
+        val other = account(Role.STUDENT, "Pupil Four", school.id, admission = "ADM-P5-" + suffix())
         val studentToken = token(student)
 
-        mockMvc.perform(get("/parent/children").header("Authorization", auth(studentToken)))
-            .andExpect(status().isForbidden)
+        // F9: the account IS the guardian context — the guardian screens resolve the learner's own row.
+        check(children(studentToken).map { it.id } == listOf(student.id.toString()))
+        mockMvc.perform(get("/parent/child/${student.id}/stats").header("Authorization", auth(studentToken)))
+            .andExpect(status().isOk)
+        mockMvc.perform(get("/parent/child/${student.id}/performance").header("Authorization", auth(studentToken)))
+            .andExpect(status().isOk)
+        mockMvc.perform(get("/parent/child/${other.id}/stats").header("Authorization", auth(studentToken)))
+            .andExpect(status().isNotFound)
+
+        // Linking another learner is a legacy guardian-of-record action only.
         mockMvc.perform(
             post("/parent/child/link").header("Authorization", auth(studentToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"admissionNumber":"whatever"}""")
         ).andExpect(status().isForbidden)
+    }
 
-        // And an unknown admission number is a 404, not a link.
+    @Test
+    fun `a legacy guardian still links children by admission number`() {
+        val school = school()
         val parentToken = token(account(Role.PARENT, "Guardian C", school.id))
         mockMvc.perform(
             post("/parent/child/link").header("Authorization", auth(parentToken))

@@ -226,10 +226,15 @@ class ParentInsightsWebTests(
         )
         check(strangerView.children.isEmpty()) { "a guardian with no linked child compares nothing" }
 
-        // A learner has no family to compare.
+        // F9/N6: a learner's account IS the guardian account, so their "family" is themselves —
+        // one row for their own records, never the other guardian's children.
         val learnerToken = token(second)
-        mockMvc.perform(get("/parent/family/comparison").header("Authorization", auth(learnerToken)))
-            .andExpect(status().isForbidden)
+        val learnerView = objectMapper.readValue(
+            mockMvc.perform(get("/parent/family/comparison").header("Authorization", auth(learnerToken)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            com.afrithecus.brainbox.api.parent.web.FamilyComparisonPayload::class.java,
+        )
+        check(learnerView.children.map { it.childId } == listOf(second.id.toString()))
         mockMvc.perform(get("/parent/family/comparison")).andExpect(status().isUnauthorized)
     }
 

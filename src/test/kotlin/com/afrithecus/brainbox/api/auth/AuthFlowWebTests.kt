@@ -37,6 +37,7 @@ class AuthFlowWebTests(
     @Autowired private val userRepository: UserRepository,
     @Autowired private val sessionRepository: UserSessionRepository,
     @Autowired private val teacherCodeRepository: TeacherCodeRepository,
+    @Autowired private val passwordEncoder: org.springframework.security.crypto.password.PasswordEncoder,
 ) {
 
     private fun postJson(path: String, body: String): String =
@@ -51,6 +52,28 @@ class AuthFlowWebTests(
                 .header("X-Device-Id", "device-1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body)
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        return objectMapper.readValue(response, AuthResponse::class.java)
+    }
+
+    /**
+     * F9 removed the PARENT signup path; a legacy guardian-of-record row is created the way
+     * the platform console would create one, then signs in normally.
+     */
+    private fun legacyParent(phone: String): AuthResponse {
+        userRepository.save(UserEntity().apply {
+            phoneNumber = phone
+            email = phone + "@legacy.test"
+            passwordHash = passwordEncoder.encode("password123") ?: error("encode")
+            name = "Legacy Guardian"
+            role = Role.PARENT
+            isActive = true
+            isVerified = true
+        })
+        val body = """{"identifier":"${phone}","password":"password123"}"""
+        val response = mockMvc.perform(
+            post("/auth/login").header("X-Device-Id", "parent-device")
+                .contentType(MediaType.APPLICATION_JSON).content(body)
         ).andExpect(status().isOk).andReturn().response.contentAsString
         return objectMapper.readValue(response, AuthResponse::class.java)
     }
@@ -78,6 +101,72 @@ class AuthFlowWebTests(
         val error = objectMapper.readValue(response, ApiError::class.java)
         check(error.error == "CONFLICT")
         check(error.message.contains("already exists"))
+    }
+
+    @Test
+    fun `parent signup is refused because the learner account is the guardian account`() {
+        // F9/N6: one account per person. A PARENT signup used to mint a second, auto-verified
+        // row; the brief unifies the two, so the role is no longer a valid signup target.
+        val response = postJson(
+            "/auth/signup",
+            """{"name":"Guardian","phoneNumber":"0711000099","password":"password123","role":"PARENT"}""",
+        )
+        val error = objectMapper.readValue(response, ApiError::class.java)
+        check(error.error == "INVALID_ARGUMENT")
+        check(error.message.contains("STUDENT, TEACHER")) { "message: " + error.message }
+    }
+
+    @Test
+    fun `a learner PIN is accepted and a legacy learner password still signs in`() {
+        val body = """{"name":"Pin Learner","phoneNumber":"0711000098","password":"4826","role":"STUDENT","credentialKind":"PIN"}"""
+        val created = objectMapper.readValue(
+            mockMvc.perform(
+                post("/auth/signup").header("X-Device-Id", "pin-device")
+                    .contentType(MediaType.APPLICATION_JSON).content(body)
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            AuthResponse::class.java,
+        )
+        check(created.user.role == "STUDENT")
+        val pinLogin = mockMvc.perform(
+            post("/auth/login").header("X-Device-Id", "pin-device")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"identifier":"0711000098","password":"4826"}""")
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        check(objectMapper.readValue(pinLogin, AuthResponse::class.java).success)
+
+        // Too-obvious and non-numeric PINs are refused by the named kind.
+        mockMvc.perform(
+            post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"Weak","phoneNumber":"0711000097","password":"1111","role":"STUDENT","credentialKind":"PIN"}""")
+        ).andExpect(status().isBadRequest)
+        mockMvc.perform(
+            post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"Alpha","phoneNumber":"0711000096","password":"password123","role":"STUDENT","credentialKind":"PIN"}""")
+        ).andExpect(status().isBadRequest)
+
+        // A learner who signed up before the PIN rule (no credentialKind) keeps the password.
+        val legacy = signup("0711000095")
+        check(legacy.user.role == "STUDENT")
+        mockMvc.perform(
+            post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("""{"identifier":"0711000095","password":"password123"}""")
+        ).andExpect(status().isOk)
+    }
+
+    @Test
+    fun `a phone number is stored canonically and an international form signs in`() {
+        signup("0711000094")
+        // +254 forms cannot be signup duplicates of the same canonical number.
+        mockMvc.perform(
+            post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"Dup","phoneNumber":"+254711000094","password":"password123","role":"STUDENT"}""")
+        ).andExpect(status().isConflict)
+        mockMvc.perform(
+            post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("""{"identifier":"+254711000094","password":"password123"}""")
+        ).andExpect(status().isOk)
     }
 
     @Test
@@ -236,7 +325,7 @@ class AuthFlowWebTests(
 
     @Test
     fun `parent switches into a linked child session and others are forbidden`() {
-        val parent = signup("0711000020", role = "PARENT")
+        val parent = legacyParent("0711000020")
         val child = signup("0711000021")
         val stranger = signup("0711000022")
 

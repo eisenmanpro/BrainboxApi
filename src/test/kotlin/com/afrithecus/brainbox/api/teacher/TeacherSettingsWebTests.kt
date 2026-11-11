@@ -115,7 +115,9 @@ class TeacherSettingsWebTests(
             TeacherSettingsPayload::class.java,
         )
         check(updated.name == "Senior Teacher")
-        check(updated.subjectsTaught == listOf("Mathematics", "Physics"))
+        // N3: the settings document is not an editing surface for subjects. It must not write
+        // them (governed by the change-request gate) — the value stays as it was.
+        check(updated.subjectsTaught.isEmpty()) { "settings must not write governed subjects: " + updated.subjectsTaught }
         check(updated.tscNumber == "TSC-123")
         check(updated.autoAttendance.not())
         check(updated.defaultGradeWeighting["EXAM"] == 0.5)
@@ -154,6 +156,9 @@ class TeacherSettingsWebTests(
             TeacherProfilePayload::class.java,
         )
         check(changed.name == "Head of Maths")
+        // A first-time subjects value is accepted through the profile (onboarding path); every
+        // later change goes through the request gate (N3).
+        check(changed.subjects == listOf("Mathematics"))
 
         mockMvc.perform(get("/teacher/settings").header("Authorization", auth(token(student))))
             .andExpect(status().isForbidden)

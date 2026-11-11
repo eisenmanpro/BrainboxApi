@@ -96,14 +96,14 @@ class PasswordResetService(
 
     @Transactional
     fun reset(resetTokenRaw: String, newPassword: String): AuthMessagePayload {
-        if (newPassword.length < MIN_PASSWORD_LENGTH) {
-            return AuthMessagePayload(false, "Password must be at least " + MIN_PASSWORD_LENGTH + " characters.")
-        }
         val challenge = challengeRepository.findByResetTokenHashAndConsumedFalse(TokenHash.sha256Hex(resetTokenRaw.trim()))
             ?: return expired()
         val expiresAt = challenge.resetTokenExpiresAt
         if (!challenge.verified || expiresAt == null || !expiresAt.isAfter(clock.instant())) return expired()
         val user = userRepository.findById(challenge.userId).orElse(null) ?: return expired()
+        // F9/N6: the shape follows the account's stored credential kind, not the role alone.
+        CredentialRules.validate(user.credentialKind, newPassword)
+            ?.let { return AuthMessagePayload(false, it) }
         user.passwordHash = passwordEncoder.encode(newPassword)
             ?: throw IllegalStateException("Password encoding failed")
         userRepository.save(user)
@@ -163,7 +163,6 @@ class PasswordResetService(
     private companion object {
         const val OTP_LENGTH = 6
         const val MAX_OTP_ATTEMPTS = 5
-        const val MIN_PASSWORD_LENGTH = 6
         const val THROTTLE_PREFIX = "reset:"
         const val NEUTRAL_MESSAGE = "If that account exists, a reset code has been sent."
         val OTP_TTL: Duration = Duration.ofMinutes(10)

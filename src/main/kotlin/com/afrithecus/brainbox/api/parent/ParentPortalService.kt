@@ -18,19 +18,21 @@ import java.util.UUID
 /**
  * The parent portal's backbone: which learners a guardian may see.
  *
- * The link is `users.parent_user_id` on the learner (doc 01 §6), the same column the
- * grades, calendar, attendance, class-chat, subscription and notification surfaces
- * already authorize against, so exposing it here does not invent a second relationship.
+ * F9/N6: the account model is unified — **the learner account is its own guardian
+ * context**. A signed-in STUDENT resolves to their own row ([linkedChildren],
+ * [requireLinkedChild]); the legacy PARENT row remains an alias that can still link a
+ * child by admission number so existing guardian-of-record accounts keep working until
+ * the migration/alias slice retires them. No new PARENT account can be created (signup
+ * refuses the role).
  *
- * A guardian links a child with the learner's **admission number** (the CTC the school
- * issues): it is unique per school, printed on reports and the class roster, and does not
- * leak internal ids. A learner can have one guardian of record — a second guardian is
- * refused rather than silently stealing the link.
+ * The link is still `users.parent_user_id` on the learner (doc 01 §6), the same column the
+ * grades, calendar, attendance, class-chat, subscription and notification surfaces already
+ * authorize against, so this does not invent a second relationship.
  */
 @Service
 class ParentPortalService(private val users: UserRepository) {
 
-    /** The caller's linked children, oldest link first is not tracked: name order is stable. */
+    /** The caller's guardian context: a learner sees themselves, a legacy guardian sees its children. */
     @Transactional(readOnly = true)
     fun children(current: CurrentUser): List<LinkedChildPayload> =
         linkedChildren(current).map { it.toPayload() }
@@ -82,8 +84,10 @@ class ParentPortalService(private val users: UserRepository) {
      */
     @Transactional(readOnly = true)
     fun linkedChildren(current: CurrentUser): List<UserEntity> {
-        requireParent(current)
-        return users.findByParentUserId(current.userId)
+        val account = requireGuardianContext(current)
+        // F9: the learner IS the guardian context; there is no second row to read.
+        if (account.role == Role.STUDENT) return if (account.isActive) listOf(account) else emptyList()
+        return users.findByParentUserId(account.id)
             .filter { it.isActive }
             .sortedBy { it.name.lowercase() }
     }
@@ -93,18 +97,36 @@ class ParentPortalService(private val users: UserRepository) {
     fun requireLinkedChild(current: CurrentUser, childIdRaw: String): UserEntity {
         val childId = parseChildId(childIdRaw)
         val child = users.findById(childId).orElse(null) ?: throw notFound("Child not found")
-        // An admin may read any child; a guardian only their own link. Anything else is
-        // "not found" so a parent cannot enumerate other learners.
+        // An admin may read any child; a legacy guardian only their own link; a learner
+        // account only itself. Anything else is "not found" so no one can enumerate learners.
+        val account = users.findById(current.userId).orElse(null)
         val allowed = child.parentUserId == current.userId ||
-            users.findById(current.userId).orElse(null)?.role == Role.ADMIN
+            account?.role == Role.ADMIN ||
+            (account?.role == Role.STUDENT && child.id == account.id)
         if (!allowed) throw notFound("Child not found")
         return child
     }
 
+    /**
+     * F9: the guardian surface belongs to the learner's own account. A legacy PARENT row
+     * is still accepted as an alias; every other role is refused.
+     */
+    private fun requireGuardianContext(current: CurrentUser): UserEntity {
+        val user = users.findById(current.userId).orElseThrow { notFound("User not found") }
+        if (user.role != Role.STUDENT && user.role != Role.PARENT) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "Only a learner account can use the guardian space")
+        }
+        return user
+    }
+
+    /** Linking a child by admission number is a legacy guardian-of-record action only. */
     private fun requireParent(current: CurrentUser): UserEntity {
         val user = users.findById(current.userId).orElseThrow { notFound("User not found") }
         if (user.role != Role.PARENT) {
-            throw ApiException(ApiErrorCode.FORBIDDEN, "Only a parent account can manage linked children")
+            throw ApiException(
+                ApiErrorCode.FORBIDDEN,
+                "A learner account already owns its own space and cannot link another learner",
+            )
         }
         return user
     }

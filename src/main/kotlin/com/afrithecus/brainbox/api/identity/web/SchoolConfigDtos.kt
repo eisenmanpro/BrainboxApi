@@ -18,6 +18,11 @@ data class SchoolConfigPayload(
     val cbcStrands: List<String> = emptyList(),
     /** Server-owned room list for the timetable/room pickers (TT-3). */
     val rooms: List<String> = emptyList(),
-    /** The school's class catalogue; teacher settings pick classes/grades from it (N3). */
-    val classes: List<SchoolClassPayload> = emptyList(),
+    /**
+     * The school's class catalogue; teacher settings pick classes/grades from it (N3).
+     * NULL means "leave the stored catalogue untouched": PUT is a full replace and older
+     * clients (and the branding-only editor) omit the field, so binding a default empty
+     * list here would wipe every class a teacher can pick. A non-null list replaces it.
+     */
+    val classes: List<SchoolClassPayload>? = null,
 )

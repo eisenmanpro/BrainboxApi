@@ -12,7 +12,9 @@ import com.afrithecus.brainbox.api.identity.entity.TeacherCodeEntity
 import com.afrithecus.brainbox.api.identity.entity.TeacherProfileEntity
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.AccountStatus
+import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.model.Role
+import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.model.SubscriptionStatus
 import com.afrithecus.brainbox.api.identity.model.SubscriptionTier
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
@@ -170,13 +172,21 @@ class IdentityAdminService(
     // --------------------------------------------------- verification (doc 01 §8)
 
     @Transactional
-    fun setVerified(userIdRaw: String, verified: Boolean, actorId: UUID) {
+    fun setVerified(userIdRaw: String, verified: Boolean, current: CurrentUser) {
         val user = findUser(userIdRaw)
+        val actor = userRepository.findById(current.userId).orElse(null) ?: throw notFound("Actor not found")
+        // A school's ICT admin may decide its own users; the platform ADMIN may decide any.
+        if (actor.role != Role.ADMIN) {
+            val sameSchool = actor.role == Role.TEACHER &&
+                actor.subRole == SubRole.ICT_ADMIN &&
+                actor.schoolId != null &&
+                actor.schoolId == user.schoolId
+            if (!sameSchool) throw ApiException(ApiErrorCode.FORBIDDEN, "ICT admin access required for this school")
+        }
         user.isVerified = verified
         user.verificationStatus = if (verified) AccountStatus.VERIFIED else AccountStatus.REJECTED
         userRepository.save(user)
         user.schoolId?.let { schoolId ->
-            val actor = userRepository.findById(actorId).orElse(null)
             auditLogService.record(
                 schoolId,
                 actor,

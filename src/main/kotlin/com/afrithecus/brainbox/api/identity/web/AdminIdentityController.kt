@@ -69,21 +69,24 @@ class AdminIdentityController(private val service: IdentityAdminService) {
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build()
     }
 
+    /** A school's ICT admin decides its own users too; the service enforces the scope. */
     @PostMapping("/users/{id}/approve")
+    @PreAuthorize("hasAnyRole('ADMIN','ICT_ADMIN')")
     fun approveUser(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @PathVariable id: String,
     ): ResponseEntity<Void> {
-        service.setVerified(id, true, currentUser.userId)
+        service.setVerified(id, true, currentUser)
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build()
     }
 
     @PostMapping("/users/{id}/reject")
+    @PreAuthorize("hasAnyRole('ADMIN','ICT_ADMIN')")
     fun rejectUser(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @PathVariable id: String,
     ): ResponseEntity<Void> {
-        service.setVerified(id, false, currentUser.userId)
+        service.setVerified(id, false, currentUser)
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build()
     }
 

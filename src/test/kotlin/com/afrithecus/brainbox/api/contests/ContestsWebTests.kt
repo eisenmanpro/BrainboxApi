@@ -54,6 +54,24 @@ class ContestsWebTests(
         return auth
     }
 
+    /** F9 removed PARENT signup; a legacy guardian-of-record row is created as the console would. */
+    private fun legacyParent(phone: String): AuthResponse {
+        userRepository.save(UserEntity().apply {
+            phoneNumber = phone
+            email = phone + "@parent.test"
+            passwordHash = passwordEncoder.encode("password123") ?: error("encode")
+            name = "Legacy Parent"
+            role = Role.PARENT
+            isActive = true
+            isVerified = true
+        })
+        val login = mockMvc.perform(
+            post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("""{"identifier":"${phone}","password":"password123"}""")
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        return objectMapper.readValue(login, AuthResponse::class.java)
+    }
+
     private fun adminToken(): String {
         val n = nextAdmin.incrementAndGet()
         val phone = "0799" + (300 + n)
@@ -205,7 +223,7 @@ class ContestsWebTests(
             post("/contests/${contestId}/register").header("Authorization", auth(second.sessionToken!!))
         ).andExpect(status().isConflict)
 
-        val parent = signup("0780000007", role = "PARENT")
+        val parent = legacyParent("0780000007")
         mockMvc.perform(
             post("/contests/${contestId}/register").header("Authorization", auth(parent.sessionToken!!))
         ).andExpect(status().isForbidden)

@@ -47,7 +47,8 @@ class ParentCalendarService(
         val id = runCatching { UUID.fromString(childIdRaw.trim()) }.getOrNull()
             ?: throw invalidArgument("childId is not a valid identifier")
         val child = userRepository.findById(id).orElse(null) ?: throw notFound("Child not found")
-        if (current.role != Role.ADMIN && child.parentUserId != current.userId) {
+        // F9/N6: a learner account is its own guardian context.
+        if (current.role != Role.ADMIN && child.parentUserId != current.userId && child.id != current.userId) {
             throw ApiException(ApiErrorCode.FORBIDDEN, "Not your linked child")
         }
         return child

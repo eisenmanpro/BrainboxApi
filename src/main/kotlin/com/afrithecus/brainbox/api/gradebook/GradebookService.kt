@@ -197,7 +197,8 @@ class GradebookService(
     fun childGrades(current: CurrentUser, childIdRaw: String, termRaw: String?): List<PublishedGradePayload> {
         val child = userRepository.findById(parseUuid(childIdRaw, "childId")).orElse(null)
             ?: throw notFound("Child not found")
-        if (current.role != Role.ADMIN && child.parentUserId != current.userId) {
+        // F9/N6: the learner's own account is its guardian context.
+        if (current.role != Role.ADMIN && child.parentUserId != current.userId && child.id != current.userId) {
             throw ApiException(ApiErrorCode.FORBIDDEN, "Not your linked child")
         }
         return publishedFor(child.id, termRaw)

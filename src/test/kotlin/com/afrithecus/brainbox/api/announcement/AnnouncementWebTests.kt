@@ -273,4 +273,48 @@ class AnnouncementWebTests(
         )
         check(parentFeed.any { it.id == "ann_cls" })
     }
+
+    @Test
+    fun `a parent-audience announcement reaches the learner account`() {
+        // F9/N6: the learner account is the guardian account, so a guardian-audience
+        // announcement must land in the learner's own feed. A legacy parent row is not
+        // needed for delivery (the target learner here has none).
+        val teacher = user(Role.TEACHER, "Class Teacher", "0755000300", grade = "Grade 4")
+        val learner = user(Role.STUDENT, "Alice Learner", "0755000301", grade = "Grade 4")
+        val otherGrade = user(Role.STUDENT, "Bob Learner", "0755000302", grade = "Grade 5")
+        val teacherToken = token(teacher)
+        val learnerToken = token(learner)
+        val otherToken = token(otherGrade)
+
+        val payload = TeacherAnnouncementPayload(
+            id = "ann_parent",
+            teacherId = "",
+            title = "Parents meeting",
+            content = "The parents meeting is on Friday.",
+            type = "EVENT",
+            audience = "PARENT",
+            targetClassIds = emptyList(),
+            targetGradeLevels = listOf(4),
+        )
+        mockMvc.perform(
+            post("/teacher/announcements").header("Authorization", auth(teacherToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload)),
+        ).andExpect(status().isOk)
+
+        val learnerFeed = objectMapper.readValue(
+            mockMvc.perform(get("/announcements/for-me?grade=Grade 4").header("Authorization", auth(learnerToken)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<TeacherAnnouncementPayload>::class.java,
+        )
+        check(learnerFeed.any { it.id == "ann_parent" }) {
+            "a guardian-audience announcement must reach the learner's own inbox"
+        }
+        val otherFeed = objectMapper.readValue(
+            mockMvc.perform(get("/announcements/for-me?grade=Grade 5").header("Authorization", auth(otherToken)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<TeacherAnnouncementPayload>::class.java,
+        )
+        check(otherFeed.none { it.id == "ann_parent" }) { "targeting must still apply to a guardian audience" }
+    }
 }

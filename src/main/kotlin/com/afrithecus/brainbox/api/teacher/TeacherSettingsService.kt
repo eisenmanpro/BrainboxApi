@@ -50,14 +50,11 @@ class TeacherSettingsService(
         requireTeacher(teacher)
         val entity = settingsRepository.findByTeacherId(teacher.id)
             ?: TeacherSettingsEntity().apply { teacherId = teacher.id }
-        // N3: subjects are an admin-governed field. A first-time value is allowed
-        // (onboarding), but changing an existing value must go through the change
-        // request so the school admin decides it.
-        val storedSubjects = codec.parseList(entity.subjectsTaught).orEmpty().toSet()
-        val nextSubjects = request.subjectsTaught.map { it.trim() }.filter { it.isNotEmpty() }.toSet()
-        if (storedSubjects.isNotEmpty() && storedSubjects != nextSubjects) {
-            throw conflict("Subject changes need your school admin's approval. Send a change request instead.")
-        }
+        // N3: subjects are an admin-governed field and this document is NOT an editing
+        // surface for them. The value is deliberately left untouched (rather than 409ing)
+        // because clients save the whole settings document for notification preferences;
+        // a rejected replay would otherwise be parked and silently dropped offline. The
+        // governed write lives only on the change-request gate.
         applySettings(entity, request)
         settingsRepository.saveAndFlush(entity)
         val name = request.name.trim()
@@ -101,6 +98,13 @@ class TeacherSettingsService(
 
         val name = request.name.trim()
         if (name.isNotEmpty()) teacher.name = name
+        val phone = request.phoneNumber.trim()
+        if (phone.isNotEmpty() && phone != teacher.phoneNumber) {
+            if (userRepository.existsByPhoneNumber(phone)) {
+                throw conflict("Another account already uses this phone number")
+            }
+            teacher.phoneNumber = phone
+        }
         userRepository.save(teacher)
 
         val settings = settingsRepository.findByTeacherId(teacher.id)
@@ -141,7 +145,8 @@ class TeacherSettingsService(
     }
 
     private fun applySettings(entity: TeacherSettingsEntity, request: TeacherSettingsPayload) {
-        entity.subjectsTaught = codec.toJson(request.subjectsTaught.filter { it.isNotBlank() })
+        // subjectsTaught is intentionally NOT copied from this payload: it is governed by
+        // the change-request gate (N3). Echoing it here must never change it either.
         entity.tscNumber = request.tscNumber?.trim()?.takeIf { it.isNotEmpty() }
         entity.defaultGradeLevel = request.defaultGradeLevel
         entity.languagePreference = request.languagePreference.trim().ifEmpty { "en" }

@@ -71,9 +71,12 @@ class TeacherAuthService(
 
     @Transactional
     fun teacherSignup(request: TeacherSignupRequest, deviceId: String?): TeacherSignupResponse {
-        val phone = request.phoneNumber.trim()
-        if (phone.isBlank()) throw invalidArgument("phoneNumber is required")
-        if (request.password.length < 8) throw invalidArgument("password must be at least 8 characters")
+        // F9/N6: staff keep a password (8+) and a canonical phone format, the same normaliser
+        // the learner signup uses so the unique-phone index cannot be defeated by formatting.
+        val phone = PhoneNumbers.normalize(request.phoneNumber)
+            ?: throw invalidArgument("phoneNumber is not a valid Kenyan phone number")
+        CredentialRules.validate(CredentialRules.KIND_PASSWORD, request.password)
+            ?.let { throw invalidArgument(it) }
         if (userRepository.existsByPhoneNumber(phone)) {
             throw conflict("An account with this phone number already exists")
         }
@@ -87,6 +90,7 @@ class TeacherAuthService(
             passwordHash = passwordEncoder.encode(request.password)
                 ?: throw IllegalStateException("Password encoding failed")
             role = Role.TEACHER
+            credentialKind = CredentialRules.KIND_PASSWORD
             schoolId = school?.id
             isActive = true
             isVerified = false
@@ -216,9 +220,9 @@ class TeacherAuthService(
             else -> throw invalidArgument("Only students and teachers can be approved or rejected")
         }
         applyStatus(target, status)
-        if (target.role == Role.TEACHER) {
-            (target.schoolId ?: actor.schoolId)?.let { auditLogService.record(it, actor, message + ": " + target.name) }
-        }
+        // F9: every approval decision is audited, students included (a decision that changes
+        // access must have evidence), and a rejected/frozen account is signed out everywhere.
+        (target.schoolId ?: actor.schoolId)?.let { auditLogService.record(it, actor, message + ": " + target.name) }
         return authService.accountResponse(target, message)
     }
 
@@ -260,6 +264,17 @@ class TeacherAuthService(
         if (actor.id != target.id) {
             requireIctAdmin(actor)
             requireSameSchool(actor, target)
+        } else {
+            // N3: a teacher self-editing through the admin teacher route must not bypass the
+            // school-admin approval gate. Name/phone/TSC stay self-service; class, grades and
+            // subjects are governed and belong to the change-request flow.
+            val touchesGovernedField =
+                request.subjects != null || request.className != null || request.gradeLevels != null
+            if (touchesGovernedField) {
+                throw conflict(
+                    "Class, grades and subjects need your school admin's approval. Request the change from teacher settings.",
+                )
+            }
         }
         request.name?.takeIf { it.isNotBlank() }?.let { target.name = it.trim() }
         request.phoneNumber?.takeIf { it.isNotBlank() }?.let { phone ->
@@ -333,6 +348,9 @@ class TeacherAuthService(
             AccountStatus.REJECTED, AccountStatus.FROZEN -> {
                 user.isVerified = false
                 user.isActive = false
+                // F9: the status change is not cosmetic — an access token issued before it
+                // must stop working now, not after its 24h TTL.
+                authService.revokeAllUserSessions(user.id)
             }
         }
         userRepository.save(user)

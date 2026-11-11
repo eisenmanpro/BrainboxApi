@@ -570,7 +570,10 @@ class AttendanceWebTests(
                 .contentType(MediaType.APPLICATION_JSON).content(body)
         ).andExpect(status().isOk)
 
-        check(attendanceService.escalateAbsentees() == 1)
+        // Use the explicit-time overload: the no-arg sweep deliberately does nothing before the
+        // school's escalation hour, which made this test pass or fail by wall-clock time.
+        val afterSchool = LocalDate.now(zone).atTime(16, 0).atZone(zone).toInstant()
+        check(attendanceService.escalateAbsentees(afterSchool) == 1)
         val parentFeed = objectMapper.readValue(
             mockMvc.perform(get("/notifications").param("userId", parent.id.toString()).header("Authorization", auth(parentToken)))
                 .andExpect(status().isOk).andReturn().response.contentAsString,
@@ -584,7 +587,7 @@ class AttendanceWebTests(
         )
         check(learnerFeed.any { it.title == "Still marked absent" })
         // The unique escalation row makes a repeated sweep a no-op.
-        check(attendanceService.escalateAbsentees() == 0)
+        check(attendanceService.escalateAbsentees(afterSchool) == 0)
     }
 }
 

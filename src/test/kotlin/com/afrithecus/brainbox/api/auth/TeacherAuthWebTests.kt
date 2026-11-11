@@ -274,14 +274,29 @@ class TeacherAuthWebTests(
     }
 
     @Test
-    fun `teacher info update and phone login`() {
+    fun `teacher info update by the school admin and phone login`() {
         val signup = teacherSignup(
             TeacherSignupRequest("Editable Teacher", "0755200010", "password123", schoolId = school.id.toString(), schoolName = school.name, className = "Grade 6 North")
         )
         val t = token("0755200010")
+        // N3: self-service through the admin teacher route may change identity fields only.
+        mockMvc.perform(
+            put("/auth/teachers/" + signup.user.id).header("Authorization", auth(t))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(TeacherInfoUpdateRequest(name = "Renamed Teacher"))),
+        ).andExpect(status().isOk)
+        mockMvc.perform(
+            put("/auth/teachers/" + signup.user.id).header("Authorization", auth(t))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(TeacherInfoUpdateRequest(subjects = listOf("English")))),
+        ).andExpect(status().isConflict)
+
+        // The school admin (the approver) may change governed fields directly.
+        user(Role.TEACHER, "ICT Admin", "0755200099", SubRole.ICT_ADMIN, school.id)
+        val adminToken = token("0755200099")
         val updated = objectMapper.readValue(
             mockMvc.perform(
-                put("/auth/teachers/" + signup.user.id).header("Authorization", auth(t))
+                put("/auth/teachers/" + signup.user.id).header("Authorization", auth(adminToken))
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(
                         objectMapper.writeValueAsString(

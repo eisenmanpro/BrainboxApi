@@ -27,6 +27,18 @@ class SchoolSystemSettingsEntity {
     @Column(name = "transitions_enabled", nullable = false)
     var transitionsEnabled: Boolean = true
 
+    /**
+     * N4: may school administrators (role TEACHER + sub_role ICT_ADMIN) sign in?
+     * Open by default. When false, the pinned first administrator is exempt so the
+     * switch can always be turned back off.
+     */
+    @Column(name = "admin_sign_in_open", nullable = false)
+    var adminSignInOpen: Boolean = true
+
+    /** N4: the school's first administrator, pinned the first time it is needed. */
+    @Column(name = "admin_owner_id")
+    var adminOwnerId: java.util.UUID? = null
+
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant = Instant.now()
 

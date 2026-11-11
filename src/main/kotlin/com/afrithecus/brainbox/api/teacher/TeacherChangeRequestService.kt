@@ -451,7 +451,7 @@ class TeacherChangeRequestService(
 
     private companion object {
         const val MAX_SUBJECTS = 20
-        const val ADMIN_ROUTE = "admin_user_management"
+        const val ADMIN_ROUTE = "admin_teacher_requests"
         const val SETTINGS_ROUTE = "teacher_settings"
         const val CLASS_ROUTE = "teacher_class_management"
         const val PROFILE_ROUTE = "teacher_profile_edit"

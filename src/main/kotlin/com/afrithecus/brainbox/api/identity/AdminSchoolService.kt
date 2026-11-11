@@ -5,12 +5,15 @@ import com.afrithecus.brainbox.api.attendance.model.AttendanceStatus
 import com.afrithecus.brainbox.api.attendance.repository.AttendanceRecordRepository
 import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
+import com.afrithecus.brainbox.api.common.error.ApiErrorCode
+import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.gradebook.repository.GradebookEntryRepository
 import com.afrithecus.brainbox.api.identity.entity.SchoolBackupEntity
 import com.afrithecus.brainbox.api.identity.entity.SchoolPerformanceSnapshotEntity
 import com.afrithecus.brainbox.api.identity.entity.SchoolSystemSettingsEntity
+import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.AccountStatus
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.model.Role
@@ -66,6 +69,7 @@ class AdminSchoolService(
     private val snapshotRepository: SchoolPerformanceSnapshotRepository,
     private val auditLogService: AuditLogService,
     private val access: AdminSchoolAccess,
+    private val signInPolicy: AdminSignInPolicyService,
     private val mapper: ObjectMapper,
     private val clock: Clock,
     @Value("\${app.school-zone:Africa/Nairobi}") private val schoolZone: String,
@@ -225,8 +229,11 @@ class AdminSchoolService(
     @Transactional(readOnly = true)
     fun systemSettings(current: CurrentUser, schoolIdRaw: String): SystemSettingsPayload {
         val schoolId = requireSchoolId(schoolIdRaw)
-        access.require(current, schoolId)
-        return settingsPayload(schoolId, settingsRepository.findById(schoolId).orElse(null))
+        val actor = access.require(current, schoolId)
+        // A read must not write the pin; the owner is still resolved so the client can
+        // disable a control that would 403 (isAdminOwner).
+        val ownerId = signInPolicy.ownerOf(schoolId, persist = false)
+        return settingsPayload(schoolId, settingsRepository.findById(schoolId).orElse(null), actor, ownerId)
     }
 
     @Transactional
@@ -235,16 +242,36 @@ class AdminSchoolService(
         val actor = access.require(current, schoolId)
         val entity = settingsRepository.findById(schoolId).orElse(null)
             ?: SchoolSystemSettingsEntity().apply { this.schoolId = schoolId }
+        val wasOpen = entity.adminSignInOpen
+        val ownerId = signInPolicy.ownerOf(schoolId, persist = true, settingsOverride = entity)
+        // N4: any administrator of the school may close the door; only the pinned first
+        // administrator (or a platform operator as audited break-glass) may open it again.
+        if (!wasOpen && request.adminSignInOpen) {
+            val mayUnlock = actor.id == ownerId || actor.role == Role.ADMIN
+            if (!mayUnlock) {
+                throw ApiException(
+                    ApiErrorCode.FORBIDDEN,
+                    "Only the school's first administrator can turn administrator sign-in back on.",
+                    mapOf("reason" to "ADMIN_SIGNIN_OWNER_ONLY"),
+                )
+            }
+        }
         entity.maintenanceMode = request.maintenanceMode
         entity.registrationOpen = request.registrationOpen
+        entity.adminSignInOpen = request.adminSignInOpen
         entity.updatedAt = clock.instant()
         settingsRepository.saveAndFlush(entity)
+        val closedNow = wasOpen && !request.adminSignInOpen
+        val revoked = if (closedNow) signInPolicy.revokeOtherAdministratorSessions(schoolId, ownerId) else 0
         auditLogService.record(
             schoolId,
             actor,
-            "Updated system settings (maintenance=" + request.maintenanceMode + ", registration=" + request.registrationOpen + ")",
+            "Updated system settings (maintenance=" + request.maintenanceMode +
+                ", registration=" + request.registrationOpen +
+                ", adminSignInOpen=" + request.adminSignInOpen +
+                (if (closedNow) ", signed out " + revoked + " administrator session(s)" else "") + ")",
         )
-        return settingsPayload(schoolId, entity)
+        return settingsPayload(schoolId, entity, actor, ownerId)
     }
 
     @Transactional(readOnly = true)
@@ -384,10 +411,18 @@ class AdminSchoolService(
         return id
     }
 
-    private fun settingsPayload(schoolId: UUID, entity: SchoolSystemSettingsEntity?) = SystemSettingsPayload(
+    private fun settingsPayload(
+        schoolId: UUID,
+        entity: SchoolSystemSettingsEntity?,
+        actor: UserEntity? = null,
+        ownerId: UUID? = null,
+    ) = SystemSettingsPayload(
         schoolId = schoolId.toString(),
         maintenanceMode = entity?.maintenanceMode ?: false,
         registrationOpen = entity?.registrationOpen ?: true,
+        adminSignInOpen = entity?.adminSignInOpen ?: true,
+        adminOwnerId = (entity?.adminOwnerId ?: ownerId)?.toString(),
+        isAdminOwner = actor != null && ownerId != null && actor.id == ownerId,
     )
 
     private fun zone(): ZoneId = runCatching { ZoneId.of(schoolZone) }.getOrDefault(ZoneId.of("Africa/Nairobi"))

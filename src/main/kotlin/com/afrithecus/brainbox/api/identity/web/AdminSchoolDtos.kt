@@ -67,6 +67,12 @@ data class SystemSettingsPayload(
     val schoolId: String,
     val maintenanceMode: Boolean = false,
     val registrationOpen: Boolean = true,
+    /** N4: may the school's administrators sign in? Open by default. */
+    val adminSignInOpen: Boolean = true,
+    /** N4: the pinned first administrator of the school, when known. */
+    val adminOwnerId: String? = null,
+    /** N4: true only for that first administrator; nobody else may turn the restriction off. */
+    val isAdminOwner: Boolean = false,
 )
 
 data class AuditLogEntryPayload(

@@ -1,6 +1,8 @@
 package com.afrithecus.brainbox.api.teacher
 
 import com.afrithecus.brainbox.api.auth.web.AuthResponse
+import com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity
+import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
@@ -46,6 +48,7 @@ class TeacherChangeRequestsWebTests(
     @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val userRepository: UserRepository,
     @Autowired private val schoolRepository: SchoolRepository,
+    @Autowired private val classRepository: TeacherClassRepository,
     @Autowired private val notificationRepository: NotificationRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
 ) {
@@ -84,7 +87,7 @@ class TeacherChangeRequestsWebTests(
 
     private fun auth(token: String) = "Bearer " + token
 
-    private fun putConfig(adminToken: String, schoolId: UUID, classes: List<SchoolClassPayload>) {
+    private fun putConfig(adminToken: String, schoolId: UUID, classes: List<SchoolClassPayload>?) {
         val body = SchoolConfigPayload(
             schoolId = schoolId.toString(),
             schoolName = if (schoolId == school.id) school.name else otherSchool.name,
@@ -149,6 +152,21 @@ class TeacherChangeRequestsWebTests(
         admin = user(Role.TEACHER, "ICT Admin", "0755600001", school.id, SubRole.ICT_ADMIN)
         otherAdmin = user(Role.TEACHER, "Other ICT Admin", "0755600002", otherSchool.id, SubRole.ICT_ADMIN)
         teacher = user(Role.TEACHER, "Class Teacher", "0755600003", school.id)
+    }
+
+    @Test
+    fun `a branding-only config save must not wipe the class catalogue`() {
+        val adminToken = token(admin)
+        putConfig(adminToken, school.id, listOf(SchoolClassPayload("Grade 4 Alpha", "Grade 4")))
+        // An older client (or a branding-only editor) PUTs the config without classes;
+        // the stored catalogue must survive because the field is a partial update.
+        putConfig(adminToken, school.id, null)
+        val config = objectMapper.readValue(
+            mockMvc.perform(get("/teacher/school-config").header("Authorization", auth(token(teacher))))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            TeacherSchoolConfigPayload::class.java,
+        )
+        check(config.classes.map { it.name } == listOf("Grade 4 Alpha"))
     }
 
     @Test
@@ -256,6 +274,86 @@ class TeacherChangeRequestsWebTests(
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(profile(teacherToken))),
         ).andExpect(status().isOk)
+
+        // The settings document is not an editing surface for subjects: a client saving the
+        // whole document for notification preferences must not change or fail the governed field.
+        mockMvc.perform(
+            put("/teacher/settings").header("Authorization", auth(teacherToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        settings(teacherToken).copy(subjectsTaught = listOf("Physics")),
+                    ),
+                ),
+        ).andExpect(status().isOk)
+        check(settings(teacherToken).subjectsTaught == listOf("Mathematics", "English")) {
+            "the settings endpoint must never write governed subjects"
+        }
+    }
+
+    @Test
+    fun `a teacher cannot bypass the gate through the admin teacher route`() {
+        val teacherToken = token(teacher)
+        mockMvc.perform(
+            put("/auth/teachers/" + teacher.id).header("Authorization", auth(teacherToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(mapOf("name" to "Renamed Teacher"))),
+        ).andExpect(status().isOk)
+        mockMvc.perform(
+            put("/auth/teachers/" + teacher.id).header("Authorization", auth(teacherToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(mapOf("subjects" to listOf("Physics")))),
+        ).andExpect(status().isConflict)
+    }
+
+    @Test
+    fun `a school admin can approve its own users and only its own`() {
+        val student = user(Role.STUDENT, "Learner", "0755600010", school.id)
+        student.verificationStatus = com.afrithecus.brainbox.api.identity.model.AccountStatus.PENDING_VERIFICATION
+        student.isVerified = false
+        userRepository.save(student)
+
+        mockMvc.perform(
+            post("/admin/users/" + student.id + "/approve").header("Authorization", auth(token(otherAdmin))),
+        ).andExpect(status().isForbidden)
+        mockMvc.perform(
+            post("/admin/users/" + student.id + "/approve").header("Authorization", auth(token(admin))),
+        ).andExpect(status().isNoContent)
+    }
+
+    @Test
+    fun `onboarding grades come from the school class catalogue`() {
+        val adminToken = token(admin)
+        putConfig(
+            adminToken,
+            school.id,
+            listOf(
+                SchoolClassPayload("Grade 4 Alpha", "Grade 4"),
+                SchoolClassPayload("Grade 5 Beta", "Grade 5"),
+            ),
+        )
+        classRepository.save(TeacherClassEntity().apply {
+            teacherUserId = admin.id
+            schoolId = school.id
+            name = "Grade 4 Alpha"
+            gradeLevel = "Grade 4"
+            subject = "Mathematics"
+            isActive = true
+        })
+        classRepository.save(TeacherClassEntity().apply {
+            teacherUserId = admin.id
+            schoolId = school.id
+            name = "Grade 5 Beta"
+            gradeLevel = "Grade 5"
+            subject = "English"
+            isActive = true
+        })
+        val body = mockMvc.perform(
+            get("/school/grade-configs/onboarding?schoolId=" + school.id)
+                .header("Authorization", auth(token(teacher))),
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        check(body.contains("Grade 4")) { "the grade picker must see the school catalogue: " + body }
+        check(body.contains("Grade 5"))
     }
 
     @Test

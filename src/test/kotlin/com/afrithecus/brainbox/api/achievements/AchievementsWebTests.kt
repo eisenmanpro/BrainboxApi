@@ -303,10 +303,13 @@ class AchievementsWebTests(
             ).andExpect(status().isOk).andReturn().response.contentAsString,
             UserAchievementsPayload::class.java,
         )
-        check(buy.streakFreezes == 1)
-        check(buy.totalXP == 700)
+        check(buy.streakFreezes == 1) { "freezes=" + buy.streakFreezes }
+        check(buy.totalXP == 700) { "totalXP=" + buy.totalXP }
 
-        val yesterday = java.time.LocalDate.now().minusDays(1).toString()
+        // The server clock is UTC (AppBeans.clock = systemUTC); a local-date default would
+        // pick "yesterday" in a different zone and the freeze would be rejected as a
+        // completed-day violation for three hours after local midnight.
+        val yesterday = java.time.LocalDate.now(java.time.ZoneOffset.UTC).minusDays(1).toString()
         val used = objectMapper.readValue(
             mockMvc.perform(
                 post("/achievements/streak/freeze?userId=" + student.user.id)
@@ -316,9 +319,9 @@ class AchievementsWebTests(
             ).andExpect(status().isOk).andReturn().response.contentAsString,
             UserAchievementsPayload::class.java,
         )
-        check(used.streakFreezes == 0)
-        check(used.streakCredits.size == 1)
-        check(used.currentStreak >= 1)
+        check(used.streakFreezes == 0) { "freezes after use=" + used.streakFreezes }
+        check(used.streakCredits.size == 1) { "credits=" + used.streakCredits }
+        check(used.currentStreak >= 1) { "streak=" + used.currentStreak }
 
         mockMvc.perform(
             post("/achievements/streak/freeze?userId=" + student.user.id)

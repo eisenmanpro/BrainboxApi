@@ -172,7 +172,7 @@ class SchoolAnnouncementService(
                                 numericTokens(it.gradeLevel.orEmpty()).any { grade -> grade in grades }
                         }
                         targeted += students.map { it.id }
-                        targeted += parentsOf(students, roster)
+                        targeted += guardianAudienceOf(students)
                     }
                 }
                 part.startsWith("Teachers:", ignoreCase = true) -> {
@@ -187,7 +187,7 @@ class SchoolAnnouncementService(
                         .toSet()
                     val students = roster.filter { it.id in studentIds }
                     targeted += students.map { it.id }
-                    targeted += parentsOf(students, roster)
+                    targeted += guardianAudienceOf(students)
                 }
             }
         }
@@ -197,17 +197,22 @@ class SchoolAnnouncementService(
     private fun legacyReach(audience: String, roster: List<UserEntity>): Int {
         val lower = audience.lowercase()
         return when {
-            lower.contains("parent") -> roster.count { it.role == Role.PARENT }
+            // F9: "parents" is the guardian channel of the learner account, so its reach is
+            // the learners who receive the copy in their own inbox.
+            lower.contains("parent") -> roster.count { it.role == Role.STUDENT && it.accountKind == AccountKind.FULL }
             lower.contains("student") -> roster.count { it.role == Role.STUDENT && it.accountKind == AccountKind.FULL }
             lower.contains("teacher") || lower.contains("staff") -> roster.count { it.role == Role.TEACHER }
             else -> roster.size
         }
     }
 
-    private fun parentsOf(students: List<UserEntity>, roster: List<UserEntity>): Set<UUID> {
-        val parentIds = students.mapNotNull { it.parentUserId }.toSet()
-        return roster.filter { it.role == Role.PARENT && it.id in parentIds }.map { it.id }.toSet()
-    }
+    /**
+     * F9: the guardian audience of [students] is the learners themselves (their account is
+     * the guardian account). Keeping the row set as learner ids is what stops a
+     * parent-audience send from reaching only legacy parent rows and going silent.
+     */
+    private fun guardianAudienceOf(students: List<UserEntity>): Set<UUID> =
+        students.map { it.id }.toSet()
 
     private fun nameList(raw: String): Set<String> =
         raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()

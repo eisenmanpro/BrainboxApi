@@ -188,10 +188,12 @@ class SchoolAnnouncementWebTests(
         check(analytics.scheduledMeetings == 1)
         check(analytics.latestPostedAt != null)
         val byTitle = analytics.announcements.associateBy { it.title }
-        // Roster is five active accounts: three students, one parent, one teacher.
+        // Roster is five active accounts: three students, one parent (legacy alias), one teacher.
         check(byTitle.getValue("Everyone").estimatedReach == 5)
-        // Grade 4 students (2) plus the parent linked to one of them.
-        check(byTitle.getValue("Grade fours").estimatedReach == 3)
+        // F9/N6: a guardian audience is delivered to the LEARNER rows, so the reach of a
+        // grade-targeted announcement is the two Grade 4 students — the legacy parent row is
+        // an alias and is not counted as a second recipient.
+        check(byTitle.getValue("Grade fours").estimatedReach == 2)
         check(byTitle.getValue("Teachers only").estimatedReach == 1)
 
         // A non-admin cannot read analytics.
