@@ -102,6 +102,7 @@ class RosterOnlyLearnerTests(
     @Test
     fun provisionsALoginLessLearnerWhoJoinsTheExamRoster() {
         val owner = user(Role.TEACHER, "Owner Teacher", "0700000101", schoolId)
+        val coordinator = user(Role.TEACHER, "Session Coordinator", "0700000191", schoolId, subRole = SubRole.GRADE_COORDINATOR)
         val clazz = clazz(owner, "Grade 4", "4B", schoolId)
         val ownerToken = token(owner)
 
@@ -126,7 +127,7 @@ class RosterOnlyLearnerTests(
         }
 
         // The grade-wide traditional roster (marks, rankings, combined/class reports).
-        val exam = exam(owner)
+        val exam = exam(coordinator)
         val roster = traditional.students(CurrentUser(owner.id, Role.TEACHER, null), exam.examId, null)
         check(roster.any { it.id == learner.id }) { "roster-only learner must be in the exam roster" }
     }
@@ -219,7 +220,7 @@ class RosterOnlyLearnerTests(
 
         // A coordinator marks the whole grade, includes the learner in analysis,
         // and can build both the combined and the per-learner printable reports.
-        val exam = exam(owner)
+        val exam = exam(coordinator)
         val coordinatorUser = CurrentUser(coordinator.id, Role.TEACHER, SubRole.GRADE_COORDINATOR)
         traditional.saveMarks(
             coordinatorUser,
@@ -305,9 +306,9 @@ class RosterOnlyLearnerTests(
         val ownerToken = token(owner)
         val learner = provision(clazz.id, ownerToken, "Faith Chebet", "BB-T-0007")
 
-        val exam = exam(owner)
-        // The class owner cannot enter marks for their own class; a coordinator does.
+        // Only a coordinator can create the session; the class owner cannot enter its marks.
         val coordinator = user(Role.TEACHER, "Marks Coordinator", "0700000110", schoolId, subRole = SubRole.GRADE_COORDINATOR)
+        val exam = exam(coordinator)
         val coordinatorUser = CurrentUser(coordinator.id, Role.TEACHER, SubRole.GRADE_COORDINATOR)
         traditional.saveMarks(coordinatorUser, exam.examId, listOf(MarkEntryDto(studentId = learner.id, subjectId = "MAT", rawScore = 55)))
 
