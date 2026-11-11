@@ -19,7 +19,9 @@ import org.springframework.web.bind.annotation.RestController
 
 /**
  * News feed and engagement (docs/ongoing/api_news_changes.md). Reads are public;
- * comments/votes/reports require a session; writes require an admin.
+ * comments/votes/reports require a session; article authoring is open to teaching staff
+ * (their own articles) and platform admins (any article). See
+ * [com.afrithecus.brainbox.api.notification.NewsService].
  */
 @RestController
 @RequestMapping("/news")
@@ -63,14 +65,14 @@ class NewsController(private val service: NewsService) {
         ResponseEntity.status(HttpStatus.ACCEPTED).body(service.report(current, newsId, request))
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
     fun create(
         @AuthenticationPrincipal current: CurrentUser,
         @Valid @RequestBody request: CreateNewsRequest,
     ): NewsItemPayload = service.create(current, request)
 
     @PutMapping("/{newsId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
     fun update(
         @AuthenticationPrincipal current: CurrentUser,
         @PathVariable newsId: String,
@@ -78,7 +80,7 @@ class NewsController(private val service: NewsService) {
     ): NewsItemPayload = service.update(current, newsId, request)
 
     @DeleteMapping("/{newsId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
     fun delete(
         @AuthenticationPrincipal current: CurrentUser,
         @PathVariable newsId: String,

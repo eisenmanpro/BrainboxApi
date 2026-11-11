@@ -42,12 +42,12 @@ class NewsEngagementWebTests(
 
     private fun auth(token: String) = "Bearer " + token
 
-    private fun newUser(phone: String, email: String, role: Role): UserEntity =
+    private fun newUser(phone: String, email: String, role: Role, name: String = "News " + phone): UserEntity =
         userRepository.save(UserEntity().apply {
             this.phoneNumber = phone
             this.email = email
             passwordHash = passwordEncoder.encode("password123") ?: error("encode")
-            name = "News " + phone
+            this.name = name
             this.role = role
             isActive = true
             isVerified = true
@@ -209,5 +209,88 @@ class NewsEngagementWebTests(
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(CreateNewsRequest("Nope", "not allowed")))
         ).andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `teachers publish with their own byline and without drafts`() {
+        newUser("0779300020", "news.teacher@test", Role.TEACHER, "Teacher Jane")
+        val teacher = login("news.teacher@test")
+
+        // A teacher cannot choose the byline or leave the article hidden as a draft: the request's
+        // author and status are ignored and the account name is used.
+        val request = CreateNewsRequest(
+            title = "Grade 4 culture day",
+            content = "<p>Our class shared stories.</p>",
+            category = "Events",
+            author = "BrainBox Editorial",
+            status = "DRAFT",
+        )
+        val article = objectMapper.readValue(
+            mockMvc.perform(
+                post("/news").header("Authorization", auth(teacher))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            NewsItemPayload::class.java,
+        )
+        check(article.status == "PUBLISHED")
+        check(article.author == "Teacher Jane")
+        check(article.authorId != null)
+
+        // Published means published: it is on the public feed.
+        val feed = objectMapper.readValue(
+            mockMvc.perform(get("/news")).andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<NewsItemPayload>::class.java,
+        )
+        val publicCopy = feed.first { it.id == article.id }
+        check(publicCopy.authorId == null) // the writer's account id is not public
+
+        // The writer's own read carries the id, which is what lets the app offer edit/delete.
+        val ownFeed = objectMapper.readValue(
+            mockMvc.perform(get("/news").header("Authorization", auth(teacher)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<NewsItemPayload>::class.java,
+        )
+        check(ownFeed.first { it.id == article.id }.authorId != null)
+    }
+
+    @Test
+    fun `teachers manage only their own articles and the platform still moderates`() {
+        newUser("0779300021", "news.teacher.owner@test", Role.TEACHER, "Teacher Jane")
+        newUser("0779300022", "news.teacher.other@test", Role.TEACHER, "Teacher John")
+        newUser("0779300023", "news.moderator@test", Role.ADMIN, "Platform Moderator")
+        val owner = login("news.teacher.owner@test")
+        val other = login("news.teacher.other@test")
+        val admin = login("news.moderator@test")
+
+        val article = objectMapper.readValue(
+            mockMvc.perform(
+                post("/news").header("Authorization", auth(owner))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(CreateNewsRequest("Class story", "Body", "News")))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            NewsItemPayload::class.java,
+        )
+
+        // The owner may edit their own article.
+        mockMvc.perform(
+            put("/news/${article.id}").header("Authorization", auth(owner))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(CreateNewsRequest("Class story v2", "Body", "News")))
+        ).andExpect(status().isOk)
+
+        // A colleague may not touch it.
+        mockMvc.perform(
+            put("/news/${article.id}").header("Authorization", auth(other))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(CreateNewsRequest("Hijacked", "No")))
+        ).andExpect(status().isForbidden)
+        mockMvc.perform(delete("/news/${article.id}").header("Authorization", auth(other)))
+            .andExpect(status().isForbidden)
+
+        // The platform admin keeps the final say over the public feed.
+        mockMvc.perform(
+            delete("/news/${article.id}").header("Authorization", auth(admin))
+        ).andExpect(status().isNoContent)
     }
 }

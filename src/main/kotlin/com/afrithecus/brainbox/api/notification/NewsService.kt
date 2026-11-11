@@ -5,6 +5,8 @@ import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
+import com.afrithecus.brainbox.api.identity.model.Role
+import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.notification.entity.NewsCommentEntity
 import com.afrithecus.brainbox.api.notification.entity.NewsItemEntity
 import com.afrithecus.brainbox.api.notification.entity.NewsReportEntity
@@ -32,7 +34,12 @@ import java.util.UUID
 /**
  * News feed and engagement (docs/ongoing/api_news_changes.md). Reads are public;
  * comments, votes and reports require a session and derive the viewer identity
- * server-side. Article authoring is admin-only.
+ * server-side.
+ *
+ * Article authoring is open to teaching staff and platform administrators. A platform admin may
+ * manage every article; a teacher may create their own and edit or delete only what they published.
+ * A teacher's article is published immediately and is attributed to their account name, which the
+ * client cannot choose; the platform admin keeps the final say over the public feed.
  */
 @Service
 class NewsService(
@@ -40,6 +47,7 @@ class NewsService(
     private val commentRepository: NewsCommentRepository,
     private val voteRepository: NewsVoteRepository,
     private val reportRepository: NewsReportRepository,
+    private val userRepository: UserRepository,
     private val mapper: ObjectMapper,
     private val clock: Clock,
 ) {
@@ -52,14 +60,14 @@ class NewsService(
             repository.findAllByStatusAndCategoryIgnoreCaseOrderByPublishedAtDesc(NewsStatus.PUBLISHED, category)
         }.sortedByDescending { it.publishedAt ?: it.createdAt }
         val votes = viewerVotes(current, rows.map { it.id })
-        return rows.map { payload(it, votes[it.id]) }
+        return rows.map { payload(it, votes[it.id], current) }
     }
 
     @Transactional(readOnly = true)
     fun detail(current: CurrentUser?, idRaw: String): NewsItemPayload {
         val row = requireArticle(idRaw)
         val vote = current?.let { voteRepository.findByNewsIdAndUserId(row.id, it.userId)?.voteType }
-        return payload(row, vote)
+        return payload(row, vote, current)
     }
 
     @Transactional(readOnly = true)
@@ -137,50 +145,82 @@ class NewsService(
 
     @Transactional
     fun create(current: CurrentUser, request: CreateNewsRequest): NewsItemPayload {
-        requireAdmin(current)
-        val status = parseStatus(request.status)
-        val publishedAt = request.publishedAt?.let(Instant::ofEpochMilli)
-            ?: if (status == NewsStatus.PUBLISHED) clock.instant() else null
+        val isPlatformAdmin = requireNewsAuthor(current)
+        // A teacher's article is published immediately and carries the account's own name: the
+        // public byline is not client-chosen, and a teacher cannot leave an article invisible in a
+        // draft state they have no way to manage. A platform admin keeps the existing draft/
+        // scheduled semantics.
+        val status = if (isPlatformAdmin) parseStatus(request.status) else NewsStatus.PUBLISHED
+        val publishedAt = if (isPlatformAdmin) {
+            request.publishedAt?.let(Instant::ofEpochMilli)
+                ?: if (status == NewsStatus.PUBLISHED) clock.instant() else null
+        } else {
+            clock.instant()
+        }
         val saved = repository.save(NewsItemEntity().apply {
             title = request.title.trim()
             content = request.content
             imageUrl = request.imageUrl?.trim()?.takeIf { it.isNotEmpty() }
             category = request.category.trim().ifBlank { "News" }
-            author = request.author?.trim()?.takeIf { it.isNotEmpty() } ?: DEFAULT_AUTHOR
+            author = if (isPlatformAdmin) {
+                request.author?.trim()?.takeIf { it.isNotEmpty() } ?: DEFAULT_AUTHOR
+            } else {
+                displayName(current)
+            }
             authorId = current.userId
             this.publishedAt = publishedAt
             this.status = status
             tags = mapper.writeValueAsString(request.tags)
         })
-        return payload(saved, null)
+        return payload(saved, null, current)
     }
 
     @Transactional
     fun update(current: CurrentUser, idRaw: String, request: CreateNewsRequest): NewsItemPayload {
-        requireAdmin(current)
+        val isPlatformAdmin = requireNewsAuthor(current)
         val article = requireArticle(idRaw)
-        val status = parseStatus(request.status)
+        requireOwnership(current, article)
+        val status = if (isPlatformAdmin) parseStatus(request.status) else NewsStatus.PUBLISHED
         article.title = request.title.trim()
         article.content = request.content
         article.imageUrl = request.imageUrl?.trim()?.takeIf { it.isNotEmpty() }
         article.category = request.category.trim().ifBlank { "News" }
-        request.author?.trim()?.takeIf { it.isNotEmpty() }?.let { article.author = it }
+        if (isPlatformAdmin) {
+            request.author?.trim()?.takeIf { it.isNotEmpty() }?.let { article.author = it }
+            request.publishedAt?.let { article.publishedAt = Instant.ofEpochMilli(it) }
+                ?: run {
+                    if (status == NewsStatus.PUBLISHED && article.publishedAt == null) {
+                        article.publishedAt = clock.instant()
+                    }
+                }
+        } else if (article.publishedAt == null) {
+            article.publishedAt = clock.instant()
+        }
         article.status = status
-        request.publishedAt?.let { article.publishedAt = Instant.ofEpochMilli(it) }
-            ?: run { if (status == NewsStatus.PUBLISHED && article.publishedAt == null) article.publishedAt = clock.instant() }
         repository.save(article)
-        return payload(article, null)
+        return payload(article, null, current)
     }
 
     @Transactional
     fun delete(current: CurrentUser, idRaw: String) {
-        requireAdmin(current)
-        repository.delete(requireArticle(idRaw))
+        requireNewsAuthor(current)
+        val article = requireArticle(idRaw)
+        requireOwnership(current, article)
+        repository.delete(article)
     }
 
     // ------------------------------------------------------------ internals
 
-    private fun payload(row: NewsItemEntity, myVote: String?): NewsItemPayload {
+    /**
+     * The public payload never carries the writer's account id: it is only returned to that writer
+     * (so the app can offer edit/delete on their own article) or to a platform admin. Readers need
+     * no identifier to read the news.
+     */
+    private fun payload(
+        row: NewsItemEntity,
+        myVote: String?,
+        current: CurrentUser? = null,
+    ): NewsItemPayload {
         val published = row.publishedAt ?: row.createdAt
         return NewsItemPayload(
             id = row.id.toString(),
@@ -195,7 +235,11 @@ class NewsService(
             userDisliked = myVote == "DOWNVOTE",
             commentCount = row.commentCount,
             author = row.author,
-            authorId = row.authorId?.toString(),
+            authorId = if (current != null && (current.role == Role.ADMIN || current.userId == row.authorId)) {
+                row.authorId?.toString()
+            } else {
+                null
+            },
             publishedAt = row.publishedAt?.toEpochMilli(),
             status = row.status.name,
             tags = parseList(row.tags),
@@ -228,9 +272,31 @@ class NewsService(
     private fun requireArticle(raw: String): NewsItemEntity =
         repository.findById(parseUuid(raw)).orElse(null) ?: throw notFound("News item not found")
 
-    private fun requireAdmin(current: CurrentUser) {
-        if (current.role.name != "ADMIN") throw ApiException(ApiErrorCode.FORBIDDEN, "Only admins can publish news")
+    /**
+     * Authoring is open to teaching staff and platform administrators. Returns true when the caller
+     * is a platform admin (who may also manage other people's articles), false for a teacher (own
+     * articles only). Learners and guardians may read and engage, never author.
+     */
+    private fun requireNewsAuthor(current: CurrentUser): Boolean = when (current.role) {
+        Role.ADMIN -> true
+        Role.TEACHER -> false
+        else -> throw ApiException(
+            ApiErrorCode.FORBIDDEN,
+            "Only teachers and platform administrators can publish news",
+        )
     }
+
+    /** A teacher may only change what they published; a platform admin may moderate anything. */
+    private fun requireOwnership(current: CurrentUser, article: NewsItemEntity) {
+        if (current.role == Role.ADMIN) return
+        if (article.authorId == current.userId) return
+        throw ApiException(ApiErrorCode.FORBIDDEN, "You can only change news you published")
+    }
+
+    /** The byline shown on a teacher's article: their account name, never a client-supplied string. */
+    private fun displayName(current: CurrentUser): String =
+        userRepository.findById(current.userId).map { it.name.trim() }.orElse("")
+            .takeIf { it.isNotEmpty() } ?: DEFAULT_TEACHER_AUTHOR
 
     private fun parseStatus(raw: String): NewsStatus =
         runCatching { NewsStatus.valueOf(raw.trim().uppercase()) }.getOrNull()
@@ -248,6 +314,7 @@ class NewsService(
 
     private companion object {
         const val DEFAULT_AUTHOR = "BrainBox Editorial"
+        const val DEFAULT_TEACHER_AUTHOR = "BrainBox Teacher"
         val REPORT_REASONS = setOf(
             "Spam or misleading",
             "Harassment or hate speech",
