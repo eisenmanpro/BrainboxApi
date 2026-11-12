@@ -1,12 +1,13 @@
 # SMS provider, attendance notifications and offline delivery — phased implementation plan
 
-**Status: PHASE 3 IMPLEMENTED; live delivery blocked on the sender ID.** Written 2026-11-12 before the
+**Status: PHASES 1–5 IMPLEMENTED; live delivery blocked on the sender ID.** Written 2026-11-12 before the
 HostPinnacle credentials arrived, then updated after Phase 1 (default provider), Phase 2 (subscription-aware
-routing), Phase 5.1–5.4 (offline catch-up) and Phase 3 (the guarded attendance SMS channel) landed. Phase 0
-decisions are locked (D1/D2/D5 answered, §10); Phases 1–3 and 5 are implemented and tested; Phase 1.6/6.1 live
-smoke waits on a purchased HostPinnacle sender ID. Phase 4 is now unblocked (it consumes P3 measurements), then
-Phase 6. The document turns the research in [phone_verification.md](phone_verification.md) and the
-attendance/offline audit into an ordered, testable task list.
+routing), Phase 5.1–5.4 (offline catch-up), Phase 3 (the guarded attendance SMS channel) and Phase 4 (read-ack
+fallback, family digest, risk threshold, provider chain, DLR webhook, EN/SW templates) landed. Phase 0
+decisions are locked (D1/D2/D5 answered, §10); only Phase 6 (live hardening/rollout) remains, and Phase 1.6/6.1
+live smoke waits on a purchased HostPinnacle sender ID. The document turns the research in
+[phone_verification.md](phone_verification.md) and the attendance/offline audit into an ordered, testable task
+list.
 
 | | |
 |---|---|
@@ -240,14 +241,20 @@ per-school allowlist.
 
 ### Phase 4 — Cost refinement and delivery reliability (~2.5 days)
 
+**Status 2026-11-13: P4.1–P4.6 implemented (default off, like the rest of the channel).** Read-ack fallback
+(20 min, configurable, read row cancels), family digest with a MERGED audit row per extra sibling, optional
+risk threshold (D3, off), provider fallback chain with a per-provider circuit breaker and Micrometer counters,
+the DLR webhook (shared-secret, idempotent) and the EN/SW template pair. See §15 for the implementation notes
+and §12 for the run log. All of it stays dormant while `app.attendance.sms.enabled=false`.
+
 | ID | Task | Depends | Est | Acceptance |
 |---|---|---|---|---|
-| P4.1 | Read-ack fallback: for token holders, SMS only if unread after `ATTENDANCE_SMS_READ_ACK_MINUTES` (default 20) or push attempt failed | P3 | 1 d | Test: read before timer → no SMS; unread → one SMS |
-| P4.2 | Digest for guardians with multiple children (one message lists all absent children) | P3.3 | 0.5 d | Sibling fixture: 2 children → 1 SMS |
-| P4.3 | Risk threshold policy (optional, D3): only 2nd+ consecutive absence / term attendance below threshold for token holders | P3 | 0.5 d | Configurable; default off until measured |
-| P4.4 | Provider fallback chain HostPinnacle → Beem/Africa's Talking on 4xx/5xx/timeout, circuit breaker, metrics | P1 | 1 d | Stub failure routes to second provider; no duplicate send |
-| P4.5 | DLR webhook (optional): endpoint + persistence + surface in ledger | P3.5 | 1 d | Signed/allowlisted endpoint; idempotent |
-| P4.6 | Final EN/SW templates, quiet-hours copy, consent/privacy note (DPA/ODPC) | P0.4 | 0.5 d | Strings shipped, under 160 GSM-7 |
+| P4.1 | Read-ack fallback: for token holders, SMS only if unread after `ATTENDANCE_SMS_READ_ACK_MINUTES` (default 20) or push attempt failed | P3 | 1 d | **Done:** read-before-timer → `PUSH_ALREADY_READ`; unread within window → `AWAITING_READ_ACK` (no row bought); unread past it or no row → one SMS |
+| P4.2 | Digest for guardians with multiple children (one message lists all absent children) | P3.3 | 0.5 d | **Done:** sibling fixture → one SENT + one MERGED row, one budget unit |
+| P4.3 | Risk threshold policy (optional, D3): only 2nd+ consecutive absence / term attendance below threshold for token holders | P3 | 0.5 d | **Done, default off:** consecutive and term-rate paths unit-tested; no-app guardians are never risk-gated |
+| P4.4 | Provider fallback chain HostPinnacle → Beem/Africa's Talking on 4xx/5xx/timeout, circuit breaker, metrics | P1 | 1 d | **Done:** stub failure routes to the second provider, circuit opens after the threshold, actual provider recorded on the row |
+| P4.5 | DLR webhook (optional): endpoint + persistence + surface in ledger | P3.5 | 1 d | **Done:** shared-secret endpoint, idempotent replay, `delivered_at`/`dlr_status` surfaced in the ledger |
+| P4.6 | Final EN/SW templates, quiet-hours copy, consent/privacy note (DPA/ODPC) | P0.4 | 0.5 d | **Done:** EN/SW message and digest templates (ASCII, one segment), consent/privacy and quiet-hours copy in §6/§15 |
 
 ### Phase 5 — Offline delivery fixes (~2 days; credential-independent)
 
@@ -320,7 +327,12 @@ the only new configuration.
 | Timing | after register close (10:30 school zone) | lets corrections/late arrivals cancel the SMS |
 | Cancel | if corrected to PRESENT/LATE/EXCUSED or push read before dispatch | avoids paying for resolved events |
 | Audience | guardian/learner account only (F9 single row) | learner gets push free; no SMS duplication |
-| Capability gating | only recipients with **no active push token** | the single biggest cost lever (~60–90%) |
+| Capability gating | only recipients with **no active push token**, or a token holder whose absence row is still **unread after the ack window** (P4.1) | the single biggest cost lever (~60–90%); a read push cancels the paid message |
+| Read-ack window | `ATTENDANCE_SMS_READ_ACK_MINUTES` (default 20); disabled restores the Phase 3 "token holders never get SMS" rule | a working push is preferred over a paid message |
+| Digest | one message per family/phone/school/day lists every absent child; extra records keep a `MERGED` ledger row at zero cost (P4.2) | siblings share one paid message |
+| Risk threshold (D3) | optional, default off: for token holders only, require 2+ consecutive absences or term attendance ≤90% (P4.3) | avoids paying for a first isolated absence when the app is already installed |
+| Provider chain (P4.4) | ordered fallbacks after the primary, circuit breaker per provider; actual provider recorded on the row | provider outage does not lose the message; empty by default |
+| DLR (P4.5) | optional shared-secret webhook updates `delivered_at`/`dlr_status`; replays are idempotent | delivery proof without a push ledger (D6) |
 | Subscription | Phase 2 eligibility | no paid channel for unpaid accounts |
 | Phone | verified number only | unverified numbers waste credits |
 | Consent | opt-in/out per D2; default off | DPA/ODPC + trust |
@@ -361,7 +373,17 @@ Target instrumentation: **≤400 SMS per 1,000 absence events**, measured per sc
 | `ATTENDANCE_SMS_SCAN_INITIAL_DELAY_MS` / `ATTENDANCE_SMS_SCAN_MS` | `600000` / `600000` | Sweep schedule |
 | `ATTENDANCE_ROUTING_GRACE_DAYS` | `3` | Subscription expiry grace (D1) |
 | `ATTENDANCE_ESCALATION_CATCHUP_DAYS` | `3` | Late-sync escalation window (P5.1) |
-| `ATTENDANCE_SMS_READ_ACK_MINUTES` | `20` | Phase 4 fallback, not implemented yet |
+| `ATTENDANCE_SMS_READ_ACK_ENABLED` | `true` | P4.1: defer a token holder's SMS until the in-app row is unread for the window; `false` restores the Phase 3 skip |
+| `ATTENDANCE_SMS_READ_ACK_MINUTES` | `20` | P4.1 unread window before the fallback fires |
+| `ATTENDANCE_SMS_DIGEST_ENABLED` | `true` | P4.2: one message lists all absent children of a family |
+| `ATTENDANCE_SMS_RISK_THRESHOLD_ENABLED` | `false` | P4.3/D3: token-holder fallbacks additionally need a risk signal |
+| `ATTENDANCE_SMS_RISK_MIN_CONSECUTIVE_ABSENCES` | `2` | P4.3 consecutive-absence threshold (today included) |
+| `ATTENDANCE_SMS_RISK_TERM_ATTENDANCE_PERCENT` | `90` | P4.3 term attendance line; ≤0 disables this path |
+| `ATTENDANCE_SMS_FALLBACK_PROVIDERS` | empty | P4.4 ordered fallback gateways (africastalking/beem/hostpinnacle/logging) |
+| `ATTENDANCE_SMS_CIRCUIT_FAILURE_THRESHOLD` / `ATTENDANCE_SMS_CIRCUIT_OPEN_SECONDS` | `3` / `120` | P4.4 circuit breaker tuning |
+| `ATTENDANCE_SMS_DLR_SECRET` | empty | P4.5 shared secret for `POST /webhooks/sms/dlr`; blank disables the endpoint (404) |
+| `ATTENDANCE_SMS_LANGUAGE` | `EN` | P4.6 template pair: `EN` or `SW` |
+| `ATTENDANCE_SMS_MESSAGE_TEMPLATE_SW` / `ATTENDANCE_SMS_DIGEST_TEMPLATE` / `ATTENDANCE_SMS_DIGEST_TEMPLATE_SW` | EN/EN/SW defaults | P4.6 Swahili single message, digest pair |
 
 Secrets are env-only, never logged, never committed. All keys are implemented in
 `AttendanceSmsProperties` / `application.yml`.
@@ -377,6 +399,10 @@ Secrets are env-only, never logged, never committed. All keys are implemented in
 | Delivery outcome + latency per network | provider/DLR | reliability |
 | Budget used / remaining per school | budget table | ops |
 | Notification read rate after push | notification rows | read-ack threshold tuning |
+| SMS fallback vs no-app sends | dispatch ledger + policy skip reasons | `PUSH_ALREADY_READ` should dominate token-holder events |
+| Digest merge rate | `MERGED` rows / paid rows | sibling savings |
+| Provider failure rate + circuit state | `brainbox.sms.failures`, `brainbox.sms.circuit` | chain tuning |
+| DLR outcome + delivery latency | `brainbox.sms.dlr`, dispatch `delivered_at` | provider quality |
 
 ## 9. Risks and mitigations
 
@@ -403,13 +429,13 @@ Secrets are env-only, never logged, never committed. All keys are implemented in
 | D5 | **KES 2,000 per school per term**, visible in the HOI / ICT-admin panels; the server tracks paying schools and their balance and shows a neutral description only. PRO is the SMS gate; school payment status never blocks subscription-driven sends; SMS draw down the term allocation and stop when exhausted while push/in-app continue. |
 | D7 | Attendance SMS is funded through the school term allocation (D5); BrainBox still sends according to subscription entitlement. |
 
-### Still open (deferred until the Phase 3/4 measurements)
+### Resolved in Phase 4 (kept configurable)
 
-| ID | Question | Current default |
+| ID | Decision | Implementation |
 |---|---|---|
-| D3 | Risk threshold (2nd+ absence) for token holders | off until P0.3/P4 measurements |
-| D4 | Weekly digest for chronic absentees | one-per-day + sibling merge first |
-| D6 | Push delivery proof required? | no for MVP; DLR webhook optional in Phase 4 |
+| D3 | Risk threshold for token holders | **implemented, default off** (`ATTENDANCE_SMS_RISK_THRESHOLD_ENABLED=false`): 2+ consecutive absences or term attendance ≤90%; no-app guardians are never gated |
+| D4 | Digest for chronic absentees / siblings | **implemented as the family digest (P4.2)**, one message per family/phone/day; a weekly digest remains a later product option |
+| D6 | Push delivery proof | **no push ledger**; the optional DLR webhook (P4.5) gives provider delivery proof for SMS only |
 
 ## 11. Owner inputs — status (2026-11-12)
 
@@ -438,6 +464,14 @@ HostPinnacle once its sender ID is approved.
 
 ## 12. Verification and definition of done
 
+**Phase 4 run log — 2026-11-13:** focused Phase 4 classes green: `AttendanceSmsPolicyTest` 22 (read-ack
+deferral/read/no-row, risk threshold consecutive and term-rate paths, SW templates, digest truncation),
+`AttendanceSmsDispatchTests` 10 (unread/read/fresh read-ack fallbacks, digest `MERGED` row and one-unit
+budget), `AttendanceSmsDlrWebTests` 4 (delivered/failed reports, replay idempotency, wrong secret, unknown id) and
+`SmsGatewayChainTest` 4 (fallback routing, circuit opening, all-failed, breaker reset) — **40 tests, 0
+failures**. **Full server suite 779 tests, 0 failures, 3 skipped** (51m 50s; +20 new: policy 9, dispatch 3,
+DLR 4, chain 4).
+
 **Phase 3 run log — 2026-11-12:** **full server suite 759 tests, 0 failures, 3 skipped** (40m 40s; adds
 `AttendanceSmsPolicyTest` 13 rule cases and `AttendanceSmsDispatchTests` 7 integration cases — exactly-once
 replay, budget draw-down, submission-time gates, sibling dedupe, exhausted-budget alert, opt-in round-trip,
@@ -452,8 +486,8 @@ tests, 0 failures** (no web code change — the guardian surface does not exist 
 the owner's local `app/google-services.json` was replaced with a prod-only client list; that is a local Firebase
 configuration, not a source change, and the prod variant exercises the same unit-test source set.
 
-- **Server**: focused tests per phase + full `./gradlew test` green (759 tests, 0 failures, 3 skipped after
-  Phase 3). Migration V13 applies on the collapsed baseline under `ddl-auto: validate`.
+- **Server**: focused tests per phase + full `./gradlew test` green (779 tests, 0 failures, 3 skipped after
+  Phase 4). Migrations V13/V14 apply on the collapsed baseline under `ddl-auto: validate`.
 - **Android**: `./gradlew :app:testProdDebugUnitTest --offline` green while the local Firebase file has no dev
   client; on a machine with the dev client `testDevDebugUnitTest` is the canonical command. Wire fixtures updated
   for any new payload.
@@ -471,9 +505,9 @@ configuration, not a source change, and the prod variant exercises the same unit
 | 1 HostPinnacle default | **implemented, live smoke blocked** | notifier + properties + form-wire tests + docs landed; live send waits on the purchased sender ID; AT sandbox verified for OTP delivery tests |
 | 2 Subscription routing | **done 2026-11-12** | `AttendanceRecipientPolicy` + push split + escalation policy; 13 unit cases + 5 integration cases green |
 | 3 Attendance SMS MVP | **done 2026-11-12 (default off)** | shared gateway, V13, policy, worker, ledger, budget, console/school endpoints, Android opt-in; web has no guardian surface yet; live sends still wait on the sender ID |
-| 4 Cost refinements | **next** | read-ack fallback, risk threshold, provider chain, DLR; P3 measurements now available |
+| 4 Cost refinements | **done 2026-11-13 (default off)** | read-ack fallback, family digest, optional risk threshold, provider chain + circuit breaker, DLR webhook, EN/SW templates |
 | 5 Offline fixes | **done 2026-11-12 (P5.1–P5.4)** | catch-up sweep, Android resume/connectivity/sync/replay refresh, web visibility/focus/online; P5.5 deferred |
-| 6 Hardening/rollout | not started | needs live provider |
+| 6 Hardening/rollout | **next** | live E2E/rollout; needs the purchased sender ID |
 
 ---
 
@@ -530,16 +564,79 @@ failures log the provider reason without a phone number; skips log at debug with
 credential is logged. Cost report template (per school per term, fill from the console):
 `school | term | budget KES | used KES | SMS sent | SMS failed | per 1,000 absence events | low-balance?`.
 
-**Residuals.** Live delivery still needs the purchased HostPinnacle sender ID (P1.6/P6.1); Phase 4 owns read-ack
-fallback, the optional risk threshold, provider fallback chain and DLR/delivery proof; the push delivery ledger
-remains deferred (D6). Web opt-in waits for a guardian surface. One product boundary to state plainly: under F9 the
+**Residuals.** Live delivery still needs the purchased HostPinnacle sender ID (P1.6/P6.1). Phase 4 has since
+implemented read-ack fallback, the family digest, the optional risk threshold, the provider fallback chain and the
+DLR/delivery proof (§15); the push delivery ledger remains deferred (D6). Web opt-in waits for a guardian
+surface. One product boundary to state plainly: under F9 the
 paid channel can only reach a FULL account with a phone, so a family with no smartphone (a ROSTER_ONLY learner) is
 not an attendance subject and cannot be reached by SMS yet; reaching those families needs a school-level
 guardian-phone channel outside the account model, which is a separate product decision for Phase 4/6.
 
 ---
 
-*Plan first written with no source changes. Phase 1 has since landed code: `PhoneVerificationProperties.Hostpinnacle`,
-`HostpinnacleSmsNotifier`, the `app.auth.phone-verification.hostpinnacle` config block, provider wire tests and
-`PhoneNumbersTest`; `phone_verification.md` and this plan were updated with the real provider evidence and locked
-decisions. No migration or client change was needed.*
+## 15. Phase 4 implementation notes (P4.1–P4.6)
+
+**Read-ack fallback (P4.1).** `AttendanceSmsPolicy` no longer skips every token holder. It looks up the
+recipient's today `ATTENDANCE` notifications (metadata `studentId`) and decides: any read row →
+`PUSH_ALREADY_READ` (no SMS); all unread and the oldest is younger than `read-ack-minutes` →
+`AWAITING_READ_ACK` (no row, no cost, the next sweep decides again); unread past the window, or no row at
+all (the push was never attempted: preference off, fan-out failure) → the SMS fallback applies. Setting
+`ATTENDANCE_SMS_READ_ACK_ENABLED=false` restores the Phase 3 `HAS_PUSH_TOKEN` skip for a strictly
+cheaper rollout. Note this deliberately raises cost versus Phase 3; the budget, consent, phone and subscription
+gates still apply, and the digest/sibling merge and budget cap bound the damage.
+
+**Family digest (P4.2).** The worker first classifies every absent record into a per-(school, phone) group, then
+reserves **one** paid message for the family and a `MERGED` row (zero units, zero cost, no provider call) for
+every extra sibling record, all in one transaction. Budget is drawn once. `AttendanceSmsPolicy.digestMessage`
+renders the digest template and drops trailing names plus "+N more" until the text fits one GSM-7 segment. The
+ledger therefore keeps a per-record audit trail without buying a second message.
+
+**Risk threshold (P4.3/D3, default off).** For token-holder fallbacks only, `risk-threshold-enabled` requires
+either a run of consecutive ABSENT register rows (today included, a PRESENT/LATE breaks the run) or term
+attendance at/below `risk-term-attendance-percent` (`AttendanceTerm` buckets, EXCUSED excluded). A
+guardian with no app is **never** risk-gated: SMS is their only channel.
+
+**Provider chain (P4.4).** `SmsGatewayChain` (in `api/sms`) takes the ordered gateways from
+`AttendanceSmsGateway` (primary = `ATTENDANCE_SMS_PROVIDER` or the OTP provider, then
+`ATTENDANCE_SMS_FALLBACK_PROVIDERS`). Only a provider that threw is skipped; a success is never retried, so a
+timeout after provider acceptance can theoretically duplicate a message — that is why the fallback list is
+empty by default and why OTP does not use the chain. A per-provider circuit opens after
+`circuit-failure-threshold` consecutive failures for `circuit-open-seconds` (half-open afterwards).
+Micrometer counters: `brainbox.sms.sent`, `brainbox.sms.failures`, `brainbox.sms.skipped`
+(reason=circuit_open), `brainbox.sms.circuit` (state=open). The dispatch row records the provider that
+actually accepted the message.
+
+**DLR webhook (P4.5).** V14 adds `delivered_at`, `dlr_status` and `dlr_received_at` plus a
+provider-message-id index. `POST /webhooks/sms/dlr` is public in the security chain but authenticated by
+`X-SMS-DLR-Secret` (constant-time compare; blank secret → 404, wrong secret → 401). The parser accepts JSON
+or form-encoded bodies and finds the message id/status by normalised key names at depth ≤3 (the real
+HostPinnacle DLR body has not been observed yet); `DELIVERED` sets `delivered_at` once, a replay with
+the same status is a no-op, an unknown message id is acknowledged with 200 so the provider stops retrying. The
+console/school ledger exposes the three fields. No phone number is logged.
+
+**Templates and consent copy (P4.6).** `ATTENDANCE_SMS_LANGUAGE=EN|SW` selects the pair; all four strings
+are ASCII-only (GSM-7), sanitised, whitespace-collapsed and capped at 160 chars, so one segment per message.
+Consent copy shipped with the client toggle (D2, "opt-in at first use, fallback-only automatic"): *Attendance
+SMS sends one text on a school day only when the app cannot reach you or the alert is still unread, between
+08:00 and 17:00, at most one per family per day; you can turn it off any time in Profile → Notifications; the
+number is used for school alerts only.* Swahili: *SMS ya mahudhurio hutumwa mara moja siku ya shule ikiwa
+programu haikufikia au taarifa haijasomwa, kati ya 08:00 na 17:00, mara moja kwa familia kwa siku; unaweza
+kuizima wakati wowote kwenye Profile → Notifications; namba hutumika kwa taarifa za shule pekee.* Quiet hours
+are 08:00–17:00 school zone, school days only. Privacy note (Kenya DPA 2019 / ODPC): the lawful basis is the
+school's legitimate attendance-safeguarding interest plus the guardian's opt-in; data minimised to the guardian
+phone, learner name, date and school; the dispatch ledger is retained for the audit period and phone numbers
+are masked in every surface and log; consent evidence is `user_settings.attendance_sms_consent_at`, never
+erased.
+
+**Residuals.** The live HostPinnacle DLR contract and sender ID are still unobserved (P1.6/P6.1); the chain's
+duplicate-on-timeout caveat stands; the risk threshold needs real P0.3 measurements before it is switched on;
+the read-ack path costs more than Phase 3 by design and should be watched against the ≤400 SMS/1,000 absence
+events target in the first pilot week; P5.5 (push delivery ledger) remains deferred per D6.
+
+---
+
+*Plan first written with no source changes. Phases 1–5 have since landed code: the HostPinnacle/AT/Beem shared
+gateway (`api/sms`), V12/V13/V14, `AttendanceRecipientPolicy`, the guarded SMS policy/worker/ledger/
+budget, the read-ack/digest/risk/chain/DLR refinements, and the Android opt-in plus offline refresh.
+`phone_verification.md` and this plan were updated with real provider evidence and locked decisions; no
+client change was needed for Phase 4.*

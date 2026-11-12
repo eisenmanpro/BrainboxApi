@@ -32,14 +32,20 @@ clear `phone_verified_at` whenever a phone number changes. Decision, provider re
 
 ## Attendance notifications and the guarded SMS fallback (dormant by default)
 
-Attendance fan-out is in-app + push for every non-deactivated account (D1). The paid SMS fallback is Phase 3 and
+Attendance fan-out is in-app + push for every non-deactivated account (D1). The paid SMS fallback is
 **off by default** (`app.attendance.sms.enabled=false`); when enabled it is ABSENT-only, after register close
-(10:30 school zone, Mon–Fri quiet window), D1 subscription-eligible, verified-phone only, D2 explicit opt-in, sent
-only to a recipient with **no active push token**, at most one per family/phone per day (a legacy PARENT alias and
-the learner account are one family inbox — never send to both), and drawn from a KES 2,000/school/term allocation
-that stops SMS at zero while push/in-app continue. The one-message-per-record unique row is the exactly-once
-guard; there is no automatic retry. OTP and attendance share the `com.afrithecus.brainbox.api.sms` gateway
-classes. Ledger: `/admin/console/sms/**` (platform) and `/school/attendance-sms/**` (own school). Contract,
-rule order, config keys and cost template:
-[docs/sms_and_attendance_notifications_plan.md](docs/sms_and_attendance_notifications_plan.md) §6/§14. Live
+(10:30 school zone, Mon–Fri quiet window), D1 subscription-eligible, verified-phone only, D2 explicit opt-in,
+at most one per family/phone/day (a legacy PARENT alias and the learner account are one family inbox — never
+send to both), and drawn from a KES 2,000/school/term allocation that stops SMS at zero while push/in-app
+continue. Phase 4 refines the capability gate: a recipient with an active push token is not skipped outright;
+the SMS waits until the in-app absence row is unread for `read-ack-minutes` (default 20; a read row cancels,
+no row means the push was never attempted and the fallback applies), a family digest lists every absent sibling
+in the one paid message (extra records keep a zero-cost `MERGED` ledger row), an optional risk threshold
+(default off) can require a consecutive-absence/term-attendance signal, and delivery may fall to configured
+fallback providers through a circuit breaker. There is no automatic retry. Provider DLRs arrive at
+`POST /webhooks/sms/dlr` (shared secret, blank disables it) and appear on the ledger; EN/SW templates are
+selected by `ATTENDANCE_SMS_LANGUAGE`. OTP and attendance share the `com.afrithecus.brainbox.api.sms`
+gateway classes. Ledger: `/admin/console/sms/**` (platform) and `/school/attendance-sms/**` (own
+school). Contract, rule order, config keys and cost template:
+[docs/sms_and_attendance_notifications_plan.md](docs/sms_and_attendance_notifications_plan.md) §6/§15. Live
 HostPinnacle attendance delivery also waits on the purchased sender ID.

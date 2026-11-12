@@ -10,4 +10,10 @@ enum class AttendanceSmsStatus {
 
     /** The provider rejected it or was unreachable; single attempt, no automatic retry. */
     FAILED,
+
+    /**
+     * P4.2 digest: this record's message was folded into a sibling's single message for the same
+     * phone and day. The row keeps the per-record audit trail; it carries no cost or provider call.
+     */
+    MERGED,
 }

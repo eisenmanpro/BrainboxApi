@@ -20,4 +20,7 @@ interface AttendanceSmsDispatchRepository : JpaRepository<AttendanceSmsDispatchE
     fun countBySchoolIdAndCreatedAtBetween(schoolId: UUID, from: Instant, to: Instant): Long
 
     fun findAllByCreatedAtBetweenOrderByCreatedAtDesc(from: Instant, to: Instant): List<AttendanceSmsDispatchEntity>
+
+    /** P4.5: a delivery report names the provider's message id, not our dispatch id. */
+    fun findByProviderMessageId(providerMessageId: String): AttendanceSmsDispatchEntity?
 }

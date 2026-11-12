@@ -26,6 +26,10 @@ data class AttendanceSmsDispatchView(
     val phoneMasked: String,
     val costKes: String,
     val error: String?,
+    /** P4.5: provider delivery report, when the provider sends one. */
+    val deliveredAt: Long? = null,
+    val dlrStatus: String? = null,
+    val dlrReceivedAt: Long? = null,
 )
 
 /** Platform console: set a school's term allocation. */

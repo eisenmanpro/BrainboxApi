@@ -85,6 +85,9 @@ class SecurityConfig(
                         // WebSocket handshakes authenticate themselves in the
                         // LiveSignalingHandshakeInterceptor (Bearer token).
                         "/ws/**",
+                        // SMS delivery reports: the provider cannot present a bearer token; the
+                        // shared secret is checked with a constant-time comparison in the service.
+                        "/webhooks/sms/**",
                     ).permitAll()
                     // Public reads: school directory, news feed/article, hosted media.
                     .requestMatchers(

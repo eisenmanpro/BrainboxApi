@@ -149,6 +149,9 @@ class AttendanceSmsAdminService(
                 phoneMasked = mask(row.phoneNumber),
                 costKes = money(row.costKes),
                 error = row.error,
+                deliveredAt = row.deliveredAt?.toEpochMilli(),
+                dlrStatus = row.dlrStatus,
+                dlrReceivedAt = row.dlrReceivedAt?.toEpochMilli(),
             )
         }
     }

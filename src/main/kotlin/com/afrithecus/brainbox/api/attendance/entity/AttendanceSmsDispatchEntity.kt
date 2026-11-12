@@ -8,6 +8,7 @@ import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Table
 import java.math.BigDecimal
+import java.time.Instant
 import java.util.UUID
 
 /**
@@ -53,4 +54,16 @@ class AttendanceSmsDispatchEntity : BaseEntity() {
 
     @Column(name = "cost_kes", nullable = false, precision = 12, scale = 2)
     var costKes: BigDecimal = BigDecimal.ZERO
+
+    /** P4.5: first delivery report from the provider; null when the provider sends none. */
+    @Column(name = "delivered_at")
+    var deliveredAt: Instant? = null
+
+    /** P4.5: last normalised DLR status (DELIVERED/FAILED/UNKNOWN); display-only. */
+    @Column(name = "dlr_status", length = 32)
+    var dlrStatus: String? = null
+
+    /** P4.5: when the last delivery report arrived; the idempotency marker for replays. */
+    @Column(name = "dlr_received_at")
+    var dlrReceivedAt: Instant? = null
 }

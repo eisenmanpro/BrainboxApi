@@ -90,6 +90,28 @@ app:
       require-verified-phone: ${ATTENDANCE_SMS_REQUIRE_VERIFIED_PHONE:true}
       # Plain GSM-7, under 160 chars: {learner}, {date}, {school}.
       message-template: "${ATTENDANCE_SMS_MESSAGE_TEMPLATE:BRAINBOX: {learner} was marked absent on {date}. Contact the school if this is wrong.}"
+      # Phase 4 (docs/sms_and_attendance_notifications_plan.md section 15).
+      # P4.1: for a guardian with a working push token, defer the SMS until the in-app row has been
+      # unread for read-ack-minutes. Off restores the Phase 3 "token holders never get SMS" rule.
+      read-ack-enabled: ${ATTENDANCE_SMS_READ_ACK_ENABLED:true}
+      read-ack-minutes: ${ATTENDANCE_SMS_READ_ACK_MINUTES:20}
+      # P4.2: one message per family lists every absent sibling instead of only the first.
+      digest-enabled: ${ATTENDANCE_SMS_DIGEST_ENABLED:true}
+      # P4.3 (D3, default off): token-holder fallbacks additionally need a risk signal.
+      risk-threshold-enabled: ${ATTENDANCE_SMS_RISK_THRESHOLD_ENABLED:false}
+      risk-min-consecutive-absences: ${ATTENDANCE_SMS_RISK_MIN_CONSECUTIVE_ABSENCES:2}
+      risk-term-attendance-percent: ${ATTENDANCE_SMS_RISK_TERM_ATTENDANCE_PERCENT:90}
+      # P4.4: ordered fallback gateways after the primary; empty keeps a single provider.
+      fallback-providers: ${ATTENDANCE_SMS_FALLBACK_PROVIDERS:}
+      circuit-failure-threshold: ${ATTENDANCE_SMS_CIRCUIT_FAILURE_THRESHOLD:3}
+      circuit-open-seconds: ${ATTENDANCE_SMS_CIRCUIT_OPEN_SECONDS:120}
+      # P4.5: shared secret for the provider delivery-report webhook; blank disables it (404).
+      dlr-secret: ${ATTENDANCE_SMS_DLR_SECRET:}
+      # P4.6: EN (default) or SW template pair; both are ASCII-only single segments.
+      language: ${ATTENDANCE_SMS_LANGUAGE:EN}
+      message-template-sw: "${ATTENDANCE_SMS_MESSAGE_TEMPLATE_SW:BRAINBOX: {learner} hakuwepo shuleni {date}. Wasiliana na shule ikiwa si sahihi.}"
+      digest-template: "${ATTENDANCE_SMS_DIGEST_TEMPLATE:BRAINBOX: {learners} were absent on {date}. Contact the school if this is wrong.}"
+      digest-template-sw: "${ATTENDANCE_SMS_DIGEST_TEMPLATE_SW:BRAINBOX: {learners} hawakuwepo shuleni {date}. Wasiliana na shule ikiwa si sahihi.}"
       scan-initial-delay-ms: ${ATTENDANCE_SMS_SCAN_INITIAL_DELAY_MS:600000}
       scan-ms: ${ATTENDANCE_SMS_SCAN_MS:600000}
   # Adaptive-difficulty ONNX model distribution. The operator drops the model file on

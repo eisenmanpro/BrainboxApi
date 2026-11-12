@@ -21,6 +21,9 @@ import com.afrithecus.brainbox.api.identity.model.SubscriptionStatus
 import com.afrithecus.brainbox.api.identity.model.SubscriptionTier
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
+import com.afrithecus.brainbox.api.notification.entity.NotificationEntity
+import com.afrithecus.brainbox.api.notification.model.NotificationType
+import com.afrithecus.brainbox.api.notification.model.NotificationUrgency
 import com.afrithecus.brainbox.api.notification.repository.NotificationRepository
 import com.afrithecus.brainbox.api.profile.entity.UserSettingsEntity
 import com.afrithecus.brainbox.api.profile.repository.UserSettingsRepository
@@ -29,6 +32,8 @@ import com.afrithecus.brainbox.api.push.entity.DeviceTokenEntity
 import com.afrithecus.brainbox.api.push.repository.DeviceTokenRepository
 import com.afrithecus.brainbox.api.subscription.entity.SubscriptionEntity
 import com.afrithecus.brainbox.api.subscription.repository.SubscriptionRepository
+import jakarta.persistence.EntityManager
+import jakarta.persistence.PersistenceContext
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -78,6 +83,7 @@ class AttendanceSmsDispatchTests(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val dispatchService: AttendanceSmsDispatchService,
+    @Autowired private val smsPolicy: AttendanceSmsPolicy,
     @Autowired private val users: UserRepository,
     @Autowired private val schools: SchoolRepository,
     @Autowired private val classes: TeacherClassRepository,
@@ -90,6 +96,10 @@ class AttendanceSmsDispatchTests(
     @Autowired private val notifications: NotificationRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
 ) {
+
+    @Autowired
+    @PersistenceContext
+    private lateinit var entityManager: EntityManager
 
     private val zone: ZoneId = ZoneId.of("Africa/Nairobi")
     private val day: LocalDate = LocalDate.now(zone)
@@ -212,13 +222,14 @@ class AttendanceSmsDispatchTests(
 
     @Test
     fun `capability consent subscription and verification each block the paid channel`() {
-        // A working app: push already covers this guardian.
+        // A working app whose absence push was read: Phase 4 read-ack cancels the paid message.
         val withApp = learner()
         deviceTokens.save(DeviceTokenEntity().apply {
             userId = withApp.id
             token = UUID.randomUUID().toString()
             platform = "ANDROID"
         })
+        attendanceNotification(withApp, read = true)
         absentRow(withApp)
         check(dispatchService.dispatchDue(now) == 0)
 
@@ -264,7 +275,94 @@ class AttendanceSmsDispatchTests(
         absentRow(second)
 
         check(dispatchService.dispatchDue(now) == 1)
-        check(dispatches.findAll().single().phoneNumber == parent.phoneNumber)
+        val rows = dispatches.findAll()
+        check(rows.size == 2) { "one paid row plus one MERGED audit row per extra sibling" }
+        val sent = rows.single { it.status == AttendanceSmsStatus.SENT }
+        val merged = rows.single { it.status == AttendanceSmsStatus.MERGED }
+        check(sent.phoneNumber == parent.phoneNumber)
+        check(merged.phoneNumber == parent.phoneNumber)
+        check(merged.costKes.compareTo(BigDecimal.ZERO) == 0)
+        val budget = budgets.findBySchoolIdAndTermLabel(school.id, term())!!
+        check(budget.unitsSent == 1) { "a digest bills one unit, not one per child" }
+        check(budget.usedKes.compareTo(BigDecimal("0.20")) == 0)
+    }
+
+    // ---------------------------------------------------------------- Phase 4 read-ack
+
+    @Test
+    fun `unread push past the ack window buys exactly one fallback SMS`() {
+        val learner = learner()
+        deviceTokens.save(DeviceTokenEntity().apply {
+            userId = learner.id
+            token = UUID.randomUUID().toString()
+            platform = "ANDROID"
+        })
+        attendanceNotification(learner, read = false, createdAt = now.minusSeconds(3600))
+        absentRow(learner)
+
+        check(dispatchService.dispatchDue(now) == 1)
+        check(dispatches.findAll().single().status == AttendanceSmsStatus.SENT)
+    }
+
+    @Test
+    fun `a push read before the sweep cancels the paid fallback`() {
+        val learner = learner()
+        deviceTokens.save(DeviceTokenEntity().apply {
+            userId = learner.id
+            token = UUID.randomUUID().toString()
+            platform = "ANDROID"
+        })
+        attendanceNotification(learner, read = true, createdAt = now.minusSeconds(3600))
+        absentRow(learner)
+
+        check(dispatchService.dispatchDue(now) == 0)
+        check(dispatches.findAll().isEmpty())
+    }
+
+    @Test
+    fun `a fresh unread push defers the fallback to a later sweep`() {
+        val learner = learner()
+        deviceTokens.save(DeviceTokenEntity().apply {
+            userId = learner.id
+            token = UUID.randomUUID().toString()
+            platform = "ANDROID"
+        })
+        attendanceNotification(learner, read = false, createdAt = now.minusSeconds(60))
+        val record = absentRow(learner)
+        val dayStart = day.atStartOfDay(zone).toInstant()
+        val dayEnd = day.plusDays(1).atStartOfDay(zone).toInstant()
+        val found = notifications.findAllByUserIdAndTypeAndCreatedAtBetweenOrderByCreatedAtAsc(
+            learner.id, NotificationType.ATTENDANCE, dayStart, dayEnd,
+        )
+        check(found.size == 1) { "query found " + found.size + " rows; createdAt=" + found.firstOrNull()?.createdAt + " now=" + now }
+        val decision = smsPolicy.decide(learner, learner, record, now)
+        check(decision.skipReason == AttendanceSmsPolicy.SkipReason.AWAITING_READ_ACK) {
+            "policy said " + decision.skipReason + " eligible=" + decision.eligible + " createdAt=" + found.first().createdAt
+        }
+        check(dispatchService.dispatchDue(now) == 0)
+        check(dispatches.findAll().isEmpty())
+    }
+
+    private fun attendanceNotification(learner: UserEntity, read: Boolean, createdAt: Instant = now.minusSeconds(3600)) {
+        val row = notifications.save(NotificationEntity().apply {
+            userId = learner.id
+            title = "Absence Alert: " + learner.name
+            message = learner.name + " was marked absent"
+            type = NotificationType.ATTENDANCE
+            urgency = NotificationUrgency.URGENT
+            isRead = read
+            readAt = if (read) createdAt else null
+            metadata = "{\"studentId\":\"" + learner.id + "\"}"
+        })
+        // The base entity stamps created_at on insert, so age the row through SQL for the window test.
+        entityManager.flush()
+        // OffsetDateTime (not java.sql.Timestamp) keeps the instant unambiguous in H2's
+        // TIMESTAMP WITH TIME ZONE column; a Timestamp parameter is re-interpreted in the JVM zone.
+        entityManager.createNativeQuery("update notifications set created_at = :ts where id = :id")
+            .setParameter("ts", java.time.OffsetDateTime.ofInstant(createdAt, zone))
+            .setParameter("id", row.id)
+            .executeUpdate()
+        entityManager.refresh(row)
     }
 
     @Test

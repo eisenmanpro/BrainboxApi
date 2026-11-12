@@ -16,6 +16,12 @@ interface AttendanceRecordRepository : JpaRepository<AttendanceRecordEntity, UUI
 
     fun findAllByStudentIdOrderByAttendanceDateDesc(studentId: UUID): List<AttendanceRecordEntity>
 
+    fun findAllByStudentIdAndAttendanceDateBetween(
+        studentId: UUID,
+        start: LocalDate,
+        end: LocalDate,
+    ): List<AttendanceRecordEntity>
+
     fun findAllByClassIdAndAttendanceDateBetween(classId: UUID, start: LocalDate, end: LocalDate): List<AttendanceRecordEntity>
 
     fun findAllByStudentIdInAndAttendanceDateBetween(studentIds: Collection<UUID>, start: LocalDate, end: LocalDate): List<AttendanceRecordEntity>

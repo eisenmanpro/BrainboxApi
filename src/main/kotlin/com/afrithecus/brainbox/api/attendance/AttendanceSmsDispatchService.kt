@@ -18,7 +18,6 @@ import com.afrithecus.brainbox.api.notification.model.NotificationPriority
 import com.afrithecus.brainbox.api.notification.model.NotificationType
 import com.afrithecus.brainbox.api.notification.model.NotificationUrgency
 import com.afrithecus.brainbox.api.sms.AttendanceSmsGateway
-import com.afrithecus.brainbox.api.sms.SmsGateway
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -31,15 +30,22 @@ import java.time.ZoneId
 import java.util.UUID
 
 /**
- * Attendance SMS dispatch worker (P3.4). Scans today's ABSENT rows after register close,
- * classifies each recipient through [AttendanceSmsPolicy], reserves budget and a dispatch row
- * transactionally, then makes one provider attempt outside the transaction and records the
- * outcome. Nothing here is called from register submit: a provider outage can never fail a
- * teacher's register, and the scheduler catches every exception.
+ * Attendance SMS dispatch worker (P3.4) extended by Phase 4:
+ *
+ *  - P4.1 read-ack: the policy decides when a push token holder's unread row justifies a fallback
+ *  - P4.2 digest: all absent children of one family/phone/school are listed in one paid message;
+ *    the extra records keep a MERGED ledger row with no cost and no provider call
+ *  - P4.4 chain: delivery may move to a fallback provider; the row records the provider that
+ *    actually accepted the message
+ *
+ * Scans today's ABSENT rows after register close, classifies each recipient through
+ * [AttendanceSmsPolicy], reserves budget and the dispatch rows transactionally, then makes one
+ * delivery attempt outside the transaction. Nothing here is called from register submit: a
+ * provider outage can never fail a teacher's register, and the scheduler catches every exception.
  *
  *  - exactly-once: the unique (record, recipient) dispatch row plus the phone/day check
- *  - one per phone per day: a guardian shared by siblings receives at most one message today
- *  - budget: drawn down in the reservation transaction, never below zero
+ *  - one paid message per phone per day; siblings are merged into it
+ *  - budget: drawn down once per paid message, never below zero
  *  - no retry: a failed attempt stays FAILED; a duplicate SMS costs money and is not safe
  */
 @Service
@@ -55,7 +61,7 @@ class AttendanceSmsDispatchService(
     private val notificationService: NotificationService,
     private val transactionTemplate: TransactionTemplate,
     private val clock: Clock,
-    @Value("\${app.school-zone:Africa/Nairobi}") schoolZoneId: String,
+    @Value("\${app.school-zone:Africa/Nairobi}") private val schoolZoneId: String,
 ) {
 
     private val zone: ZoneId = ZoneId.of(schoolZoneId)
@@ -64,31 +70,35 @@ class AttendanceSmsDispatchService(
     fun dispatchDue(now: Instant = clock.instant()): Int {
         if (!properties.enabled) return 0
         val day = LocalDate.ofInstant(now, zone)
-        var attempted = 0
+        val groups = LinkedHashMap<Pair<UUID, String>, MutableList<Candidate>>()
         for (record in recordRepository.findAllByAttendanceDateAndStatus(day, AttendanceStatus.ABSENT)) {
             val learner = userRepository.findById(record.studentId).orElse(null) ?: continue
-            for (recipient in recipients(learner)) {
-                val decision = policy.decide(learner, recipient, record, now)
-                if (!decision.eligible) {
-                    log.debug(
-                        "Attendance SMS skipped record={} recipient={} reason={}",
-                        record.id,
-                        recipient.id,
-                        decision.skipReason,
-                    )
-                    continue
-                }
-                val phone = decision.phone ?: continue
-                // A unique-index race with another node rolls back only this reservation; the sweep
-                // continues with the next record instead of aborting the whole pass.
-                val reservation = runCatching { reserve(record, learner, recipient, phone, day, now) }
-                    .getOrElse { failure ->
-                        log.warn("Attendance SMS reservation failed record={} reason={}", record.id, failure.message)
-                        null
-                    } ?: continue
-                deliver(reservation)
-                attempted++
+            val recipient = recipients(learner).firstOrNull() ?: continue
+            val decision = policy.decide(learner, recipient, record, now)
+            if (!decision.eligible) {
+                log.debug(
+                    "Attendance SMS skipped record={} recipient={} reason={}",
+                    record.id,
+                    recipient.id,
+                    decision.skipReason,
+                )
+                continue
             }
+            val phone = decision.phone ?: continue
+            val schoolId = record.schoolId ?: learner.schoolId ?: continue
+            groups.getOrPut(schoolId to phone) { mutableListOf() } += Candidate(record, learner, recipient, phone)
+        }
+        var attempted = 0
+        for ((key, group) in groups) {
+            // A unique-index race with another node rolls back only this reservation; the sweep
+            // continues with the next family instead of aborting the whole pass.
+            val reservation = runCatching { reserve(key.first, key.second, group, day, now) }
+                .getOrElse { failure ->
+                    log.warn("Attendance SMS reservation failed family={} reason={}", key.second, failure.message)
+                    null
+                } ?: continue
+            deliver(reservation)
+            attempted++
         }
         return attempted
     }
@@ -104,20 +114,25 @@ class AttendanceSmsDispatchService(
         return listOf(alias ?: learner)
     }
 
+    /**
+     * P4.2: reserves one paid message for the family/phone/day and a MERGED row for every extra
+     * sibling record, in one transaction. The budget is drawn once; replay of the same group finds
+     * the rows and does nothing.
+     */
     private fun reserve(
-        record: AttendanceRecordEntity,
-        learner: UserEntity,
-        recipient: UserEntity,
+        schoolId: UUID,
         phone: String,
+        group: List<Candidate>,
         day: LocalDate,
         now: Instant,
     ): Reservation? = transactionTemplate.execute<Reservation?> {
-        if (dispatchRepository.existsByAttendanceRecordIdAndRecipientUserId(record.id, recipient.id)) {
-            return@execute null
+        val remaining = group.filter { candidate ->
+            !dispatchRepository.existsByAttendanceRecordIdAndRecipientUserId(
+                candidate.record.id,
+                candidate.recipient.id,
+            ) && isStillAbsent(candidate.record.id)
         }
-        // The teacher may have corrected the row between the scan and this reservation.
-        val current = recordRepository.findById(record.id).orElse(null)
-        if (current == null || current.status != AttendanceStatus.ABSENT) return@execute null
+        if (remaining.isEmpty()) return@execute null
 
         val dayStart = day.atStartOfDay(zone).toInstant()
         val dayEnd = day.plusDays(1).atStartOfDay(zone).toInstant()
@@ -125,16 +140,14 @@ class AttendanceSmsDispatchService(
             return@execute null
         }
 
-        val schoolId = record.schoolId ?: learner.schoolId ?: return@execute null
-        val term = AttendanceTerm.label(day)
-        val budget = budgetRepository.findBySchoolIdAndTermLabel(schoolId, term)
+        val budget = budgetRepository.findBySchoolIdAndTermLabel(schoolId, AttendanceTerm.label(day))
             ?: SchoolSmsBudgetEntity().apply {
                 this.schoolId = schoolId
-                this.termLabel = term
+                this.termLabel = AttendanceTerm.label(day)
                 this.budgetKes = properties.budgetDefaultKes
             }
         if (budget.remainingKes < properties.costPerSmsKes) {
-            alertLowBudget(budget, schoolId, term, now)
+            alertLowBudget(budget, schoolId, AttendanceTerm.label(day), now)
             return@execute null
         }
         budget.usedKes = budget.usedKes.add(properties.costPerSmsKes)
@@ -142,24 +155,50 @@ class AttendanceSmsDispatchService(
         budgetRepository.save(budget)
 
         val schoolName = schoolRepository.findById(schoolId).map { it.name }.orElse(null)
-        val dispatch = AttendanceSmsDispatchEntity().apply {
-            this.attendanceRecordId = record.id
-            this.schoolId = schoolId
-            this.learnerId = learner.id
-            this.recipientUserId = recipient.id
-            this.phoneNumber = phone
-            this.status = AttendanceSmsStatus.PENDING
-            this.provider = gateway.gateway().provider
-            this.units = 1
-            this.costKes = properties.costPerSmsKes
+        val names = remaining.map { it.learner.name }.distinct()
+        val message = if (properties.digestEnabled && names.size > 1) {
+            policy.digestMessage(names, day, schoolName)
+        } else {
+            policy.message(remaining.first().learner, day, schoolName)
         }
+        val primaryProvider = gateway.chain().primaryProvider
+        val first = remaining.first()
+        val dispatch = newDispatch(first, schoolId, phone, AttendanceSmsStatus.PENDING, 1, properties.costPerSmsKes, primaryProvider)
         dispatchRepository.saveAndFlush(dispatch)
-        Reservation(dispatch.id, schoolId, phone, policy.message(learner, day, schoolName), dispatch.provider.orEmpty())
+        for (extra in remaining.drop(1)) {
+            dispatchRepository.save(
+                newDispatch(extra, schoolId, phone, AttendanceSmsStatus.MERGED, 0, BigDecimal.ZERO, primaryProvider),
+            )
+        }
+        Reservation(dispatch.id, schoolId, phone, message, primaryProvider)
     }
 
+    private fun newDispatch(
+        candidate: Candidate,
+        schoolId: UUID,
+        phone: String,
+        status: AttendanceSmsStatus,
+        units: Int,
+        costKes: BigDecimal,
+        provider: String,
+    ) = AttendanceSmsDispatchEntity().apply {
+        this.attendanceRecordId = candidate.record.id
+        this.schoolId = schoolId
+        this.learnerId = candidate.learner.id
+        this.recipientUserId = candidate.recipient.id
+        this.phoneNumber = phone
+        this.status = status
+        this.provider = provider
+        this.units = units
+        this.costKes = costKes
+    }
+
+    private fun isStillAbsent(recordId: UUID): Boolean =
+        recordRepository.findById(recordId).orElse(null)?.status == AttendanceStatus.ABSENT
+
     private fun deliver(reservation: Reservation) {
-        val providerId = try {
-            gateway.gateway().send(reservation.phone, reservation.message)
+        val delivery = try {
+            gateway.chain().deliver(reservation.phone, reservation.message)
         } catch (failure: Exception) {
             log.warn(
                 "Attendance SMS failed dispatch={} school={} provider={} reason={}",
@@ -168,20 +207,26 @@ class AttendanceSmsDispatchService(
                 reservation.provider,
                 failure.message,
             )
-            complete(reservation.dispatchId, AttendanceSmsStatus.FAILED, null, failure.message)
+            complete(reservation.dispatchId, AttendanceSmsStatus.FAILED, null, failure.message, null)
             return
         }
         log.info(
             "Attendance SMS sent dispatch={} school={} provider={} providerMessageId={}",
             reservation.dispatchId,
             reservation.schoolId,
-            reservation.provider,
-            providerId,
+            delivery.provider,
+            delivery.messageId,
         )
-        complete(reservation.dispatchId, AttendanceSmsStatus.SENT, providerId, null)
+        complete(reservation.dispatchId, AttendanceSmsStatus.SENT, delivery.messageId, null, delivery.provider)
     }
 
-    private fun complete(dispatchId: UUID, status: AttendanceSmsStatus, providerId: String?, error: String?) {
+    private fun complete(
+        dispatchId: UUID,
+        status: AttendanceSmsStatus,
+        providerId: String?,
+        error: String?,
+        provider: String?,
+    ) {
         transactionTemplate.executeWithoutResult {
             val row = dispatchRepository.findById(dispatchId).orElse(null) ?: return@executeWithoutResult
             // A row that is no longer PENDING was finalised by another node; never overwrite it.
@@ -189,6 +234,7 @@ class AttendanceSmsDispatchService(
             row.status = status
             row.providerMessageId = providerId?.take(160)
             row.error = error?.take(512)
+            if (provider != null) row.provider = provider
             dispatchRepository.save(row)
         }
     }
@@ -230,6 +276,13 @@ class AttendanceSmsDispatchService(
             budget.budgetKes.setScale(2),
         )
     }
+
+    private data class Candidate(
+        val record: AttendanceRecordEntity,
+        val learner: UserEntity,
+        val recipient: UserEntity,
+        val phone: String,
+    )
 
     private data class Reservation(
         val dispatchId: UUID,
