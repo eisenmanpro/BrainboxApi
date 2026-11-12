@@ -439,7 +439,7 @@ HostPinnacle once its sender ID is approved.
 ## 12. Verification and definition of done
 
 **Phase 3 run log — 2026-11-12:** **full server suite 759 tests, 0 failures, 3 skipped** (40m 40s; adds
-`AttendanceSmsPolicyTest` 14 rule cases and `AttendanceSmsDispatchTests` 7 integration cases — exactly-once
+`AttendanceSmsPolicyTest` 13 rule cases and `AttendanceSmsDispatchTests` 7 integration cases — exactly-once
 replay, budget draw-down, submission-time gates, sibling dedupe, exhausted-budget alert, opt-in round-trip,
 console/school endpoints). Focused phone-verification, attendance, profile and new SMS suites green.
 **Android prod unit tests 387/0** (the new fields are defaults, so no fixture churn); **web 93 files / 1,346
