@@ -51,6 +51,7 @@ class UserPayloadFactory(
             createdAt = user.createdAt.toEpochMilli(),
             lastLogin = user.lastLogin?.toEpochMilli(),
             verificationStatus = user.verificationStatus.name,
+            phoneVerified = user.phoneVerifiedAt != null,
         )
         if (user.role != Role.TEACHER) return base
         return base.copy(

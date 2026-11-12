@@ -169,6 +169,35 @@ app:
       # Development only: log the reset code (no SMS/email provider is wired).
       # Production must set AUTH_LOG_OTP=false and plug in a delivery channel.
       log-otp: ${AUTH_LOG_OTP:false}
+    # Phone verification (docs/phone_verification.md): our own OTP delivered over an SMS
+    # gateway. Disabled by default — no SMS is sent and the endpoints answer "not enabled"
+    # until an operator configures a provider. Provider credentials are env-only and never
+    # logged.
+    phone-verification:
+      enabled: ${PHONE_VERIFICATION_ENABLED:false}
+      # logging (dev, no delivery) | africastalking (primary) | beem (pilot/fallback)
+      provider: ${PHONE_VERIFICATION_PROVIDER:logging}
+      # Development only: log the code when the logging provider is active.
+      log-otp: ${PHONE_VERIFICATION_LOG_OTP:false}
+      # Refuse PENDING approvals whose phone is unverified. Off by default (product decision).
+      require-for-approval: ${PHONE_VERIFICATION_REQUIRE_FOR_APPROVAL:false}
+      code-ttl: ${PHONE_VERIFICATION_CODE_TTL:10m}
+      resend-cooldown: ${PHONE_VERIFICATION_RESEND_COOLDOWN:60s}
+      max-attempts: ${PHONE_VERIFICATION_MAX_ATTEMPTS:5}
+      max-requests-per-hour: ${PHONE_VERIFICATION_MAX_REQUESTS_PER_HOUR:5}
+      connect-timeout: 3s
+      request-timeout: 5s
+      africastalking:
+        username: ${AFRICASTALKING_USERNAME:}
+        api-key: ${AFRICASTALKING_API_KEY:}
+        sender-id: ${AFRICASTALKING_SENDER_ID:}
+        # Sandbox: https://api.sandbox.africastalking.com/version1/messaging (whitelisted numbers only)
+        base-url: ${AFRICASTALKING_BASE_URL:https://api.africastalking.com/version1/messaging}
+      beem:
+        api-key: ${BEEM_API_KEY:}
+        secret: ${BEEM_SECRET:}
+        sender-id: ${BEEM_SENDER_ID:}
+        base-url: ${BEEM_BASE_URL:https://apisms.beem.africa/v1/send}
   reports:
     # Rendered report PDFs, signed-download lifetime, weekly quota and the
     # server-side sync/async thresholds (docs/ongoing/api_reports_changes.md).

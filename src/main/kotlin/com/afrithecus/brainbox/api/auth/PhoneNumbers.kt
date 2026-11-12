@@ -20,4 +20,10 @@ object PhoneNumbers {
         }
         return local.takeIf { KENYAN.matches(it) }
     }
+
+    /** E.164 form (+2547...) for gateways that want a leading plus (Africa's Talking). */
+    fun toE164(raw: String): String? = normalize(raw)?.let { "+254" + it.substring(1) }
+
+    /** International digits without a plus (2547...), the form Beem's API expects. */
+    fun toInternationalDigits(raw: String): String? = toE164(raw)?.removePrefix("+")
 }

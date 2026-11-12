@@ -369,6 +369,7 @@ class AdminSchoolService(
                     schoolName = school.name,
                     requestedRole = it.role.name,
                     status = it.verificationStatus.name,
+                    phoneVerified = it.phoneVerifiedAt != null,
                 )
             }
     }

@@ -163,4 +163,27 @@ class TeacherSettingsWebTests(
         mockMvc.perform(get("/teacher/settings").header("Authorization", auth(token(student))))
             .andExpect(status().isForbidden)
     }
+
+    @Test
+    fun `changing the phone clears an existing verification`() {
+        val school = SchoolEntity().apply { name = "Phone Change School"; isActive = true }
+        schoolRepository.save(school)
+        val teacher = teacher("0755080010", school.id).apply {
+            phoneVerifiedAt = java.time.Instant.now()
+        }
+        userRepository.save(teacher)
+        val t = token(teacher)
+        val profile = objectMapper.readValue(
+            mockMvc.perform(get("/teacher/profile").header("Authorization", auth(t)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            TeacherProfilePayload::class.java,
+        )
+        mockMvc.perform(put("/teacher/profile").header("Authorization", auth(t))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(profile.copy(phoneNumber = "0755080011"))))
+            .andExpect(status().isOk)
+        check(userRepository.findById(teacher.id).orElseThrow().phoneVerifiedAt == null) {
+            "a changed phone must not stay verified"
+        }
+    }
 }

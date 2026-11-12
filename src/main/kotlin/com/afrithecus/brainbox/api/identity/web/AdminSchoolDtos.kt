@@ -61,6 +61,8 @@ data class UserApprovalRequestPayload(
     val schoolName: String,
     val requestedRole: String,
     val status: String,
+    /** Lets the admin see whether the account's phone already passed the OTP check. */
+    val phoneVerified: Boolean = false,
 )
 
 data class SystemSettingsPayload(

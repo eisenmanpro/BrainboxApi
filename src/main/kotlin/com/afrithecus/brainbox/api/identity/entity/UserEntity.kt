@@ -88,6 +88,14 @@ class UserEntity : BaseEntity() {
     @Column(name = "last_login")
     var lastLogin: Instant? = null
 
+    /**
+     * When the account's own phone number completed the OTP challenge
+     * (docs/phone_verification.md). NULL means never verified; it blocks nothing while
+     * app.auth.phone-verification.require-for-approval is off.
+     */
+    @Column(name = "phone_verified_at")
+    var phoneVerifiedAt: Instant? = null
+
     /** FULL accounts can log in; ROSTER_ONLY records are teacher-provisioned and cannot. */
     @Enumerated(EnumType.STRING)
     @Column(name = "account_kind", nullable = false, length = 16)

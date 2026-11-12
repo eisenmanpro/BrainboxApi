@@ -1,9 +1,10 @@
 # Phone verification — provider research and decision
 
-**Status: DECIDED (providers), NOT IMPLEMENTED (code).** This record supersedes the "Google phone verification"
-residual wording in the F9 audit and in [account_unification.md](account_unification.md). Owner decision (this pass):
-record the research, then proceed with **Africa's Talking** as the primary SMS provider and **Beem** as the
-pilot/fallback.
+**Status: IMPLEMENTED (code, tested), DORMANT by default (provider activation pending).** This record supersedes the
+"Google phone verification" residual wording in the F9 audit and in [account_unification.md](account_unification.md).
+Owner decision: **Africa's Talking** is the primary SMS provider and **Beem** the pilot/fallback. The verifier code,
+clients and tests shipped; nothing is sent or enforced until an operator configures credentials and flips the flag
+(see "Activation checklist").
 
 Recorded: 2026-11-12. Prices were checked live against provider pages during the research pass and are indicative only.
 
@@ -30,10 +31,12 @@ Recorded: 2026-11-12. Prices were checked live against provider pages during the
 
 ## Current state (honest)
 
-No verifier code exists today: no endpoint, no challenge table, no users.phone_verified_at column, no notifier, no config
-flag. The phone is stored canonically in 07xxxxxxxx form on both signup paths, and phone editing is not offered by the
-profile update contract, so there is no re-verification-on-change path yet. No user-facing screen claims a phone is
-verified, so there is no false claim to unwind (D15 is clean).
+The slice is implemented and dormant: the endpoint, challenge table, users.phone_verified_at column, notifier seam and
+default-off config flag exist; the Android and web cards are hidden while the flag is off. No account is marked verified
+by this change (the column is NULL for every existing row), and no screen claims a phone is verified until the server
+records it, so there is no false claim to unwind (D15 stays clean). The phone is stored canonically in 07xxxxxxxx form on
+both signup paths, and phone editing is not offered by the profile update contract, so there is no
+re-verification-on-change path yet - if phone editing is added, it must clear phone_verified_at.
 
 ## Architecture options considered
 
@@ -80,7 +83,27 @@ verification fails).
 At a realistic school-signup volume (hundreds/month), Twilio's absolute cost is not catastrophic, but it is the same
 outcome for ~45–60x the price, and local routing is better within Kenya.
 
-## Implementation plan (when activated)
+## Implementation (as built)
+
+- **Server:** V12__phone_verification.sql adds users.phone_verified_at and phone_verification_challenges (hashed
+  code, attempts, sent_at, expires_at, consumed). PhoneVerificationService owns the OTP lifecycle (6 digits, 10-minute
+  TTL, 5 attempts, 60-second resend cooldown, 5 requests/hour, per-account throttle, single use, supersede on resend).
+  PhoneVerificationController exposes the authenticated endpoints below; PhoneVerificationNotifier has logging,
+  Africa's Talking and Beem implementations selected by config; IdentityAdminService enforces the opt-in approval gate;
+  phoneVerified rides in /auth/me and the school approval list; a daily scheduler prunes expired rows. Tests:
+  PhoneVerificationWebTests, PhoneVerificationRateLimitTests, PhoneVerificationDisabledWebTests,
+  PhoneVerificationApprovalTests and PhoneVerificationProviderTests (a real local HTTP server pins both provider wire
+  formats).
+- **Endpoints:** GET /auth/phone/verification (status), POST /auth/phone/verification/request, and
+  POST /auth/phone/verification/confirm {code}. Writes answer 503 while the flag is off.
+- **Android:** PhoneVerificationCard on the learner pending screen and the teacher waiting screen, backed by
+  PhoneVerificationViewModel + PhoneVerificationRepository; hidden when the server says the feature is off.
+- **Web:** the same server-authoritative card on the teacher profile-edit settings page (the web has no learner
+  surface).
+- **Known limitation:** `GET /auth/phone/verification` exposes `resendAfterSeconds` but not whether a code is still
+  live. After the 60-second cooldown elapses, clients show "Send code" again even though the previous code remains
+  valid until its 10-minute TTL; a new request supersedes it, so this is safe but a live code entry is not restored
+  after a reload. A `codeSent`/`expiresAt` field is the follow-up (also recorded in the web's `assumptions.md`).
 
 Server (Spring Boot, BrainboxApi-master):
 

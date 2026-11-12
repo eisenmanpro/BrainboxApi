@@ -4,7 +4,9 @@ import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
+import com.afrithecus.brainbox.api.auth.PhoneNumbers
 import com.afrithecus.brainbox.api.common.error.conflict
+import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.exams.QuestionCodec
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
@@ -98,12 +100,19 @@ class TeacherSettingsService(
 
         val name = request.name.trim()
         if (name.isNotEmpty()) teacher.name = name
-        val phone = request.phoneNumber.trim()
-        if (phone.isNotEmpty() && phone != teacher.phoneNumber) {
-            if (userRepository.existsByPhoneNumber(phone)) {
-                throw conflict("Another account already uses this phone number")
+        val phoneRaw = request.phoneNumber.trim()
+        if (phoneRaw.isNotEmpty()) {
+            // One canonical Kenyan format, like signup: the verification flow and login must agree.
+            val phone = PhoneNumbers.normalize(phoneRaw)
+                ?: throw invalidArgument("phoneNumber is not a valid Kenyan phone number")
+            if (phone != teacher.phoneNumber) {
+                if (userRepository.existsByPhoneNumber(phone)) {
+                    throw conflict("Another account already uses this phone number")
+                }
+                teacher.phoneNumber = phone
+                // A verified phone that changed is no longer verified (docs/phone_verification.md).
+                teacher.phoneVerifiedAt = null
             }
-            teacher.phoneNumber = phone
         }
         userRepository.save(teacher)
 

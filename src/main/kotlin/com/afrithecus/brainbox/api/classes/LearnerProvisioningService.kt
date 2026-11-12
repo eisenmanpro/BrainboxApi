@@ -116,6 +116,8 @@ class LearnerProvisioningService(
         val requested = request.password?.takeIf { it.isNotBlank() }
         val password = requested ?: generatePassword()
         student.phoneNumber = phone
+        // Being provisioned is not verification: the new number starts unverified.
+        student.phoneVerifiedAt = null
         student.passwordHash = passwordEncoder.encode(password)
             ?: throw IllegalStateException("Password encoding failed")
         student.accountKind = AccountKind.FULL

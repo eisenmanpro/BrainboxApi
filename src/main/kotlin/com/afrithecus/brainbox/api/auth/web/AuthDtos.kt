@@ -89,6 +89,8 @@ data class UserPayload(
     val managedSchoolId: String? = null,
     val verificationStatus: String = "VERIFIED",
     val ctcFrozen: Boolean = false,
+    /** True once the account's own phone number passed the OTP challenge (docs/phone_verification.md). */
+    val phoneVerified: Boolean = false,
 )
 
 data class SubscriptionPayload(

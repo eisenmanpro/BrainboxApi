@@ -278,10 +278,13 @@ class TeacherAuthService(
         }
         request.name?.takeIf { it.isNotBlank() }?.let { target.name = it.trim() }
         request.phoneNumber?.takeIf { it.isNotBlank() }?.let { phone ->
-            val trimmed = phone.trim()
-            if (trimmed != target.phoneNumber) {
-                if (userRepository.existsByPhoneNumber(trimmed)) throw conflict("Another account already uses this phone number")
-                target.phoneNumber = trimmed
+            val normalised = PhoneNumbers.normalize(phone)
+                ?: throw invalidArgument("phoneNumber is not a valid Kenyan phone number")
+            if (normalised != target.phoneNumber) {
+                if (userRepository.existsByPhoneNumber(normalised)) throw conflict("Another account already uses this phone number")
+                target.phoneNumber = normalised
+                // A verified phone that changed is no longer verified (docs/phone_verification.md).
+                target.phoneVerifiedAt = null
             }
         }
         userRepository.save(target)

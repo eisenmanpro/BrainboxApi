@@ -60,6 +60,7 @@ class IdentityAdminService(
     private val passwordEncoder: PasswordEncoder,
     private val userPayloadFactory: UserPayloadFactory,
     private val clock: Clock,
+    private val phoneVerification: com.afrithecus.brainbox.api.auth.PhoneVerificationProperties,
 ) {
 
     // ------------------------------------------------------- user management
@@ -182,6 +183,10 @@ class IdentityAdminService(
                 actor.schoolId != null &&
                 actor.schoolId == user.schoolId
             if (!sameSchool) throw ApiException(ApiErrorCode.FORBIDDEN, "ICT admin access required for this school")
+        }
+        // docs/phone_verification.md: opt-in. Off by default so activation never blocks accounts.
+        if (verified && phoneVerification.requireForApproval && user.phoneVerifiedAt == null) {
+            throw conflict("This account's phone number is not verified yet. Ask the user to verify it before approving.")
         }
         user.isVerified = verified
         user.verificationStatus = if (verified) AccountStatus.VERIFIED else AccountStatus.REJECTED
