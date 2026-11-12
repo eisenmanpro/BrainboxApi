@@ -29,3 +29,17 @@ logging/dormant path. Do not make any UI claim a phone is verified unless `users
 clear `phone_verified_at` whenever a phone number changes. Decision, provider research and activation checklist:
 [docs/phone_verification.md](docs/phone_verification.md) and the phased implementation plan
 [docs/sms_and_attendance_notifications_plan.md](docs/sms_and_attendance_notifications_plan.md).
+
+## Attendance notifications and the guarded SMS fallback (dormant by default)
+
+Attendance fan-out is in-app + push for every non-deactivated account (D1). The paid SMS fallback is Phase 3 and
+**off by default** (`app.attendance.sms.enabled=false`); when enabled it is ABSENT-only, after register close
+(10:30 school zone, Mon–Fri quiet window), D1 subscription-eligible, verified-phone only, D2 explicit opt-in, sent
+only to a recipient with **no active push token**, at most one per family/phone per day (a legacy PARENT alias and
+the learner account are one family inbox — never send to both), and drawn from a KES 2,000/school/term allocation
+that stops SMS at zero while push/in-app continue. The one-message-per-record unique row is the exactly-once
+guard; there is no automatic retry. OTP and attendance share the `com.afrithecus.brainbox.api.sms` gateway
+classes. Ledger: `/admin/console/sms/**` (platform) and `/school/attendance-sms/**` (own school). Contract,
+rule order, config keys and cost template:
+[docs/sms_and_attendance_notifications_plan.md](docs/sms_and_attendance_notifications_plan.md) §6/§14. Live
+HostPinnacle attendance delivery also waits on the purchased sender ID.

@@ -32,6 +32,7 @@ class ProfileService(
     private val teacherProfileRepository: TeacherProfileRepository,
     private val teacherCodeRepository: TeacherCodeRepository,
     private val subscriptionService: SubscriptionService,
+    private val attendanceSms: com.afrithecus.brainbox.api.attendance.AttendanceSmsProperties,
     private val mapper: ObjectMapper,
 ) {
 
@@ -96,6 +97,11 @@ class ProfileService(
         request.pushWeeklyReport?.let { row.pushWeeklyReport = it }
         request.pushBadges?.let { row.pushBadges = it }
         request.smsReportsEnabled?.let { row.smsReportsEnabled = it }
+        request.attendanceSmsOptIn?.let { enabled ->
+            // D2: keep the first acceptance time as consent evidence; turning it off never erases it.
+            if (enabled && !row.attendanceSmsOptIn) row.attendanceSmsConsentAt = java.time.Instant.now()
+            row.attendanceSmsOptIn = enabled
+        }
         request.emailNotificationsEnabled?.let { row.emailNotificationsEnabled = it }
         request.mpesaNumber?.let { row.mpesaNumber = it }
         request.fontSize?.let { row.fontSize = it }
@@ -141,6 +147,11 @@ class ProfileService(
             pushBadges = row.pushBadges,
             smsReportsEnabled = row.smsReportsEnabled,
             emailNotificationsEnabled = row.emailNotificationsEnabled,
+            // Only a guardian-capable account can use the paid channel; staff accounts have no
+            // attendance SMS to opt into, so they never see the toggle.
+            attendanceSmsEnabled = attendanceSms.enabled && (user.role == Role.STUDENT || user.role == Role.PARENT),
+            attendanceSmsOptIn = row.attendanceSmsOptIn,
+            attendanceSmsConsentAt = row.attendanceSmsConsentAt?.toEpochMilli(),
             plan = subscription.tier,
             subscriptionStatus = subscription.status,
             subscriptionExpiry = if (subscription.tier != SubscriptionTier.BASE.name) subscription.expiryDate else null,

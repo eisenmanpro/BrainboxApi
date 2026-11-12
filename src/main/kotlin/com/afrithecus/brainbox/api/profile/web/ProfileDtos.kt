@@ -35,6 +35,10 @@ data class UserSettingsPayload(
     val pushBadges: Boolean,
     val smsReportsEnabled: Boolean,
     val emailNotificationsEnabled: Boolean,
+    /** Phase 3: attendance SMS eligibility/consent, so the client can show the D2 toggle. */
+    val attendanceSmsEnabled: Boolean = false,
+    val attendanceSmsOptIn: Boolean = false,
+    val attendanceSmsConsentAt: Long? = null,
     val plan: String,
     val subscriptionStatus: String,
     val subscriptionExpiry: Long?,
@@ -79,6 +83,8 @@ data class UpdateSettingsRequest(
     val pushBadges: Boolean? = null,
     val smsReportsEnabled: Boolean? = null,
     val emailNotificationsEnabled: Boolean? = null,
+    /** D2 consent for the attendance SMS fallback; setting true records the consent time. */
+    val attendanceSmsOptIn: Boolean? = null,
     @field:Size(max = 32) val mpesaNumber: String? = null,
     @field:Size(max = 16) val fontSize: String? = null,
     val animationsEnabled: Boolean? = null,

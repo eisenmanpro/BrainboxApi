@@ -65,6 +65,33 @@ app:
   attendance:
     routing-grace-days: ${ATTENDANCE_ROUTING_GRACE_DAYS:3}
     escalation-catchup-days: ${ATTENDANCE_ESCALATION_CATCHUP_DAYS:3}
+    # Phase 3 guarded attendance SMS fallback (docs/sms_and_attendance_notifications_plan.md).
+    # Off by default: no scheduler bean and no send until an operator turns it on. A message is
+    # paid for only for an ABSENT row after register close, with D1 subscription eligibility, a
+    # verified phone, D2 opt-in, no working push token, one per phone/day, and budget remaining.
+    sms:
+      enabled: ${ATTENDANCE_SMS_ENABLED:false}
+      # Blank inherits app.auth.phone-verification.provider; set it to move attendance SMS alone
+      # to the fallback gateway (africastalking/beem/logging) without touching OTP.
+      provider: ${ATTENDANCE_SMS_PROVIDER:}
+      send-after: ${ATTENDANCE_SMS_SEND_AFTER:10:30}
+      window-start: ${ATTENDANCE_SMS_WINDOW_START:08:00}
+      window-end: ${ATTENDANCE_SMS_WINDOW_END:17:00}
+      school-days: ${ATTENDANCE_SMS_SCHOOL_DAYS:MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY}
+      # Comma-separated school UUIDs; empty means every school once enabled.
+      school-allowlist: ${ATTENDANCE_SMS_SCHOOL_ALLOWLIST:}
+      # D5: allocation created lazily per school per term (KES), and the guarded send price.
+      budget-default-kes: ${ATTENDANCE_SMS_BUDGET_DEFAULT_KES:2000}
+      cost-per-sms-kes: ${ATTENDANCE_SMS_COST_PER_SMS_KES:0.20}
+      low-balance-threshold-kes: ${ATTENDANCE_SMS_LOW_BALANCE_THRESHOLD_KES:20}
+      # D2: opt-in at first use, never bulk opt-in.
+      default-opt-in: ${ATTENDANCE_SMS_DEFAULT_OPT_IN:false}
+      # Paid channel requires users.phone_verified_at unless explicitly relaxed.
+      require-verified-phone: ${ATTENDANCE_SMS_REQUIRE_VERIFIED_PHONE:true}
+      # Plain GSM-7, under 160 chars: {learner}, {date}, {school}.
+      message-template: "${ATTENDANCE_SMS_MESSAGE_TEMPLATE:BRAINBOX: {learner} was marked absent on {date}. Contact the school if this is wrong.}"
+      scan-initial-delay-ms: ${ATTENDANCE_SMS_SCAN_INITIAL_DELAY_MS:600000}
+      scan-ms: ${ATTENDANCE_SMS_SCAN_MS:600000}
   # Adaptive-difficulty ONNX model distribution. The operator drops the model file on
   # disk and points ML_MODEL_PATH at it; the API publishes its SHA-256 so the app can
   # verify the bytes before loading them. With no path (or a missing file) the manifest

@@ -1,11 +1,12 @@
 # SMS provider, attendance notifications and offline delivery — phased implementation plan
 
-**Status: IN PROGRESS.** Written 2026-11-12 before the HostPinnacle credentials arrived; updated later the same day
-when they did, and again after Phase 2 (subscription-aware routing) and Phase 5.1–5.4 (offline catch-up) landed.
-Phase 0 decisions are locked (D1/D2/D5 answered by the owner, §10), Phase 1 is implemented and unit-tested, and
-Phase 2/5.1–5.4 are implemented and tested; only the Phase 1 live smoke waits on a purchased HostPinnacle sender ID.
-Phase 3 (the guarded SMS channel) is next, then Phase 4/6. The document turns the research in
-[phone_verification.md](phone_verification.md) and the attendance/offline audit into an ordered, testable task list.
+**Status: PHASE 3 IMPLEMENTED; live delivery blocked on the sender ID.** Written 2026-11-12 before the
+HostPinnacle credentials arrived, then updated after Phase 1 (default provider), Phase 2 (subscription-aware
+routing), Phase 5.1–5.4 (offline catch-up) and Phase 3 (the guarded attendance SMS channel) landed. Phase 0
+decisions are locked (D1/D2/D5 answered, §10); Phases 1–3 and 5 are implemented and tested; Phase 1.6/6.1 live
+smoke waits on a purchased HostPinnacle sender ID. Phase 4 is now unblocked (it consumes P3 measurements), then
+Phase 6. The document turns the research in [phone_verification.md](phone_verification.md) and the
+attendance/offline audit into an ordered, testable task list.
 
 | | |
 |---|---|
@@ -220,7 +221,11 @@ attendance suites stay green.
 
 ### Phase 3 — Attendance SMS MVP, guarded fallback (~4 days incl. clients)
 
-**Only start after D1/D2 and Phase 2.** Default off (`ATTENDANCE_SMS_ENABLED=false`); per-school allowlist.
+**Status 2026-11-12: P3.1–P3.5, P3.7 and P3.8 done; P3.6 Android done, web deferred (no guardian settings
+surface exists in the web app — it is a teacher/admin console, so there is no place to opt a guardian in; the
+server contract is already exposed for a future parent portal).** See §14 for the implementation notes, the
+config keys, the skip reasons and the cost report template. Default off (`ATTENDANCE_SMS_ENABLED=false`);
+per-school allowlist.
 
 | ID | Task | Repo/files | Depends | Est | Acceptance |
 |---|---|---|---|---|---|
@@ -341,17 +346,25 @@ Target instrumentation: **≤400 SMS per 1,000 absence events**, measured per sc
 | `HOSTPINNACLE_SENDER_ID` | — | Approved sender ID |
 | `HOSTPINNACLE_BASE_URL` | `https://smsportal.hostpinnacle.co.ke/SMSApi` | Portal base URL |
 | `PHONE_VERIFICATION_PROVIDER` | `hostpinnacle` (flag remains off) | OTP provider |
-| `ATTENDANCE_SMS_ENABLED` | `false` | Master switch |
-| `ATTENDANCE_SMS_PROVIDER` | inherits phone provider | Delivery gateway |
-| `ATTENDANCE_SMS_SEND_AFTER` | `10:30` | Register-close cutoff |
-| `ATTENDANCE_ROUTING_GRACE_DAYS` | `3` | Subscription expiry grace |
-| `ATTENDANCE_ESCALATION_CATCHUP_DAYS` | `3` | Late-sync escalation window |
-| `ATTENDANCE_SMS_BUDGET_DEFAULT_KES` | `2000` | Per school, per term (D5) |
-| `ATTENDANCE_SMS_DEFAULT_OPT_IN` | `false` | Consent default |
-| `ATTENDANCE_SMS_READ_ACK_MINUTES` | `20` | Phase 4 fallback |
-| `ATTENDANCE_SMS_QUIET_START/END` | `08:00`/`17:00` | Send window |
+| `ATTENDANCE_SMS_ENABLED` | `false` | Master switch; off removes the scheduler bean entirely |
+| `ATTENDANCE_SMS_PROVIDER` | inherits phone provider | Delivery gateway (hostpinnacle/africastalking/beem/logging) |
+| `ATTENDANCE_SMS_SEND_AFTER` | `10:30` | Register-close cutoff in the school zone |
+| `ATTENDANCE_SMS_WINDOW_START` / `ATTENDANCE_SMS_WINDOW_END` | `08:00` / `17:00` | Nuisance window; outside it nothing is sent |
+| `ATTENDANCE_SMS_SCHOOL_DAYS` | Mon–Fri | School-day list (weekend registers never buy an SMS) |
+| `ATTENDANCE_SMS_SCHOOL_ALLOWLIST` | empty = all schools | Comma-separated school UUIDs for a pilot/staging gate |
+| `ATTENDANCE_SMS_BUDGET_DEFAULT_KES` | `2000` | Per school, per term allocation (D5) |
+| `ATTENDANCE_SMS_COST_PER_SMS_KES` | `0.20` | Price used for budget draw-down and the ledger |
+| `ATTENDANCE_SMS_LOW_BALANCE_THRESHOLD_KES` | `20` | Remaining balance that triggers the one ICT-admin alert |
+| `ATTENDANCE_SMS_DEFAULT_OPT_IN` | `false` | Consent default (D2) |
+| `ATTENDANCE_SMS_REQUIRE_VERIFIED_PHONE` | `true` | Paid channel requires `users.phone_verified_at` |
+| `ATTENDANCE_SMS_MESSAGE_TEMPLATE` | `BRAINBOX: {learner} was marked absent on {date}. ...` | Plain GSM-7 template, `{learner}`/`{date}`/`{school}` |
+| `ATTENDANCE_SMS_SCAN_INITIAL_DELAY_MS` / `ATTENDANCE_SMS_SCAN_MS` | `600000` / `600000` | Sweep schedule |
+| `ATTENDANCE_ROUTING_GRACE_DAYS` | `3` | Subscription expiry grace (D1) |
+| `ATTENDANCE_ESCALATION_CATCHUP_DAYS` | `3` | Late-sync escalation window (P5.1) |
+| `ATTENDANCE_SMS_READ_ACK_MINUTES` | `20` | Phase 4 fallback, not implemented yet |
 
-Secrets are env-only, never logged, never committed. `ATTENDANCE_SMS_*` names are indicative and finalised in P3.2.
+Secrets are env-only, never logged, never committed. All keys are implemented in
+`AttendanceSmsProperties` / `application.yml`.
 
 ## 8. Metrics to instrument
 
@@ -425,6 +438,13 @@ HostPinnacle once its sender ID is approved.
 
 ## 12. Verification and definition of done
 
+**Phase 3 run log — 2026-11-12:** **full server suite 759 tests, 0 failures, 3 skipped** (40m 40s; adds
+`AttendanceSmsPolicyTest` 14 rule cases and `AttendanceSmsDispatchTests` 7 integration cases — exactly-once
+replay, budget draw-down, submission-time gates, sibling dedupe, exhausted-budget alert, opt-in round-trip,
+console/school endpoints). Focused phone-verification, attendance, profile and new SMS suites green.
+**Android prod unit tests 387/0** (the new fields are defaults, so no fixture churn); **web 93 files / 1,346
+tests, 0 failures** (no web code change — the guardian surface does not exist there).
+
 **Phase 2/5 run log — 2026-11-12:** full server suite **739 tests, 0 failures, 3 skipped** (44m 25s; includes
 `AttendanceRecipientPolicyTest` 13 and the five new `AttendanceWebTests` cases); Android prod-flavor unit tests
 **387/0** (adds `NotificationRefreshTest` 3); web **93 files / 1,346 tests, 0 failures** (adds
@@ -432,8 +452,8 @@ HostPinnacle once its sender ID is approved.
 the owner's local `app/google-services.json` was replaced with a prod-only client list; that is a local Firebase
 configuration, not a source change, and the prod variant exercises the same unit-test source set.
 
-- **Server**: focused tests per phase + full `./gradlew test` green (717+ tests, 3 skipped baseline). Migration applies
-  on the collapsed baseline under `ddl-auto: validate`.
+- **Server**: focused tests per phase + full `./gradlew test` green (759 tests, 0 failures, 3 skipped after
+  Phase 3). Migration V13 applies on the collapsed baseline under `ddl-auto: validate`.
 - **Android**: `./gradlew :app:testProdDebugUnitTest --offline` green while the local Firebase file has no dev
   client; on a machine with the dev client `testDevDebugUnitTest` is the canonical command. Wire fixtures updated
   for any new payload.
@@ -450,10 +470,72 @@ configuration, not a source change, and the prod variant exercises the same unit
 | 0 Inputs/decisions | **done except sender ID** | D1/D2/D5 locked; credentials, pricing, test numbers and probe evidence in hand; P0.3 measurement waits for real post-launch data |
 | 1 HostPinnacle default | **implemented, live smoke blocked** | notifier + properties + form-wire tests + docs landed; live send waits on the purchased sender ID; AT sandbox verified for OTP delivery tests |
 | 2 Subscription routing | **done 2026-11-12** | `AttendanceRecipientPolicy` + push split + escalation policy; 13 unit cases + 5 integration cases green |
-| 3 Attendance SMS MVP | **next** | D1/D2/D5 locked and Phase 2 done; default-off, per-school allowlist |
-| 4 Cost refinements | not started | needs Phase 3 measurements |
+| 3 Attendance SMS MVP | **done 2026-11-12 (default off)** | shared gateway, V13, policy, worker, ledger, budget, console/school endpoints, Android opt-in; web has no guardian surface yet; live sends still wait on the sender ID |
+| 4 Cost refinements | **next** | read-ack fallback, risk threshold, provider chain, DLR; P3 measurements now available |
 | 5 Offline fixes | **done 2026-11-12 (P5.1–P5.4)** | catch-up sweep, Android resume/connectivity/sync/replay refresh, web visibility/focus/online; P5.5 deferred |
 | 6 Hardening/rollout | not started | needs live provider |
+
+---
+
+## 14. Phase 3 implementation notes (P3.1–P3.8)
+
+**Shared delivery seam (P3.1).** `com.afrithecus.brainbox.api.sms` now owns the wire contracts:
+`SmsGateway` plus `HostpinnacleSmsGateway`, `AfricasTalkingSmsGateway`, `BeemSmsGateway` and
+`LoggingSmsGateway`, built by `SmsGatewayFactory`. The three OTP notifiers delegate to the same classes, so
+phone-verification behaviour is unchanged (its provider tests are untouched and green) and attendance can select a
+different gateway with `ATTENDANCE_SMS_PROVIDER` without moving OTP.
+
+**Schema (P3.2).** V13 is additive and dormant: `attendance_sms_dispatches` (unique
+`(attendance_record_id, recipient_user_id)`, phone, status, provider/message id, error, units, cost, timestamps),
+`school_sms_budgets` (unique `(school_id, term_label)`, budget/used KES, units, low-balance alert timestamp) and
+`user_settings.attendance_sms_opt_in` + `attendance_sms_consent_at`. JPA validation passes on the collapsed
+baseline.
+
+**Policy (P3.3).** `AttendanceSmsPolicy.decide` is a pure decision table, asserted rule-by-rule in
+`AttendanceSmsPolicyTest`. Order: master switch → school allowlist → ABSENT only → school day (default Mon–Fri) →
+inside 08:00–17:00 school zone → after register close (10:30) → D1 paid-channel eligibility → valid Kenyan phone →
+verified phone → D2 opt-in → no active push token. Skip reasons are named (`DISABLED`, `SCHOOL_NOT_ALLOWED`,
+`STATUS_NOT_ABSENT`, `NOT_SCHOOL_DAY`, `BEFORE_SEND_AFTER`, `OUTSIDE_WINDOW`, `NOT_SUBSCRIBED`, `NO_PHONE`,
+`UNVERIFIED_PHONE`, `NOT_OPTED_IN`, `HAS_PUSH_TOKEN`) and surfaced in debug logs. The message template is
+plain GSM-7, sanitised and capped at 160 chars.
+
+**Recipient choice.** The paid channel uses exactly one family inbox: a legacy PARENT alias when the learner has
+one, otherwise the learner's own account (which under F9 IS the guardian account). It deliberately does not mirror
+the free fan-out's recipient set, which would bill the same human twice.
+
+**Worker (P3.4).** `AttendanceSmsDispatchService` scans today's ABSENT rows, reserves a dispatch row and draws
+down the school's term budget in one transaction, calls the provider once outside the transaction (logging gateway
+in tests), and finalises SENT/FAILED. The unique row makes reruns and restarts exactly-once; a corrected row and
+the per-phone/day check cancel a send; a failure stays FAILED (no retry). It is never called from register submit
+and the scheduler swallows every failure.
+
+**Budget (D5).** Terms are derived as Jan–Apr T1, May–Aug T2, Sep–Dec T3 (no term calendar exists yet); the label
+is stored on the row. The default allocation is created lazily at KES 2,000; each send draws KES 0.20. At zero the
+worker sends nothing, push/in-app continue, and one neutral in-app alert goes to the school's ICT admin (and any
+school-scoped ADMIN) per term. A console top-up clears the alert flag.
+
+**Surfaces (P3.5).** Platform console: `GET /admin/console/sms/schools`, `GET /admin/console/sms/schools/{id}`,
+`POST /admin/console/sms/schools/{id}/budget`, `GET /admin/console/sms/schools/{id}/dispatches` (SCHOOLS_READ /
+SCHOOLS_MANAGE). School panel: `GET /school/attendance-sms/summary` and `/dispatches` for the caller's own school
+(ICT admin or platform admin). Payloads carry masked phones, decimal money strings, no credentials.
+
+**Client opt-in (P3.6).** Android `UserSettings` gained `attendanceSmsEnabled`, `attendanceSmsOptIn` and
+`attendanceSmsConsentAt` (defaults false/null, so an older server leaves the UI unchanged); the notification card
+shows the toggle only when the server enables the channel and confirms consent in an `AlertDialog` before
+PATCHing `attendanceSmsOptIn`. The web app is a teacher/admin console with no guardian settings surface, so the
+web toggle is deferred; the API contract is already in place for a future parent portal.
+
+**Logging and cost report (P3.7/P3.8).** Sent attempts log dispatch id, school id, provider and provider message id;
+failures log the provider reason without a phone number; skips log at debug with the reason. No phone number or
+credential is logged. Cost report template (per school per term, fill from the console):
+`school | term | budget KES | used KES | SMS sent | SMS failed | per 1,000 absence events | low-balance?`.
+
+**Residuals.** Live delivery still needs the purchased HostPinnacle sender ID (P1.6/P6.1); Phase 4 owns read-ack
+fallback, the optional risk threshold, provider fallback chain and DLR/delivery proof; the push delivery ledger
+remains deferred (D6). Web opt-in waits for a guardian surface. One product boundary to state plainly: under F9 the
+paid channel can only reach a FULL account with a phone, so a family with no smartphone (a ROSTER_ONLY learner) is
+not an attendance subject and cannot be reached by SMS yet; reaching those families needs a school-level
+guardian-phone channel outside the account model, which is a separate product decision for Phase 4/6.
 
 ---
 

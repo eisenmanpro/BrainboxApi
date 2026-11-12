@@ -10,5 +10,8 @@ interface DeviceTokenRepository : JpaRepository<DeviceTokenEntity, UUID> {
 
     fun findAllByUserId(userId: UUID): List<DeviceTokenEntity>
 
+    /** Capability gating for the attendance SMS fallback: a working app means push already covers it. */
+    fun existsByUserId(userId: UUID): Boolean
+
     fun deleteByUserIdAndToken(userId: UUID, token: String)
 }

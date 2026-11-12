@@ -71,6 +71,14 @@ class UserSettingsEntity : BaseEntity() {
     @Column(name = "sms_reports_enabled", nullable = false)
     var smsReportsEnabled: Boolean = true
 
+    /** D2: opt-in for the guarded attendance SMS fallback (never bulk opt-in). */
+    @Column(name = "attendance_sms_opt_in", nullable = false)
+    var attendanceSmsOptIn: Boolean = false
+
+    /** Evidence of when the guardian accepted the attendance SMS consent copy. */
+    @Column(name = "attendance_sms_consent_at")
+    var attendanceSmsConsentAt: java.time.Instant? = null
+
     @Column(name = "email_notifications_enabled", nullable = false)
     var emailNotificationsEnabled: Boolean = false
 
