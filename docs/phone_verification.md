@@ -8,6 +8,19 @@ clients and tests shipped; nothing is sent or enforced until an operator configu
 
 Recorded: 2026-11-12. Prices were checked live against provider pages during the research pass and are indicative only.
 
+## Amendment (2026-11-12) — HostPinnacle is the default provider
+
+Owner research found that both Africa's Talking and Beem require a dedicated sender-ID registration: the AT default
+sender ID is for testing within Kenya and is currently supported on **Airtel Kenya numbers only**, so Safaricom/Telkom
+delivery needs an approved sender ID. Because HostPinnacle supplies a working sender ID without telco paperwork, and the
+owner already has an active account with test credit, **HostPinnacle becomes the default provider**. Africa's Talking
+and Beem remain implemented and config-selectable as fallback; nothing is deleted.
+
+The code swap (a `hostpinnacle` provider block + notifier, default provider change, tests and docs) is Phase 1 of
+[sms_and_attendance_notifications_plan.md](sms_and_attendance_notifications_plan.md). The OTP slice itself, the
+default-off flag and the activation rules above are unchanged; no client or schema change is involved. Read "Primary"
+in the comparison below as "fallback" until Phase 1 lands.
+
 ## Decision
 
 1. **Architecture: server-side OTP over an SMS gateway.** We generate, hash, expire and attempt-limit the code; the
@@ -34,9 +47,9 @@ Recorded: 2026-11-12. Prices were checked live against provider pages during the
 The slice is implemented and dormant: the endpoint, challenge table, users.phone_verified_at column, notifier seam and
 default-off config flag exist; the Android and web cards are hidden while the flag is off. No account is marked verified
 by this change (the column is NULL for every existing row), and no screen claims a phone is verified until the server
-records it, so there is no false claim to unwind (D15 stays clean). The phone is stored canonically in 07xxxxxxxx form on
-both signup paths, and phone editing is not offered by the profile update contract, so there is no
-re-verification-on-change path yet - if phone editing is added, it must clear phone_verified_at.
+records it, so there is no false claim to unwind (D15 stays clean). The phone is stored canonically in 07xxxxxxxx form. Where a phone can change (teacher settings, teacher
+provisioning signup, learner roster provisioning) the code clears `phone_verified_at` in the same write; the profile
+update contract still does not expose phone editing.
 
 ## Architecture options considered
 

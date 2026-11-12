@@ -20,8 +20,10 @@ are aliases only. "Parent" audiences deliver to the learner's inbox. Learner cre
 
 ## Phone verification (dormant by default)
 
-Server-side OTP over an SMS gateway; **Africa's Talking** primary, **Beem** pilot/fallback. It is implemented behind
+Server-side OTP over an SMS gateway; **HostPinnacle** is the decided default (owner account active), with
+**Africa's Talking** and **Beem** retained as config-selectable fallback. It is implemented behind
 `app.auth.phone-verification.enabled=false`: no SMS is sent and the endpoints answer "not enabled" until an operator
 configures credentials. Do not make any UI claim a phone is verified unless `users.phone_verified_at` is set, and
 clear `phone_verified_at` whenever a phone number changes. Decision, provider research and activation checklist:
-[docs/phone_verification.md](docs/phone_verification.md).
+[docs/phone_verification.md](docs/phone_verification.md) and the phased implementation plan
+[docs/sms_and_attendance_notifications_plan.md](docs/sms_and_attendance_notifications_plan.md).
