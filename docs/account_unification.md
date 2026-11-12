@@ -37,7 +37,9 @@ signup, or a client-side account switch.
 
 ## Not done yet (deliberately)
 
-- **Google phone verification** needs SMS/Firebase infrastructure the platform does not have yet; the approval
-  pipeline remains the gate.
+- **Phone verification** is specified but not implemented: a server-side OTP delivered over an SMS gateway, with
+  **Africa's Talking** as the primary provider and **Beem** as the pilot/fallback — see
+  [phone_verification.md](phone_verification.md). The remaining external dependency is provider activation (account,
+  sender ID, credentials); until the verifier ships, the approval pipeline remains the gate.
 - **Alias merge of existing parent rows** (non-destructive re-pointing across 20+ FKs) is a separate migration
   slice; until then legacy PARENT rows keep working as aliases.
