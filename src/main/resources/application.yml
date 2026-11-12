@@ -175,8 +175,8 @@ app:
     # logged.
     phone-verification:
       enabled: ${PHONE_VERIFICATION_ENABLED:false}
-      # logging (dev, no delivery) | africastalking (primary) | beem (pilot/fallback)
-      provider: ${PHONE_VERIFICATION_PROVIDER:logging}
+      # logging (dev, no delivery) | hostpinnacle (primary) | africastalking | beem (fallback)
+      provider: ${PHONE_VERIFICATION_PROVIDER:hostpinnacle}
       # Development only: log the code when the logging provider is active.
       log-otp: ${PHONE_VERIFICATION_LOG_OTP:false}
       # Refuse PENDING approvals whose phone is unverified. Off by default (product decision).
@@ -187,6 +187,14 @@ app:
       max-requests-per-hour: ${PHONE_VERIFICATION_MAX_REQUESTS_PER_HOUR:5}
       connect-timeout: 3s
       request-timeout: 5s
+      hostpinnacle:
+        api-key: ${HOSTPINNACLE_API_KEY:}
+        username: ${HOSTPINNACLE_USERNAME:}
+        password: ${HOSTPINNACLE_PASSWORD:}
+        # Approved sender ID; a send without one is rejected (statusCode 162).
+        sender-id: ${HOSTPINNACLE_SENDER_ID:}
+        # The notifier appends /send to this base URL.
+        base-url: ${HOSTPINNACLE_BASE_URL:https://smsportal.hostpinnacle.co.ke/SMSApi}
       africastalking:
         username: ${AFRICASTALKING_USERNAME:}
         api-key: ${AFRICASTALKING_API_KEY:}

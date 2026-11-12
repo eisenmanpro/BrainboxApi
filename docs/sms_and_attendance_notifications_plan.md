@@ -1,18 +1,20 @@
 # SMS provider, attendance notifications and offline delivery — phased implementation plan
 
-**Status: PLAN ONLY — no code changed by this document.** Written 2026-11-12, the afternoon before the HostPinnacle
-credentials arrive. It turns the research in [phone_verification.md](phone_verification.md) and the attendance/offline
-audit into an ordered, testable task list.
+**Status: IN PROGRESS.** Written 2026-11-12 before the HostPinnacle credentials arrived; updated later the same day
+when they did. Phase 0 decisions are locked (D1/D2/D5 answered by the owner, §10) and Phase 1 is implemented and
+unit-tested; only the live smoke waits on a purchased HostPinnacle sender ID. Phases 2–6 are queued. The document turns
+the research in [phone_verification.md](phone_verification.md) and the attendance/offline audit into an ordered,
+testable task list.
 
 | | |
 |---|---|
 | **Repos** | `BrainboxApi-master` (primary), `BrainBox-master` (Android), `BrainboxWeb-main` (web) |
 | **Related records** | [phone_verification.md](phone_verification.md) (provider research, OTP slice), [account_unification.md](account_unification.md) (F9: learner account is the guardian), `.design-review/f9-account-unification-audit.md`, `.design-review/audit-rubric-and-backlog.md` (Android repo) |
 | **Decision supersedes** | "Africa's Talking primary, Beem fallback" in `phone_verification.md` — HostPinnacle becomes the default; AT/Beem stay as config-selectable fallback |
-| **Blocked on** | HostPinnacle credentials + sender ID + API response sample (Phase 0/1 live steps only) |
+| **Blocked on** | HostPinnacle **sender ID purchase** (support confirms there are no test sender IDs) for the Phase 1 live smoke only; Africa's Talking sandbox is available for dev delivery tests and was verified live. Credentials, pricing, test numbers and D1/D2/D5 are in hand. |
 
-**Implementation can start before the credentials arrive**: Phase 1's notifier scaffold, Phase 2 (subscription routing)
-and Phase 5 (offline fixes) are all credential-independent and testable against a local HTTP stub.
+Phase 1's notifier was built and tested against a local HTTP stub plus the provider's real error bodies; Phase 2
+(subscription routing) and Phase 5 (offline fixes) are credential-independent and are the next work.
 
 ---
 
@@ -30,7 +32,26 @@ and Phase 5 (offline fixes) are all credential-independent and testable against 
 4. **A mark is never lost offline.** Server rows are the source of truth; clients replay pending registers. The gaps
    are delivery catch-up (missed push), late-synced escalation, and the absence of any SMS/feature-phone channel.
 5. **Attendance routing must become subscription-aware** (current behaviour: it is not — see §2.3). Recommended policy:
-   in-app history always, push/SMS only for learners whose subscription is ACTIVE. The final call is decision D1.
+   in-app history always, push/SMS only for learners whose subscription is ACTIVE. Owner decision recorded 2026-11-12:
+   **free channels (in-app + push) for every non-deactivated account, SMS only for PRO/ACTIVE subscribers** ("users
+   should get what their subscription allows"; "push and in-app to explorer accounts").
+
+### Owner decisions recorded 2026-11-12
+
+- **D1 (subscription targeting):** "if the server has no way to target subscribers then the whole subscription model
+  fails; users should get what their subscription allows." Schema changes are allowed — the production database has
+  never held real users, will be reset to its first version at launch, and real data collection starts in the
+  post-launch week. Concrete channel matrix: **explorer/expired → in-app + push only; PRO/ACTIVE non-BASE → in-app +
+  push + SMS** (SMS still subject to consent, capability and budget gates). Deactivated accounts are not subscribers
+  and are not notified.
+- **D2 (SMS consent):** opt-in at first use, **fallback-only automatic**; never bulk opt-in silently.
+- **D5 (school SMS budget):** KES 2,000 per school per term, visible in the HOI / ICT-admin panels; the server
+  tracks which schools have paid and shows their balance with a neutral description only (no "optional"/"support"
+  wording). The gating prefers PRO users for SMS while push/in-app stay free to explorer accounts. A school's payment
+  status must not block the subscription-driven sends ("this is support from schools to keep the system working");
+  the term allocation is drawn down by SMS and, when exhausted, SMS stops while push/in-app continue and the
+  admin/HOI sees the low-balance state.
+- Still open and deliberately deferred: D3 (risk threshold), D4 (weekly digest), D6 (push delivery proof).
 
 ## 2. Current state — evidence
 
@@ -40,7 +61,9 @@ Already implemented, tested and committed: V12 (`phone_verification_challenges` 
 authenticated request/confirm/status endpoints, hashed 6-digit code, TTL/attempts/cooldown/rate limits, provider seam
 `PhoneVerificationNotifier` with `AfricasTalkingSmsNotifier` and `BeemSmsNotifier`, and the Android/web cards.
 Dormant behind `app.auth.phone-verification.enabled=false` ([application.yml](../src/main/resources/application.yml:176)).
-The only missing piece for OTP is the HostPinnacle provider + credentials.
+The HostPinnacle provider is now also implemented (properties block, `HostpinnacleSmsNotifier`, form-wire tests), so the
+only missing piece for a live OTP is the purchased HostPinnacle sender ID; Africa's Talking's sandbox is the interim
+delivery test channel.
 
 ### 2.2 Attendance fan-out (server)
 
@@ -112,6 +135,23 @@ recommended so a payment lapse does not silently cut off a week of absence alert
 | Escalation + late sync | Sweep only looks at *today* | A register synced after midnight never escalates (the absence notice is lost; the record itself is fine) |
 | Web parent/learner | Notification centre refreshes when opened; cached offline | No real-time web notifications at all |
 
+### 2.5 Provider probe evidence (2026-11-12, owner credentials)
+
+- **HostPinnacle, real host, empty sender id:** HTTP 200 with
+  `{"status":"error","statusCode":"162","reason":"Empty senderId"}` — HTTP status alone is not success; the body's
+  `status` field is the contract.
+- **HostPinnacle, invalid sender id:** HTTP 200 with
+  `{"status":"error","statusCode":"203","reason":"Given SenderId is invalid. Please use valid SenderId."}`.
+- **HostPinnacle, GET instead of POST:** HTTP 200 with `status=error | errorCode=152 | reason=Invalid method` (plain
+  text, another reason the notifier must fail closed on an unrecognised body).
+- **HostPinnacle success contract:** the official client's own tests fake success as `{"status":"success"}`; the
+  notifier classifies success only on that explicit status.
+- **Africa's Talking sandbox:** a real send to `+254112887706` returned HTTP 201 and
+  `{"SMSMessageData":{"Message":"Sent to 1/1 Total Cost: KES 0.8000 Message parts: 1","Recipients":[{"status":"Success","statusCode":101}]}}`
+  — usable for end-to-end OTP delivery tests before the HostPinnacle sender ID is approved.
+- **Consequence:** HostPinnacle is wired and unit-tested but cannot deliver until the owner buys a sender ID in the
+  portal (support: no test sender IDs). Live smoke stays blocked; everything else in Phase 1 is done.
+
 ## 3. Target behaviour
 
 1. A register mark always produces exactly one in-app notification row per eligible recipient, never duplicated by a
@@ -132,12 +172,16 @@ Estimates are focused engineering time, one developer, tests included. "Repo" is
 
 | ID | Task | Depends | Est | Acceptance |
 |---|---|---|---|---|
-| P0.1 | Owner supplies HostPinnacle credentials, sender ID, API sample, pricing/credit facts and test numbers (§11) | owner | — | Secrets readable from a git-ignored file; one live curl send succeeds |
-| P0.2 | Record D1–D7 decisions (§10) in this doc | owner | 0.5 h | "Decision" lines filled in, not guessed |
+| P0.1 | Owner supplies HostPinnacle credentials, sender ID, API sample, pricing/credit facts and test numbers (§11) | owner | — | **Done 2026-11-12 except the sender ID:** API key, portal username/password, pricing and two test numbers supplied; sender ID must be purchased (no test sender IDs); AT sandbox verified live; HostPinnacle probes captured |
+| P0.2 | Record D1–D7 decisions (§10) in this doc | owner | 0.5 h | **Done:** D1/D2/D5 answered by the owner (§1); D3/D4/D6 deferred |
 | P0.3 | Baseline measurement on staging/prod read-only: absence events/day, % guardians with a push token, sibling overlap, pre-cutoff correction rate, notification read rate | none | 2 h | Numbers table appended to §8; these drive thresholds |
 | P0.4 | Agree SMS templates (EN + SW, ≤160 GSM-7 chars) and consent copy | owner | 0.5 h | Strings in this doc |
 
 ### Phase 1 — HostPinnacle as the default provider + OTP activation (~1 day)
+
+**Status 2026-11-12:** P1.1, P1.2, P1.3, P1.5 and P1.7 done; P1.4 pinned against the real error bodies and the official
+client's success contract (a live 2xx success send is still impossible without the sender ID); P1.6 blocked on the
+sender ID purchase; P1.8 (credit probe) not started.
 
 | ID | Task | Repo/files | Depends | Est | Acceptance |
 |---|---|---|---|---|---|
@@ -211,24 +255,30 @@ to users until the flag is flipped.
 **Total: ~11–13 focused days**, of which ~5–6 are credential-independent (Phases 2 and 5). Phase 3 client work is the
 long pole.
 
-## 5. Subscription routing policy — specification
+## 5. Subscription routing policy — specification (D1 locked)
 
 ```
-eligibleForAttendanceChannels(user, learner):
-  user.isActive && user.accountKind == FULL
+freeChannelsEligible(user, learner):
+  user.isActive && user.accountKind == FULL          // deactivated accounts: nothing
+                                                     // explorer/EXPIRED/BASE: yes (in-app + push)
+
+paidChannelEligible(user, learner):
+  freeChannelsEligible(user, learner)
   && learner.subscription.status == ACTIVE
   && learner.subscription.tier != BASE
-  && learner.subscription.expiryDate > now - graceDays
+  && learner.subscription.expiryDate > now - graceDays   // graceDays default 3
 ```
 
-- In-app row: written for eligible accounts (D1 default; the alternative is "write for everyone, gate only push/SMS" —
-  safer for historical visibility but gives the appearance of a paid feature for free).
-- Push: eligible AND `shouldPush` (existing urgency rules; urgent absence still bypasses the push preference).
-- SMS: eligible AND consent/capability/budget rules in §6.
-- Legacy `PARENT` aliases: inherit the learner's eligibility. Do not grant eligibility from `Role.PARENT`.
-- Deactivated accounts: never notified on any channel.
+- **In-app row + FCM push: every non-deactivated account, including explorer/expired**, subject to the existing
+  `shouldPush` rules (urgent absence still bypasses the push preference). Owner decision 2026-11-12.
+- **SMS: `paidChannelEligible` only**, then the §6 consent/capability/budget rules. A paid SMS is never spent on a
+  family whose subscription does not include it.
+- Legacy `PARENT` aliases: inherit the learner's eligibility for both matrices. Do not grant eligibility from
+  `Role.PARENT`.
+- Deactivated accounts: no in-app, push or SMS.
 - Teachers/admins: attendance notifications are not addressed to them today; no change.
-- Subscription reminders (existing `SubscriptionReminderScheduler`) remain the nudge for expired families.
+- Subscription reminders (existing `SubscriptionReminderScheduler`) remain the nudge and renewal path for expired
+  families; the free channels keep them informed meanwhile.
 
 ## 6. Attendance SMS policy — specification
 
@@ -248,9 +298,12 @@ eligibleForAttendanceChannels(user, learner):
 | Message | ≤160 GSM-7 chars, no emoji/accents/links, EN + SW | avoids 2-segment billing |
 | Window | school days, 08:00–17:00 school zone | nuisance avoidance; not cost |
 
-Cost model to validate in P0.3 (500 learners, 200 days, 5% absence, 60% token coverage, one SMS/event):
-~5,000 absence events → ~1,500–2,000 SMS/year for the capability-gated audience. Target instrumentation: **≤400 SMS
-per 1,000 absence events**, measured per school per month.
+Owner pricing fact (2026-11-12): **KES 0.20 per SMS unit** — packs are 250 units KES 50, 1,000 = KES 200,
+2,500 = KES 500, 5,000 = KES 1,000 (the cheapest route researched by a wide margin). Cost model to validate in P0.3
+(500 learners, 200 days/year, 5% absence, 60% token coverage, one SMS/event): ~5,000 absence events/year → ~1,500–2,000
+SMS/year for the capability-gated PRO audience ≈ **KES 300–400/year**, i.e. ~KES 100–130 per term. The D5 school
+allocation of KES 2,000/term therefore buys ~10,000 SMS — two orders of magnitude of headroom for a 500-learner school.
+Target instrumentation: **≤400 SMS per 1,000 absence events**, measured per school per month.
 
 ## 7. Configuration reference (new keys)
 
@@ -266,7 +319,7 @@ per 1,000 absence events**, measured per school per month.
 | `ATTENDANCE_SMS_SEND_AFTER` | `10:30` | Register-close cutoff |
 | `ATTENDANCE_ROUTING_GRACE_DAYS` | `3` | Subscription expiry grace |
 | `ATTENDANCE_ESCALATION_CATCHUP_DAYS` | `3` | Late-sync escalation window |
-| `ATTENDANCE_SMS_BUDGET_DEFAULT_KES` | decision D5 | Per school, per term |
+| `ATTENDANCE_SMS_BUDGET_DEFAULT_KES` | `2000` | Per school, per term (D5) |
 | `ATTENDANCE_SMS_DEFAULT_OPT_IN` | `false` | Consent default |
 | `ATTENDANCE_SMS_READ_ACK_MINUTES` | `20` | Phase 4 fallback |
 | `ATTENDANCE_SMS_QUIET_START/END` | `08:00`/`17:00` | Send window |
@@ -299,33 +352,49 @@ Secrets are env-only, never logged, never committed. `ATTENDANCE_SMS_*` names ar
 | Budget configured too low, no alerts reach parents | degrade path + admin low-budget alert; measure first (P0.3) |
 | Refactor of the OTP notifier regresses phone verification | P3.1 keeps OTP tests untouched and green |
 
-## 10. Open decisions (owner)
+## 10. Decisions
 
-| ID | Question | Recommendation |
+### Locked by the owner (2026-11-12)
+
+| ID | Decision |
+|---|---|
+| D1 | Subscription targeting is real: **in-app + push for every non-deactivated account; SMS only for PRO/ACTIVE non-BASE learners** (+ expiry grace, default 3 days). Schema changes are allowed; the database resets to its first version at launch and real data gathering starts post-launch week. |
+| D2 | **Opt-in at first use + fallback-only automatic; never bulk opt-in silently.** |
+| D5 | **KES 2,000 per school per term**, visible in the HOI / ICT-admin panels; the server tracks paying schools and their balance and shows a neutral description only. PRO is the SMS gate; school payment status never blocks subscription-driven sends; SMS draw down the term allocation and stop when exhausted while push/in-app continue. |
+| D7 | Attendance SMS is funded through the school term allocation (D5); BrainBox still sends according to subscription entitlement. |
+
+### Still open (deferred until the Phase 3/4 measurements)
+
+| ID | Question | Current default |
 |---|---|---|
-| D1 | In-app rows for expired learners, or gate everything? | keep in-app, gate push/SMS, 3-day grace |
-| D2 | SMS consent model: opt-in vs opt-out for no-app guardians | opt-in at first use + fallback-only automatic; never bulk opt-in silently |
-| D3 | Risk threshold (2nd+ absence) for token holders | defer until P0.3 data; default off |
-| D4 | Weekly digest for chronic absentees | defer; one-per-day + sibling merge first |
-| D5 | Per-school termly SMS budget default | ask the owner; start ~KES 2,000/term/school for a 500-learner pilot |
+| D3 | Risk threshold (2nd+ absence) for token holders | off until P0.3/P4 measurements |
+| D4 | Weekly digest for chronic absentees | one-per-day + sibling merge first |
 | D6 | Push delivery proof required? | no for MVP; DLR webhook optional in Phase 4 |
-| D7 | Who pays for attendance SMS: BrainBox or the school? | school budget; makes the cost visible and capped |
 
-## 11. What the owner must supply (Phase 0/1)
+## 11. Owner inputs — status (2026-11-12)
 
-1. HostPinnacle **base URL** confirmation (`https://smsportal.hostpinnacle.co.ke/SMSApi`).
-2. **API key** (portal API/developer page).
-3. **Portal username + password** (dedicated API user preferred).
-4. **Approved sender ID** string, working on Safaricom/Airtel/Telkom, transactional allowed.
-5. **Credit/pricing facts**: what 250 credits buys, per-SMS price, segment billing, whether API sends draw the same balance.
-6. **Restrictions**: IP allowlist (provide our egress IP if yes), rate limits, sandbox/test mode, sending windows.
-7. **Test numbers**: one per network; permission to spend ~10 credits on live tests.
-8. **API sample**: portal request/response screenshot or doc (pins success/failure parsing).
-9. **Fallback choice**: keep AT/Beem code (recommended) or remove.
-10. **Decision D1/D2/D5** so Phase 2/3 defaults are not guessed.
+| # | Input | Status |
+|---|---|---|
+| 1 | HostPinnacle base URL | **Confirmed:** `https://smsportal.hostpinnacle.co.ke/SMSApi` (notifier appends `/send`) |
+| 2 | API key | **Supplied** in the git-ignored secrets file |
+| 3 | Portal username + password | **Supplied** in the secrets file (dedicated API user still recommended) |
+| 4 | Approved sender ID | **Outstanding — must be purchased in the portal.** Support confirms no test sender IDs. Blocks live HostPinnacle sends and the Phase 1.6 smoke only. |
+| 5 | Pricing/credit facts | **Supplied:** KES 0.20/unit; 250 units KES 50; 1,000 = KES 200; 2,500 = KES 500; 5,000 = KES 1,000; API sends draw the same balance |
+| 6 | Restrictions | No IP allowlist/sandbox reported; single send attempts and the provider's own limits apply; confirm at first real send |
+| 7 | Test numbers | **Supplied:** 254112887706 and 254758778626; permission for ~10 live tests |
+| 8 | API sample | **Captured live:** empty senderId = statusCode 162; invalid senderId = 203; GET = errorCode 152; success = `{"status":"success"}` (from the official client) |
+| 9 | Fallback choice | **Keep Africa's Talking and Beem** as config-selectable fallbacks; nothing deleted |
+| 10 | D1/D2/D5 | **Answered** (§10); D3/D4/D6 deferred |
 
-Secrets go in a git-ignored file (e.g. `~/brainbox-secrets/hostpinnacle.env`) or the shell env, not in the repo and
-not in the chat.
+**Secrets rule:** the real values live in `/home/deadman/brainbox-secrets/hostpinnacle.env` (outside every repo) and
+are never copied into the repository, a commit, a log line or a document. The file maps to env names as:
+`API_KEY→HOSTPINNACLE_API_KEY`, `USERNAME→HOSTPINNACLE_USERNAME`, `PASSWORD→HOSTPINNACLE_PASSWORD`,
+`SENDER_ID→HOSTPINNACLE_SENDER_ID`, `API_KEY_AFRICATALKING→AFRICASTALKING_API_KEY` (sandbox username `sandbox`).
+
+**Interim live testing:** Africa's Talking sandbox (username `sandbox`, the supplied sandbox key,
+`AFRICASTALKING_BASE_URL=https://api.sandbox.africastalking.com/version1/messaging`) delivered a real SMS to
+`+254112887706` during this session (HTTP 201, status Success). It is only a dev/test channel — production remains
+HostPinnacle once its sender ID is approved.
 
 ## 12. Verification and definition of done
 
@@ -342,15 +411,17 @@ not in the chat.
 
 | Phase | Status | Notes |
 |---|---|---|
-| 0 Inputs/decisions | waiting on owner | credentials + D1/D2/D5 |
-| 1 HostPinnacle default | not started | can scaffold before credentials |
-| 2 Subscription routing | not started | credential-independent |
-| 3 Attendance SMS MVP | not started | needs D1/D2, Phase 2 |
+| 0 Inputs/decisions | **done except sender ID** | D1/D2/D5 locked; credentials, pricing, test numbers and probe evidence in hand; P0.3 measurement waits for real post-launch data |
+| 1 HostPinnacle default | **implemented, live smoke blocked** | notifier + properties + form-wire tests + docs landed; live send waits on the purchased sender ID; AT sandbox verified for OTP delivery tests |
+| 2 Subscription routing | **next** | D1 locked; credential-independent |
+| 3 Attendance SMS MVP | not started | D1/D2/D5 locked; needs Phase 2 |
 | 4 Cost refinements | not started | needs Phase 3 measurements |
-| 5 Offline fixes | not started | credential-independent |
+| 5 Offline fixes | not started | credential-independent; can run parallel with Phase 2 |
 | 6 Hardening/rollout | not started | needs live provider |
 
 ---
 
-*No source, test or migration files were changed when this plan was written. The only edits are this document and the
-two stale provider references it corrects.*
+*Plan first written with no source changes. Phase 1 has since landed code: `PhoneVerificationProperties.Hostpinnacle`,
+`HostpinnacleSmsNotifier`, the `app.auth.phone-verification.hostpinnacle` config block, provider wire tests and
+`PhoneNumbersTest`; `phone_verification.md` and this plan were updated with the real provider evidence and locked
+decisions. No migration or client change was needed.*

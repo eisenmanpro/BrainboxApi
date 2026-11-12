@@ -164,4 +164,107 @@ class PhoneVerificationProviderTests {
             broken.stop(0)
         }
     }
+
+    private fun hostpinnacleProperties(baseUrl: String): PhoneVerificationProperties = PhoneVerificationProperties(
+        enabled = true,
+        provider = "hostpinnacle",
+        hostpinnacle = PhoneVerificationProperties.Hostpinnacle(
+            apiKey = "portal-key",
+            username = "portal-user",
+            password = "portal-pass",
+            senderId = "BRAINBOX",
+            baseUrl = baseUrl,
+        ),
+    )
+
+    @Test
+    fun `hostpinnacle posts the code as a form with the portal credentials and the 254 number`() {
+        val captured = AtomicReference<String>()
+        val apiKey = AtomicReference<String>()
+        val cacheControl = AtomicReference<String>()
+        val server = server(
+            "/SMSApi/send",
+            200,
+            """{"status":"success"}""",
+        ) { body, headers ->
+            captured.set(body)
+            apiKey.set(headers["apikey"].orEmpty())
+            cacheControl.set(headers["cache-control"].orEmpty())
+        }
+        try {
+            val baseUrl = "http://127.0.0.1:" + server.address.port + "/SMSApi"
+            HostpinnacleSmsNotifier(hostpinnacleProperties(baseUrl), mapper).send(user("0712345678"), "123456")
+            val fields = form(captured.get())
+            assertEquals("portal-user", fields["userid"])
+            assertEquals("portal-pass", fields["password"])
+            assertEquals("BRAINBOX", fields["senderid"])
+            assertEquals("quick", fields["sendMethod"])
+            assertEquals("text", fields["msgType"])
+            assertEquals("true", fields["duplicatecheck"])
+            assertEquals("json", fields["output"])
+            assertEquals("254712345678", fields["mobile"])
+            assertTrue(fields["msg"]!!.contains("123456"))
+            assertTrue(fields["msg"]!!.contains("10 minutes"))
+            assertEquals("portal-key", apiKey.get())
+            assertEquals("no-cache", cacheControl.get())
+        } finally {
+            server.stop(0)
+        }
+    }
+
+    @Test
+    fun `hostpinnacle classifies the body status rather than the HTTP code because 200 error bodies are failures`() {
+        val rejected = server(
+            "/SMSApi/send",
+            200,
+            """{"status":"error","statusCode":"162","reason":"Empty senderId"}""",
+        ) { _, _ -> }
+        try {
+            val baseUrl = "http://127.0.0.1:" + rejected.address.port + "/SMSApi"
+            val error = assertThrows<IllegalStateException> {
+                HostpinnacleSmsNotifier(hostpinnacleProperties(baseUrl), mapper).send(user("0712345678"), "123456")
+            }
+            assertTrue(error.message!!.contains("Empty senderId"))
+            assertTrue(error.message!!.contains("162"))
+        } finally {
+            rejected.stop(0)
+        }
+        val unrecognised = server("/SMSApi/send", 200, """{"message":"queued"}""") { _, _ -> }
+        try {
+            val baseUrl = "http://127.0.0.1:" + unrecognised.address.port + "/SMSApi"
+            assertThrows<IllegalStateException> {
+                HostpinnacleSmsNotifier(hostpinnacleProperties(baseUrl), mapper).send(user("0712345678"), "123456")
+            }
+        } finally {
+            unrecognised.stop(0)
+        }
+        val broken = server("/SMSApi/send", 500, "down") { _, _ -> }
+        try {
+            val baseUrl = "http://127.0.0.1:" + broken.address.port + "/SMSApi"
+            assertThrows<IllegalStateException> {
+                HostpinnacleSmsNotifier(hostpinnacleProperties(baseUrl), mapper).send(user("0712345678"), "123456")
+            }
+        } finally {
+            broken.stop(0)
+        }
+    }
+
+    @Test
+    fun `hostpinnacle refuses to send without an approved sender id`() {
+        val properties = PhoneVerificationProperties(
+            enabled = true,
+            provider = "hostpinnacle",
+            hostpinnacle = PhoneVerificationProperties.Hostpinnacle(
+                apiKey = "portal-key",
+                username = "portal-user",
+                password = "portal-pass",
+                senderId = "",
+                baseUrl = "http://127.0.0.1:1/SMSApi",
+            ),
+        )
+        val error = assertThrows<IllegalStateException> {
+            HostpinnacleSmsNotifier(properties, mapper).send(user("0712345678"), "123456")
+        }
+        assertTrue(error.message!!.contains("sender id"))
+    }
 }

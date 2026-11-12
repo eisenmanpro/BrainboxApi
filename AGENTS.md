@@ -23,7 +23,9 @@ are aliases only. "Parent" audiences deliver to the learner's inbox. Learner cre
 Server-side OTP over an SMS gateway; **HostPinnacle** is the decided default (owner account active), with
 **Africa's Talking** and **Beem** retained as config-selectable fallback. It is implemented behind
 `app.auth.phone-verification.enabled=false`: no SMS is sent and the endpoints answer "not enabled" until an operator
-configures credentials. Do not make any UI claim a phone is verified unless `users.phone_verified_at` is set, and
+configures credentials. HostPinnacle requires a **purchased sender ID** (support confirms there are no test sender
+IDs); until it is bought, Africa's Talking's sandbox is the live delivery test channel and production stays on the
+logging/dormant path. Do not make any UI claim a phone is verified unless `users.phone_verified_at` is set, and
 clear `phone_verified_at` whenever a phone number changes. Decision, provider research and activation checklist:
 [docs/phone_verification.md](docs/phone_verification.md) and the phased implementation plan
 [docs/sms_and_attendance_notifications_plan.md](docs/sms_and_attendance_notifications_plan.md).

@@ -38,8 +38,9 @@ signup, or a client-side account switch.
 ## Not done yet (deliberately)
 
 - **Phone verification** is implemented in code and dormant by default: a server-side OTP delivered over an SMS
-  gateway, with **Africa's Talking** as the primary provider and **Beem** as the pilot/fallback — see
-  [phone_verification.md](phone_verification.md). The remaining external dependency is provider activation (account,
-  sender ID, credentials); until an operator flips the flag, the approval pipeline remains the gate.
+  gateway, with **HostPinnacle** as the default provider and **Africa's Talking** / **Beem** as config-selectable
+  fallback — see [phone_verification.md](phone_verification.md). The remaining external dependency is the HostPinnacle
+  sender-ID purchase (no test sender IDs; the account and credentials already exist); until an operator flips the flag,
+  the approval pipeline remains the gate.
 - **Alias merge of existing parent rows** (non-destructive re-pointing across 20+ FKs) is a separate migration
   slice; until then legacy PARENT rows keep working as aliases.
