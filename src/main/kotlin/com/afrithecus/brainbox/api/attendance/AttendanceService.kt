@@ -73,14 +73,17 @@ class AttendanceService(
     private val mediaService: MediaService,
     private val userRepository: UserRepository,
     private val notificationService: NotificationService,
+    private val routingPolicy: AttendanceRecipientPolicy,
     private val clock: Clock,
     @Value("\${app.school-zone:Africa/Nairobi}") private val schoolZoneId: String,
     @Value("\${app.attendance.escalation-time:10:00}") private val escalationTimeRaw: String,
+    @Value("\${app.attendance.escalation-catchup-days:3}") private val escalationCatchupDaysRaw: Long,
 ) {
 
     private val zone: ZoneId get() = ZoneId.of(schoolZoneId)
     private val escalationTime: LocalTime get() =
         runCatching { LocalTime.parse(escalationTimeRaw) }.getOrDefault(LocalTime.of(10, 0))
+    private val escalationCatchupDays: Long get() = escalationCatchupDaysRaw.coerceIn(0, 30)
 
     @Transactional(readOnly = true)
     fun register(current: CurrentUser, classIdRaw: String, dateMillis: Long): List<AttendanceRecordPayload> {
@@ -589,22 +592,32 @@ class AttendanceService(
     @Transactional
     fun escalateAbsentees(): Int = escalateAbsentees(clock.instant())
 
-    /** Explicit-time overload used by the sweep tests and by any future admin repair. */
+    /**
+     * P5.1: the sweep repairs the last [escalationCatchupDays] days, not only today, so a
+     * register replayed after midnight still yields its one absence reminder. Today's rows
+     * still wait for the school's escalation hour; past days are already past theirs.
+     * Idempotency is unchanged: the unique escalation row means each record is escalated once,
+     * however many sweeps (or process restarts) see it.
+     */
     @Transactional
     fun escalateAbsentees(now: Instant): Int {
         val today = LocalDate.ofInstant(now, zone)
-        if (LocalTime.ofInstant(now, zone).isBefore(escalationTime)) return 0
+        val todayReachedThreshold = !LocalTime.ofInstant(now, zone).isBefore(escalationTime)
         var sent = 0
-        for (row in recordRepository.findAllByAttendanceDateAndStatus(today, AttendanceStatus.ABSENT)) {
-            if (escalationRepository.existsByRecordId(row.id)) continue
-            val student = userRepository.findById(row.studentId).orElse(null) ?: continue
-            val classRow = classRepository.findById(row.classId).orElse(null) ?: continue
-            notifyAbsenceEscalation(student, classRow, row)
-            escalationRepository.save(AttendanceEscalationEntity().apply {
-                this.recordId = row.id
-                this.notifiedAt = now
-            })
-            sent++
+        for (offset in escalationCatchupDays downTo 0L) {
+            val day = today.minusDays(offset)
+            if (offset == 0L && !todayReachedThreshold) continue
+            for (row in recordRepository.findAllByAttendanceDateAndStatus(day, AttendanceStatus.ABSENT)) {
+                if (escalationRepository.existsByRecordId(row.id)) continue
+                val student = userRepository.findById(row.studentId).orElse(null) ?: continue
+                val classRow = classRepository.findById(row.classId).orElse(null) ?: continue
+                notifyAbsenceEscalation(student, classRow, row)
+                escalationRepository.save(AttendanceEscalationEntity().apply {
+                    this.recordId = row.id
+                    this.notifiedAt = now
+                })
+                sent++
+            }
         }
         return sent
     }
@@ -616,8 +629,12 @@ class AttendanceService(
         recipients.add(student.id)
         for (recipientId in recipients) {
             val isLearner = recipientId == student.id
+            val recipient = if (isLearner) student else userRepository.findById(recipientId).orElse(null)
+            val routing = routingPolicy.decide(student, recipient)
+            if (!routing.inApp) continue
             notificationService.notifyUser(
                 userId = recipientId,
+                pushEligible = routing.push,
                 title = if (isLearner) "Still marked absent" else "Absence reminder: " + student.name,
                 message = if (isLearner) {
                     "You are still marked absent on " + dayLabel + ". Speak to your class teacher if this is wrong."
@@ -635,7 +652,7 @@ class AttendanceService(
                     "status" to row.status.name,
                     "audience" to if (isLearner) "STUDENT" else "PARENT",
                     "escalation" to "true",
-                ),
+                ) + routing.metadata,
             )
         }
     }
@@ -655,6 +672,11 @@ class AttendanceService(
         recipients.add(student.id)
         for (recipientId in recipients) {
             val isLearner = recipientId == student.id
+            val recipient = if (isLearner) student else userRepository.findById(recipientId).orElse(null)
+            val routing = routingPolicy.decide(student, recipient)
+            // D1: the in-app row is the safety net for every non-deactivated account; only the
+            // push and (Phase 3) SMS channels are narrowed by subscription eligibility.
+            if (!routing.inApp) continue
             val (title, message) = when (row.status) {
                 AttendanceStatus.ABSENT -> if (isLearner) {
                     "Attendance Alert: " + student.name to
@@ -679,6 +701,7 @@ class AttendanceService(
             }
             notificationService.notifyUser(
                 userId = recipientId,
+                pushEligible = routing.push,
                 title = title,
                 message = message,
                 type = NotificationType.ATTENDANCE,
@@ -691,7 +714,7 @@ class AttendanceService(
                     "classId" to clazz.id.toString(),
                     "status" to row.status.name,
                     "audience" to if (isLearner) "STUDENT" else "PARENT",
-                ),
+                ) + routing.metadata,
             )
         }
     }

@@ -109,6 +109,12 @@ class NotificationService(
         actionRoute: String? = null,
         actionLabel: String? = null,
         metadata: Map<String, String> = emptyMap(),
+        /**
+         * Whether the recipient may receive this event as a push at all (D1 subscription-aware
+         * routing). False still writes the in-app row; [shouldPush] continues to apply the user's
+         * own settings only for eligible recipients.
+         */
+        pushEligible: Boolean = true,
     ): AppNotificationPayload {
         val saved = repository.save(NotificationEntity().apply {
             this.userId = userId
@@ -121,7 +127,7 @@ class NotificationService(
             this.actionLabel = actionLabel
             this.metadata = mapper.writeValueAsString(metadata)
         })
-        if (shouldPush(userId, saved.type, saved.urgency)) {
+        if (pushEligible && shouldPush(userId, saved.type, saved.urgency)) {
             pushFanout.dispatch(
                 userId,
                 PushMessage(

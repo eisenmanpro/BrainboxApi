@@ -4,6 +4,10 @@ import com.afrithecus.brainbox.api.attendance.entity.AttendanceRecordEntity
 import com.afrithecus.brainbox.api.attendance.model.AttendanceStatus
 import com.afrithecus.brainbox.api.attendance.repository.AttendanceRecordRepository
 import com.afrithecus.brainbox.api.attendance.web.AttendanceAnalyticsPayload
+import com.afrithecus.brainbox.api.identity.model.SubscriptionStatus
+import com.afrithecus.brainbox.api.identity.model.SubscriptionTier
+import com.afrithecus.brainbox.api.subscription.entity.SubscriptionEntity
+import com.afrithecus.brainbox.api.subscription.repository.SubscriptionRepository
 import com.afrithecus.brainbox.api.attendance.web.AttendanceRecordPayload
 import com.afrithecus.brainbox.api.auth.web.AuthResponse
 import com.afrithecus.brainbox.api.classes.entity.ClassMembershipEntity
@@ -72,6 +76,7 @@ class AttendanceWebTests(
     @Autowired private val examSubmissionRepository: ExamSubmissionRepository,
     @Autowired private val examRepository: ExamRepository,
     @Autowired private val attendanceService: AttendanceService,
+    @Autowired private val subscriptionRepository: SubscriptionRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
 ) {
 
@@ -119,6 +124,23 @@ class AttendanceWebTests(
             studentId = student.id
         })
     }
+
+    private fun subscribe(student: UserEntity, status: SubscriptionStatus, tier: SubscriptionTier, expiry: Instant?) {
+        subscriptionRepository.save(SubscriptionEntity().apply {
+            userId = student.id
+            this.status = status
+            this.tier = tier
+            expiryDate = expiry
+        })
+    }
+
+    private fun attendanceAlerts(user: UserEntity, token: String): List<AppNotificationPayload> =
+        objectMapper.readValue(
+            mockMvc.perform(
+                get("/notifications").param("userId", user.id.toString()).header("Authorization", auth(token))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<AppNotificationPayload>::class.java,
+        ).filter { it.type == "ATTENDANCE" }
 
     private fun token(user: UserEntity): String {
         val login = mockMvc.perform(
@@ -587,6 +609,109 @@ class AttendanceWebTests(
         )
         check(learnerFeed.any { it.title == "Still marked absent" })
         // The unique escalation row makes a repeated sweep a no-op.
+        check(attendanceService.escalateAbsentees(afterSchool) == 0)
+    }
+
+    // ---------------------------------------------------- D1 subscription-aware routing
+
+    @Test
+    fun `an expired family still gets the in-app alert but is not SMS eligible`() {
+        val parent = user(Role.PARENT, "Expired Parent", "0722000800")
+        val child = user(Role.STUDENT, "Expired Learner", "0722000801", parentId = parent.id)
+        subscribe(child, SubscriptionStatus.EXPIRED, SubscriptionTier.PRO, Instant.now().minusSeconds(10 * 24 * 3600))
+        val teacher = user(Role.TEACHER, "Expired Teacher", "0722000802", subRole = SubRole.CTEACHER)
+        val clazz = teacherClass(teacher, "Grade 6 North")
+        enroll(clazz, child)
+        val day = midnightToday()
+        mockMvc.perform(
+            post("/teacher/attendance").header("Authorization", auth(token(teacher)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(record(clazz, child, "ABSENT", day))))
+        ).andExpect(status().isOk)
+
+        val parentAlerts = attendanceAlerts(parent, token(parent))
+        check(parentAlerts.size == 1)
+        check(parentAlerts.single().metadata["routingReason"] == "FREE_CHANNELS_ONLY")
+        check(parentAlerts.single().metadata["smsEligible"] == "false")
+        // Free channels are never subscription-gated: the learner still sees the mark in-app.
+        check(attendanceAlerts(child, token(child)).size == 1)
+    }
+
+    @Test
+    fun `an active paid subscriber is routed to the SMS-eligible path`() {
+        val parent = user(Role.PARENT, "Active Parent", "0722000810")
+        val child = user(Role.STUDENT, "Active Learner", "0722000811", parentId = parent.id)
+        subscribe(child, SubscriptionStatus.ACTIVE, SubscriptionTier.PRO, Instant.now().plusSeconds(30 * 24 * 3600))
+        val teacher = user(Role.TEACHER, "Active Teacher", "0722000812", subRole = SubRole.CTEACHER)
+        val clazz = teacherClass(teacher, "Grade 6 South")
+        enroll(clazz, child)
+        mockMvc.perform(
+            post("/teacher/attendance").header("Authorization", auth(token(teacher)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(record(clazz, child, "ABSENT", midnightToday()))))
+        ).andExpect(status().isOk)
+
+        val alert = attendanceAlerts(parent, token(parent)).single()
+        check(alert.metadata["routingReason"] == "ACTIVE_SUBSCRIBER")
+        check(alert.metadata["smsEligible"] == "true")
+    }
+
+    @Test
+    fun `a subscription inside the grace window stays SMS eligible`() {
+        val parent = user(Role.PARENT, "Grace Parent", "0722000820")
+        val child = user(Role.STUDENT, "Grace Learner", "0722000821", parentId = parent.id)
+        subscribe(child, SubscriptionStatus.EXPIRED, SubscriptionTier.PRO, Instant.now().minusSeconds(2 * 24 * 3600))
+        val teacher = user(Role.TEACHER, "Grace Teacher", "0722000822", subRole = SubRole.CTEACHER)
+        val clazz = teacherClass(teacher, "Grade 8 North")
+        enroll(clazz, child)
+        mockMvc.perform(
+            post("/teacher/attendance").header("Authorization", auth(token(teacher)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(record(clazz, child, "ABSENT", midnightToday()))))
+        ).andExpect(status().isOk)
+
+        val alert = attendanceAlerts(parent, token(parent)).single()
+        check(alert.metadata["routingReason"] == "EXPIRED_WITHIN_GRACE")
+        check(alert.metadata["smsEligible"] == "true")
+    }
+
+    @Test
+    fun `a deactivated learner's register notifies nobody`() {
+        val parent = user(Role.PARENT, "Gone Parent", "0722000830")
+        val child = user(Role.STUDENT, "Gone Learner", "0722000831", parentId = parent.id)
+        child.isActive = false
+        val teacher = user(Role.TEACHER, "Gone Teacher", "0722000832", subRole = SubRole.CTEACHER)
+        val clazz = teacherClass(teacher, "Grade 9 North")
+        enroll(clazz, child)
+        mockMvc.perform(
+            post("/teacher/attendance").header("Authorization", auth(token(teacher)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(record(clazz, child, "ABSENT", midnightToday()))))
+        ).andExpect(status().isOk)
+
+        // The deactivated learner cannot log in at all, so only the active parent's feed is
+        // observable; it must stay empty because the learner they alias is deactivated.
+        check(attendanceAlerts(parent, token(parent)).isEmpty())
+    }
+
+    @Test
+    fun `a register synced after midnight is escalated once by the catch-up window`() {
+        val parent = user(Role.PARENT, "Late Sync Parent", "0722000840")
+        val child = user(Role.STUDENT, "Late Sync Learner", "0722000841", parentId = parent.id)
+        subscribe(child, SubscriptionStatus.EXPIRED, SubscriptionTier.PRO, Instant.now().minusSeconds(10 * 24 * 3600))
+        val teacher = user(Role.TEACHER, "Late Sync Teacher", "0722000842", subRole = SubRole.CTEACHER)
+        val clazz = teacherClass(teacher, "Grade 7 North")
+        enroll(clazz, child)
+        seed(clazz, child, LocalDate.now(zone).minusDays(1), "ABSENT")
+
+        val afterSchool = LocalDate.now(zone).atTime(16, 0).atZone(zone).toInstant()
+        check(attendanceService.escalateAbsentees(afterSchool) == 1) {
+            "a register replayed after midnight must still produce its one absence reminder"
+        }
+        val alert = attendanceAlerts(parent, token(parent)).single { it.title == "Absence reminder: " + child.name }
+        check(alert.metadata["routingReason"] == "FREE_CHANNELS_ONLY")
+        check(alert.metadata["smsEligible"] == "false")
+        // Idempotency survives the wider window: the unique escalation row is still the guard.
         check(attendanceService.escalateAbsentees(afterSchool) == 0)
     }
 }

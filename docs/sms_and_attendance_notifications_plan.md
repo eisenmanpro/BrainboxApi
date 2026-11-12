@@ -1,10 +1,11 @@
 # SMS provider, attendance notifications and offline delivery — phased implementation plan
 
 **Status: IN PROGRESS.** Written 2026-11-12 before the HostPinnacle credentials arrived; updated later the same day
-when they did. Phase 0 decisions are locked (D1/D2/D5 answered by the owner, §10) and Phase 1 is implemented and
-unit-tested; only the live smoke waits on a purchased HostPinnacle sender ID. Phases 2–6 are queued. The document turns
-the research in [phone_verification.md](phone_verification.md) and the attendance/offline audit into an ordered,
-testable task list.
+when they did, and again after Phase 2 (subscription-aware routing) and Phase 5.1–5.4 (offline catch-up) landed.
+Phase 0 decisions are locked (D1/D2/D5 answered by the owner, §10), Phase 1 is implemented and unit-tested, and
+Phase 2/5.1–5.4 are implemented and tested; only the Phase 1 live smoke waits on a purchased HostPinnacle sender ID.
+Phase 3 (the guarded SMS channel) is next, then Phase 4/6. The document turns the research in
+[phone_verification.md](phone_verification.md) and the attendance/offline audit into an ordered, testable task list.
 
 | | |
 |---|---|
@@ -13,8 +14,9 @@ testable task list.
 | **Decision supersedes** | "Africa's Talking primary, Beem fallback" in `phone_verification.md` — HostPinnacle becomes the default; AT/Beem stay as config-selectable fallback |
 | **Blocked on** | HostPinnacle **sender ID purchase** (support confirms there are no test sender IDs) for the Phase 1 live smoke only; Africa's Talking sandbox is available for dev delivery tests and was verified live. Credentials, pricing, test numbers and D1/D2/D5 are in hand. |
 
-Phase 1's notifier was built and tested against a local HTTP stub plus the provider's real error bodies; Phase 2
-(subscription routing) and Phase 5 (offline fixes) are credential-independent and are the next work.
+Phase 1's notifier was built and tested against a local HTTP stub plus the provider's real error bodies. Phase 2
+(subscription routing) and Phase 5.1–5.4 (offline fixes) are implemented, tested and recorded below; they were
+credential-independent, so they ran before the sender-ID purchase.
 
 ---
 
@@ -116,13 +118,14 @@ subscription-gated rollout is a policy change, not a refactor — hence Phase 2 
 | Channel | Expired / BASE learner | ACTIVE non-BASE learner | Staff (teacher/admin) |
 |---|---|---|---|
 | In-app notification row | keep (history + safety) | yes | not an attendance recipient |
-| FCM push | no | yes (subject to push settings) | n/a |
+| FCM push | **yes — free channel (D1 owner decision)** | yes (subject to push settings) | n/a |
 | Attendance SMS | no | only if consent + capability gates pass | n/a |
 | Subscription renewal nudge | existing reminder service | existing reminder service | n/a |
 
 Legacy `PARENT` rows bypass subscriptions by role; under F9 they are aliases, so eligibility must be inherited from the
-learner they alias, not from the role. A grace window after expiry (`ATTENDANCE_ROUTING_GRACE_DAYS`, default 3) is
-recommended so a payment lapse does not silently cut off a week of absence alerts; this is part of D1.
+learner they alias, not from the role. A grace window after expiry (`ATTENDANCE_ROUTING_GRACE_DAYS`, default 3) keeps
+alerts flowing for a few days after a payment lapse; this is part of D1 and is implemented in
+`AttendanceRecipientPolicy`.
 
 ### 2.4 Offline delivery
 
@@ -199,10 +202,18 @@ to users until the flag is flipped.
 
 ### Phase 2 — Subscription-aware attendance routing (~1.5 days; credential-independent)
 
+**Status 2026-11-12 (afternoon): P2.1–P2.5 done.** `AttendanceRecipientPolicy` implements the D1 matrix,
+`AttendanceService` applies it to both the mark fan-out and the escalation sweep, `NotificationService.notifyUser`
+gained `pushEligible` so an ineligible account still gets its in-app row but no push, and every delivered row now
+carries `routingReason` + `smsEligible` metadata. Verified by `AttendanceRecipientPolicyTest` (13 cases: ACTIVE,
+grace boundary, expired, stale ACTIVE, BASE/NONE, no row, deactivated/ROSTER_ONLY recipient, deactivated learner,
+alias inheritance, PARENT-role non-inheritance) and five new `AttendanceWebTests` integration cases; the existing
+attendance suites stay green.
+
 | ID | Task | Repo/files | Depends | Est | Acceptance |
 |---|---|---|---|---|---|
 | P2.1 | `AttendanceRecipientPolicy`: eligibility = user exists, `isActive`, `accountKind=FULL`, learner subscription `ACTIVE`, tier ≠ `BASE`, expiry > now (+ `ATTENDANCE_ROUTING_GRACE_DAYS`); legacy parent alias inherits from the learner, not from `Role.PARENT` | new policy + `AttendanceService` | none | 4 h | Unit matrix: ACTIVE, EXPIRED, BASE/NONE, grace boundary, alias, deactivated |
-| P2.2 | Split channels: in-app row for eligible accounts (D1 default), push gated separately; add routing metadata + `routingReason` to the notification metadata/audit | `AttendanceService`, `NotificationService` (small extension) | P2.1 | 3 h | Expired learner test: 0 push, in-app per D1 |
+| P2.2 | Split channels: in-app row for eligible accounts (D1 default), push gated separately; add routing metadata + `routingReason` to the notification metadata/audit | `AttendanceService`, `NotificationService` (small extension) | P2.1 | 3 h | Free channels (in-app + push) reach every non-deactivated account, so an expired learner still gets both; the row's metadata records `routingReason=FREE_CHANNELS_ONLY`, `smsEligible=false` (D1 supersedes the earlier "0 push" draft) |
 | P2.3 | Apply the same policy to the escalation sweep | `AttendanceService.escalateAbsentees` | P2.2 | 1 h | Expired learner's escalation produces no push/SMS |
 | P2.4 | Tests: submit, mark-by-exception, escalation, alias, inactive account, grace, teacher/admin unaffected; full suite | server tests | P2.1–P2.3 | 4 h | New tests + all existing green |
 | P2.5 | Record D1 result in docs and the F9/ledger residual line | docs | P2.4 | 30 min | Decision written, not implied |
@@ -234,6 +245,13 @@ to users until the flag is flipped.
 | P4.6 | Final EN/SW templates, quiet-hours copy, consent/privacy note (DPA/ODPC) | P0.4 | 0.5 d | Strings shipped, under 160 GSM-7 |
 
 ### Phase 5 — Offline delivery fixes (~2 days; credential-independent)
+
+**Status 2026-11-12 (afternoon): P5.1–P5.4 done; P5.5 (delivery ledger) deferred per D6.** The escalation sweep
+now repairs the last `ATTENDANCE_ESCALATION_CATCHUP_DAYS` (default 3) days, keeping the unique escalation row as
+the idempotency guard. Android refreshes the feed on start/resume/connectivity (one `NotificationRefresh` helper),
+in `SyncWorker` for both roles, and after a replay that actually synced pending registers; the badge updates from
+the same Room flow. Web refreshes `NotificationsCenter` on visibility/focus/online with per-mount listener cleanup.
+Verified by a new catch-up integration test, `NotificationRefreshTest`, and `notificationsCenter.test.mjs`.
 
 | ID | Task | Repo | Depends | Est | Acceptance |
 |---|---|---|---|---|---|
@@ -279,6 +297,15 @@ paidChannelEligible(user, learner):
 - Teachers/admins: attendance notifications are not addressed to them today; no change.
 - Subscription reminders (existing `SubscriptionReminderScheduler`) remain the nudge and renewal path for expired
   families; the free channels keep them informed meanwhile.
+
+**Implemented 2026-11-12 (P2.1–P2.5).** `AttendanceRecipientPolicy.decide(learner, recipient)` returns the three
+channel booleans plus a `RoutingReason`; the expiry is authoritative (a stale ACTIVE row with a past expiry is
+lapsed) and the 3-day grace window is exclusive at its boundary. A legacy PARENT alias inherits the learner's
+eligibility — `Role.PARENT` alone never grants the paid channel — and a deactivated or ROSTER_ONLY learner silences
+every recipient. `NotificationService.notifyUser` now takes `pushEligible` (default true, so every other caller is
+unchanged): the in-app row is still written, the push is suppressed only when the policy denies it. Both fan-out
+paths write `routingReason` and `smsEligible` into the row metadata. `ATTENDANCE_ROUTING_GRACE_DAYS` (default 3) is
+the only new configuration.
 
 ## 6. Attendance SMS policy — specification
 
@@ -398,10 +425,19 @@ HostPinnacle once its sender ID is approved.
 
 ## 12. Verification and definition of done
 
+**Phase 2/5 run log — 2026-11-12:** full server suite **739 tests, 0 failures, 3 skipped** (44m 25s; includes
+`AttendanceRecipientPolicyTest` 13 and the five new `AttendanceWebTests` cases); Android prod-flavor unit tests
+**387/0** (adds `NotificationRefreshTest` 3); web **93 files / 1,346 tests, 0 failures** (adds
+`notificationsCenter.test.mjs` 2). Note: `testDevDebugUnitTest` cannot build on this machine right now because
+the owner's local `app/google-services.json` was replaced with a prod-only client list; that is a local Firebase
+configuration, not a source change, and the prod variant exercises the same unit-test source set.
+
 - **Server**: focused tests per phase + full `./gradlew test` green (717+ tests, 3 skipped baseline). Migration applies
   on the collapsed baseline under `ddl-auto: validate`.
-- **Android**: `./gradlew :app:testDevDebugUnitTest --offline` green; wire fixtures updated for any new payload.
-- **Web**: `npm test` green (92 files / 1,344 tests baseline).
+- **Android**: `./gradlew :app:testProdDebugUnitTest --offline` green while the local Firebase file has no dev
+  client; on a machine with the dev client `testDevDebugUnitTest` is the canonical command. Wire fixtures updated
+  for any new payload.
+- **Web**: `npm test` green (93 files / 1,346 tests after this phase).
 - **Live**: one OTP and one absence SMS delivered on each of the three networks; evidence captured in this doc.
 - **Cost**: one week of staging data shows SMS per 1,000 absence events ≤ target and zero duplicate sends.
 - **Rollback**: flag off restores the current push-only behaviour; provider swap is env-only.
@@ -413,10 +449,10 @@ HostPinnacle once its sender ID is approved.
 |---|---|---|
 | 0 Inputs/decisions | **done except sender ID** | D1/D2/D5 locked; credentials, pricing, test numbers and probe evidence in hand; P0.3 measurement waits for real post-launch data |
 | 1 HostPinnacle default | **implemented, live smoke blocked** | notifier + properties + form-wire tests + docs landed; live send waits on the purchased sender ID; AT sandbox verified for OTP delivery tests |
-| 2 Subscription routing | **next** | D1 locked; credential-independent |
-| 3 Attendance SMS MVP | not started | D1/D2/D5 locked; needs Phase 2 |
+| 2 Subscription routing | **done 2026-11-12** | `AttendanceRecipientPolicy` + push split + escalation policy; 13 unit cases + 5 integration cases green |
+| 3 Attendance SMS MVP | **next** | D1/D2/D5 locked and Phase 2 done; default-off, per-school allowlist |
 | 4 Cost refinements | not started | needs Phase 3 measurements |
-| 5 Offline fixes | not started | credential-independent; can run parallel with Phase 2 |
+| 5 Offline fixes | **done 2026-11-12 (P5.1–P5.4)** | catch-up sweep, Android resume/connectivity/sync/replay refresh, web visibility/focus/online; P5.5 deferred |
 | 6 Hardening/rollout | not started | needs live provider |
 
 ---

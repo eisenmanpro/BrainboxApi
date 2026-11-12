@@ -57,6 +57,14 @@ management:
 app:
   # Calendar zone used to bucket attendance registers (client sends local midnight).
   school-zone: ${SCHOOL_ZONE:Africa/Nairobi}
+  # Attendance fan-out routing (docs/sms_and_attendance_notifications_plan.md §5, D1).
+  # Free in-app/push channels reach every non-deactivated account; the paid SMS channel
+  # additionally needs an ACTIVE non-BASE subscription. The grace window keeps alerts
+  # flowing for a few days after a renewal lapses. P5.1's catch-up window lets the
+  # escalation sweep repair registers that were synced after midnight.
+  attendance:
+    routing-grace-days: ${ATTENDANCE_ROUTING_GRACE_DAYS:3}
+    escalation-catchup-days: ${ATTENDANCE_ESCALATION_CATCHUP_DAYS:3}
   # Adaptive-difficulty ONNX model distribution. The operator drops the model file on
   # disk and points ML_MODEL_PATH at it; the API publishes its SHA-256 so the app can
   # verify the bytes before loading them. With no path (or a missing file) the manifest
