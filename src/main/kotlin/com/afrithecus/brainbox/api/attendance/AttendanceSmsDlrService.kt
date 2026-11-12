@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.attendance
 
+import com.afrithecus.brainbox.api.attendance.entity.AttendanceSmsDispatchEntity
 import com.afrithecus.brainbox.api.attendance.repository.AttendanceSmsDispatchRepository
 import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
@@ -10,6 +11,7 @@ import tools.jackson.databind.ObjectMapper
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.Clock
+import java.util.UUID
 
 /**
  * P4.5: provider delivery-report (DLR) webhook for the attendance channel.
@@ -53,7 +55,31 @@ class AttendanceSmsDlrService(
             ?: return outcome(Outcome.BAD_PAYLOAD)
         val messageId = findText(node, MESSAGE_ID_KEYS) ?: return outcome(Outcome.BAD_PAYLOAD)
         val status = classify(findText(node, STATUS_KEYS).orEmpty())
+        return applyReport(messageId, status)
+    }
+
+    /**
+     * Applies a normalised delivery report by provider message id. Used by the provider webhook.
+     * Unknown ids are acknowledged, never guessed.
+     */
+    @Transactional
+    internal fun applyReport(messageId: String, status: DlrStatus): Outcome {
         val row = dispatches.findByProviderMessageId(messageId) ?: return outcome(Outcome.UNKNOWN_MESSAGE)
+        return applyReport(row, status)
+    }
+
+    /**
+     * Applies a normalised delivery report by our dispatch id. Used by the staging-only simulator
+     * ([AttendanceSmsDlrSimulator]), so rows from the logging gateway (which has no provider message
+     * id) can be exercised too. Both entry points share [applyReport]'s persistence/idempotency path.
+     */
+    @Transactional
+    internal fun applyReport(dispatchId: UUID, status: DlrStatus): Outcome {
+        val row = dispatches.findById(dispatchId).orElse(null) ?: return outcome(Outcome.UNKNOWN_MESSAGE)
+        return applyReport(row, status)
+    }
+
+    private fun applyReport(row: AttendanceSmsDispatchEntity, status: DlrStatus): Outcome {
         if (row.dlrReceivedAt != null && row.dlrStatus == status.name) {
             meterRegistry.counter("brainbox.sms.dlr", "outcome", "replayed").increment()
             return Outcome.ACCEPTED
@@ -67,6 +93,10 @@ class AttendanceSmsDlrService(
         log.info("SMS DLR dispatch={} status={}", row.id, status)
         return Outcome.ACCEPTED
     }
+
+    /** True when the shared secret is configured and matches; the staging simulator reuses it. */
+    internal fun secretAccepted(secret: String?): Boolean =
+        properties.dlrSecret.isNotBlank() && secretMatches(secret)
 
     private fun outcome(outcome: Outcome): Outcome {
         meterRegistry.counter("brainbox.sms.dlr", "outcome", outcome.name.lowercase()).increment()

@@ -107,6 +107,14 @@ app:
       circuit-open-seconds: ${ATTENDANCE_SMS_CIRCUIT_OPEN_SECONDS:120}
       # P4.5: shared secret for the provider delivery-report webhook; blank disables it (404).
       dlr-secret: ${ATTENDANCE_SMS_DLR_SECRET:}
+      # P6.0: staging-only delivery-report simulation. The controller and scheduler exist only under
+      # the staging profile; production keeps this false and the service refuses another profile.
+      dlr-simulation-enabled: ${ATTENDANCE_SMS_DLR_SIMULATION_ENABLED:false}
+      dlr-simulation-delay-seconds: ${ATTENDANCE_SMS_DLR_SIMULATION_DELAY_SECONDS:60}
+      dlr-simulation-outcome: ${ATTENDANCE_SMS_DLR_SIMULATION_OUTCOME:DELIVERED}
+      dlr-simulation-limit: ${ATTENDANCE_SMS_DLR_SIMULATION_LIMIT:50}
+      dlr-simulation-initial-delay-ms: ${ATTENDANCE_SMS_DLR_SIMULATION_INITIAL_DELAY_MS:30000}
+      dlr-simulation-scan-ms: ${ATTENDANCE_SMS_DLR_SIMULATION_SCAN_MS:30000}
       # P4.6: EN (default) or SW template pair; both are ASCII-only single segments.
       language: ${ATTENDANCE_SMS_LANGUAGE:EN}
       message-template-sw: "${ATTENDANCE_SMS_MESSAGE_TEMPLATE_SW:BRAINBOX: {learner} hakuwepo shuleni {date}. Wasiliana na shule ikiwa si sahihi.}"

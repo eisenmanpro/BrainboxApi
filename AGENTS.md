@@ -27,8 +27,9 @@ configures credentials. HostPinnacle requires a **purchased sender ID** (support
 IDs); until it is bought, Africa's Talking's sandbox is the live delivery test channel and production stays on the
 logging/dormant path. Do not make any UI claim a phone is verified unless `users.phone_verified_at` is set, and
 clear `phone_verified_at` whenever a phone number changes. Decision, provider research and activation checklist:
-[docs/phone_verification.md](docs/phone_verification.md) and the phased implementation plan
-[docs/sms_and_attendance_notifications_plan.md](docs/sms_and_attendance_notifications_plan.md).
+[docs/phone_verification.md](docs/phone_verification.md), the phased implementation plan
+[docs/sms_and_attendance_notifications_plan.md](docs/sms_and_attendance_notifications_plan.md) and the operator
+runbook [docs/attendance_sms_runbook.md](docs/attendance_sms_runbook.md).
 
 ## Attendance notifications and the guarded SMS fallback (dormant by default)
 
@@ -47,5 +48,9 @@ fallback providers through a circuit breaker. There is no automatic retry. Provi
 selected by `ATTENDANCE_SMS_LANGUAGE`. OTP and attendance share the `com.afrithecus.brainbox.api.sms`
 gateway classes. Ledger: `/admin/console/sms/**` (platform) and `/school/attendance-sms/**` (own
 school). Contract, rule order, config keys and cost template:
-[docs/sms_and_attendance_notifications_plan.md](docs/sms_and_attendance_notifications_plan.md) §6/§15. Live
+[docs/sms_and_attendance_notifications_plan.md](docs/sms_and_attendance_notifications_plan.md) §6/§15.
+P6.0 adds a **staging-only DLR simulator** (controller/scheduler exist only under the `staging` profile, the
+service refuses other profiles, and the staging yml enables it by default) so the ledger and delivery path can be
+exercised without a provider; it must never be enabled in production. Rollout, monitoring, incidents, key
+rotation and the emergency brakes are in [docs/attendance_sms_runbook.md](docs/attendance_sms_runbook.md). Live
 HostPinnacle attendance delivery also waits on the purchased sender ID.

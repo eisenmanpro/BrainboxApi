@@ -88,6 +88,21 @@ data class AttendanceSmsProperties(
     /** Shared secret for the provider delivery-report webhook; blank disables the endpoint (404). */
     val dlrSecret: String = "",
 
+    // ------------------------------------------------- P6.0 staging-only DLR simulation
+    /**
+     * Staging only: lets the simulator mark SENT dispatches delivered/failed without the provider,
+     * so the DLR parser, ledger and dashboards can be exercised before the sender ID exists. The
+     * controller and scheduler beans only exist under the `staging` profile, and the simulator
+     * additionally refuses to run outside it, so production can never simulate a delivery.
+     */
+    val dlrSimulationEnabled: Boolean = false,
+    /** The staging sweep only auto-reports messages older than this, so a manual test can run first. */
+    val dlrSimulationDelaySeconds: Long = 60,
+    /** DELIVERED or FAILED; the automatic staging sweep outcome. */
+    val dlrSimulationOutcome: String = "DELIVERED",
+    /** Cap per automatic sweep so a large staging backlog cannot stall the scheduler. */
+    val dlrSimulationLimit: Int = 50,
+
     // ---------------------------------------------------------------------- P4.6 templates
     /** EN (default) or SW; selects the template pair below. */
     val language: String = "EN",

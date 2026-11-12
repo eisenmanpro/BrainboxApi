@@ -184,8 +184,11 @@ Clients:
    in env.
 4. Flip PHONE_VERIFICATION_ENABLED and the provider; keep require-for-approval off until the owner decides.
 5. Confirm the HostPinnacle sender ID is transactional-approved on all three networks before enforcing verification.
-5. Add consent copy (DPA 2019 / ODPC) explaining the OTP is transactional and the number is used for account recovery.
-6. Monitor delivery receipts and failure rate per network before enforcing.
+6. Add consent copy (DPA 2019 / ODPC) explaining the OTP is transactional and the number is used for account recovery.
+7. Monitor delivery receipts and failure rate per network before enforcing.
+
+The end-to-end staging and production sequence (config matrix, three-network smoke, staging-only DLR simulation,
+canary, monitoring, key rotation and rollback) is in [attendance_sms_runbook.md](attendance_sms_runbook.md).
 
 ## Product decisions still open
 

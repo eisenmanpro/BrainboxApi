@@ -1,11 +1,13 @@
 # SMS provider, attendance notifications and offline delivery — phased implementation plan
 
-**Status: PHASES 1–5 IMPLEMENTED; live delivery blocked on the sender ID.** Written 2026-11-12 before the
-HostPinnacle credentials arrived, then updated after Phase 1 (default provider), Phase 2 (subscription-aware
-routing), Phase 5.1–5.4 (offline catch-up), Phase 3 (the guarded attendance SMS channel) and Phase 4 (read-ack
-fallback, family digest, risk threshold, provider chain, DLR webhook, EN/SW templates) landed. Phase 0
-decisions are locked (D1/D2/D5 answered, §10); only Phase 6 (live hardening/rollout) remains, and Phase 1.6/6.1
-live smoke waits on a purchased HostPinnacle sender ID. The document turns the research in
+**Status: PHASES 1–5 IMPLEMENTED, PHASE 6 TOOLING READY; live delivery blocked on the sender ID.** Written
+2026-11-12 before the HostPinnacle credentials arrived, then updated after Phase 1 (default provider), Phase 2
+(subscription-aware routing), Phase 5.1–5.4 (offline catch-up), Phase 3 (the guarded attendance SMS channel),
+Phase 4 (read-ack fallback, family digest, risk threshold, provider chain, DLR webhook, EN/SW templates) and the
+Phase 6 staging tooling landed. Phase 0 decisions are locked (D1/D2/D5 answered, §10). **P6.0 staging DLR
+simulation** and the **P6.3 operator runbook** ([attendance_sms_runbook.md](attendance_sms_runbook.md)) make the
+production rollout a configuration exercise; only the live E2E (P6.1) and the final doc sweep (P6.4) remain, and
+they wait on the purchased HostPinnacle sender ID. The document turns the research in
 [phone_verification.md](phone_verification.md) and the attendance/offline audit into an ordered, testable task
 list.
 
@@ -277,9 +279,10 @@ Verified by a new catch-up integration test, `NotificationRefreshTest`, and `not
 
 | ID | Task | Depends | Est | Acceptance |
 |---|---|---|---|---|
+| P6.0 | **Staging-only DLR simulation**: exercise the ledger/DLR path without a provider | P4.5 | 0.5 d | **Done:** controller/scheduler exist only under `staging`; service refuses other profiles; manual endpoint + automatic sweep; focused tests green |
 | P6.1 | Staging E2E with live HostPinnacle: OTP + attendance SMS to 3 networks; sender ID, timing, delivery; capture cost | P1, P3, P5 | 1 d | Evidence table; all three networks OK |
-| P6.2 | Budget defaults per school/term + console visibility (D5) | P3.5 | 0.5 d | Admin can set/see budget; exhausted → no sends |
-| P6.3 | Runbook: key rotation, credit exhaustion, provider outage, failed sends, rollback (flag off / provider swap) | P1–P4 | 0.5 d | Runbook in docs; rollback tested |
+| P6.2 | Budget defaults per school/term + console visibility (D5) | P3.5 | 0.5 d | **Done in Phase 3**: console/school budget get/put + exhaustion stops sends |
+| P6.3 | Runbook: key rotation, credit exhaustion, provider outage, failed sends, rollback (flag off / provider swap) | P1–P4 | 0.5 d | **Done:** [attendance_sms_runbook.md](attendance_sms_runbook.md) covers staging simulation, rollout, monitoring, incidents, rotation and cost; rollback drill scripted for staging |
 | P6.4 | Final doc sweep (this plan, phone_verification.md, AGENTS.md, F9 audit, ledger) | all | 0.5 d | No stale "AT primary"/"no SMS" claims |
 
 **Total: ~11–13 focused days**, of which ~5–6 are credential-independent (Phases 2 and 5). Phase 3 client work is the
@@ -382,6 +385,11 @@ Target instrumentation: **≤400 SMS per 1,000 absence events**, measured per sc
 | `ATTENDANCE_SMS_FALLBACK_PROVIDERS` | empty | P4.4 ordered fallback gateways (africastalking/beem/hostpinnacle/logging) |
 | `ATTENDANCE_SMS_CIRCUIT_FAILURE_THRESHOLD` / `ATTENDANCE_SMS_CIRCUIT_OPEN_SECONDS` | `3` / `120` | P4.4 circuit breaker tuning |
 | `ATTENDANCE_SMS_DLR_SECRET` | empty | P4.5 shared secret for `POST /webhooks/sms/dlr`; blank disables the endpoint (404) |
+| `ATTENDANCE_SMS_DLR_SIMULATION_ENABLED` | `false` (staging yml defaults `true`) | P6.0 staging-only simulator; controller/scheduler exist only under `staging`, and the service refuses any other profile |
+| `ATTENDANCE_SMS_DLR_SIMULATION_DELAY_SECONDS` | `60` | P6.0 only auto-report messages older than this |
+| `ATTENDANCE_SMS_DLR_SIMULATION_OUTCOME` | `DELIVERED` | P6.0 auto-sweep outcome: `DELIVERED` or `FAILED` |
+| `ATTENDANCE_SMS_DLR_SIMULATION_LIMIT` | `50` | P6.0 cap per automatic sweep |
+| `ATTENDANCE_SMS_DLR_SIMULATION_INITIAL_DELAY_MS` / `SCAN_MS` | `30000` / `30000` | P6.0 staging sweep schedule |
 | `ATTENDANCE_SMS_LANGUAGE` | `EN` | P4.6 template pair: `EN` or `SW` |
 | `ATTENDANCE_SMS_MESSAGE_TEMPLATE_SW` / `ATTENDANCE_SMS_DIGEST_TEMPLATE` / `ATTENDANCE_SMS_DIGEST_TEMPLATE_SW` | EN/EN/SW defaults | P4.6 Swahili single message, digest pair |
 
@@ -507,7 +515,7 @@ configuration, not a source change, and the prod variant exercises the same unit
 | 3 Attendance SMS MVP | **done 2026-11-12 (default off)** | shared gateway, V13, policy, worker, ledger, budget, console/school endpoints, Android opt-in; web has no guardian surface yet; live sends still wait on the sender ID |
 | 4 Cost refinements | **done 2026-11-13 (default off)** | read-ack fallback, family digest, optional risk threshold, provider chain + circuit breaker, DLR webhook, EN/SW templates |
 | 5 Offline fixes | **done 2026-11-12 (P5.1–P5.4)** | catch-up sweep, Android resume/connectivity/sync/replay refresh, web visibility/focus/online; P5.5 deferred |
-| 6 Hardening/rollout | **next** | live E2E/rollout; needs the purchased sender ID |
+| 6 Hardening/rollout | **tooling + runbook ready; live E2E blocked** | P6.0 staging DLR simulation and P6.3 runbook landed; P6.2 already covered by the Phase 3 console/school budget surfaces; P6.1 live E2E still waits on the purchased sender ID |
 
 ---
 
@@ -635,8 +643,44 @@ events target in the first pilot week; P5.5 (push delivery ledger) remains defer
 
 ---
 
-*Plan first written with no source changes. Phases 1–5 have since landed code: the HostPinnacle/AT/Beem shared
-gateway (`api/sms`), V12/V13/V14, `AttendanceRecipientPolicy`, the guarded SMS policy/worker/ledger/
-budget, the read-ack/digest/risk/chain/DLR refinements, and the Android opt-in plus offline refresh.
-`phone_verification.md` and this plan were updated with real provider evidence and locked decisions; no
-client change was needed for Phase 4.*
+## 16. Phase 6 tooling: staging DLR simulation and the runbook (P6.0/P6.3)
+
+**Staging DLR simulation (P6.0).** `AttendanceSmsDlrSimulator` writes a normalised delivery report through
+`AttendanceSmsDlrService.applyReport` - the exact method the provider webhook uses - so the ledger, console and
+school panels cannot diverge from production behaviour. It is staging-only three times over: the manual controller
+(`POST /webhooks/sms/dlr/simulate`, authenticated by the same `X-SMS-DLR-Secret`) and the automatic sweep
+scheduler are annotated `@Profile("staging")` and `@ConditionalOnProperty(dlr-simulation-enabled)`; the service
+additionally refuses every call unless the `staging` profile is active, even if the property is mistakenly set in
+production. Manual calls require the shared secret and exactly one identifier: `dispatchId` (the ledger row id, which
+also covers rows from the logging gateway that have no provider message id) or `messageId` (the provider message
+id, to mimic a real report). The auto-sweep reports `SENT` rows older than `dlr-simulation-delay-seconds`
+(default 60 s) with `dlr-simulation-outcome` (default `DELIVERED`), at most `dlr-simulation-limit` per pass,
+including rows without a provider message id. Replays are idempotent through the same code path:
+`deliveredAt`/`dlrReceivedAt` do not move, and a delivery report never re-bills. Focused tests cover the
+non-staging refusal and the absence of the route outside staging, delivered/failed persistence, dispatch-id and
+message-id simulation, idempotency, secret rejection, the sweep filters and the controller's HTTP mapping; the
+staging yml enables the simulator by default, while `application.yml` keeps it off; production runs the
+`prod` profile with no simulator controller or scheduler beans (the service itself refuses a non-staging call).
+
+**Runbook (P6.3).** [attendance_sms_runbook.md](attendance_sms_runbook.md) is the operator-facing counterpart:
+prerequisites (including the sender ID and the DLR callback-header open question), a staging/production config
+matrix, the staging sequence (OTP on three networks, logging-gateway attendance smoke, live-provider smoke,
+rollback drill), the manual and automatic DLR-simulation procedure, the production canary sequence, monitoring
+metrics/logs/targets, emergency brakes that need no deploy (budget to zero) versus flag changes that need a rolling
+restart, key rotation, the two-meter cost model (provider credit vs school allocation) and the evidence/sign-off
+table. It also records what remains open after this tooling: the unobserved real HostPinnacle DLR payload, the
+fallback duplicate-on-timeout trade-off, the ROSTER_ONLY family gap and the deferred push delivery ledger.
+
+**Verification.** `AttendanceSmsDlrSimulationTests` (4 cases) and the existing `AttendanceSmsDlrWebTests` (4
+cases) are green. Full server suite **783 tests, 0 failures, 3 skipped** (34m 48s) on 2026-11-12, including the
+new simulation cases. No production path changes: with `SPRING_PROFILES_ACTIVE=prod` and the flag off there is no
+simulator controller or scheduler, the service refuses a non-staging call, and the channel remains dormant until
+the sender ID arrives.
+
+---
+
+*Plan first written with no source changes. Phases 1–5 and the Phase 6 staging tooling have since landed code:
+the HostPinnacle/AT/Beem shared gateway (`api/sms`), V12/V13/V14, `AttendanceRecipientPolicy`, the guarded SMS
+policy/worker/ledger/budget, the read-ack/digest/risk/chain/DLR refinements, the Android opt-in plus offline
+refresh, the staging-only DLR simulator, and the rollout runbook. `phone_verification.md` and this plan were
+updated with real provider evidence and locked decisions; no client change was needed for Phases 4–6 tooling.*

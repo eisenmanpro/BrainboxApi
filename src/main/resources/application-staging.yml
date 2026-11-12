@@ -8,3 +8,16 @@ spring:
 logging:
   level:
     com.afrithecus.brainbox.api: INFO
+
+# P6.0: staging-only delivery-report simulation. The ledger, DLR parser and dashboards can be
+# exercised without HostPinnacle; production runs the prod profile and never loads these beans.
+# Override the enabled flag to false when a staging test must observe a message staying SENT.
+app:
+  attendance:
+    sms:
+      dlr-simulation-enabled: ${ATTENDANCE_SMS_DLR_SIMULATION_ENABLED:true}
+      dlr-simulation-delay-seconds: ${ATTENDANCE_SMS_DLR_SIMULATION_DELAY_SECONDS:60}
+      dlr-simulation-outcome: ${ATTENDANCE_SMS_DLR_SIMULATION_OUTCOME:DELIVERED}
+      dlr-simulation-limit: ${ATTENDANCE_SMS_DLR_SIMULATION_LIMIT:50}
+      dlr-simulation-initial-delay-ms: ${ATTENDANCE_SMS_DLR_SIMULATION_INITIAL_DELAY_MS:30000}
+      dlr-simulation-scan-ms: ${ATTENDANCE_SMS_DLR_SIMULATION_SCAN_MS:30000}
