@@ -37,6 +37,25 @@ class AdminSchoolController(private val service: AdminSchoolService) {
         @PathVariable schoolId: String,
     ): List<GradeConfigSummaryPayload> = service.grades(current, schoolId)
 
+    /** Teachers the ICT admin may assign as a grade coordinator (active, approved class teachers). */
+    @GetMapping("/{schoolId}/coordinator-candidates")
+    fun coordinatorCandidates(
+        @AuthenticationPrincipal current: CurrentUser,
+        @PathVariable schoolId: String,
+    ): List<CoordinatorCandidatePayload> = service.coordinatorCandidates(current, schoolId)
+
+    /**
+     * Assigns the grade's single coordinator (or removes it when teacherId is null/missing).
+     * Replacing a holder demotes them back to class teacher; their class stays theirs.
+     */
+    @PutMapping("/{schoolId}/grades/{gradeLevel}/coordinator")
+    fun assignCoordinator(
+        @AuthenticationPrincipal current: CurrentUser,
+        @PathVariable schoolId: String,
+        @PathVariable gradeLevel: String,
+        @RequestBody(required = false) request: CoordinatorAssignmentPayload?,
+    ): GradeConfigSummaryPayload = service.assignCoordinator(current, schoolId, gradeLevel, request)
+
     @GetMapping("/{schoolId}/approvals")
     fun approvals(
         @AuthenticationPrincipal current: CurrentUser,

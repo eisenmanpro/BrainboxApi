@@ -47,6 +47,44 @@ powers until an admin sets the grade.
 | School administration (`/admin/schools/**`) | all | own school | no | no | no |
 | Platform console (`/admin/console/**`) | platform permissions | no | no | no | no |
 
+## Assigning a coordinator (ICT-admin School Config)
+
+The ICT admin (or a platform `ADMIN`) assigns each grade's single coordinator from the admin
+School Config screen. All routes are under `/admin/schools/{schoolId}` and behind
+`@PreAuthorize("hasAnyRole('ADMIN','ICT_ADMIN')")` plus `AdminSchoolAccess` (a platform admin may act
+on any school, an ICT admin only on their own; the actor always comes from the token):
+
+- `GET /admin/schools/{schoolId}/grades` — every grade row carries `coordinatorId` (the account
+  currently assigned, null when none) and `coordinatorName`.
+- `GET /admin/schools/{schoolId}/coordinator-candidates` — active, approved `CTEACHER` /
+  `GRADE_COORDINATOR` staff of the school, name-sorted, with the grade they already coordinate (null
+  for a plain class teacher) and the class they lead. Pending/rejected/frozen accounts, plain
+  `TEACHER`s, other schools' staff and learners are excluded.
+- `PUT /admin/schools/{schoolId}/grades/{gradeLevel}/coordinator` body
+  `{"teacherId": "<uuid>" | null}` — assigns the grade's coordinator; a null or missing `teacherId`
+  removes the assignment. Returns the updated grade row.
+
+Rules implemented by `AdminSchoolService.assignCoordinator`:
+
+- the grade must exist in the school's **active class catalogue**; the match is trim/case-insensitive
+  and the stored catalogue spelling is the canonical one written to the account (404 otherwise);
+- the target must be a teacher of this school: active, `VERIFIED`, and `CTEACHER` or
+  `GRADE_COORDINATOR` (ineligible accounts get a 409 with the displayed message). A different
+  school's staff answers 404 exactly like an unknown id, so the API never confirms another tenant's
+  account;
+- **one coordinator per grade** is kept under the school-row lock
+  (`schoolRepository.findByIdForUpdate`), the same serialisation `CoordinatorGradeGuard` uses, so
+  concurrent assignments cannot both win;
+- a teacher who already coordinates **another** grade is refused with a 409 naming that grade; the
+  admin removes that assignment first. Re-assigning the current holder is an idempotent 200 with no
+  writes;
+- **replacing** a holder demotes them to `CTEACHER` and keeps their class and grade rows (they stay
+  the class teacher, they only lose the grade lead); removing the coordinator does the same;
+- every assign/remove is recorded in the school audit log.
+
+Clients: web [AdminSchoolConfig.js](../../BrainboxWeb-main/scripts/components/admin/AdminSchoolConfig.js)
+and Android `AdminSchoolConfigScreen` render the per-grade coordinator picker and call this surface.
+
 ## Deliberate decisions and exceptions
 
 - **Class-transition switch stays coordinator-owned.** It is a single school-level operational

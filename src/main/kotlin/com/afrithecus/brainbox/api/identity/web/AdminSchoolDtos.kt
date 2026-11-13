@@ -51,7 +51,29 @@ data class GradeConfigSummaryPayload(
     val displayName: String,
     val classTeacherName: String? = null,
     val coordinatorName: String? = null,
+    /** The account currently assigned as the grade coordinator, when there is one. */
+    val coordinatorId: String? = null,
     val active: Boolean = true,
+)
+
+/** A teacher the ICT admin may assign as a grade coordinator (admin School Config). */
+data class CoordinatorCandidatePayload(
+    val userId: String,
+    val name: String,
+    val phoneNumber: String? = null,
+    /** The grade they already coordinate; null for a plain class teacher. */
+    val gradeLevel: String? = null,
+    /** The class they lead, when they lead one. */
+    val classTeacherOf: String? = null,
+    val subRole: String? = null,
+)
+
+/**
+ * The body of a coordinator assignment. A null or missing [teacherId] removes the grade's
+ * coordinator; a present id assigns (or replaces) them.
+ */
+data class CoordinatorAssignmentPayload(
+    val teacherId: String? = null,
 )
 
 data class UserApprovalRequestPayload(

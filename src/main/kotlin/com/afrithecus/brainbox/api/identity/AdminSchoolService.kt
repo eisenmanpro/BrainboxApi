@@ -7,6 +7,7 @@ import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
+import com.afrithecus.brainbox.api.common.error.conflict
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.gradebook.repository.GradebookEntryRepository
@@ -29,6 +30,8 @@ import com.afrithecus.brainbox.api.identity.web.BackupResultPayload
 import com.afrithecus.brainbox.api.identity.web.BackupSummaryPayload
 import com.afrithecus.brainbox.api.identity.web.ClassAttendanceSummaryPayload
 import com.afrithecus.brainbox.api.identity.web.ClassRankingPayload
+import com.afrithecus.brainbox.api.identity.web.CoordinatorAssignmentPayload
+import com.afrithecus.brainbox.api.identity.web.CoordinatorCandidatePayload
 import com.afrithecus.brainbox.api.identity.web.GradeConfigSummaryPayload
 import com.afrithecus.brainbox.api.identity.web.SchoolAnalyticsPayload
 import com.afrithecus.brainbox.api.identity.web.SchoolAttendanceOverviewPayload
@@ -181,6 +184,69 @@ class AdminSchoolService(
         val schoolId = requireSchoolId(schoolIdRaw)
         access.require(current, schoolId)
         return gradeConfigsFor(schoolId)
+    }
+
+    /**
+     * Teachers the ICT admin may assign as a grade coordinator: active, approved class teachers
+     * (CTEACHER or GRADE_COORDINATOR) of this school. A coordinator carries the grade they
+     * already coordinate and the class they lead so the admin can see what a move would replace.
+     */
+    @Transactional(readOnly = true)
+    fun coordinatorCandidates(current: CurrentUser, schoolIdRaw: String): List<CoordinatorCandidatePayload> {
+        val schoolId = requireSchoolId(schoolIdRaw)
+        access.require(current, schoolId)
+        val classes = classRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
+        return userRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
+            .filter { it.role == Role.TEACHER }
+            .filter { it.isActive }
+            .filter { it.verificationStatus == AccountStatus.VERIFIED }
+            .filter { it.subRole == SubRole.CTEACHER || it.subRole == SubRole.GRADE_COORDINATOR }
+            .map { teacher ->
+                CoordinatorCandidatePayload(
+                    userId = teacher.id.toString(),
+                    name = teacher.name,
+                    phoneNumber = teacher.phoneNumber,
+                    gradeLevel = if (teacher.subRole == SubRole.GRADE_COORDINATOR) {
+                        teacher.gradeLevel?.trim()?.takeIf { it.isNotEmpty() }
+                    } else {
+                        null
+                    },
+                    classTeacherOf = classes.firstOrNull { it.teacherUserId == teacher.id }?.name,
+                    subRole = teacher.subRole?.name,
+                )
+            }
+            .sortedBy { it.name.lowercase() }
+    }
+
+    /**
+     * Assigns the single grade coordinator for [gradeLevelRaw], or removes the assignment when the
+     * body has no teacherId. The school row is locked first so two concurrent assignments cannot
+     * leave one grade with two coordinators (the same serialisation [CoordinatorGradeGuard] uses).
+     * Replacing a holder demotes them to CTEACHER and keeps their class/grade rows.
+     */
+    @Transactional
+    fun assignCoordinator(
+        current: CurrentUser,
+        schoolIdRaw: String,
+        gradeLevelRaw: String,
+        request: CoordinatorAssignmentPayload?,
+    ): GradeConfigSummaryPayload {
+        val schoolId = requireSchoolId(schoolIdRaw)
+        val actor = access.require(current, schoolId)
+        schoolRepository.findByIdForUpdate(schoolId) ?: throw notFound("School not found")
+        val grade = canonicalGrade(schoolId, gradeLevelRaw)
+        val teacherIdRaw = request?.teacherId?.trim()?.takeIf { it.isNotEmpty() }
+        if (teacherIdRaw == null) {
+            removeCoordinator(schoolId, actor, grade)
+        } else {
+            assignCoordinatorTo(schoolId, actor, grade, teacherIdRaw)
+        }
+        return gradeConfigsFor(schoolId).firstOrNull { sameGrade(it.gradeLevel, grade) }
+            ?: GradeConfigSummaryPayload(
+                configId = configIdFor(grade),
+                gradeLevel = grade,
+                displayName = grade,
+            )
     }
 
     @Transactional(readOnly = true)
@@ -345,16 +411,86 @@ class AdminSchoolService(
             .filter { it.role == Role.TEACHER && it.subRole == SubRole.GRADE_COORDINATOR }
         return classes.groupBy { it.gradeLevel }.map { (grade, rows) ->
             val classTeacher = rows.firstOrNull()?.teacherUserId?.let { userRepository.findById(it).orElse(null)?.name }
+            val coordinator = coordinators.firstOrNull { sameGrade(it.gradeLevel, grade) }
             GradeConfigSummaryPayload(
-                configId = "grade_" + grade.lowercase().replace(Regex("[^a-z0-9]+"), "_"),
+                configId = configIdFor(grade),
                 gradeLevel = grade,
                 displayName = grade,
                 classTeacherName = classTeacher,
-                coordinatorName = coordinators.firstOrNull { it.gradeLevel == grade }?.name,
+                coordinatorName = coordinator?.name,
+                coordinatorId = coordinator?.id?.toString(),
                 active = rows.any { it.isActive },
             )
         }.sortedBy { it.gradeLevel }
     }
+
+    // ------------------------------------------------------------ grade coordinators
+
+    /** The catalogue spelling of [gradeLevelRaw]; the grade must exist as an active class row. */
+    private fun canonicalGrade(schoolId: UUID, gradeLevelRaw: String): String {
+        val wanted = gradeLevelRaw.trim()
+        if (wanted.isEmpty()) throw invalidArgument("gradeLevel is required")
+        return classRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
+            .firstOrNull { sameGrade(it.gradeLevel, wanted) }
+            ?.gradeLevel
+            ?: throw notFound("Grade not found")
+    }
+
+    private fun activeCoordinators(schoolId: UUID): List<UserEntity> =
+        userRepository.findAllBySchoolIdAndSubRoleAndIsActiveTrue(schoolId, SubRole.GRADE_COORDINATOR)
+
+    private fun removeCoordinator(schoolId: UUID, actor: UserEntity, grade: String) {
+        val holder = activeCoordinators(schoolId).firstOrNull { sameGrade(it.gradeLevel, grade) } ?: return
+        // Keep the class and grade rows: they stay a class teacher, they only lose the grade lead.
+        holder.subRole = SubRole.CTEACHER
+        userRepository.saveAndFlush(holder)
+        auditLogService.record(schoolId, actor, "Removed coordinator for " + grade + ": " + holder.name)
+    }
+
+    private fun assignCoordinatorTo(schoolId: UUID, actor: UserEntity, grade: String, teacherIdRaw: String) {
+        val teacherId = runCatching { UUID.fromString(teacherIdRaw) }.getOrNull()
+            ?: throw invalidArgument("teacherId is not a valid identifier")
+        val teacher = userRepository.findById(teacherId).orElse(null)
+        // Another school's staff must look exactly like an unknown id: never leak the tenant.
+        if (teacher == null || teacher.schoolId != schoolId || teacher.role != Role.TEACHER) {
+            throw notFound("Teacher not found")
+        }
+        if (!teacher.isActive) throw conflict("This account is not active and cannot coordinate a grade.")
+        if (teacher.verificationStatus != AccountStatus.VERIFIED) {
+            throw conflict("Only approved staff can be assigned a grade to coordinate.")
+        }
+        if (teacher.subRole != SubRole.CTEACHER && teacher.subRole != SubRole.GRADE_COORDINATOR) {
+            throw conflict("Only class teachers can coordinate a grade.")
+        }
+        val coordinators = activeCoordinators(schoolId)
+        if (teacher.subRole == SubRole.GRADE_COORDINATOR) {
+            val otherGrade = coordinators.firstOrNull { it.id == teacher.id }
+                ?.gradeLevel?.trim()?.takeIf { it.isNotEmpty() }
+            if (otherGrade != null && !sameGrade(otherGrade, grade)) {
+                throw conflict("This teacher already coordinates " + otherGrade + ". Move that assignment first.")
+            }
+        }
+        val currentHolder = coordinators.firstOrNull { sameGrade(it.gradeLevel, grade) }
+        if (currentHolder?.id == teacher.id) return // already this grade's coordinator: idempotent
+        if (currentHolder != null) {
+            currentHolder.subRole = SubRole.CTEACHER
+            userRepository.saveAndFlush(currentHolder)
+        }
+        // Re-read after the demotion: under the school lock the grade must now be free.
+        val stillTaken = activeCoordinators(schoolId).firstOrNull { sameGrade(it.gradeLevel, grade) && it.id != teacher.id }
+        if (stillTaken != null) {
+            throw conflict(grade + " already has a grade coordinator at this school. Move that assignment before adding another.")
+        }
+        teacher.subRole = SubRole.GRADE_COORDINATOR
+        teacher.gradeLevel = grade
+        userRepository.saveAndFlush(teacher)
+        auditLogService.record(schoolId, actor, "Assigned coordinator for " + grade + ": " + teacher.name)
+    }
+
+    private fun sameGrade(a: String?, b: String?): Boolean =
+        a != null && b != null && a.trim().equals(b.trim(), ignoreCase = true)
+
+    private fun configIdFor(grade: String): String = "grade_" + grade.lowercase().replace(Regex("[^a-z0-9]+"), "_")
 
     /** Pending user approvals shared by the approvals endpoint and the backup export. */
     private fun approvalsFor(schoolId: UUID): List<UserApprovalRequestPayload> {
