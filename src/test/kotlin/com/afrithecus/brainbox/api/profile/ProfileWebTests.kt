@@ -164,4 +164,25 @@ class ProfileWebTests(
         check(settings.teacherCode == "ABC12345")
         check(settings.subjects == listOf("Physics"))
     }
+
+    @Test
+    fun `staff grade and school are governed, not self-service profile fields`() {
+        val teacher = loginTeacher("0778199002", "governed.teacher@profile.test")
+        mockMvc.perform(
+            patch("/profile/settings/${teacher.user.id}").header("Authorization", auth(teacher.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON).content("""{"grade":"Grade 9"}""")
+        ).andExpect(status().isConflict)
+        mockMvc.perform(
+            patch("/profile/settings/${teacher.user.id}").header("Authorization", auth(teacher.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON).content("""{"school":"Some Other School"}""")
+        ).andExpect(status().isConflict)
+
+        // A learner keeps the academic fields the profile screen edits.
+        val student = signup("0778100006")
+        mockMvc.perform(
+            patch("/profile/settings/${student.user.id}").header("Authorization", auth(student.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON).content("""{"grade":"Grade 7"}""")
+        ).andExpect(status().isOk)
+    }
+
 }

@@ -19,6 +19,7 @@ import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.exams.QuestionCodec
 import com.afrithecus.brainbox.api.identity.AuditLogService
+import com.afrithecus.brainbox.api.identity.CoordinatorGradeGuard
 import com.afrithecus.brainbox.api.identity.SchoolConfigService
 import com.afrithecus.brainbox.api.identity.TeacherCodeGenerator
 import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
@@ -68,6 +69,7 @@ class TeacherAuthService(
     private val auditLogService: AuditLogService,
     private val authThrottle: AuthThrottle,
     private val codec: QuestionCodec,
+    private val coordinatorGradeGuard: CoordinatorGradeGuard,
 ) {
 
     // ----------------------------------------------------------- teacher signup
@@ -109,6 +111,10 @@ class TeacherAuthService(
                 "This school already has an ICT admin. Ask them to approve you, or contact the platform team.",
             )
         }
+        // A coordinator is a class teacher with grade-wide duties, and each grade has exactly one.
+        if (subRole == SubRole.GRADE_COORDINATOR) {
+            coordinatorGradeGuard.requireAvailable(school.id, grades.first())
+        }
         val teacher = UserEntity().apply {
             phoneNumber = phone
             this.email = email
@@ -137,7 +143,9 @@ class TeacherAuthService(
                 tscNumber = request.tscNumber?.trim()?.takeIf { it.isNotEmpty() }
             }
         )
-        if (subRole == SubRole.CTEACHER && className.isNotEmpty()) {
+        // A coordinator is also a class teacher, so their class row exists exactly like a
+        // class teacher's: it is what their Class Teacher Code enrols learners into.
+        if ((subRole == SubRole.CTEACHER || subRole == SubRole.GRADE_COORDINATOR) && className.isNotEmpty()) {
             classRepository.save(
                 TeacherClassEntity().apply {
                     teacherUserId = teacher.id
@@ -292,6 +300,15 @@ class TeacherAuthService(
         val target = findUser(targetIdRaw)
         if (target.role != Role.TEACHER) throw invalidArgument("Target is not a teacher")
         requireSameSchool(actor, target)
+        // Unfreezing a coordinator re-claims their grade; another account may hold it by now.
+        if (!frozen && target.subRole == SubRole.GRADE_COORDINATOR) {
+            coordinatorGradeGuard.requireAvailable(
+                target.schoolId,
+                target.gradeLevel,
+                excludingUserId = target.id,
+                blankGradeMessage = "This coordinator has no grade on record; set the grade before unfreezing the account.",
+            )
+        }
         applyStatus(target, if (frozen) AccountStatus.FROZEN else AccountStatus.VERIFIED)
         target.schoolId?.let {
             auditLogService.record(it, actor, (if (frozen) "Froze teacher " else "Unfroze teacher ") + target.name)
@@ -306,6 +323,16 @@ class TeacherAuthService(
         if (target.role != Role.TEACHER) throw invalidArgument("Target is not a teacher")
         requireSameSchool(actor, target)
         val school = resolveTargetSchool(request)
+        // A coordinator keeps their grade when they move, so the destination must not already
+        // have a coordinator for it.
+        if (target.subRole == SubRole.GRADE_COORDINATOR) {
+            coordinatorGradeGuard.requireAvailable(
+                school?.id,
+                target.gradeLevel,
+                excludingUserId = target.id,
+                blankGradeMessage = "This coordinator has no grade on record; set the grade before moving the account.",
+            )
+        }
         target.schoolId = school?.id
         userRepository.save(target)
         val code = issueCode(target)
@@ -498,10 +525,24 @@ class TeacherAuthService(
                     throw invalidArgument("An ICT admin account does not take a grade or class.")
                 }
             }
-            SubRole.CTEACHER -> {
-                if (grades.size != 1) throw invalidArgument("Select the one grade your class belongs to.")
+            // A coordinator is a class teacher with grade-wide duties: one grade, one class.
+            SubRole.CTEACHER, SubRole.GRADE_COORDINATOR -> {
+                val coordinator = subRole == SubRole.GRADE_COORDINATOR
+                if (grades.size != 1) {
+                    throw invalidArgument(
+                        if (coordinator) "Select the one grade you coordinate." else "Select the one grade your class belongs to.",
+                    )
+                }
                 if (catalogue.isEmpty()) throw invalidArgument(SCHOOL_NOT_CONFIGURED)
-                if (className.isEmpty()) throw invalidArgument("Select your class from your school's list.")
+                if (className.isEmpty()) {
+                    throw invalidArgument(
+                        if (coordinator) {
+                            "Select the class you coordinate from your school's list."
+                        } else {
+                            "Select your class from your school's list."
+                        },
+                    )
+                }
                 val grade = grades.first().lowercase()
                 val name = className.lowercase()
                 if (catalogue.none { it.first == grade && it.second == name }) {

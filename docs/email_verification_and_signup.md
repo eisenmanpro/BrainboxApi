@@ -31,7 +31,13 @@ Rules enforced **server-side** (the client may not relax them):
     admin of a school may self-sign-up; a later one must be approved by the existing admin or
     the platform team.
   - `CTEACHER`: exactly one grade **and** one class, both from the school's catalogue.
-  - `TEACHER` / `GRADE_COORDINATOR`: at least one grade from the catalogue, no class.
+  - `GRADE_COORDINATOR`: a **class teacher with grade-wide duties** — exactly one grade **and**
+    one class from the catalogue, like a class teacher, and the signup creates the class row that
+    their Class Teacher Code enrols learners into. A grade has **exactly one** coordinator: a
+    second signup for the same school + grade is a **409** naming the grade, and rejecting,
+    freezing or deactivating the holder frees the slot. The check runs under a school-row lock,
+    so two concurrent requests cannot both win.
+  - `TEACHER`: one or more grades from the catalogue, no class.
 - A school with no configured classes cannot accept class-teacher signups: its ICT admin
   configures the catalogue first (`PUT /admin/schools/{id}/config`, `classes[]`).
 - If the school's `registrationOpen` is false the request is **403** with the school name in

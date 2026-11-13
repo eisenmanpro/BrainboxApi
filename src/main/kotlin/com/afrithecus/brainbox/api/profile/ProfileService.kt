@@ -54,6 +54,12 @@ class ProfileService(
         settingsRepository.findByUserId(userId) ?: UserSettingsEntity().apply { this.userId = userId }
 
     private fun applyIdentity(user: UserEntity, request: UpdateSettingsRequest, row: UserSettingsEntity) {
+        // Staff grade and school are governed fields: signup, the ICT-admin update flow and
+        // transfers own them. A self-service PATCH here would silently break the
+        // one-coordinator-per-grade rule (and the school binding) after an account is approved.
+        if (user.role != Role.STUDENT && (request.grade != null || request.school != null)) {
+            throw conflict("Grade and school changes for staff accounts are handled by your school admin.")
+        }
         request.fullName?.takeIf { it.isNotBlank() }?.let { name -> user.name = name.trim() }
         request.email?.let { email ->
             val normalized = email.trim().lowercase()

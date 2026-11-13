@@ -223,6 +223,47 @@ class ConsolePlatformWebTests(
     }
 
     @Test
+    fun `the console cannot mint a second grade coordinator for the same grade`() {
+        val owner = admin("0755080008", listOf(PlatformPermission.PLATFORM_ADMIN))
+        val ownerToken = token(owner)
+        val school = objectMapper.readValue(
+            mockMvc.perform(
+                post("/admin/console/schools").header("Authorization", auth(ownerToken))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"name":"Coordinator Campus","county":"Nairobi","location":"Westlands"}""")
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            ConsoleSchoolView::class.java,
+        )
+
+        // A coordinator is a class teacher with grade-wide duties: the grade is required.
+        mockMvc.perform(
+            post("/admin/console/users").header("Authorization", auth(ownerToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """{"name":"No Grade","role":"TEACHER","subRole":"GRADE_COORDINATOR",""" +
+                        """"schoolId":"${school.schoolId}","phoneNumber":"0755080201"}""",
+                )
+        ).andExpect(status().isBadRequest)
+
+        val first = createUser(
+            ownerToken,
+            """{"name":"Coord One","role":"TEACHER","subRole":"GRADE_COORDINATOR","schoolId":"${school.schoolId}",""" +
+                """"gradeLevel":"Grade 6","phoneNumber":"0755080202"}""",
+        )
+        check(first.user.subRole == "GRADE_COORDINATOR")
+
+        val duplicate = mockMvc.perform(
+            post("/admin/console/users").header("Authorization", auth(ownerToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """{"name":"Coord Two","role":"TEACHER","subRole":"GRADE_COORDINATOR",""" +
+                        """"schoolId":"${school.schoolId}","gradeLevel":"Grade 6","phoneNumber":"0755080203"}""",
+                )
+        ).andExpect(status().isConflict).andReturn().response.contentAsString
+        check(duplicate.contains("already has a grade coordinator")) { "got " + duplicate }
+    }
+
+    @Test
     fun `schools, subscribers, agent prompts, notifications and news work from the console`() {
         val owner = admin("0755080007", listOf(PlatformPermission.PLATFORM_ADMIN))
         val ownerToken = token(owner)

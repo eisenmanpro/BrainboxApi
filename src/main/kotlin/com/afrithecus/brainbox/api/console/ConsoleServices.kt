@@ -4,6 +4,7 @@ import com.afrithecus.brainbox.api.common.error.conflict
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.identity.AuditLogService
+import com.afrithecus.brainbox.api.identity.CoordinatorGradeGuard
 import com.afrithecus.brainbox.api.identity.PlatformAccessService
 import com.afrithecus.brainbox.api.identity.PlatformPermission
 import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
@@ -53,6 +54,7 @@ class ConsoleUserService(
     private val audit: AuditLogService,
     private val passwordEncoder: PasswordEncoder,
     private val clock: Clock,
+    private val coordinatorGradeGuard: CoordinatorGradeGuard,
     @Value("\${app.console.temporary-password-ttl-hours:72}") private val temporaryPasswordTtlHours: Long,
 ) {
 
@@ -124,6 +126,14 @@ class ConsoleUserService(
         }
         if (user.role == Role.ADMIN && !active && activeAdmins(excluding = user.id) == 0L) {
             throw invalidArgument("At least one active ADMIN account must remain")
+        }
+        if (active && user.subRole == SubRole.GRADE_COORDINATOR) {
+            coordinatorGradeGuard.requireAvailable(
+                user.schoolId,
+                user.gradeLevel,
+                excludingUserId = user.id,
+                blankGradeMessage = "This coordinator has no grade on record; set the grade before reactivating the account.",
+            )
         }
         user.isActive = active
         users.save(user)
@@ -203,6 +213,14 @@ class ConsoleUserService(
         if (subRole != null && role != Role.TEACHER) {
             throw invalidArgument("A sub-role only applies to a TEACHER account")
         }
+        val requestedGradeLevel = request.gradeLevel?.trim()?.takeIf { it.isNotEmpty() }
+        if (subRole == SubRole.GRADE_COORDINATOR) {
+            coordinatorGradeGuard.requireAvailable(
+                school?.id,
+                requestedGradeLevel,
+                blankGradeMessage = "A grade coordinator needs the grade they coordinate.",
+            )
+        }
         val password = generatePassword()
         val admission = if (role == Role.STUDENT) generateAdmissionNumber() else null
         val user = users.save(
@@ -214,7 +232,7 @@ class ConsoleUserService(
                 this.role = role
                 this.subRole = subRole
                 this.schoolId = school?.id
-                gradeLevel = request.gradeLevel?.trim()?.takeIf { it.isNotEmpty() }
+                gradeLevel = requestedGradeLevel
                 studentAdmissionNumber = admission
                 isActive = true
                 // An operator creating the account may verify it in the same step; otherwise the

@@ -2,6 +2,7 @@ package com.afrithecus.brainbox.api.identity.repository
 
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
+import com.afrithecus.brainbox.api.identity.model.SubRole
 import jakarta.persistence.LockModeType
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -45,7 +46,10 @@ interface UserRepository : JpaRepository<UserEntity, UUID> {
     fun countBySchoolIdAndRole(schoolId: UUID, role: Role): Long
 
     /** Whether the school already has an active account in a given sub-role (e.g. its ICT admin). */
-    fun existsBySchoolIdAndSubRoleAndIsActiveTrue(schoolId: UUID, subRole: com.afrithecus.brainbox.api.identity.model.SubRole): Boolean
+    fun existsBySchoolIdAndSubRoleAndIsActiveTrue(schoolId: UUID, subRole: SubRole): Boolean
+
+    /** Active accounts in a sub-role (the one-coordinator-per-grade rule reads this list). */
+    fun findAllBySchoolIdAndSubRoleAndIsActiveTrue(schoolId: UUID, subRole: SubRole): List<UserEntity>
 
     /** Active accounts by role; used by the renewal-reminder sweep. */
     fun findAllByRoleAndIsActiveTrue(role: Role): List<UserEntity>

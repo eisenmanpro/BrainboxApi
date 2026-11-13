@@ -360,4 +360,131 @@ class TeacherAuthWebTests(
                 .content("{\"phoneNumber\":\"0755200010\",\"password\":\"password123\"}")
         ).andExpect(status().isOk)
     }
+    @Test
+    fun `a coordinator is a class teacher of one grade class and a grade has only one`() {
+        // A coordinator is a class teacher with grade-wide duties: one grade and one catalogue class.
+        val coordinator = teacherSignup(
+            TeacherSignupRequest(
+                name = "Coordinator One",
+                phoneNumber = "0755200030",
+                password = "password123",
+                email = "coord.one@brainbox.test",
+                schoolId = school.id.toString(),
+                subRole = "GRADE_COORDINATOR",
+                grades = listOf("Grade 6"),
+                className = "Grade 6 North",
+                subjects = listOf("Mathematics", "Science"),
+            )
+        )
+        check(coordinator.user.teacherSubRole == "GRADE_COORDINATOR")
+        check(coordinator.user.gradeLevel == "Grade 6") { "got " + coordinator.user.gradeLevel }
+        check(coordinator.user.className == "Grade 6 North") { "a coordinator is a class teacher, so their class must be visible" }
+
+        // No class is refused: the role owns a class just like a class teacher.
+        mockMvc.perform(
+            post("/auth/signup/teacher").contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        TeacherSignupRequest(
+                            name = "Coordinator No Class",
+                            phoneNumber = "0755200031",
+                            password = "password123",
+                            email = "coord.noclass@brainbox.test",
+                            schoolId = school.id.toString(),
+                            subRole = "GRADE_COORDINATOR",
+                            grades = listOf("Grade 6"),
+                        )
+                    )
+                )
+        ).andExpect(status().isBadRequest)
+
+        // Several grades are refused: a coordinator coordinates exactly one grade.
+        mockMvc.perform(
+            post("/auth/signup/teacher").contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        TeacherSignupRequest(
+                            name = "Coordinator Many Grades",
+                            phoneNumber = "0755200032",
+                            password = "password123",
+                            email = "coord.many@brainbox.test",
+                            schoolId = school.id.toString(),
+                            subRole = "GRADE_COORDINATOR",
+                            grades = listOf("Grade 5", "Grade 6"),
+                            className = "Grade 6 South",
+                        )
+                    )
+                )
+        ).andExpect(status().isBadRequest)
+
+        // The same grade cannot have a second coordinator, and the server says why.
+        val duplicate = mockMvc.perform(
+            post("/auth/signup/teacher").contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        TeacherSignupRequest(
+                            name = "Coordinator Duplicate",
+                            phoneNumber = "0755200033",
+                            password = "password123",
+                            email = "coord.duplicate@brainbox.test",
+                            schoolId = school.id.toString(),
+                            subRole = "GRADE_COORDINATOR",
+                            grades = listOf("Grade 6"),
+                            className = "Grade 6 South",
+                        )
+                    )
+                )
+        ).andExpect(status().isConflict).andReturn().response.contentAsString
+        check(duplicate.contains("already has a grade coordinator")) { "got " + duplicate }
+
+        // A different grade still has its own, free coordinator slot.
+        val otherGrade = teacherSignup(
+            TeacherSignupRequest(
+                name = "Coordinator Five",
+                phoneNumber = "0755200034",
+                password = "password123",
+                email = "coord.five@brainbox.test",
+                schoolId = school.id.toString(),
+                subRole = "GRADE_COORDINATOR",
+                grades = listOf("Grade 5"),
+                className = "Grade 5 West",
+            )
+        )
+        check(otherGrade.user.gradeLevel == "Grade 5")
+    }
+
+    @Test
+    fun `rejecting a coordinator frees their grade for a replacement`() {
+        val first = teacherSignup(
+            TeacherSignupRequest(
+                name = "Rejected Coordinator",
+                phoneNumber = "0755200040",
+                password = "password123",
+                email = "coord.rejected@brainbox.test",
+                schoolId = school.id.toString(),
+                subRole = "GRADE_COORDINATOR",
+                grades = listOf("Grade 4"),
+                className = "Grade 4 East",
+            )
+        )
+        val admin = user(Role.TEACHER, "ICT Admin", "0755200041", SubRole.ICT_ADMIN)
+        mockMvc.perform(
+            post("/auth/teachers/" + first.user.id + "/reject").header("Authorization", auth(token(admin.phoneNumber!!)))
+        ).andExpect(status().isOk)
+
+        // A rejected account is inactive, so the grade is available again.
+        val replacement = teacherSignup(
+            TeacherSignupRequest(
+                name = "Replacement Coordinator",
+                phoneNumber = "0755200042",
+                password = "password123",
+                email = "coord.replacement@brainbox.test",
+                schoolId = school.id.toString(),
+                subRole = "GRADE_COORDINATOR",
+                grades = listOf("Grade 4"),
+                className = "Grade 4 East",
+            )
+        )
+        check(replacement.user.gradeLevel == "Grade 4")
+    }
 }
