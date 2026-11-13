@@ -63,6 +63,14 @@ class SchoolConfigService(
         return payload(schoolId, entity)
     }
 
+    /**
+     * The school's class catalogue, without branding or an access check. Used by the public signup
+     * directory so the form can offer the school's own grades and classes (gaps.md item 1C/E).
+     */
+    @Transactional(readOnly = true)
+    fun configuredClasses(schoolId: UUID): List<SchoolClassPayload> =
+        parseClasses(repository.findById(schoolId).orElse(null)?.classes)
+
     /** Branding for report rendering, falling back to the directory name/logo. */
     @Transactional(readOnly = true)
     fun branding(schoolId: UUID?): SchoolConfigPayload {

@@ -22,6 +22,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableMethodSecurity
 class SecurityConfig(
     private val authTokenFilter: AuthTokenFilter,
+    private val accountStateFilter: AccountStateFilter,
     private val envelopeWriter: SecurityEnvelopeWriter,
     private val rateLimitFilter: RateLimitFilter,
     private val idempotencyFilter: com.afrithecus.brainbox.api.common.idempotency.IdempotencyFilter,
@@ -65,6 +66,13 @@ class SecurityConfig(
                         "/auth/login/phone",
                         "/auth/signup",
                         "/auth/signup/teacher",
+                        // Signup directory: schools and their configured grades/classes (gaps.md 1C).
+                        "/auth/signup/schools",
+                        "/auth/signup/schools/**",
+                        // Email verification and sign-in-email recovery (gaps.md 3/4).
+                        "/auth/email/send-code",
+                        "/auth/email/verify",
+                        "/auth/recover-email",
                         "/auth/validate-ctc",
                         "/auth/forgot-password",
                         "/auth/verify-otp",
@@ -111,6 +119,9 @@ class SecurityConfig(
             .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter::class.java)
             .addFilterBefore(idempotencyFilter, UsernamePasswordAuthenticationFilter::class.java)
             .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter::class.java)
+            // Server-side account-state gate: a pending/unverified account authenticates but gets 403
+            // on every data route (gaps.md item 1D).
+            .addFilterAfter(accountStateFilter, AuthTokenFilter::class.java)
             .build()
     }
 

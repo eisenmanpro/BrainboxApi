@@ -18,6 +18,19 @@ are aliases only. "Parent" audiences deliver to the learner's inbox. Learner cre
 (`credential_kind`), staff are 8+ passwords; login never validates shape. Full contract and enforcement map:
 [docs/account_unification.md](docs/account_unification.md).
 
+## Staff signup, email verification and the account-state gate
+
+Staff signup (`POST /auth/signup/teacher`) requires an email, a school from the public directory
+(`GET /auth/signup/schools`, then `/schools/{id}` for its grades/classes) and a sub-role; grades/classes must
+exist in the school's catalogue and an ICT admin takes neither. Signup never returns a session: a 6-digit code
+is emailed (Mailjet SMTP via `app.mail.provider=mailjet`, credentials `MJ_APIKEY_*`, sender `MAIL_FROM`) and
+`POST /auth/email/verify` starts it. `POST /auth/login` on an unconfirmed address answers 403
+`EMAIL_NOT_VERIFIED`. `AccountStateFilter` refuses staff data routes with `ACCOUNT_PENDING` until an ICT admin
+approves and `EMAIL_NOT_VERIFIED` until the address is confirmed, so a pending account has no power even with a
+token; `auth/validate-ctc` refuses a pending teacher's code. `POST /auth/recover-email` returns only the masked
+address, and password-reset codes go through the same transactional email transport. Contract and env table:
+[docs/email_verification_and_signup.md](docs/email_verification_and_signup.md).
+
 ## Phone verification (dormant by default)
 
 Server-side OTP over an SMS gateway; **HostPinnacle** is the decided default (owner account active), with

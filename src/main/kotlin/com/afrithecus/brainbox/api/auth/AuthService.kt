@@ -143,6 +143,21 @@ class AuthService(
         if (!user.isActive) failLogin(identifier)
         if (!passwordEncoder.matches(request.password, user.passwordHash)) failLogin(identifier)
 
+        // A signup account has no access until the emailed code is confirmed (gaps.md item 3).
+        // The password already matched, so naming the masked address is not an enumeration oracle.
+        if (user.emailVerificationRequired && user.emailVerifiedAt == null) {
+            throw ApiException(
+                ApiErrorCode.EMAIL_NOT_VERIFIED,
+                "Verify your email address before signing in.",
+                // The password matched, so naming the address is not an enumeration oracle; the
+                // client needs the real address to complete the code step, and shows it masked.
+                mapOf(
+                    "email" to (user.email ?: ""),
+                    "maskedEmail" to (user.email?.let { Emails.mask(it) } ?: ""),
+                ),
+            )
+        }
+
         // N4: a school may restrict administrator sign-in. The owner is exempt, and the
         // refusal happens AFTER the password check so it is not an account-enumeration oracle.
         adminSignInPolicy.enforceAllowed(user)

@@ -1,6 +1,7 @@
 package com.afrithecus.brainbox.api.auth.web
 
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
 
 /**
  * Teacher auth lifecycle payloads (docs/ongoing/api_teacher_roster_changes.md).
@@ -11,26 +12,37 @@ data class TeacherSignupRequest(
     @field:NotBlank val name: String,
     @field:NotBlank val phoneNumber: String,
     @field:NotBlank val password: String,
+    /**
+     * The address is confirmed by an emailed code before the account can be used
+     * (gaps.md item 3). Required for every staff signup.
+     */
+    @field:NotBlank @field:Size(max = 255) val email: String? = null,
+    /** Picked from the directory, never typed: the school's grades/classes come from its config. */
     val schoolId: String? = null,
-    val schoolName: String = "",
-    val schoolListed: Boolean = true,
+    /** TEACHER (omitted) | CTEACHER | GRADE_COORDINATOR | ICT_ADMIN. */
+    val subRole: String? = null,
+    /** Class teacher: exactly one grade. Teacher/coordinator: one or more grades. */
     val grades: List<String> = emptyList(),
+    /** Class teacher only; must be one of the school's configured classes. */
     val className: String = "",
-    val studentCount: Int = 0,
     val subjects: List<String>? = null,
     val tscNumber: String? = null,
-    val bio: String? = null,
     val stayLoggedIn: Boolean = true,
 )
 
 data class TeacherSignupResponse(
     val success: Boolean,
     val message: String,
+    /** Null until the emailed code is confirmed: an unverified account gets no session. */
     val sessionToken: String? = null,
     val user: UserPayload,
     val ctc: String,
     val ctcShareText: String,
     val isNewUser: Boolean = false,
+    /** True when the client must show the code screen before the account can sign in. */
+    val emailVerificationRequired: Boolean = false,
+    /** Masked address for the code screen ("e***@gmail.com"). */
+    val maskedEmail: String? = null,
 )
 
 data class ValidateCtcRequest(

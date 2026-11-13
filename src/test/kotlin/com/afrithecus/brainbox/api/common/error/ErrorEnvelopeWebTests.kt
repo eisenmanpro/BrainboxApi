@@ -1,6 +1,8 @@
 package com.afrithecus.brainbox.api.common.error
 
+import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
+import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.security.JwtTokenService
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
@@ -15,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -31,14 +34,34 @@ import java.util.UUID
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Transactional
 class ErrorEnvelopeWebTests(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val jwtTokenService: JwtTokenService,
+    @Autowired private val userRepository: UserRepository,
 ) {
 
+    /**
+     * The account-state filter now loads the principal's row, so a token must belong to a real
+     * account (a token for an unknown UUID is refused as a revoked identity).
+     */
+    private val probeUser: UserEntity by lazy {
+        userRepository.save(
+            UserEntity().apply {
+                phoneNumber = "07" + (10000000..99999999).random()
+                email = "envelope-" + UUID.randomUUID() + "@test.local"
+                passwordHash = "x"
+                name = "Envelope Probe"
+                role = Role.ADMIN
+                isActive = true
+                isVerified = true
+            }
+        )
+    }
+
     private val bearerToken: String by lazy {
-        jwtTokenService.issueAccessToken(userId = UUID.randomUUID(), role = Role.ADMIN)
+        jwtTokenService.issueAccessToken(userId = probeUser.id, role = Role.ADMIN)
     }
 
     private fun bearer() = "Bearer " + bearerToken

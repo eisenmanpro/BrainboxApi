@@ -96,6 +96,20 @@ class UserEntity : BaseEntity() {
     @Column(name = "phone_verified_at")
     var phoneVerifiedAt: Instant? = null
 
+    /**
+     * When the email address was confirmed by an emailed code (gaps.md item 3). Staff signup creates
+     * the account unverified; no session or data access exists until this is set.
+     */
+    @Column(name = "email_verified_at")
+    var emailVerifiedAt: Instant? = null
+
+    /**
+     * True for accounts created through signup that must confirm their email address. Kept separate
+     * from [emailVerifiedAt] so accounts that predate the gate are not locked out by the migration.
+     */
+    @Column(name = "email_verification_required", nullable = false)
+    var emailVerificationRequired: Boolean = false
+
     /** FULL accounts can log in; ROSTER_ONLY records are teacher-provisioned and cannot. */
     @Enumerated(EnumType.STRING)
     @Column(name = "account_kind", nullable = false, length = 16)

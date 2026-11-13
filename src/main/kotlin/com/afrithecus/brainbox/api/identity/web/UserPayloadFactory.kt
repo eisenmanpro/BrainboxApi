@@ -35,6 +35,8 @@ class UserPayloadFactory(
         val base = UserPayload(
             id = user.id.toString(),
             phoneNumber = user.phoneNumber,
+            email = user.email,
+            emailVerified = user.emailVerifiedAt != null,
             name = user.name,
             role = user.role.name,
             subRole = user.subRole?.name,

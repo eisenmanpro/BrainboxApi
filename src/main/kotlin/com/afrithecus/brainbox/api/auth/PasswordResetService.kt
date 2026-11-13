@@ -91,7 +91,10 @@ class PasswordResetService(
         challenge.resetTokenExpiresAt = clock.instant().plus(RESET_TOKEN_TTL)
         challengeRepository.saveAndFlush(challenge)
         authThrottle.clear(THROTTLE_PREFIX + identifier)
-        return VerifyOtpPayload(true, "Code verified.", resetToken)
+        // The caller has just proved control of the account's contact, so the masked address is
+        // returned to support "I forgot my sign-in email" (gaps.md item 4).
+        val maskedEmail = userRepository.findById(challenge.userId).orElse(null)?.email?.let { Emails.mask(it) }
+        return VerifyOtpPayload(true, "Code verified.", resetToken, maskedEmail)
     }
 
     @Transactional

@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.auth.web
 
+import com.afrithecus.brainbox.api.auth.AccountRecoveryService
 import com.afrithecus.brainbox.api.auth.AuthService
 import com.afrithecus.brainbox.api.auth.PasswordResetService
 import com.afrithecus.brainbox.api.identity.SchoolRegistrationService
@@ -25,6 +26,7 @@ class AuthController(
     private val authService: AuthService,
     private val schoolRegistrationService: SchoolRegistrationService,
     private val passwordResetService: PasswordResetService,
+    private val accountRecoveryService: AccountRecoveryService,
 ) {
 
     @PostMapping("/signup")
@@ -42,6 +44,13 @@ class AuthController(
             LoginRequest(identifier = request.phoneNumber, password = request.password),
             http.getHeader(DEVICE_ID_HEADER),
         )
+
+    /**
+     * "Which email did I sign up with?" (gaps.md item 4): answers with the masked address only.
+     */
+    @PostMapping("/recover-email")
+    fun recoverEmail(@Valid @RequestBody request: ForgotPasswordRequest): RecoveredEmailPayload =
+        accountRecoveryService.recoverEmail(request.identifier)
 
     @PostMapping("/forgot-password")
     fun forgotPassword(@Valid @RequestBody request: ForgotPasswordRequest): AuthMessagePayload =

@@ -20,6 +20,8 @@ data class VerifyOtpPayload(
     val success: Boolean,
     val message: String,
     val resetToken: String? = null,
+    /** The masked email on the account, so a user who forgot it can recognise the inbox. */
+    val maskedEmail: String? = null,
 )
 
 data class ResetPasswordRequest(

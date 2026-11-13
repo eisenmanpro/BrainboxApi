@@ -25,6 +25,16 @@ spring:
     clean-disabled: false
 
 app:
+  # Tests exercise email verification through a capturing notifier; the transport itself never
+  # connects. The body is printed so a failing test can see the code path.
+  mail:
+    provider: logging
+    from-address: no-reply@brainbox.test
+    from-name: BrainBox
+    log-body: true
+  auth:
+    email-verification:
+      enabled: true
   # O1 rollup scheduling is off in tests; the O1 tests drive OpsRollupService
   # directly so the hourly job cannot race them.
   ops:

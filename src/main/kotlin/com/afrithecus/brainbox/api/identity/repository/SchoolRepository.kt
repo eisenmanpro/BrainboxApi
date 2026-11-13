@@ -10,4 +10,6 @@ interface SchoolRepository : JpaRepository<SchoolEntity, UUID> {
     fun findByNameContainingIgnoreCaseOrderByNameAsc(query: String): List<SchoolEntity>
 
     fun findAllByOrderByNameAsc(): List<SchoolEntity>
+
+    fun findAllByIsActiveTrueOrderByNameAsc(): List<SchoolEntity>
 }

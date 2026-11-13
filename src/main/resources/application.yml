@@ -8,6 +8,23 @@ spring:
       # DeepSeek requires an API key; re-enable when the agentic pipeline (Phase 7)
       # is wired and DEEPSEEK_API_KEY is provided.
       - org.springframework.ai.model.deepseek.autoconfigure.DeepSeekChatAutoConfiguration
+  # Transactional email (gaps.md items 3/4). Mailjet SMTP; the API key pair is the SMTP login.
+  # Credentials are environment-only: MJ_APIKEY_PUBLIC / MJ_APIKEY_PRIVATE.
+  mail:
+    host: ${MAIL_HOST:in-v3.mailjet.com}
+    port: ${MAIL_PORT:587}
+    username: ${MJ_APIKEY_PUBLIC:}
+    password: ${MJ_APIKEY_PRIVATE:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_STARTTLS:true}
+            required: ${MAIL_STARTTLS_REQUIRED:true}
+          connectiontimeout: 5000
+          timeout: 10000
+          writetimeout: 10000
   docker:
     compose:
       enabled: false
@@ -229,11 +246,29 @@ app:
       access-key: ${S3_ACCESS_KEY:}
       secret-key: ${S3_SECRET_KEY:}
       path-style: ${S3_PATH_STYLE:true}
+  # Outbound transactional email transport (gaps.md items 3/4).
+  mail:
+    # logging (development sink: nothing leaves the machine) | mailjet (SMTP)
+    provider: ${MAIL_PROVIDER:logging}
+    # Must be a sender verified in Mailjet, otherwise Mailjet rejects the message.
+    from-address: ${MAIL_FROM:}
+    from-name: ${MAIL_FROM_NAME:BrainBox}
+    # Development only: print the whole message body, which contains the one-time code.
+    log-body: ${MAIL_LOG_BODY:false}
   auth:
     password-reset:
-      # Development only: log the reset code (no SMS/email provider is wired).
-      # Production must set AUTH_LOG_OTP=false and plug in a delivery channel.
+      # Development only: log the reset code when no real email transport is configured.
+      # Production sets MAIL_PROVIDER=mailjet and keeps this false.
       log-otp: ${AUTH_LOG_OTP:false}
+    # Email verification for new staff accounts (gaps.md item 3): a 6-digit code is emailed at
+    # signup, hashed at rest, single use and attempt-capped. A signup gets no session until the
+    # address is confirmed; the ICT-admin approval gate still decides whether it gets any power.
+    email-verification:
+      enabled: ${EMAIL_VERIFICATION_ENABLED:true}
+      code-ttl: ${EMAIL_VERIFICATION_CODE_TTL:10m}
+      resend-cooldown: ${EMAIL_VERIFICATION_RESEND_COOLDOWN:60s}
+      max-attempts: ${EMAIL_VERIFICATION_MAX_ATTEMPTS:5}
+      max-requests-per-hour: ${EMAIL_VERIFICATION_MAX_REQUESTS_PER_HOUR:5}
     # Phone verification (docs/phone_verification.md): our own OTP delivered over an SMS
     # gateway. Disabled by default — no SMS is sent and the endpoints answer "not enabled"
     # until an operator configures a provider. Provider credentials are env-only and never
@@ -253,16 +288,17 @@ app:
       connect-timeout: 3s
       request-timeout: 5s
       hostpinnacle:
-        api-key: ${HOSTPINNACLE_API_KEY:}
-        username: ${HOSTPINNACLE_USERNAME:}
-        password: ${HOSTPINNACLE_PASSWORD:}
+        # HP_SMS_* are the aliases used by the shared secrets bundle (config.env).
+        api-key: ${HOSTPINNACLE_API_KEY:${HP_SMS_API_KEY:}}
+        username: ${HOSTPINNACLE_USERNAME:${HP_SMS_USERNAME:}}
+        password: ${HOSTPINNACLE_PASSWORD:${HP_SMS_PASSWORD:}}
         # Approved sender ID; a send without one is rejected (statusCode 162).
-        sender-id: ${HOSTPINNACLE_SENDER_ID:}
+        sender-id: ${HOSTPINNACLE_SENDER_ID:${HP_SMS_SENDER_ID:}}
         # The notifier appends /send to this base URL.
         base-url: ${HOSTPINNACLE_BASE_URL:https://smsportal.hostpinnacle.co.ke/SMSApi}
       africastalking:
         username: ${AFRICASTALKING_USERNAME:}
-        api-key: ${AFRICASTALKING_API_KEY:}
+        api-key: ${AFRICASTALKING_API_KEY:${API_KEY_AFRICATALKING:}}
         sender-id: ${AFRICASTALKING_SENDER_ID:}
         # Sandbox: https://api.sandbox.africastalking.com/version1/messaging (whitelisted numbers only)
         base-url: ${AFRICASTALKING_BASE_URL:https://api.africastalking.com/version1/messaging}

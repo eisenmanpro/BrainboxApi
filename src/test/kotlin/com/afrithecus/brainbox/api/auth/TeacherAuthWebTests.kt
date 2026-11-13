@@ -7,11 +7,12 @@ import com.afrithecus.brainbox.api.auth.web.TeacherInfoUpdateRequest
 import com.afrithecus.brainbox.api.auth.web.TeacherSignupRequest
 import com.afrithecus.brainbox.api.auth.web.TeacherSignupResponse
 import com.afrithecus.brainbox.api.auth.web.TeacherTransferRequest
-import com.afrithecus.brainbox.api.auth.web.ValidateCtcRequest
+import com.afrithecus.brainbox.api.identity.entity.SchoolConfigEntity
 import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubRole
+import com.afrithecus.brainbox.api.identity.repository.SchoolConfigRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import org.junit.jupiter.api.BeforeEach
@@ -19,10 +20,12 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
+import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
@@ -35,12 +38,15 @@ import java.util.UUID
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
+@Import(CapturingEmailConfig::class)
 class TeacherAuthWebTests(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val userRepository: UserRepository,
     @Autowired private val schoolRepository: SchoolRepository,
+    @Autowired private val schoolConfigRepository: SchoolConfigRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
+    @Autowired private val sender: CapturingEmailSender,
 ) {
 
     private lateinit var school: SchoolEntity
@@ -50,6 +56,13 @@ class TeacherAuthWebTests(
     fun setUp() {
         school = schoolRepository.save(SchoolEntity().apply { name = "Alliance High School"; isActive = true })
         otherSchool = schoolRepository.save(SchoolEntity().apply { name = "Moi Avenue School"; isActive = true })
+        schoolConfigRepository.save(
+            SchoolConfigEntity().apply {
+                schoolId = school.id
+                schoolName = school.name
+                classes = """[{"name":"Grade 4 East","gradeLevel":"Grade 4"},{"name":"Grade 5 West","gradeLevel":"Grade 5"},{"name":"Grade 6 North","gradeLevel":"Grade 6"},{"name":"Grade 6 South","gradeLevel":"Grade 6"}]"""
+            }
+        )
     }
 
     private fun user(role: Role, name: String, phone: String, subRole: SubRole? = null, schoolId: UUID? = null): UserEntity {
@@ -86,15 +99,33 @@ class TeacherAuthWebTests(
         return objectMapper.readValue(response.contentAsString, TeacherSignupResponse::class.java)
     }
 
+    /** Confirms the signup email and returns the token the verify step issues. */
+    private fun verifyEmail(email: String): AuthResponse {
+        val response = mockMvc.perform(
+            post("/auth/email/verify").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"identifier\":\"" + email + "\",\"code\":\"" + sender.codeFor(email) + "\"}")
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        return objectMapper.readValue(response, AuthResponse::class.java)
+    }
+
+    private fun validateCtc(code: String): CtcValidationPayload = objectMapper.readValue(
+        mockMvc.perform(
+            post("/auth/validate-ctc").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"ctc\":\"" + code + "\"}")
+        ).andExpect(status().isOk).andReturn().response.contentAsString,
+        CtcValidationPayload::class.java,
+    )
+
     @Test
-    fun `teacher signup issues a CTC, starts pending and validates`() {
+    fun `teacher signup issues a pending CTC that only works after email and school approval`() {
         val signup = teacherSignup(
             TeacherSignupRequest(
                 name = "New Teacher",
                 phoneNumber = "0755200001",
                 password = "password123",
+                email = "new.teacher@brainbox.test",
                 schoolId = school.id.toString(),
-                schoolName = school.name,
+                subRole = "CTEACHER",
                 grades = listOf("Grade 4"),
                 className = "Grade 4 East",
                 subjects = listOf("Mathematics"),
@@ -102,42 +133,62 @@ class TeacherAuthWebTests(
             )
         )
         check(signup.success && signup.ctc.isNotBlank() && signup.ctcShareText.contains(signup.ctc))
-        check(signup.sessionToken != null)
+        check(signup.sessionToken == null) { "an unverified signup must not get a session" }
+        check(signup.emailVerificationRequired)
         check(signup.user.verificationStatus == "PENDING_VERIFICATION") { "got " + signup.user.verificationStatus }
         check(signup.user.teacherCode == signup.ctc)
         check(signup.user.className == "Grade 4 East")
-        check(signup.user.teacherSubRole == "TEACHER")
+        check(signup.user.teacherSubRole == "CTEACHER")
 
-        val validation = objectMapper.readValue(
-            mockMvc.perform(
-                post("/auth/validate-ctc").contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"ctc\":\"" + signup.ctc + "\"}")
-            ).andExpect(status().isOk).andReturn().response.contentAsString,
-            CtcValidationPayload::class.java,
-        )
-        check(validation.isValid)
-        check(validation.teacherName == "New Teacher")
-        check(validation.className == "Grade 4 East")
+        // The code exists so it can be shared after approval, but it must not work while pending.
+        val pending = validateCtc(signup.ctc)
+        check(!pending.isValid && pending.message!!.contains("awaiting approval")) { "got " + pending.message }
 
-        // Duplicate phone is rejected.
+        val verified = verifyEmail("new.teacher@brainbox.test")
+        check(verified.sessionToken != null)
+        // Email confirmed, but no ICT admin has approved yet: the account still has no data access.
+        val blocked = mockMvc.perform(
+            get("/profile/settings/" + verified.user.id).header("Authorization", auth(verified.sessionToken!!))
+        ).andExpect(status().isForbidden).andReturn().response.contentAsString
+        check(blocked.contains("ACCOUNT_PENDING")) { "got " + blocked }
+
+        // The school's ICT admin approves; the code becomes usable.
+        val admin = user(Role.TEACHER, "ICT Admin", "0755200098", SubRole.ICT_ADMIN)
+        mockMvc.perform(post("/auth/teachers/" + signup.user.id + "/approve").header("Authorization", auth(token(admin.phoneNumber!!))))
+            .andExpect(status().isOk)
+        val approved = validateCtc(signup.ctc)
+        check(approved.isValid && approved.teacherName == "New Teacher" && approved.className == "Grade 4 East")
+
+        // Duplicate phone and duplicate email are rejected.
         mockMvc.perform(
             post("/auth/signup/teacher").contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(TeacherSignupRequest("Dup", "0755200001", "password123", schoolId = school.id.toString(), schoolName = school.name)))
+                .content(
+                    objectMapper.writeValueAsString(
+                        TeacherSignupRequest("Dup", "0755200001", "password123", email = "dup.phone@brainbox.test", schoolId = school.id.toString(), grades = listOf("Grade 4"))
+                    )
+                )
+        ).andExpect(status().isConflict)
+        mockMvc.perform(
+            post("/auth/signup/teacher").contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        TeacherSignupRequest("Dup Email", "0755200097", "password123", email = "NEW.TEACHER@brainbox.test", schoolId = school.id.toString(), grades = listOf("Grade 4"))
+                    )
+                )
         ).andExpect(status().isConflict)
     }
 
     @Test
     fun `CTC rotates, freezes and unfreezes`() {
-        val signup = teacherSignup(
-            TeacherSignupRequest("Ctc Teacher", "0755200002", "password123", schoolId = school.id.toString(), schoolName = school.name, className = "Grade 5 West")
-        )
+        user(Role.TEACHER, "Ctc Teacher", "0755200002", SubRole.CTEACHER)
         val t = token("0755200002")
         val rotated = objectMapper.readValue(
             mockMvc.perform(post("/auth/rotate-ctc").header("Authorization", auth(t)))
                 .andExpect(status().isOk).andReturn().response.contentAsString,
             RotateCtcResponsePayload::class.java,
         )
-        check(rotated.teacherCode != null && rotated.teacherCode != signup.ctc)
+        check(rotated.teacherCode != null)
+        check(validateCtc(rotated.teacherCode!!).isValid)
 
         val frozen = objectMapper.readValue(
             mockMvc.perform(post("/auth/ctc/freeze").header("Authorization", auth(t)))
@@ -145,13 +196,7 @@ class TeacherAuthWebTests(
             AuthResponse::class.java,
         )
         check(frozen.user.ctcFrozen)
-        val blocked = objectMapper.readValue(
-            mockMvc.perform(
-                post("/auth/validate-ctc").contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"ctc\":\"" + rotated.teacherCode + "\"}")
-            ).andExpect(status().isOk).andReturn().response.contentAsString,
-            CtcValidationPayload::class.java,
-        )
+        val blocked = validateCtc(rotated.teacherCode)
         check(!blocked.isValid && blocked.message!!.contains("frozen"))
 
         // A frozen code must also block a new student join server-side.
@@ -172,14 +217,7 @@ class TeacherAuthWebTests(
         ).andExpect(status().isBadRequest)
 
         mockMvc.perform(post("/auth/ctc/unfreeze").header("Authorization", auth(t))).andExpect(status().isOk)
-        val restored = objectMapper.readValue(
-            mockMvc.perform(
-                post("/auth/validate-ctc").contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"ctc\":\"" + rotated.teacherCode + "\"}")
-            ).andExpect(status().isOk).andReturn().response.contentAsString,
-            CtcValidationPayload::class.java,
-        )
-        check(restored.isValid)
+        check(validateCtc(rotated.teacherCode).isValid)
     }
 
     @Test
@@ -235,11 +273,13 @@ class TeacherAuthWebTests(
 
     @Test
     fun `class teacher approves and rejects their own students`() {
-        val signup = teacherSignup(
-            TeacherSignupRequest("Class Teacher", "0755200007", "password123", schoolId = school.id.toString(), schoolName = school.name, className = "Grade 4 East", grades = listOf("Grade 4"))
-        )
-        val teacherId = UUID.fromString(signup.user.id)
+        val teacher = user(Role.TEACHER, "Class Teacher", "0755200007", SubRole.CTEACHER)
         val teacherToken = token("0755200007")
+        val code = objectMapper.readValue(
+            mockMvc.perform(post("/auth/rotate-ctc").header("Authorization", auth(teacherToken)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            RotateCtcResponsePayload::class.java,
+        ).teacherCode!!
 
         val studentResponse = mockMvc.perform(
             post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
@@ -250,14 +290,14 @@ class TeacherAuthWebTests(
                             "phoneNumber" to "0755200008",
                             "password" to "password123",
                             "role" to "STUDENT",
-                            "teacherCode" to signup.ctc,
+                            "teacherCode" to code,
                             "schoolName" to school.name,
                         )
                     )
                 )
         ).andExpect(status().isOk).andReturn().response.contentAsString
         val auth = objectMapper.readValue(studentResponse, AuthResponse::class.java)
-        check(auth.user.joinedTeacherId == teacherId.toString())
+        check(auth.user.joinedTeacherId == teacher.id.toString())
         check(auth.user.verificationStatus == "PENDING_VERIFICATION")
 
         val approved = objectMapper.readValue(
@@ -275,28 +315,26 @@ class TeacherAuthWebTests(
 
     @Test
     fun `teacher info update by the school admin and phone login`() {
-        val signup = teacherSignup(
-            TeacherSignupRequest("Editable Teacher", "0755200010", "password123", schoolId = school.id.toString(), schoolName = school.name, className = "Grade 6 North")
-        )
+        val teacher = user(Role.TEACHER, "Editable Teacher", "0755200010")
         val t = token("0755200010")
         // N3: self-service through the admin teacher route may change identity fields only.
         mockMvc.perform(
-            put("/auth/teachers/" + signup.user.id).header("Authorization", auth(t))
+            put("/auth/teachers/" + teacher.id).header("Authorization", auth(t))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(TeacherInfoUpdateRequest(name = "Renamed Teacher"))),
         ).andExpect(status().isOk)
         mockMvc.perform(
-            put("/auth/teachers/" + signup.user.id).header("Authorization", auth(t))
+            put("/auth/teachers/" + teacher.id).header("Authorization", auth(t))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(TeacherInfoUpdateRequest(subjects = listOf("English")))),
         ).andExpect(status().isConflict)
 
         // The school admin (the approver) may change governed fields directly.
-        user(Role.TEACHER, "ICT Admin", "0755200099", SubRole.ICT_ADMIN, school.id)
-        val adminToken = token("0755200099")
+        val admin = user(Role.TEACHER, "ICT Admin", "0755200099", SubRole.ICT_ADMIN, school.id)
+        val adminToken = token(admin.phoneNumber!!)
         val updated = objectMapper.readValue(
             mockMvc.perform(
-                put("/auth/teachers/" + signup.user.id).header("Authorization", auth(adminToken))
+                put("/auth/teachers/" + teacher.id).header("Authorization", auth(adminToken))
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(
                         objectMapper.writeValueAsString(

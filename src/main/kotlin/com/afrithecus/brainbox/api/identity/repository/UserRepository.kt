@@ -44,6 +44,9 @@ interface UserRepository : JpaRepository<UserEntity, UUID> {
 
     fun countBySchoolIdAndRole(schoolId: UUID, role: Role): Long
 
+    /** Whether the school already has an active account in a given sub-role (e.g. its ICT admin). */
+    fun existsBySchoolIdAndSubRoleAndIsActiveTrue(schoolId: UUID, subRole: com.afrithecus.brainbox.api.identity.model.SubRole): Boolean
+
     /** Active accounts by role; used by the renewal-reminder sweep. */
     fun findAllByRoleAndIsActiveTrue(role: Role): List<UserEntity>
 
@@ -60,11 +63,16 @@ interface UserRepository : JpaRepository<UserEntity, UUID> {
 
     fun findByEmail(email: String): UserEntity?
 
+    /** Emails are stored lower-cased, but legacy rows may not be: match case-insensitively. */
+    fun findByEmailIgnoreCase(email: String): UserEntity?
+
     fun findByStudentAdmissionNumber(admissionNumber: String): UserEntity?
 
     fun existsByPhoneNumber(phoneNumber: String): Boolean
 
     fun existsByEmail(email: String): Boolean
+
+    fun existsByEmailIgnoreCase(email: String): Boolean
 
     /** Linked children for a parent (doc 01 §6). */
     fun findByParentUserId(parentUserId: UUID): List<UserEntity>

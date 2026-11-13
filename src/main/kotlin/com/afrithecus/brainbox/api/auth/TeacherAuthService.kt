@@ -19,6 +19,7 @@ import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.exams.QuestionCodec
 import com.afrithecus.brainbox.api.identity.AuditLogService
+import com.afrithecus.brainbox.api.identity.SchoolConfigService
 import com.afrithecus.brainbox.api.identity.TeacherCodeGenerator
 import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
 import com.afrithecus.brainbox.api.identity.entity.TeacherCodeEntity
@@ -62,6 +63,8 @@ class TeacherAuthService(
     private val userPayloadFactory: UserPayloadFactory,
     private val teacherCodeGenerator: TeacherCodeGenerator,
     private val authService: AuthService,
+    private val emailVerificationService: EmailVerificationService,
+    private val schoolConfigService: SchoolConfigService,
     private val auditLogService: AuditLogService,
     private val authThrottle: AuthThrottle,
     private val codec: QuestionCodec,
@@ -77,24 +80,50 @@ class TeacherAuthService(
             ?: throw invalidArgument("phoneNumber is not a valid Kenyan phone number")
         CredentialRules.validate(CredentialRules.KIND_PASSWORD, request.password)
             ?.let { throw invalidArgument(it) }
+        val email = Emails.normalize(request.email)
+            ?: throw invalidArgument("Enter a valid email address")
         if (userRepository.existsByPhoneNumber(phone)) {
             throw conflict("An account with this phone number already exists")
         }
-        val school = resolveSchool(request.schoolId, request.schoolName)
-        if (school != null && settingsRepository.findById(school.id).orElse(null)?.registrationOpen == false) {
-            throw ApiException(ApiErrorCode.FORBIDDEN, "Registration is currently closed for this school")
+        if (userRepository.existsByEmailIgnoreCase(email)) {
+            throw conflict("An account with this email address already exists")
+        }
+        // The school is picked from the directory; its grades/classes come from its own config.
+        val school = requireSchool(request.schoolId)
+        if (settingsRepository.findById(school.id).orElse(null)?.registrationOpen == false) {
+            throw ApiException(
+                ApiErrorCode.FORBIDDEN,
+                "Registration is currently closed for " + school.name + ". Ask the school's ICT admin to open it.",
+            )
+        }
+        val subRole = parseSubRole(request.subRole)
+        val grades = request.grades.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        val className = request.className.trim()
+        val catalogue = schoolConfigService.configuredClasses(school.id)
+            .map { it.gradeLevel.trim().lowercase() to it.name.trim().lowercase() }
+        validateSelection(subRole, grades, className, catalogue)
+        // The first ICT admin bootstraps the school; later ones are approved by an existing admin.
+        if (subRole == SubRole.ICT_ADMIN && userRepository.existsBySchoolIdAndSubRoleAndIsActiveTrue(school.id, SubRole.ICT_ADMIN)) {
+            throw ApiException(
+                ApiErrorCode.FORBIDDEN,
+                "This school already has an ICT admin. Ask them to approve you, or contact the platform team.",
+            )
         }
         val teacher = UserEntity().apply {
             phoneNumber = phone
+            this.email = email
             name = request.name.trim()
             passwordHash = passwordEncoder.encode(request.password)
                 ?: throw IllegalStateException("Password encoding failed")
             role = Role.TEACHER
+            this.subRole = subRole
             credentialKind = CredentialRules.KIND_PASSWORD
-            schoolId = school?.id
+            schoolId = school.id
+            gradeLevel = grades.firstOrNull()
             isActive = true
             isVerified = false
             verificationStatus = AccountStatus.PENDING_VERIFICATION
+            emailVerificationRequired = emailVerificationService.required
         }
         userRepository.save(teacher)
         subscriptionService.ensure(teacher.id)
@@ -103,31 +132,47 @@ class TeacherAuthService(
             TeacherSettingsEntity().apply {
                 teacherId = teacher.id
                 subjectsTaught = codec.toJson(request.subjects.orEmpty().filter { it.isNotBlank() })
+                gradesTaught = codec.toJson(grades)
+                primaryClassName = className.takeIf { it.isNotEmpty() }
                 tscNumber = request.tscNumber?.trim()?.takeIf { it.isNotEmpty() }
             }
         )
-        if (request.className.isNotBlank()) {
+        if (subRole == SubRole.CTEACHER && className.isNotEmpty()) {
             classRepository.save(
                 TeacherClassEntity().apply {
                     teacherUserId = teacher.id
                     this.schoolId = teacher.schoolId
-                    name = request.className.trim()
-                    gradeLevel = request.grades.firstOrNull()?.trim().orEmpty()
+                    name = className
+                    gradeLevel = grades.first()
                     subject = request.subjects?.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() } ?: "General"
                     isActive = true
                 }
             )
         }
         val code = issueCode(teacher)
-        val auth = authService.issueAuthResponse(teacher, deviceId, includeTokens = true, message = "Teacher account created")
+        // The account is unusable until the address is confirmed. A delivery failure rolls the whole
+        // signup back rather than leaving an account whose code can never arrive.
+        emailVerificationService.sendSignupCode(teacher)
+        val verificationRequired = emailVerificationService.required
+        val auth = if (verificationRequired) {
+            null
+        } else {
+            authService.issueAuthResponse(teacher, deviceId, includeTokens = true, message = "Teacher account created")
+        }
         return TeacherSignupResponse(
             success = true,
-            message = auth.message,
-            sessionToken = auth.sessionToken,
-            user = auth.user,
+            message = if (verificationRequired) {
+                "Account created. Enter the 6-digit code we sent to " + Emails.mask(email) + "."
+            } else {
+                auth!!.message
+            },
+            sessionToken = auth?.sessionToken,
+            user = auth?.user ?: userPayloadFactory.toPayload(teacher),
             ctc = code,
             ctcShareText = shareText(code),
             isNewUser = true,
+            emailVerificationRequired = verificationRequired,
+            maskedEmail = if (verificationRequired) Emails.mask(email) else null,
         )
     }
 
@@ -146,6 +191,21 @@ class TeacherAuthService(
         val teacher = userRepository.findById(code.teacherUserId).orElse(null)
         val school = code.schoolId?.let { schoolRepository.findById(it).orElse(null) }
         val clazz = classRepository.findAllByTeacherUserIdAndIsActiveTrueOrderByNameAsc(code.teacherUserId).firstOrNull()
+        // A pending teacher holds a code so they can share it after approval, but it must not work
+        // before an ICT admin has approved the account (gaps.md item 1D).
+        if (teacher != null && teacher.verificationStatus != AccountStatus.VERIFIED) {
+            return CtcValidationPayload(
+                isValid = false,
+                teacherName = teacher.name,
+                message = "This class code is not active yet: the teacher's account is still awaiting approval.",
+                ctcType = CtcType.TEACHER,
+                teacherCode = code.code,
+                schoolId = code.schoolId?.toString(),
+                schoolName = school?.name,
+                grade = clazz?.gradeLevel,
+                className = clazz?.name,
+            )
+        }
         val requestedSchool = request.schoolId?.trim()?.takeIf { it.isNotEmpty() }?.let { UUID.fromString(it) }
         if (requestedSchool != null && code.schoolId != null && requestedSchool != code.schoolId) {
             return CtcValidationPayload(
@@ -399,22 +459,63 @@ class TeacherAuthService(
         return userRepository.findById(id).orElse(null) ?: throw notFound("User not found")
     }
 
-    private fun resolveSchool(requestedId: String?, requestedName: String): SchoolEntity? {
-        if (!requestedId.isNullOrBlank()) {
-            val id = runCatching { UUID.fromString(requestedId.trim()) }.getOrNull()
-                ?: throw invalidArgument("schoolId is not a valid identifier")
-            return schoolRepository.findById(id).orElseThrow { notFound("School not found") }
+    /**
+     * Staff signup picks a school from the directory; it never creates one from free text.
+     * A school that does not exist yet is added by the platform team, then its ICT admin
+     * configures the grades and classes (gaps.md items 1C/E).
+     */
+    private fun requireSchool(rawId: String?): SchoolEntity {
+        if (rawId.isNullOrBlank()) {
+            throw invalidArgument("Select your school from the list. If your school is missing, ask the platform team to add it.")
         }
-        if (requestedName.isNotBlank()) {
-            val name = requestedName.trim()
-            return schoolRepository.findByNameIgnoreCase(name) ?: schoolRepository.save(
-                SchoolEntity().apply {
-                    this.name = name
-                    isActive = true
+        val id = runCatching { UUID.fromString(rawId.trim()) }.getOrNull()
+            ?: throw invalidArgument("schoolId is not a valid identifier")
+        val school = schoolRepository.findById(id).orElse(null) ?: throw notFound("School not found")
+        if (!school.isActive) throw invalidArgument("That school is not accepting sign-ups.")
+        return school
+    }
+
+    private fun parseSubRole(raw: String?): SubRole? {
+        val value = raw?.trim()?.uppercase().orEmpty()
+        if (value.isEmpty() || value == "TEACHER" || value == "SUBJECT_TEACHER") return null
+        return runCatching { SubRole.valueOf(value) }.getOrNull()
+            ?: throw invalidArgument("subRole must be TEACHER, CTEACHER, GRADE_COORDINATOR or ICT_ADMIN")
+    }
+
+    /**
+     * The server, not the client, decides which details a role needs, and a class teacher's
+     * grade/class must exist in the school's own catalogue (gaps.md item 1B/C).
+     */
+    private fun validateSelection(
+        subRole: SubRole?,
+        grades: List<String>,
+        className: String,
+        catalogue: List<Pair<String, String>>,
+    ) {
+        when (subRole) {
+            SubRole.ICT_ADMIN -> {
+                if (grades.isNotEmpty() || className.isNotEmpty()) {
+                    throw invalidArgument("An ICT admin account does not take a grade or class.")
                 }
-            )
+            }
+            SubRole.CTEACHER -> {
+                if (grades.size != 1) throw invalidArgument("Select the one grade your class belongs to.")
+                if (catalogue.isEmpty()) throw invalidArgument(SCHOOL_NOT_CONFIGURED)
+                if (className.isEmpty()) throw invalidArgument("Select your class from your school's list.")
+                val grade = grades.first().lowercase()
+                val name = className.lowercase()
+                if (catalogue.none { it.first == grade && it.second == name }) {
+                    throw invalidArgument("That class is not on your school's list. Pick one of the listed classes.")
+                }
+            }
+            else -> {
+                if (grades.isEmpty()) throw invalidArgument("Select at least one grade you teach.")
+                if (className.isNotEmpty()) throw invalidArgument("Only a class teacher picks a class.")
+                if (catalogue.isNotEmpty() && grades.any { g -> catalogue.none { it.first == g.lowercase() } }) {
+                    throw invalidArgument("One of the grades you picked is not on your school's list.")
+                }
+            }
         }
-        return null
     }
 
     private fun resolveTargetSchool(request: TeacherTransferRequest): SchoolEntity? {
@@ -440,5 +541,7 @@ class TeacherAuthService(
 
     private companion object {
         const val CTC_THROTTLE_PREFIX = "ctc:"
+        const val SCHOOL_NOT_CONFIGURED =
+            "Your school has not set up its grades and classes yet. Ask the ICT admin to configure them, then sign up."
     }
 }

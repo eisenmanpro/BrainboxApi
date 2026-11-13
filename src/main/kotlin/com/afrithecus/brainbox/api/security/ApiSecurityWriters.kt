@@ -26,6 +26,10 @@ class SecurityEnvelopeWriter(private val objectMapper: ObjectMapper) {
     fun writeForbidden(request: HttpServletRequest, response: HttpServletResponse) =
         write(request, response, HttpStatus.FORBIDDEN, ApiErrorCode.FORBIDDEN, "Access denied")
 
+    /** A 403 carrying a specific machine-readable account-state code (pending / unverified / inactive). */
+    fun writeRestricted(request: HttpServletRequest, response: HttpServletResponse, code: ApiErrorCode, message: String) =
+        write(request, response, HttpStatus.FORBIDDEN, code, message)
+
     fun writeTooManyRequests(request: HttpServletRequest, response: HttpServletResponse, retryAfterSeconds: Long) {
         if (!response.containsHeader("Retry-After")) {
             response.setHeader("Retry-After", retryAfterSeconds.toString())

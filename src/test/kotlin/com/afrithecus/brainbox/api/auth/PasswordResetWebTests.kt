@@ -140,6 +140,8 @@ class PasswordResetWebTests(
         check(!wrong.success)
         val verified = verify(user.phoneNumber!!, otp)
         check(verified.success && !verified.resetToken.isNullOrBlank())
+        // The caller proved control of the account's contact, so they learn which inbox to use.
+        check(verified.maskedEmail == "r***@auth.test") { "got " + verified.maskedEmail }
 
         check(!reset(verified.resetToken!!, "short").success)
         val done = reset(verified.resetToken!!, "newpassword1")
@@ -165,7 +167,7 @@ class PasswordResetWebTests(
         mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content(student))
             .andExpect(status().isForbidden)
         val teacher = objectMapper.writeValueAsString(
-            TeacherSignupRequest("New Teacher", "0755600003", "password123", schoolId = school.id.toString(), schoolName = school.name)
+            TeacherSignupRequest("New Teacher", "0755600003", "password123", email = "new.teacher@reset.test", schoolId = school.id.toString())
         )
         mockMvc.perform(post("/auth/signup/teacher").contentType(MediaType.APPLICATION_JSON).content(teacher))
             .andExpect(status().isForbidden)

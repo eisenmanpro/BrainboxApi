@@ -59,6 +59,8 @@ data class SwitchSessionRequest(
 data class UserPayload(
     val id: String,
     val phoneNumber: String?,
+    val email: String? = null,
+    val emailVerified: Boolean = false,
     val name: String,
     val role: String,
     val subRole: String?,
