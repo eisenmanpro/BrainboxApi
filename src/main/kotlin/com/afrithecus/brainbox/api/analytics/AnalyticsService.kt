@@ -21,10 +21,10 @@ import com.afrithecus.brainbox.api.exams.entity.ExamSubmissionEntity
 import com.afrithecus.brainbox.api.exams.repository.ExamQuestionRepository
 import com.afrithecus.brainbox.api.exams.repository.ExamRepository
 import com.afrithecus.brainbox.api.exams.repository.ExamSubmissionRepository
+import com.afrithecus.brainbox.api.identity.GradeAuthority
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.model.Role
-import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -45,6 +45,7 @@ class AnalyticsService(
     private val userRepository: UserRepository,
     private val membershipRepository: ClassMembershipRepository,
     private val classRepository: TeacherClassRepository,
+    private val gradeAuthority: GradeAuthority,
     private val assembler: ExamResultAssembler,
 ) {
 
@@ -279,9 +280,7 @@ class AnalyticsService(
                 throw ApiException(ApiErrorCode.FORBIDDEN, "Not your linked child")
             }
             Role.TEACHER -> {
-                if (current.subRole == SubRole.ICT_ADMIN) {
-                    requireSameSchool(viewer, student)
-                } else {
+                if (!gradeAuthority.canReachLearner(viewer, student)) {
                     val studentClasses = membershipRepository.findAllByStudentId(student.id).map { it.classId }.toSet()
                     val owned = classRepository.findAllByTeacherUserIdAndIsActiveTrueOrderByNameAsc(current.userId)
                         .map { it.id }.toSet()
@@ -302,11 +301,9 @@ class AnalyticsService(
         }
         if (clazz.teacherUserId == current.userId) return
         val viewer = userRepository.findById(current.userId).orElseThrow { notFound("User not found") }
-        val staff = current.subRole == SubRole.GRADE_COORDINATOR || current.subRole == SubRole.ICT_ADMIN
-        if (!staff) throw ApiException(ApiErrorCode.FORBIDDEN, "Not your class")
-        if (viewer.schoolId == null || clazz.schoolId == null || viewer.schoolId != clazz.schoolId) {
-            throw ApiException(ApiErrorCode.FORBIDDEN, "Class is not in your school")
-        }
+        // ICT admin school-wide, coordinator for a class in their own grade; never across tenants.
+        if (gradeAuthority.canReachClass(viewer, clazz)) return
+        throw ApiException(ApiErrorCode.FORBIDDEN, "Not your class")
     }
 
     private fun requireSameSchool(viewer: UserEntity, target: UserEntity) {

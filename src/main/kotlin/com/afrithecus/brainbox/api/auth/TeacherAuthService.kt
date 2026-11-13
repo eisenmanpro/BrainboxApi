@@ -20,6 +20,7 @@ import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.exams.QuestionCodec
 import com.afrithecus.brainbox.api.identity.AuditLogService
 import com.afrithecus.brainbox.api.identity.CoordinatorGradeGuard
+import com.afrithecus.brainbox.api.identity.GradeAuthority
 import com.afrithecus.brainbox.api.identity.SchoolConfigService
 import com.afrithecus.brainbox.api.identity.TeacherCodeGenerator
 import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
@@ -70,6 +71,7 @@ class TeacherAuthService(
     private val authThrottle: AuthThrottle,
     private val codec: QuestionCodec,
     private val coordinatorGradeGuard: CoordinatorGradeGuard,
+    private val gradeAuthority: GradeAuthority,
 ) {
 
     // ----------------------------------------------------------- teacher signup
@@ -448,7 +450,8 @@ class TeacherAuthService(
 
     private fun authorizeStudentApprover(actor: UserEntity, student: UserEntity) {
         if (actor.role == Role.ADMIN) return
-        if (actor.role == Role.TEACHER && (actor.subRole == SubRole.GRADE_COORDINATOR || actor.subRole == SubRole.ICT_ADMIN)) return
+        // A coordinator approves learners of their own grade; an ICT admin stays school-wide.
+        if (gradeAuthority.canReachLearner(actor, student)) return
         if (actor.role == Role.TEACHER) {
             if (student.joinedTeacherId == actor.id) return
             val studentClasses = membershipRepository.findAllByStudentId(student.id).map { it.classId }.toSet()

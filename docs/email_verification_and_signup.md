@@ -36,7 +36,9 @@ Rules enforced **server-side** (the client may not relax them):
     their Class Teacher Code enrols learners into. A grade has **exactly one** coordinator: a
     second signup for the same school + grade is a **409** naming the grade, and rejecting,
     freezing or deactivating the holder frees the slot. The check runs under a school-row lock,
-    so two concurrent requests cannot both win.
+    so two concurrent requests cannot both win. The coordinator's elevated authority is
+    grade-scoped (own school + own grade; teaching access is additive): matrix and check order in
+    [coordinator_authority.md](coordinator_authority.md).
   - `TEACHER`: one or more grades from the catalogue, no class.
 - A school with no configured classes cannot accept class-teacher signups: its ICT admin
   configures the catalogue first (`PUT /admin/schools/{id}/config`, `classes[]`).

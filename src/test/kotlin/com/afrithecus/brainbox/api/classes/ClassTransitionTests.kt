@@ -130,9 +130,10 @@ class ClassTransitionTests(
     }
 
     @Test
-    fun `a coordinator may move within the whole school and a same-grade move leaves the old class`() {
+    fun `a coordinator may move within their own grade and a same-grade move leaves the old class`() {
         val school = newSchool()
         val coordinator = account(Role.TEACHER, SubRole.GRADE_COORDINATOR, "Coordinator", school)
+            .also { it.gradeLevel = "Form 3"; users.save(it) }
         val cteacher = account(Role.TEACHER, SubRole.CTEACHER, "Class Teacher", school)
         val brian = learner("Brian Otieno", "Form 3", school)
         val north = klass(cteacher, "Form 3 North", "Form 3", "North", "Mathematics")
@@ -147,6 +148,45 @@ class ClassTransitionTests(
         check(memberships.findByClassIdAndStudentId(north.id, brian.id) == null) {
             "a same-grade move must leave the previous class"
         }
+    }
+
+    @Test
+    fun `a coordinator cannot move a learner outside their grade`() {
+        val school = newSchool()
+        val coordinator = account(Role.TEACHER, SubRole.GRADE_COORDINATOR, "Coordinator", school)
+            .also { it.gradeLevel = "Form 3"; users.save(it) }
+        val cteacher = account(Role.TEACHER, SubRole.CTEACHER, "Class Teacher", school)
+        val brian = learner("Brian Otieno", "Form 2", school)
+        val form2 = klass(cteacher, "Form 2 North", "Form 2", "North", "Mathematics")
+        val form5 = klass(cteacher, "Form 5 East", "Form 5", "East", "Mathematics")
+        join(form2, brian)
+
+        val failure = runCatching {
+            service.transition(coordinator, brian.id.toString(), TransitionRequest(toClassId = form5.id.toString()))
+        }.exceptionOrNull()
+        check(failure is ApiException && failure.code == ApiErrorCode.FORBIDDEN) {
+            "expected FORBIDDEN for a move outside the coordinator's grade, got " + failure
+        }
+        check(transitions.findAllByStudentIdOrderByCreatedAtDesc(brian.id).isEmpty()) { "nothing must be recorded" }
+    }
+
+    @Test
+    fun `a coordinator keeps the class-teacher right for a class they own in another grade`() {
+        val school = newSchool()
+        val coordinator = account(Role.TEACHER, SubRole.GRADE_COORDINATOR, "Coordinator", school)
+            .also { it.gradeLevel = "Form 3"; users.save(it) }
+        val cteacher = account(Role.TEACHER, SubRole.CTEACHER, "Class Teacher", school)
+        val amina = learner("Amina Yusuf", "Form 2", school)
+        val oldForm2 = klass(cteacher, "Form 2 West", "Form 2", "West", "Mathematics")
+        val coordinatorForm2 = klass(coordinator, "Form 2 North", "Form 2", "North", "Mathematics")
+        join(oldForm2, amina)
+
+        // Coordination is Form 3, but this coordinator also owns a Form 2 class (teaching duty).
+        service.transition(
+            coordinator, amina.id.toString(),
+            TransitionRequest(toClassId = coordinatorForm2.id.toString(), reason = "Class teacher move"),
+        )
+        check(memberships.findByClassIdAndStudentId(coordinatorForm2.id, amina.id) != null)
     }
 
     @Test

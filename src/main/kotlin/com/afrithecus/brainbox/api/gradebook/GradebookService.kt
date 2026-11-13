@@ -14,11 +14,11 @@ import com.afrithecus.brainbox.api.gradebook.repository.GradebookEntryRepository
 import com.afrithecus.brainbox.api.gradebook.web.GradebookAssessmentPayload
 import com.afrithecus.brainbox.api.gradebook.web.GradebookEntryPayload
 import com.afrithecus.brainbox.api.gradebook.web.PublishedGradePayload
+import com.afrithecus.brainbox.api.identity.GradeAuthority
 import com.afrithecus.brainbox.api.identity.LearnerAccess
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.model.Role
-import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.traditional.TraditionalGradingConfigService
 import com.afrithecus.brainbox.api.traditional.model.ExamTerm
@@ -38,6 +38,7 @@ class GradebookService(
     private val assessmentRepository: GradebookAssessmentRepository,
     private val entryRepository: GradebookEntryRepository,
     private val classRepository: TeacherClassRepository,
+    private val gradeAuthority: GradeAuthority,
     private val userRepository: UserRepository,
     private val gradingConfigService: TraditionalGradingConfigService,
     private val clock: Clock,
@@ -281,10 +282,7 @@ class GradebookService(
     private fun classForWrite(current: CurrentUser, classIdRaw: String): TeacherClassEntity {
         val clazz = classRepository.findById(parseUuid(classIdRaw, "classId")).orElse(null)
             ?: throw notFound("Class not found")
-        val user = user(current)
-        val schoolWide = (user.subRole == SubRole.GRADE_COORDINATOR || user.subRole == SubRole.ICT_ADMIN) &&
-            (clazz.schoolId == null || clazz.schoolId == user.schoolId)
-        if (user.role != Role.ADMIN && clazz.teacherUserId != user.id && !schoolWide) {
+        if (!gradeAuthority.canReachClass(user(current), clazz)) {
             throw ApiException(ApiErrorCode.FORBIDDEN, "Not your class")
         }
         return clazz
@@ -294,7 +292,11 @@ class GradebookService(
         if (current.role == Role.ADMIN) return
         val user = user(current)
         if (row.createdBy == user.id) return
-        if (user.subRole == SubRole.GRADE_COORDINATOR || user.subRole == SubRole.ICT_ADMIN) return
+        // A coordinator may change an assessment only when its class sits in their grade;
+        // an ICT admin stays school-wide.
+        classRepository.findById(row.classId).orElse(null)?.let { clazz ->
+            if (gradeAuthority.canReachClass(user, clazz)) return
+        }
         throw ApiException(ApiErrorCode.FORBIDDEN, "Only the author or a coordinator can change this assessment")
     }
 

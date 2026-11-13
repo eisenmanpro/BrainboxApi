@@ -67,7 +67,7 @@ class GradebookWebTests(
         schoolId = school.id
     }
 
-    private fun user(role: Role, name: String, phone: String, subRole: SubRole? = null): UserEntity {
+    private fun user(role: Role, name: String, phone: String, subRole: SubRole? = null, grade: String? = null): UserEntity {
         val entity = UserEntity()
         entity.phoneNumber = phone
         entity.email = phone + "@gradebook.test"
@@ -75,6 +75,8 @@ class GradebookWebTests(
         entity.name = name
         entity.role = role
         entity.subRole = subRole
+        // A grade coordinator carries the grade they coordinate; access is grade-scoped.
+        entity.gradeLevel = grade ?: if (subRole == SubRole.GRADE_COORDINATOR) "Grade 7" else null
         entity.schoolId = schoolId
         entity.isVerified = true
         entity.isActive = true

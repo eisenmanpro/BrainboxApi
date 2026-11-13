@@ -6,10 +6,10 @@ import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
+import com.afrithecus.brainbox.api.identity.GradeAuthority
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.model.Role
-import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.report.web.ReportGenerationRequestPayload
 import com.afrithecus.brainbox.api.report.web.ReportJobPayload
@@ -27,6 +27,7 @@ import java.util.UUID
 @Service
 class StudentReportService(
     private val generation: ReportGenerationService,
+    private val gradeAuthority: GradeAuthority,
     private val userRepository: UserRepository,
     private val membershipRepository: ClassMembershipRepository,
     private val classRepository: TeacherClassRepository,
@@ -75,7 +76,10 @@ class StudentReportService(
             Role.TEACHER -> {
                 val student = requested?.let { userRepository.findById(it).orElse(null) }
                     ?: throw invalidArgument("studentId is required")
-                if (!isCoordinator(viewer) && !sharesClass(viewer, student)) throw forbidden("Not your learner")
+                // Coordinator rights cover their grade; teaching access to another grade stays additive.
+                if (!gradeAuthority.canReachLearner(viewer, student) && !sharesClass(viewer, student)) {
+                    throw forbidden("Not your learner")
+                }
                 student
             }
             Role.ADMIN -> requested?.let { userRepository.findById(it).orElse(null) }
@@ -83,9 +87,6 @@ class StudentReportService(
             else -> throw forbidden("Learner report access required")
         }
     }
-
-    private fun isCoordinator(viewer: UserEntity): Boolean =
-        viewer.subRole == SubRole.GRADE_COORDINATOR || viewer.subRole == SubRole.ICT_ADMIN
 
     private fun sharesClass(viewer: UserEntity, student: UserEntity): Boolean {
         val studentClasses = membershipRepository.findAllByStudentId(student.id).map { it.classId }.toSet()

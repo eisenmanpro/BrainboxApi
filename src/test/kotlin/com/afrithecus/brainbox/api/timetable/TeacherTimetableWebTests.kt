@@ -66,7 +66,7 @@ class TeacherTimetableWebTests(
         schoolId = school.id
     }
 
-    private fun user(role: Role, name: String, phone: String, subRole: SubRole? = null): UserEntity {
+    private fun user(role: Role, name: String, phone: String, subRole: SubRole? = null, grade: String? = null): UserEntity {
         val entity = UserEntity()
         entity.phoneNumber = phone
         entity.email = phone + "@tt.test"
@@ -74,6 +74,9 @@ class TeacherTimetableWebTests(
         entity.name = name
         entity.role = role
         entity.subRole = subRole
+        // Schedule-change review is grade-scoped: both the requesting teacher and the
+        // coordinator carry the grade the fixtures use.
+        entity.gradeLevel = grade ?: if (subRole == SubRole.GRADE_COORDINATOR) "Grade 4" else null
         entity.schoolId = schoolId
         entity.isVerified = true
         entity.isActive = true
@@ -475,7 +478,7 @@ class TeacherTimetableWebTests(
 
     @Test
     fun `schedule changes are reviewed by a coordinator`() {
-        val teacher = user(Role.TEACHER, "Class Teacher", "0755020040")
+        val teacher = user(Role.TEACHER, "Class Teacher", "0755020040", grade = "Grade 4")
         val coordinator = user(Role.TEACHER, "Grade Coordinator", "0755020041", subRole = SubRole.GRADE_COORDINATOR)
         val t = token(teacher)
         val c = token(coordinator)
@@ -508,7 +511,7 @@ class TeacherTimetableWebTests(
         mockMvc.perform(post("/teacher/timetable/schedule-changes/sch_1/approve").header("Authorization", auth(t)))
             .andExpect(status().isForbidden)
 
-        // The coordinator sees the whole school and approves.
+        // The coordinator sees the requests of their own grade and approves.
         val school = objectMapper.readValue(
             mockMvc.perform(get("/teacher/timetable/schedule-changes").header("Authorization", auth(c)))
                 .andExpect(status().isOk).andReturn().response.contentAsString,

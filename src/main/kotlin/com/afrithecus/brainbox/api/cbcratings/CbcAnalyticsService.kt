@@ -21,10 +21,10 @@ import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.feedback.repository.TeacherFeedbackRepository
+import com.afrithecus.brainbox.api.identity.GradeAuthority
 import com.afrithecus.brainbox.api.identity.LearnerAccess
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
-import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -42,6 +42,7 @@ class CbcAnalyticsService(
     private val ratingRepository: CbcRatingRepository,
     private val classRepository: TeacherClassRepository,
     private val membershipRepository: ClassMembershipRepository,
+    private val gradeAuthority: GradeAuthority,
     private val userRepository: UserRepository,
     private val feedbackRepository: TeacherFeedbackRepository,
     private val attendanceRepository: AttendanceRecordRepository,
@@ -241,13 +242,13 @@ class CbcAnalyticsService(
     private fun requireClassAccess(teacher: UserEntity, classIdRaw: String): com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity {
         val clazz = classRepository.findById(parseUuid(classIdRaw, "classId")).orElse(null)
             ?: throw notFound("Class not found")
-        if (clazz.teacherUserId == teacher.id) return clazz
-        if (teacher.subRole == SubRole.GRADE_COORDINATOR || teacher.subRole == SubRole.ICT_ADMIN) return clazz
+        if (gradeAuthority.canReachClass(teacher, clazz)) return clazz
         throw forbidden("Not your class")
     }
 
     private fun requireStudentAccess(teacher: UserEntity, student: UserEntity) {
-        if (teacher.subRole == SubRole.GRADE_COORDINATOR || teacher.subRole == SubRole.ICT_ADMIN) return
+        // Grade-wide coordination first; teaching access to another grade stays additive.
+        if (gradeAuthority.canReachLearner(teacher, student)) return
         val studentClasses = membershipRepository.findAllByStudentId(student.id).map { it.classId }.toSet()
         val teacherClasses = classRepository.findAllByTeacherUserIdAndIsActiveTrueOrderByNameAsc(teacher.id)
             .map { it.id }

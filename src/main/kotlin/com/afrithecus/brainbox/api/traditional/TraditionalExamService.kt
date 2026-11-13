@@ -7,6 +7,7 @@ import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.conflict
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
+import com.afrithecus.brainbox.api.identity.GradeAuthority
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.model.Role
@@ -106,6 +107,7 @@ class TraditionalExamService(
     private val userRepository: UserRepository,
     private val schoolRepository: SchoolRepository,
     private val classMembershipRepository: ClassMembershipRepository,
+    private val gradeAuthority: GradeAuthority,
     private val teacherClassRepository: TeacherClassRepository,
     private val notificationService: NotificationService,
     private val mapper: ObjectMapper,
@@ -147,9 +149,9 @@ class TraditionalExamService(
 
     @Transactional
     fun createExam(current: CurrentUser, request: CreateTraditionalExamRequest): TraditionalExamDto {
-        // A capture session is a coordinator's scheduling decision. Class teachers
-        // receive it and enter marks; they do not create sessions for their grade.
-        requireCoordinator(current)
+        // A capture session is a coordinator's scheduling decision, for their own grade.
+        // Class teachers receive it and enter marks; they do not create sessions.
+        requireCoordinatorForGrade(current, request.gradeLevel)
         validateSubjects(request.subjects)
         val user = user(current)
         // CREATE_EXAM replays from the client outbox: storing the client id makes
@@ -198,8 +200,8 @@ class TraditionalExamService(
         examIdRaw: String,
         request: UpdateTraditionalExamRequest,
     ): TraditionalExamDto {
-        requireCoordinator(current)
         val exam = exam(current, examIdRaw)
+        requireCoordinatorForExam(current, exam)
         if (exam.status == TraditionalExamStatus.FINALIZED || exam.status == TraditionalExamStatus.PUBLISHED) {
             throw conflict("A finalized exam can no longer be edited")
         }
@@ -227,8 +229,12 @@ class TraditionalExamService(
         // writer may trigger the idempotent mirror.
         requireStaffWriter(current)
         require(grade.isNotBlank()) { "grade is required" }
-        validateSubjects(subjects)
         val user = user(current)
+        // The idempotent mirror is staff-wide, but a coordinator only mirrors their own grade.
+        if (gradeAuthority.isCoordinator(user) && !gradeAuthority.overseesGrade(user, grade)) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "You can only generate exams for your grade")
+        }
+        validateSubjects(subjects)
         val termNumber = term.ordinal + 1
         val sanitizedGrade = grade.filter { it.isLetterOrDigit() }
         val sessions = listOf(
@@ -263,8 +269,8 @@ class TraditionalExamService(
 
     @Transactional
     fun updateStatus(current: CurrentUser, examIdRaw: String, statusRaw: String): TraditionalExamDto {
-        requireCoordinator(current)
         val exam = exam(current, examIdRaw)
+        requireCoordinatorForExam(current, exam)
         val target = enumOr(TraditionalExamStatus.entries, statusRaw, "exam status")
         // The lifecycle moves one guarded step at a time (spec 10 section 1.1). Terminal
         // steps route through their own method so the confirmation/finalization
@@ -427,8 +433,8 @@ class TraditionalExamService(
 
     @Transactional
     fun advanceToPreFinal(current: CurrentUser, examIdRaw: String): TraditionalExamDto {
-        requireCoordinator(current)
         val exam = exam(current, examIdRaw)
+        requireCoordinatorForExam(current, exam)
         // Idempotent for the offline outbox: re-sending an applied transition is a no-op.
         if (TraditionalExamStatus.entries.indexOf(exam.status) >= TraditionalExamStatus.entries.indexOf(TraditionalExamStatus.PRE_FINAL)) {
             return examDto(exam, current)
@@ -449,8 +455,8 @@ class TraditionalExamService(
         remarks: String?,
         omitPolicy: TraditionalOmitPolicy? = null,
     ): TraditionalExamDto {
-        requireCoordinator(current)
         val exam = exam(current, examIdRaw)
+        requireCoordinatorForExam(current, exam)
         // Idempotent for the offline outbox: re-sending an applied finalize is a no-op.
         if (TraditionalExamStatus.entries.indexOf(exam.status) >= TraditionalExamStatus.entries.indexOf(TraditionalExamStatus.FINALIZED)) {
             return examDto(exam, current)
@@ -474,8 +480,8 @@ class TraditionalExamService(
 
     @Transactional
     fun publish(current: CurrentUser, examIdRaw: String, coordinatorId: String?): TraditionalExamDto {
-        requireCoordinator(current)
         val exam = exam(current, examIdRaw)
+        requireCoordinatorForExam(current, exam)
         if (exam.status == TraditionalExamStatus.PUBLISHED) return examDto(exam, current)
         if (exam.status != TraditionalExamStatus.FINALIZED) throw conflict("Exam must be FINALIZED before publishing")
         val coordinator = coordinatorId?.let { parseUuidOrNull(it) } ?: current.userId
@@ -589,7 +595,11 @@ class TraditionalExamService(
         val editable = exam.status == TraditionalExamStatus.PENDING ||
             exam.status == TraditionalExamStatus.IN_PROGRESS ||
             exam.status == TraditionalExamStatus.CONFIRMED
-        val coordinatorOperator = isCoordinator(operator) || current.role == Role.ADMIN
+        // The elevated capture-review stage belongs to a coordinator of *this* grade (and to
+        // school-wide staff). A coordinator who merely teaches a class in another grade keeps
+        // the ordinary teacher mark path below - additive, not blocked.
+        val coordinatorOperator = gradeAuthority.isSchoolWide(operator) ||
+            (gradeAuthority.isCoordinator(operator) && gradeAuthority.overseesGrade(operator, exam.gradeLevel))
         val reviewStage = exam.status == TraditionalExamStatus.CONFIRMED ||
             exam.status == TraditionalExamStatus.PRE_FINAL
         val coordinatorCanReview = coordinatorOperator && reviewStage
@@ -919,8 +929,8 @@ class TraditionalExamService(
 
     @Transactional
     fun approveEditRequest(current: CurrentUser, requestIdRaw: String, coordinatorId: String?): EditRequestDto {
-        requireCoordinator(current)
         val row = editRequest(requestIdRaw)
+        requireCoordinatorForExamId(current, row.examId)
         // Offline replay: re-sending an applied approval is an idempotent no-op.
         if (row.status == TraditionalEditStatus.APPROVED) return editRequestDto(row, publicExamId(row.examId))
         if (row.status == TraditionalEditStatus.DENIED) throw conflict("This edit request was already denied")
@@ -959,8 +969,8 @@ class TraditionalExamService(
 
     @Transactional
     fun denyEditRequest(current: CurrentUser, requestIdRaw: String, coordinatorId: String?, reason: String?): EditRequestDto {
-        requireCoordinator(current)
         val row = editRequest(requestIdRaw)
+        requireCoordinatorForExamId(current, row.examId)
         // Offline replay: re-sending an applied denial is an idempotent no-op.
         if (row.status == TraditionalEditStatus.DENIED) return editRequestDto(row, publicExamId(row.examId))
         if (row.status == TraditionalEditStatus.APPROVED) throw conflict("This edit request was already approved")
@@ -981,8 +991,8 @@ class TraditionalExamService(
 
     @Transactional
     fun grantEditPermission(current: CurrentUser, examIdRaw: String, permission: EditPermissionDto): Unit {
-        requireCoordinator(current)
         val exam = exam(current, examIdRaw)
+        requireCoordinatorForExam(current, exam)
         val studentId = parseUuid(permission.studentId, "student id")
         val teacherId = parseUuid(permission.teacherId, "teacher id")
         markPermissionUsed(exam.id, studentId, teacherId)
@@ -1016,7 +1026,7 @@ class TraditionalExamService(
 
     @Transactional
     fun saveGradeSubjectConfig(current: CurrentUser, gradeLevel: String, schoolIdRaw: String?, subjects: List<SubjectConfigDto>) {
-        requireCoordinator(current)
+        requireCoordinatorForGrade(current, gradeLevel)
         validateSubjects(subjects)
         val schoolId = schoolId(current, schoolIdRaw)
         subjectConfigRepository.deleteAllByScope(schoolId, gradeLevel)
@@ -1043,7 +1053,7 @@ class TraditionalExamService(
 
     @Transactional
     fun saveGradingConfig(current: CurrentUser, gradeLevel: String, schoolIdRaw: String?, config: GradingConfigDto) {
-        requireCoordinator(current)
+        requireCoordinatorForGrade(current, gradeLevel)
         val schoolId = schoolId(current, schoolIdRaw)
         val rows = if (schoolId != null) {
             gradingConfigRepository.findAllBySchoolIdAndGradeLevel(schoolId, gradeLevel)
@@ -1159,15 +1169,17 @@ class TraditionalExamService(
         } else {
             examRepository.findAll().sortedByDescending { it.createdAt }
         }
-        if (user.role != Role.TEACHER || isCoordinator(user)) return schoolScoped
-        val grades = teacherClassRepository.findAllByTeacherUserIdAndIsActiveTrueOrderByNameAsc(user.id)
-            .map { it.gradeLevel }.toSet()
-        if (grades.isEmpty()) return schoolScoped
-        return schoolScoped.filter { it.gradeLevel in grades }
+        if (user.role != Role.TEACHER || gradeAuthority.isSchoolWide(user)) return schoolScoped
+        // A coordinator sees their own grade plus any grade they actually teach; a plain
+        // teacher keeps the legacy view of the grades they own a class in.
+        val grades = gradeAuthority.teachingGrades(user.id) +
+            listOfNotNull(gradeAuthority.coordinatorGrade(user))
+        if (grades.isEmpty()) {
+            return if (gradeAuthority.isCoordinator(user)) emptyList() else schoolScoped
+        }
+        val normalized = grades.map { it.lowercase() }.toSet()
+        return schoolScoped.filter { it.gradeLevel.trim().lowercase() in normalized }
     }
-
-    private fun isCoordinator(user: UserEntity): Boolean =
-        user.subRole == SubRole.GRADE_COORDINATOR || user.subRole == SubRole.ICT_ADMIN
 
     private fun resolveReportStudent(current: CurrentUser, studentIdRaw: String?): UserEntity {
         val requested = studentIdRaw?.takeIf { it.isNotBlank() }?.let { parseUuid(it, "student id") }
@@ -1659,10 +1671,44 @@ class TraditionalExamService(
         }
     }
 
-    private fun requireCoordinator(current: CurrentUser) {
+    /**
+     * Coordinator authority over one exam: a platform admin and the school's ICT admin stay
+     * school-wide; a grade coordinator only over an exam of their own grade in their own
+     * school. A request for another grade is refused rather than silently narrowed.
+     */
+    private fun requireCoordinatorForExam(current: CurrentUser, exam: TraditionalExamEntity) {
         if (current.role == Role.ADMIN) return
-        if (current.role == Role.TEACHER && (current.subRole == SubRole.GRADE_COORDINATOR || current.subRole == SubRole.ICT_ADMIN)) return
-        throw ApiException(ApiErrorCode.FORBIDDEN, "Coordinator access required")
+        val user = user(current)
+        if (gradeAuthority.isSchoolWide(user) && gradeAuthority.isInSchool(user, exam.schoolId)) return
+        if (current.role == Role.TEACHER && gradeAuthority.isCoordinator(user) &&
+            gradeAuthority.isInSchool(user, exam.schoolId) &&
+            gradeAuthority.overseesGrade(user, exam.gradeLevel)
+        ) {
+            return
+        }
+        throw ApiException(ApiErrorCode.FORBIDDEN, "Coordinator access required for this exam's grade")
+    }
+
+    /** Coordinator authority over a grade (subject and grading configuration). */
+    private fun requireCoordinatorForGrade(current: CurrentUser, gradeLevel: String?) {
+        if (current.role == Role.ADMIN) return
+        val user = user(current)
+        if (gradeAuthority.isSchoolWide(user)) return
+        if (current.role == Role.TEACHER && gradeAuthority.isCoordinator(user) &&
+            gradeAuthority.overseesGrade(user, gradeLevel)
+        ) {
+            return
+        }
+        throw ApiException(ApiErrorCode.FORBIDDEN, "Coordinator access required for this grade")
+    }
+
+    private fun requireCoordinatorForExamId(current: CurrentUser, examId: java.util.UUID) {
+        val exam = examRepository.findById(examId).orElse(null)
+        if (exam == null) {
+            requireCoordinatorForGrade(current, null)
+            return
+        }
+        requireCoordinatorForExam(current, exam)
     }
 
     /**
@@ -1685,7 +1731,13 @@ class TraditionalExamService(
      */
     private fun verifyEditRequesterTeaches(current: CurrentUser, exam: TraditionalExamEntity, studentId: UUID) {
         if (current.role != Role.TEACHER) return
-        if (current.subRole == SubRole.GRADE_COORDINATOR || current.subRole == SubRole.ICT_ADMIN) return
+        if (current.subRole == SubRole.ICT_ADMIN) return
+        // A coordinator is exempt for their own grade; outside it they must actually teach
+        // the affected learner like any other teacher.
+        if (current.subRole == SubRole.GRADE_COORDINATOR) {
+            val coordinator = user(current)
+            if (gradeAuthority.overseesGrade(coordinator, exam.gradeLevel)) return
+        }
         if (markRepository.existsByExamIdAndEnteredBy(exam.id, current.userId)) return
         val student = userRepository.findById(studentId).orElse(null) ?: throw notFound("Student not found")
         val classTag = classTagOf(student, exam)
@@ -1717,11 +1769,12 @@ class TraditionalExamService(
             .filter { it.gradeLevel.equals(exam.gradeLevel, ignoreCase = true) }
             .map { it.teacherUserId }
             .toSet()
+        // Recipients are the grade's class teachers and its one coordinator; a coordinator
+        // from another grade is not told about this grade's session.
         val recipients = teachers.filter { teacher ->
             teacher.id != creator.id &&
                 (teacher.id in classTeacherIds ||
-                    teacher.gradeLevel.equals(exam.gradeLevel, ignoreCase = true) ||
-                    teacher.subRole == SubRole.GRADE_COORDINATOR)
+                    teacher.gradeLevel.equals(exam.gradeLevel, ignoreCase = true))
         }
         recipients.forEach { teacher ->
             notify(

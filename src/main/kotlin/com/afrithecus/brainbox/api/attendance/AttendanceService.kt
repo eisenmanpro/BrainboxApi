@@ -28,6 +28,7 @@ import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
+import com.afrithecus.brainbox.api.identity.GradeAuthority
 import com.afrithecus.brainbox.api.identity.LearnerAccess
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
@@ -72,6 +73,7 @@ class AttendanceService(
     private val pdfService: AttendancePdfService,
     private val mediaService: MediaService,
     private val userRepository: UserRepository,
+    private val gradeAuthority: GradeAuthority,
     private val notificationService: NotificationService,
     private val routingPolicy: AttendanceRecipientPolicy,
     private val clock: Clock,
@@ -728,21 +730,19 @@ class AttendanceService(
 
     private fun requireWriter(user: UserEntity, clazz: TeacherClassEntity) {
         if (!canAccess(user, clazz)) throw ApiException(ApiErrorCode.FORBIDDEN, "Not your class")
-        val allowed = user.role == Role.ADMIN ||
-            user.subRole == SubRole.ICT_ADMIN ||
-            user.subRole == SubRole.GRADE_COORDINATOR ||
-            (user.subRole == SubRole.CTEACHER && clazz.teacherUserId == user.id)
+        // A coordinator files attendance for their own grade (and for a class they own);
+        // an ICT admin stays school-wide. A plain teacher cannot file a register.
+        val allowed = gradeAuthority.isSchoolWide(user) ||
+            (clazz.teacherUserId == user.id &&
+                (user.subRole == SubRole.CTEACHER || user.subRole == SubRole.GRADE_COORDINATOR)) ||
+            gradeAuthority.overseesGrade(user, clazz.gradeLevel)
         if (!allowed) {
             throw ApiException(ApiErrorCode.FORBIDDEN, "Only class teachers and grade coordinators can file attendance")
         }
     }
 
-    private fun canAccess(user: UserEntity, clazz: TeacherClassEntity): Boolean {
-        if (user.role == Role.ADMIN) return true
-        if (clazz.teacherUserId == user.id) return true
-        val schoolWide = user.subRole == SubRole.ICT_ADMIN || user.subRole == SubRole.GRADE_COORDINATOR
-        return schoolWide && (clazz.schoolId == null || clazz.schoolId == user.schoolId)
-    }
+    private fun canAccess(user: UserEntity, clazz: TeacherClassEntity): Boolean =
+        gradeAuthority.canReachClass(user, clazz)
 
     private fun user(current: CurrentUser): UserEntity =
         userRepository.findById(current.userId).orElse(null) ?: throw notFound("User not found")

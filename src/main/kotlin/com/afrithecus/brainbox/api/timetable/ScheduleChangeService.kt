@@ -4,6 +4,7 @@ import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
+import com.afrithecus.brainbox.api.identity.GradeAuthority
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubRole
@@ -26,6 +27,7 @@ import java.util.UUID
 class ScheduleChangeService(
     private val repository: ScheduleChangeRepository,
     private val userRepository: UserRepository,
+    private val gradeAuthority: GradeAuthority,
     private val clock: Clock,
 ) {
 
@@ -80,13 +82,16 @@ class ScheduleChangeService(
                 } else {
                     repository.findAllByTeacherIdOrderByRequestedAtDesc(teacher.id)
                 }
-                return rows.map(::payload)
+                return rows.filter { gradeAuthority.overseesGrade(teacher, requestedGradeOf(it.teacherId)) }.map(::payload)
             }
             val targetId = parseUuid(teacherIdQuery, "teacherId")
             val target = userRepository.findById(targetId).orElse(null)
                 ?: throw notFound("Teacher not found")
             if (teacher.schoolId != null && target.schoolId != teacher.schoolId) {
                 throw forbidden("Teacher is not in your school")
+            }
+            if (!gradeAuthority.overseesGrade(teacher, target.gradeLevel)) {
+                throw forbidden("That teacher is not in your grade")
             }
             return repository.findAllByTeacherIdOrderByRequestedAtDesc(targetId).map(::payload)
         }
@@ -108,6 +113,11 @@ class ScheduleChangeService(
         requireTeacher(teacher)
         if (!isStaff(teacher)) throw forbidden("Only a coordinator can review schedule changes")
         val entity = resolve(id) ?: throw notFound("Schedule change not found")
+        // A coordinator reviews the requests of teachers in their own grade; an ICT admin
+        // reviews the whole school.
+        if (!gradeAuthority.overseesGrade(teacher, requestedGradeOf(entity.teacherId))) {
+            throw forbidden("That schedule change is not in your grade")
+        }
         if (teacher.schoolId != null && entity.schoolId != null && entity.schoolId != teacher.schoolId) {
             throw forbidden("Schedule change is not in your school")
         }
@@ -149,6 +159,10 @@ class ScheduleChangeService(
 
     private fun isStaff(user: UserEntity): Boolean =
         user.subRole == SubRole.GRADE_COORDINATOR || user.subRole == SubRole.ICT_ADMIN
+
+    /** The grade of the teacher who raised a request; a teacher with no grade is unreachable. */
+    private fun requestedGradeOf(teacherId: UUID): String? =
+        userRepository.findById(teacherId).orElse(null)?.gradeLevel
 
     private fun parseUuid(raw: String, field: String): UUID =
         runCatching { UUID.fromString(raw) }.getOrNull()

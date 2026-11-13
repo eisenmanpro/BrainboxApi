@@ -13,9 +13,9 @@ import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
+import com.afrithecus.brainbox.api.identity.GradeAuthority
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
-import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.entity.SchoolSystemSettingsEntity
 import com.afrithecus.brainbox.api.identity.repository.SchoolSystemSettingsRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
@@ -51,6 +51,7 @@ class ClassTransitionService(
     private val transitionRepository: StudentClassTransitionRepository,
     private val userRepository: UserRepository,
     private val settings: SchoolSystemSettingsRepository,
+    private val gradeAuthority: GradeAuthority,
     private val notifications: NotificationService,
 ) {
 
@@ -64,7 +65,7 @@ class ClassTransitionService(
     /** Only a grade coordinator (or ICT admin) may flip the switch. */
     @Transactional
     fun setTransitionsEnabled(actor: UserEntity, enabled: Boolean): Boolean {
-        if (!isSchoolWide(actor)) {
+        if (!mayToggleTransitions(actor)) {
             throw ApiException(ApiErrorCode.FORBIDDEN, "Only a grade coordinator can change grade transitioning")
         }
         val schoolId = actor.schoolId
@@ -158,14 +159,19 @@ class ClassTransitionService(
         if (target.schoolId != null && schoolId != null && target.schoolId != schoolId) {
             throw ApiException(ApiErrorCode.FORBIDDEN, "Target class is not in your school")
         }
-        // A class teacher may only receive learners into a class they own.
-        if (!isSchoolWide(actor) && target.teacherUserId != actor.id) {
-            throw ApiException(ApiErrorCode.FORBIDDEN, "You can only move learners into your own class")
-        }
-
         val current = membershipRepository.findAllByStudentId(studentId)
             .mapNotNull { classRepository.findById(it.classId).orElse(null) }
             .filter { it.schoolId == null || schoolId == null || it.schoolId == schoolId }
+        // A class teacher may only receive learners into a class they own. A coordinator may
+        // also move a learner when the move touches their own grade (in or out) - and keeps the
+        // class-teacher ability for a class they own outside their grade.
+        val coordinatorGradeMove = gradeAuthority.isCoordinator(actor) && (
+            gradeAuthority.overseesGrade(actor, target.gradeLevel) ||
+                current.any { gradeAuthority.overseesGrade(actor, it.gradeLevel) }
+            )
+        if (!isSchoolWide(actor) && target.teacherUserId != actor.id && !coordinatorGradeMove) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "You can only move learners into your own class")
+        }
         // A learner belongs to one class at a time, so a move leaves every other
         // membership — same grade or different. (Joining the target grade's other
         // subject classes is the group-move question still open in the roadmap.)
@@ -246,10 +252,16 @@ class ClassTransitionService(
         }
     }
 
-    private fun isSchoolWide(actor: UserEntity): Boolean =
-        actor.role == Role.ADMIN ||
-            (actor.role == Role.TEACHER &&
-                (actor.subRole == SubRole.GRADE_COORDINATOR || actor.subRole == SubRole.ICT_ADMIN))
+    /**
+     * School-wide transitions belong to a platform admin and the school's ICT admin. A
+     * coordinator moves learners only where the move touches their own grade (see
+     * [transition]); the on/off switch itself stays a coordinator operational setting.
+     */
+    private fun isSchoolWide(actor: UserEntity): Boolean = gradeAuthority.isSchoolWide(actor)
+
+    /** The transition switch is run by a coordinator (product_ops_roadmap item 4), school-wide by design. */
+    private fun mayToggleTransitions(actor: UserEntity): Boolean =
+        gradeAuthority.isSchoolWide(actor) || gradeAuthority.isCoordinator(actor)
 
     private fun requireTeacher(actor: UserEntity) {
         if (actor.role != Role.TEACHER && actor.role != Role.ADMIN) {

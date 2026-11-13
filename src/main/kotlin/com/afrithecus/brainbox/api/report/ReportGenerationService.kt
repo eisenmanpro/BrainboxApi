@@ -4,6 +4,8 @@ import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
+import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
+import com.afrithecus.brainbox.api.identity.GradeAuthority
 import com.afrithecus.brainbox.api.identity.SchoolConfigService
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
@@ -43,6 +45,9 @@ class ReportGenerationService(
     private val data: ReportDataService,
     private val downloads: ReportDownloadService,
     private val userRepository: UserRepository,
+    private val gradeAuthority: GradeAuthority,
+    private val classRepository: TeacherClassRepository,
+    private val traditionalExams: com.afrithecus.brainbox.api.traditional.TraditionalExamService,
     private val coverage: SubscriptionCoverageService,
     private val properties: ReportProperties,
     private val mapper: ObjectMapper,
@@ -50,6 +55,7 @@ class ReportGenerationService(
 
     fun submit(actor: CurrentUser, request: ReportGenerationRequestPayload, baseUrl: String?): ReportJobPayload {
         val user = requireCoordinator(actor)
+        requireReportScope(user, request)
         val schoolId = resolveSchool(user, request.schoolId)
         requireBulkCoverage(request)
         val requestId = request.jobRequestId?.trim()?.takeIf { it.isNotEmpty() } ?: UUID.randomUUID().toString()
@@ -223,13 +229,55 @@ class ReportGenerationService(
     private fun requireJobAccess(actor: CurrentUser, job: ReportJobEntity) {
         if (job.ownerId == actor.userId) return
         val user = userRepository.findById(actor.userId).orElse(null) ?: throw notFound("User not found")
-        val staff = user.role == Role.ADMIN || (
-            user.role == Role.TEACHER && (user.subRole == SubRole.GRADE_COORDINATOR || user.subRole == SubRole.ICT_ADMIN)
-            )
-        if (!staff) throw ApiException(ApiErrorCode.FORBIDDEN, "Not your report")
-        if (user.role != Role.ADMIN && (job.schoolId == null || job.schoolId != user.schoolId)) {
-            throw ApiException(ApiErrorCode.FORBIDDEN, "Not your school's report")
+        if (user.role != Role.ADMIN) {
+            if (!gradeAuthority.isSchoolWide(user)) {
+                // A coordinator reaches a colleague's job only when its class is in their grade;
+                // a grade-wide job with no class stays private to its owner and the ICT admin.
+                val classId = job.classId?.let { runCatching { UUID.fromString(it.trim()) }.getOrNull() }
+                val clazz = classId?.let { classRepository.findById(it).orElse(null) }
+                val inGrade = clazz != null && gradeAuthority.overseesGrade(user, clazz.gradeLevel)
+                if (!inGrade) throw ApiException(ApiErrorCode.FORBIDDEN, "Not your report")
+            }
+            if (job.schoolId == null || job.schoolId != user.schoolId) {
+                throw ApiException(ApiErrorCode.FORBIDDEN, "Not your school's report")
+            }
         }
+    }
+
+    /**
+     * A coordinator may request a report only for their own grade. The report data services
+     * enforce the same rule when they render, but rejecting here keeps a refused job from
+     * being created and makes the API answer 403 instead of failing the job later.
+     */
+    private fun requireReportScope(user: UserEntity, request: ReportGenerationRequestPayload) {
+        if (gradeAuthority.isSchoolWide(user)) return
+        val classIdRaw = request.classId?.trim()?.takeIf { it.isNotEmpty() }
+        if (classIdRaw != null) {
+            val classId = runCatching { UUID.fromString(classIdRaw) }.getOrNull()
+                ?: throw invalidArgument("classId is not a valid identifier")
+            val clazz = classRepository.findById(classId).orElse(null) ?: throw notFound("Class not found")
+            if (!gradeAuthority.overseesGrade(user, clazz.gradeLevel)) {
+                throw ApiException(ApiErrorCode.FORBIDDEN, "This report is not for your grade")
+            }
+            return
+        }
+        val examIdRaw = request.examId?.trim()?.takeIf { it.isNotEmpty() }
+        if (examIdRaw != null) {
+            val exam = traditionalExams.getExam(CurrentUser(user.id, user.role, user.subRole), examIdRaw)
+            if (!gradeAuthority.overseesGrade(user, exam.gradeLevel)) {
+                throw ApiException(ApiErrorCode.FORBIDDEN, "This report is not for your grade")
+            }
+            return
+        }
+        if (request.studentIds.isNotEmpty()) {
+            val ids = request.studentIds.mapNotNull { runCatching { UUID.fromString(it.trim()) }.getOrNull() }
+            val students = userRepository.findAllById(ids)
+            if (students.isEmpty() || students.any { it.role != Role.STUDENT || !gradeAuthority.canReachLearner(user, it) }) {
+                throw ApiException(ApiErrorCode.FORBIDDEN, "This report is not for your grade")
+            }
+            return
+        }
+        throw ApiException(ApiErrorCode.FORBIDDEN, "Choose a class, exam or learner in your grade")
     }
 
     private fun resolveSchool(user: UserEntity, requested: String?): UUID? {

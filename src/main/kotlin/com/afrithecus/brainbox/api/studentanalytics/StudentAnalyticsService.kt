@@ -21,10 +21,10 @@ import com.afrithecus.brainbox.api.exams.repository.ExamSubmissionRepository
 import com.afrithecus.brainbox.api.feedback.repository.TeacherFeedbackRepository
 import com.afrithecus.brainbox.api.feedback.web.TeacherFeedbackPayload
 import com.afrithecus.brainbox.api.homework.repository.HomeworkSubmissionRepository
+import com.afrithecus.brainbox.api.identity.GradeAuthority
 import com.afrithecus.brainbox.api.identity.LearnerAccess
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
-import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.learning.repository.LearningViewRepository
 import com.afrithecus.brainbox.api.studentanalytics.web.ClassComparisonsPayload
@@ -53,6 +53,7 @@ class StudentAnalyticsService(
     private val userRepository: UserRepository,
     private val membershipRepository: ClassMembershipRepository,
     private val classRepository: TeacherClassRepository,
+    private val gradeAuthority: GradeAuthority,
     private val attendanceRepository: AttendanceRecordRepository,
     private val examSubmissionRepository: ExamSubmissionRepository,
     private val examRepository: ExamRepository,
@@ -294,7 +295,9 @@ class StudentAnalyticsService(
     }
 
     private fun requireStudentAccess(teacher: UserEntity, student: UserEntity) {
-        if (teacher.subRole == SubRole.GRADE_COORDINATOR || teacher.subRole == SubRole.ICT_ADMIN) return
+        // Grade-wide coordination first; a coordinator who teaches another grade keeps that
+        // teaching access through the shared-class fallback below (additive, not replaced).
+        if (gradeAuthority.canReachLearner(teacher, student)) return
         val studentClasses = membershipRepository.findAllByStudentId(student.id).map { it.classId }.toSet()
         val teacherClasses = classRepository.findAllByTeacherUserIdAndIsActiveTrueOrderByNameAsc(teacher.id)
             .map { it.id }
@@ -304,14 +307,7 @@ class StudentAnalyticsService(
 
     private fun requireClassAccess(teacher: UserEntity, classIdRaw: String) =
         classRepository.findById(parseUuid(classIdRaw, "classId")).orElse(null)
-            ?.also { clazz ->
-                if (clazz.teacherUserId != teacher.id &&
-                    teacher.subRole != SubRole.GRADE_COORDINATOR &&
-                    teacher.subRole != SubRole.ICT_ADMIN
-                ) {
-                    throw forbidden("Not your class")
-                }
-            }
+            ?.also { clazz -> if (!gradeAuthority.canReachClass(teacher, clazz)) throw forbidden("Not your class") }
             ?: throw notFound("Class not found")
 
     private fun round2(value: Double): Double = Math.round(value * 100.0) / 100.0

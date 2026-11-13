@@ -15,11 +15,11 @@ import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.conflict
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
+import com.afrithecus.brainbox.api.identity.GradeAuthority
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.AccountKind
 import com.afrithecus.brainbox.api.identity.model.AccountStatus
 import com.afrithecus.brainbox.api.identity.model.Role
-import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
@@ -45,6 +45,7 @@ class LearnerProvisioningService(
     private val classRepository: TeacherClassRepository,
     private val membershipRepository: ClassMembershipRepository,
     private val userRepository: UserRepository,
+    private val gradeAuthority: GradeAuthority,
     private val passwordEncoder: PasswordEncoder,
     private val clock: Clock,
 ) {
@@ -229,7 +230,8 @@ class LearnerProvisioningService(
             ?: throw notFound("Class not found")
         if (actor.role == Role.ADMIN) return clazz
         val owns = clazz.teacherUserId == actor.id
-        val coordinates = isCoordinator(actor) && actor.schoolId != null && actor.schoolId == clazz.schoolId
+        val coordinates = gradeAuthority.overseesGrade(actor, clazz.gradeLevel) &&
+            gradeAuthority.isInSchool(actor, clazz.schoolId)
         if (!owns && !coordinates) throw ApiException(ApiErrorCode.FORBIDDEN, "Not your class")
         return clazz
     }
@@ -241,12 +243,9 @@ class LearnerProvisioningService(
             membershipRepository.findAllByStudentId(student.id).any { membership ->
                 classRepository.findById(membership.classId).orElse(null)?.teacherUserId == actor.id
             }
-        val coordinates = isCoordinator(actor) && actor.schoolId != null && actor.schoolId == student.schoolId
+        val coordinates = gradeAuthority.canReachLearner(actor, student)
         if (!ownsTheClass && !coordinates) throw ApiException(ApiErrorCode.FORBIDDEN, "Not your learner")
     }
-
-    private fun isCoordinator(actor: UserEntity): Boolean =
-        actor.role == Role.TEACHER && (actor.subRole == SubRole.GRADE_COORDINATOR || actor.subRole == SubRole.ICT_ADMIN)
 
     private fun requireSameSchool(student: UserEntity, schoolId: UUID?) {
         if (schoolId != null && student.schoolId != null && student.schoolId != schoolId) {

@@ -25,7 +25,10 @@ Staff signup (`POST /auth/signup/teacher`) requires an email, a school from the 
 exist in the school's catalogue and an ICT admin takes neither. A class teacher takes one grade + one class; a
 **grade coordinator is a class teacher with grade-wide duties** and takes the same one grade + one class, with
 **one coordinator per grade per school** enforced by `CoordinatorGradeGuard` (school-row lock, so concurrent
-signups cannot both win; rejecting/freezing the holder frees the slot). Signup never returns a session: a 6-digit code
+signups cannot both win; rejecting/freezing the holder frees the slot). Elevated coordinator authority is
+**grade-scoped** (own school + own grade) through `GradeAuthority`; ordinary teaching access in another grade is
+additive. Matrix and check order: [docs/coordinator_authority.md](docs/coordinator_authority.md). Signup never
+returns a session: a 6-digit code
 is emailed (Mailjet SMTP via `app.mail.provider=mailjet`, credentials `MJ_APIKEY_*`, sender `MAIL_FROM`) and
 `POST /auth/email/verify` starts it. `POST /auth/login` on an unconfirmed address answers 403
 `EMAIL_NOT_VERIFIED`. `AccountStateFilter` refuses staff data routes with `ACCOUNT_PENDING` until an ICT admin

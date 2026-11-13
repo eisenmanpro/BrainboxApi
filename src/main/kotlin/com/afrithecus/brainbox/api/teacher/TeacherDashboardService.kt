@@ -19,6 +19,7 @@ import com.afrithecus.brainbox.api.homework.model.GradingMode
 import com.afrithecus.brainbox.api.homework.model.SubmissionStatus
 import com.afrithecus.brainbox.api.homework.repository.HomeworkRepository
 import com.afrithecus.brainbox.api.homework.repository.HomeworkSubmissionRepository
+import com.afrithecus.brainbox.api.identity.GradeAuthority
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.AccountStatus
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
@@ -57,6 +58,7 @@ import java.util.UUID
 class TeacherDashboardService(
     private val userRepository: UserRepository,
     private val classRepository: TeacherClassRepository,
+    private val gradeAuthority: GradeAuthority,
     private val membershipRepository: ClassMembershipRepository,
     private val homeworkRepository: HomeworkRepository,
     private val submissionRepository: HomeworkSubmissionRepository,
@@ -107,9 +109,12 @@ class TeacherDashboardService(
             0
         }
 
-        val coordinator = teacher.subRole == SubRole.GRADE_COORDINATOR || teacher.subRole == SubRole.ICT_ADMIN
-        val schoolExams = if (coordinator && teacher.schoolId != null) {
+        // A coordinator sees the paper-exam queue of their own grade, an ICT admin the school.
+        val examOversight = (gradeAuthority.isSchoolWide(teacher) || gradeAuthority.isCoordinator(teacher)) &&
+            teacher.schoolId != null
+        val schoolExams = if (examOversight) {
             traditionalExamRepository.findAllBySchoolIdOrderByCreatedAtDesc(teacher.schoolId!!)
+                .filter { exam -> gradeAuthority.overseesGrade(teacher, exam.gradeLevel) }
         } else {
             emptyList()
         }

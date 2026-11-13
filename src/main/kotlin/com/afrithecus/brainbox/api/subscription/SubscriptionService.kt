@@ -3,9 +3,9 @@ package com.afrithecus.brainbox.api.subscription
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.notFound
+import com.afrithecus.brainbox.api.identity.GradeAuthority
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.model.Role
-import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.model.SubscriptionStatus
 import com.afrithecus.brainbox.api.identity.model.SubscriptionTier
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
@@ -38,6 +38,7 @@ class SubscriptionService(
     private val repository: SubscriptionRepository,
     private val historyRepository: SubscriptionHistoryRepository,
     private val userRepository: UserRepository,
+    private val gradeAuthority: GradeAuthority,
     private val clock: Clock,
 ) {
 
@@ -105,10 +106,19 @@ class SubscriptionService(
         val user = userRepository.findById(actor.userId).orElse(null) ?: throw notFound("User not found")
         if (user.role == Role.ADMIN) return
         if (user.role == Role.PARENT && userRepository.findByParentUserId(user.id).any { it.id == targetUserId }) return
-        if (user.role == Role.TEACHER &&
-            (user.subRole == SubRole.GRADE_COORDINATOR || user.subRole == SubRole.ICT_ADMIN)
-        ) {
-            return
+        // Staff see another user's billing only within their authority: an ICT admin school-wide,
+        // a coordinator for a learner in their grade. Another teacher's subscription stays private
+        // to that teacher (and to the school admin who manages the school).
+        if (user.role == Role.TEACHER) {
+            val target = userRepository.findById(targetUserId).orElse(null)
+            if (target != null) {
+                if (gradeAuthority.isSchoolWide(user) && gradeAuthority.isInSchool(user, target.schoolId)) return
+                if (gradeAuthority.isCoordinator(user) && target.role == Role.STUDENT &&
+                    gradeAuthority.canReachLearner(user, target)
+                ) {
+                    return
+                }
+            }
         }
         throw ApiException(ApiErrorCode.FORBIDDEN, "Not your subscription")
     }

@@ -437,7 +437,9 @@ class RosterOnlyLearnerTests(
             this.role = role
             this.subRole = subRole
             this.schoolId = school
-            gradeLevel = if (role == Role.STUDENT) "Grade 4" else null
+            // A coordinator must carry the grade they coordinate (one per grade rule);
+            // these fixtures all coordinate Grade 4.
+            gradeLevel = if (role == Role.STUDENT || subRole == SubRole.GRADE_COORDINATOR) "Grade 4" else null
             studentAdmissionNumber = admission
             isVerified = true
             isActive = true
