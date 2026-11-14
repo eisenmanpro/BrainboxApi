@@ -16,6 +16,8 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
+import java.time.LocalDate
+import java.time.ZoneOffset
 
 /**
  * Study tools (doc 03 §9): server-owned sessions, idempotent replay, validation
@@ -41,8 +43,13 @@ class StudyWebTests(
         return objectMapper.readValue(response, AuthResponse::class.java)
     }
 
-    /** Fixed base so a replay sends byte-identical timestamps (idempotency check). */
-    private val base = System.currentTimeMillis()
+    /**
+     * Fixed base so a replay sends byte-identical timestamps (idempotency check), anchored to
+     * noon UTC of the current day. A wall-clock base made the three sessions straddle UTC midnight
+     * when the suite ran between 00:00 and 01:00 UTC, flipping the streak assertion; noon keeps
+     * every session on one service day (the clock bean is UTC) at any run time.
+     */
+    private val base: Long = LocalDate.now(ZoneOffset.UTC).atTime(12, 0).toInstant(ZoneOffset.UTC).toEpochMilli()
 
     private fun record(
         student: AuthResponse,
