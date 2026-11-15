@@ -89,7 +89,7 @@ class TraditionalCombinedRenderer(
                         canvas,
                         model,
                         blockTop,
-                        "TOTALS  \u00b7  ${model.rankedCount} ranked learners",
+                        "TOTALS  \u00b7  " + rankedLearnerCount(model.rankedCount),
                         lastDocumentPage = pageNo == pageTotal,
                     )
                 }

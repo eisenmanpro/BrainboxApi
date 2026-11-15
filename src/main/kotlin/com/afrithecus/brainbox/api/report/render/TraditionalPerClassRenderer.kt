@@ -114,7 +114,7 @@ class TraditionalPerClassRenderer(
                             canvas,
                             model,
                             blockTop,
-                            "CLASS TOTALS  \u00b7  ${model.classTag}  \u00b7  ${model.rankedCount} ranked learners",
+                            "CLASS TOTALS  \u00b7  ${model.classTag}  \u00b7  " + rankedLearnerCount(model.rankedCount),
                             lastDocumentPage = pageNo == pageTotal,
                         )
                     }

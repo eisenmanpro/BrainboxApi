@@ -196,8 +196,14 @@ class ReportCanvas(
     fun watermark(label: String?, cx: Float, cy: Float, size: Float) {
         if (label.isNullOrBlank()) return
         stream.saveGraphicsState()
-        stream.transform(Matrix.getRotateInstance(Math.toRadians(-28.0), cx, cy))
-        textC(label, cx, cy, theme.sansBlack, size, ReportTheme.mix(ReportTheme.NAVY, ReportTheme.PAPER, 0.96f))
+        // Translate to the page centre, rotate there, then draw the text around the local
+        // origin; getRotateInstance(theta, tx, ty) rotates about the origin and translates,
+        // so passing the page centre as translation would push the text off the page.
+        stream.transform(Matrix.getTranslateInstance(cx, cy))
+        stream.transform(Matrix.getRotateInstance(Math.toRadians(-28.0), 0f, 0f))
+        val font = theme.sansBlack
+        val width = textWidth(label, font, size)
+        text(label, -width / 2f, 0f, font, size, ReportTheme.mix(ReportTheme.NAVY, ReportTheme.PAPER, 0.96f))
         stream.restoreGraphicsState()
     }
 

@@ -358,6 +358,13 @@ object TraditionalReportModel {
  * (54 pt) totals block with the EXAM OFFICE horizontal stamp and the grading legend, and the
  * "Students with incomplete marks" section with its own headers and repair note.
  */
+/** "1 learner" / "39 learners" for the totals and incomplete labels. */
+internal fun learnerCount(count: Int): String = count.toString() + " " + (if (count == 1) "learner" else "learners")
+
+/** "1 ranked learner" / "39 ranked learners" for the totals block label. */
+internal fun rankedLearnerCount(count: Int): String =
+    count.toString() + " ranked " + (if (count == 1) "learner" else "learners")
+
 internal object TraditionalListPainter {
 
     private const val MARGIN = ReportTableLayout.MARGIN
@@ -690,7 +697,7 @@ internal object TraditionalListPainter {
                     canvas,
                     model,
                     left,
-                    "${rows.size} learners  \u00b7  not ranked  \u00b7  excluded from totals",
+                    learnerCount(rows.size) + "  \u00b7  not ranked  \u00b7  excluded from totals",
                 )
                 var tableTop = layout.tableTop()
                 if (pageIndex == 0) {
