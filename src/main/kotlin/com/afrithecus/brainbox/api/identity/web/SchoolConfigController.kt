@@ -3,6 +3,7 @@ package com.afrithecus.brainbox.api.identity.web
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.identity.SchoolConfigService
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
+import com.afrithecus.brainbox.api.media.MediaObjectService
 import com.afrithecus.brainbox.api.media.MediaService
 import org.springframework.http.MediaType
 import org.springframework.security.access.prepost.PreAuthorize
@@ -24,6 +25,7 @@ import org.springframework.web.multipart.MultipartFile
 class SchoolConfigController(
     private val service: SchoolConfigService,
     private val mediaService: MediaService,
+    private val mediaObjects: MediaObjectService,
 ) {
 
     @GetMapping("/{schoolId}/config")
@@ -56,6 +58,14 @@ class SchoolConfigController(
             ?: throw invalidArgument("kind must be logo or stamp")
         service.requireBrandingUploadAccess(current, schoolId)
         val stored = mediaService.storeBrandingImage(file)
+        // Two-phase by design: the URL is only referenced once the admin saves the
+        // config, so record the upload as unreferenced until then (D16/A23 follow-up).
+        mediaObjects.register(stored.url, PURPOSE_BRANDING)
         return SchoolBrandingUploadPayload(kind = slot, url = stored.url, mediaType = stored.mediaType)
+    }
+
+    private companion object {
+        /** The media_objects purpose for the two-phase branding upload lifecycle. */
+        const val PURPOSE_BRANDING = "BRANDING"
     }
 }

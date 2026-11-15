@@ -75,6 +75,14 @@ a key written by this server straight from the object store instead of fetching 
 renders the same for a loopback development origin as on a public deployment. A pasted http(s) or
 `data:image/` URL still works and keeps the SSRF-guarded fetch path.
 
+The upload is two-phase, so the bytes exist before any config references them. Each branding upload is
+recorded in `media_objects` (V18) as unreferenced; the config PUT **claims** the logo/stamp URL it keeps and
+immediately deletes the object it replaced (and drops that row). An upload the admin abandons is removed by the
+media scheduler after a 24-hour grace period — the same scheduled tick that already reaps unconfirmed presigned
+uploads. Only objects this table recorded are ever deleted, so a legacy pasted URL is never touched. This closes
+the leak where a cancelled branding form left an unreferenced object forever; chat, homework, documents and
+server-generated report bytes follow their own lifecycle and are not swept.
+
 ## Verification
 
 - Renderer/preview: `ReportPreviewTest` writes all nine PDFs + PNGs to `build/report-previews`;

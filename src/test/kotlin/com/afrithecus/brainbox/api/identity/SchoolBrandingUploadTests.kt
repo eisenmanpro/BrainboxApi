@@ -9,6 +9,9 @@ import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.identity.web.SchoolBrandingUploadPayload
 import com.afrithecus.brainbox.api.identity.web.SchoolConfigPayload
+import com.afrithecus.brainbox.api.media.MediaObjectService
+import com.afrithecus.brainbox.api.media.MediaService
+import com.afrithecus.brainbox.api.media.repository.MediaObjectRepository
 import com.afrithecus.brainbox.api.report.render.ReportImages
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.junit.jupiter.api.BeforeEach
@@ -55,6 +58,10 @@ class SchoolBrandingUploadTests(
     @Autowired private val schoolRepository: SchoolRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
     @Autowired private val configService: SchoolConfigService,
+    @Autowired private val mediaObjectService: MediaObjectService,
+    @Autowired private val mediaObjects: MediaObjectRepository,
+    @Autowired private val mediaService: MediaService,
+    @Autowired private val clock: java.time.Clock,
 ) {
 
     private lateinit var school: SchoolEntity
@@ -208,5 +215,74 @@ class SchoolBrandingUploadTests(
             multipart("/admin/schools/" + school.id + "/config/branding/logo")
                 .file(MockMultipartFile("file", "logo.png", "image/png", png())),
         ).andExpect(status().isUnauthorized)
+    }
+
+    @Test
+    fun `an upload stays unreferenced until the config save claims it`() {
+        val payload = objectMapper.readValue(
+            upload(school.id, "logo", png()).andExpect(status().isOk)
+                .andReturn().response.contentAsString,
+            SchoolBrandingUploadPayload::class.java,
+        )
+        val key = assertNotNull(mediaService.managedKey(payload.url))
+        assertEquals(null, mediaObjects.findById(key).orElse(null)?.referencedAt)
+
+        mockMvc.perform(
+            put("/admin/schools/" + school.id + "/config")
+                .header("Authorization", "Bearer " + token(admin))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(configBody(payload.url, null)),
+        ).andExpect(status().isOk)
+        assertNotNull(mediaObjects.findById(key).orElse(null)?.referencedAt)
+    }
+
+    @Test
+    fun `replacing a stamp deletes the previous object immediately`() {
+        val first = objectMapper.readValue(
+            upload(school.id, "stamp", png(color = Color(0x88, 0x22, 0x22))).andExpect(status().isOk)
+                .andReturn().response.contentAsString,
+            SchoolBrandingUploadPayload::class.java,
+        )
+        mockMvc.perform(
+            put("/admin/schools/" + school.id + "/config")
+                .header("Authorization", "Bearer " + token(admin))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(configBody(null, first.url)),
+        ).andExpect(status().isOk)
+
+        val second = objectMapper.readValue(
+            upload(school.id, "stamp", png(color = Color(0x22, 0x22, 0x88))).andExpect(status().isOk)
+                .andReturn().response.contentAsString,
+            SchoolBrandingUploadPayload::class.java,
+        )
+        mockMvc.perform(
+            put("/admin/schools/" + school.id + "/config")
+                .header("Authorization", "Bearer " + token(admin))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(configBody(null, second.url)),
+        ).andExpect(status().isOk)
+
+        mockMvc.perform(get(URI(first.url).path)).andExpect(status().isNotFound)
+        mockMvc.perform(get(URI(second.url).path)).andExpect(status().isOk)
+        val firstKey = assertNotNull(mediaService.managedKey(first.url))
+        assertTrue(mediaObjects.findById(firstKey).isEmpty)
+    }
+
+    @Test
+    fun `the scheduled sweep reaps an abandoned upload after the grace period`() {
+        val payload = objectMapper.readValue(
+            upload(school.id, "logo", png()).andExpect(status().isOk)
+                .andReturn().response.contentAsString,
+            SchoolBrandingUploadPayload::class.java,
+        )
+        val key = assertNotNull(mediaService.managedKey(payload.url))
+        assertTrue(mediaObjects.findById(key).isPresent)
+
+        // The real scheduler uses clock.instant() - 24h; a future cutoff proves the
+        // unclaimed upload would be reaped without waiting a day.
+        assertEquals(1, mediaObjectService.sweep(clock.instant().plusSeconds(25 * 60 * 60)))
+
+        mockMvc.perform(get(URI(payload.url).path)).andExpect(status().isNotFound)
+        assertTrue(mediaObjects.findById(key).isEmpty)
     }
 }

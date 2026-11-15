@@ -77,9 +77,12 @@ class MediaService(
      * any other URL, letting the renderer fall back to its normal HTTP/data: fetch.
      */
     fun loadByMediaUrl(url: String): ByteArray? {
-        val filename = storedFilename(url) ?: return null
+        val filename = managedKey(url) ?: return null
         return storage.get(filename)
     }
+
+    /** The object key of a `/media/{uuid}.{ext}` URL this server wrote, or null for any other URL. */
+    fun managedKey(url: String): String? = storedFilename(url)
 
     /**
      * Deletes a stored file by URL or filename; repeat-safe. The filename must match

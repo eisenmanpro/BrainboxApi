@@ -9,6 +9,7 @@ import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.web.SchoolClassPayload
 import com.afrithecus.brainbox.api.identity.web.SchoolConfigPayload
+import com.afrithecus.brainbox.api.media.MediaObjectService
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
@@ -28,6 +29,7 @@ class SchoolConfigService(
     private val mapper: ObjectMapper,
     private val access: AdminSchoolAccess,
     private val auditLogService: AuditLogService,
+    private val mediaObjects: MediaObjectService,
     private val clock: Clock,
 ) {
 
@@ -56,6 +58,10 @@ class SchoolConfigService(
         validate(request)
         val entity = repository.findById(schoolId).orElse(null)
             ?: SchoolConfigEntity().apply { this.schoolId = schoolId }
+        // Branding objects are written before the config that references them; the
+        // previous values are needed to remove the object this write replaces.
+        val previousLogo = entity.logoUrl
+        val previousStamp = entity.stampUrl
         entity.schoolName = request.schoolName.trim()
         entity.motto = request.motto?.trim()?.takeIf { it.isNotEmpty() }
         entity.logoUrl = request.logoUrl?.trim()?.takeIf { it.isNotEmpty() }
@@ -71,6 +77,14 @@ class SchoolConfigService(
         request.classes?.let { entity.classes = mapper.writeValueAsString(cleanClasses(it)) }
         entity.updatedAt = clock.instant()
         repository.saveAndFlush(entity)
+        // Claim the uploads this config keeps, then delete the previous logo/stamp
+        // objects it just replaced (D16/A23 follow-up: no orphaned branding bytes).
+        mediaObjects.claim(entity.logoUrl)
+        mediaObjects.claim(entity.stampUrl)
+        mediaObjects.discardSuperseded(
+            previous = listOf(previousLogo, previousStamp),
+            keep = listOf(entity.logoUrl, entity.stampUrl),
+        )
         auditLogService.record(schoolId, actor, "Updated school config")
         return payload(schoolId, entity)
     }
