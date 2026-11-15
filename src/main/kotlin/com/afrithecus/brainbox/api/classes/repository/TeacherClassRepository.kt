@@ -9,4 +9,7 @@ interface TeacherClassRepository : JpaRepository<TeacherClassEntity, UUID> {
     fun findAllByTeacherUserIdAndIsActiveTrueOrderByNameAsc(teacherUserId: UUID): List<TeacherClassEntity>
 
     fun findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId: UUID): List<TeacherClassEntity>
+
+    /** Legacy rows with no school scope; used when the exam has no school id. */
+    fun findAllByGradeLevelAndIsActiveTrueOrderByNameAsc(gradeLevel: String): List<TeacherClassEntity>
 }

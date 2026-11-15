@@ -58,6 +58,14 @@ data class TraditionalExamDto(
     val publishedBy: String? = null,
     /** Tenant scope so the client can preserve it across pulls (TE-3). */
     val schoolId: String? = null,
+    /**
+     * The bands this exam's marks and reports are graded with (D18/decision 20).
+     * Non-null on a session created after report-v1: it is the **snapshot** resolved when the
+     * session was created, so a later change to the grade's bands never re-bands this exam.
+     * Null on a legacy exam that predates the snapshot; the client (and the server fallback)
+     * then uses the live grade config from `GET traditional/grades/{grade}/grading`.
+     */
+    val grading: GradingConfigDto? = null,
 )
 
 data class TraditionalMarkDto(
@@ -144,11 +152,16 @@ data class TraditionalClassDto(
     val allowed: Boolean = true,
 )
 
-/** Coordinator edit of a saved capture session (title/remarks/omit policy). */
+/** Coordinator edit of a saved capture session (title/remarks/omit policy/bands). */
 data class UpdateTraditionalExamRequest(
     val title: String? = null,
     val remarks: String? = null,
     val omitPolicy: TraditionalOmitPolicy? = null,
+    /**
+     * Resolved session bands (D18). Present = validate, persist as this exam's snapshot and
+     * write back as the grade's last-used config; absent = leave the session's bands untouched.
+     */
+    val grading: GradingConfigDto? = null,
 )
 
 /** Staff access probe used by the web client (own-class restriction remains). */
@@ -339,10 +352,50 @@ data class StudentGradeRowDto(
 data class ClassGradeAnalysisDto(
     val classTag: String,
     val teacherName: String,
+    /** Subject percentage means in exam subject order (D10); keys are subject names (§2.5F). */
     val subjectAverages: Map<String, Double>,
     val subjectPositions: Map<String, Int>,
+    /** Class mean of learner totals (Σ subject %), the sheet's TOTAL column (§2.5D). */
     val totalAverage: Double,
     val overallPosition: Int,
+    /** Ranked (complete) learners behind this row (D3): the weight of the GRADE MEAN row. */
+    val studentCount: Int = 0,
+)
+
+/** One bar on the §2.5I subject-teacher contribution page: a teacher's marks in one subject. */
+data class TeacherContributionDto(
+    /** Null only when the assignment's teacher account no longer exists. */
+    val teacherUserId: String? = null,
+    /** Display name, or "Former teacher" when the account is missing/deactivated (never a UUID). */
+    val teacherName: String,
+    /** Class names this teacher contributed for the subject, sorted. */
+    val classTags: List<String> = emptyList(),
+    /** Complete learners behind this bar. */
+    val learners: Int = 0,
+    /** Mean subject percentage over those learners (same measure as the page-1 MEAN column). */
+    val mean: Double = 0.0,
+    /** True when a co-taught class+subject gave each teacher the same marks (not split). */
+    val shared: Boolean = false,
+    /** True when the account is missing/deactivated; the bar is labelled "Former teacher". */
+    val former: Boolean = false,
+)
+
+/** Marks with no current class+subject teaching assignment; keeps the panel accounting every mark. */
+data class UnassignedContributionDto(
+    val learners: Int = 0,
+    val mean: Double = 0.0,
+)
+
+/** One subject panel of the subject-teacher contribution page (D13/D14, §2.5I). */
+data class SubjectTeacherContributionDto(
+    val subjectId: String,
+    val subjectName: String,
+    /** Page-1 subject mean over the same complete learners; the panel's reference line. */
+    val gradeMean: Double = 0.0,
+    /** One bar per subject teacher, highest mean first. */
+    val teachers: List<TeacherContributionDto> = emptyList(),
+    /** The MUTED "Unassigned" bar; null when every mark was attributed. */
+    val unassigned: UnassignedContributionDto? = null,
 )
 
 data class TraditionalGradeAnalysisDto(
@@ -351,6 +404,12 @@ data class TraditionalGradeAnalysisDto(
     val term: String,
     val year: Int,
     val classes: List<ClassGradeAnalysisDto>,
+    /** Subject names in the exam's own subject order (D10); subject maps follow this order. */
+    val subjects: List<String> = emptyList(),
+    /** Subject-teacher contribution panels in exam subject order (D13/D14, §2.5I). */
+    val subjectTeacherContributions: List<SubjectTeacherContributionDto> = emptyList(),
+    /** The session's resolved bands (D18) so the document legend/levels match the lists. */
+    val grading: GradingConfigDto? = null,
 )
 
 /** Body for POST /traditional/exams (client sends the full TraditionalExam model). */
@@ -369,4 +428,11 @@ data class CreateTraditionalExamRequest(
     /** Android sends the same field under the response model's name. */
     val sessionRemarks: String? = null,
     val omitPolicy: TraditionalOmitPolicy = TraditionalOmitPolicy.OMIT_ALL_INCOMPLETE,
+    /**
+     * The coordinator's resolved level bands for this capture session (D18/decision 20).
+     * Absent = the server resolves the last-used config for school+grade, else the platform
+     * defaults. Present = validated, persisted as the exam's snapshot and written back as
+     * the grade's last-used config.
+     */
+    val grading: GradingConfigDto? = null,
 )

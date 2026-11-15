@@ -82,6 +82,16 @@ class TraditionalExamEntity : BaseEntity() {
     @Column(name = "analytics_snapshot", columnDefinition = "text")
     var analyticsSnapshot: String? = null
 
+    /**
+     * JSON snapshot of the grading bands resolved when this capture session was created
+     * (D18/decision 20): the level labels + percentage thresholds (and the legacy overall
+     * raw bands). Marks, grade bands and reports read this snapshot, so a later change to
+     * the grade's last-used config never re-bands an old exam. Null on a session that
+     * predates the snapshot; those fall back to the live grade config.
+     */
+    @Column(name = "grading_snapshot", columnDefinition = "text")
+    var gradingSnapshot: String? = null
+
     /** When the class-teacher broadcast was sent; an outbox replay retries a missing one (F7-A7). */
     @Column(name = "broadcast_at")
     var broadcastAt: Instant? = null

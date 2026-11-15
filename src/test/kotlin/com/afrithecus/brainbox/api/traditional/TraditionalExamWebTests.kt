@@ -7,6 +7,7 @@ import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
+import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
@@ -34,8 +35,10 @@ import com.afrithecus.brainbox.api.traditional.web.SubjectConfigDto
 import com.afrithecus.brainbox.api.traditional.web.TraditionalExamAnalyticsDto
 import com.afrithecus.brainbox.api.traditional.web.TraditionalClassDto
 import com.afrithecus.brainbox.api.traditional.web.TraditionalExamDto
+import com.afrithecus.brainbox.api.traditional.web.TraditionalGradeAnalysisDto
 import com.afrithecus.brainbox.api.traditional.web.TraditionalMarkDto
 import com.afrithecus.brainbox.api.traditional.web.TraditionalStudentReportDto
+import com.afrithecus.brainbox.api.traditional.web.UpdateTraditionalExamRequest
 import com.afrithecus.brainbox.api.traditional.web.ValidateAccessResponse
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -51,8 +54,10 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
+import tools.jackson.core.type.TypeReference
 import tools.jackson.databind.ObjectMapper
 import java.util.UUID
+import kotlin.math.abs
 
 /**
  * Traditional exam lifecycle end to end (docs 10/13 + api_student_reports_changes.md):
@@ -73,6 +78,7 @@ class TraditionalExamWebTests(
     @Autowired private val teacherClassRepository: TeacherClassRepository,
     @Autowired private val classMembershipRepository: ClassMembershipRepository,
     @Autowired private val examRepository: TraditionalExamRepository,
+    @Autowired private val service: TraditionalExamService,
 ) {
 
     private lateinit var schoolId: UUID
@@ -135,7 +141,13 @@ class TraditionalExamWebTests(
             createdAt = 0,
         )
 
-    private fun createExam(token: String, gradeLevel: String, subjects: List<SubjectConfigDto>, year: Int = 2026): TraditionalExamDto {
+    private fun createExam(
+        token: String,
+        gradeLevel: String,
+        subjects: List<SubjectConfigDto>,
+        year: Int = 2026,
+        grading: GradingConfigDto? = null,
+    ): TraditionalExamDto {
         val body = objectMapper.writeValueAsString(
             CreateTraditionalExamRequest(
                 title = "End Term 2 " + year + " - " + gradeLevel,
@@ -143,6 +155,7 @@ class TraditionalExamWebTests(
                 gradeLevel = gradeLevel,
                 year = year,
                 subjects = subjects,
+                grading = grading,
             )
         )
         val response = mockMvc.perform(
@@ -257,9 +270,10 @@ class TraditionalExamWebTests(
         check(report.subjectResults.size == 2)
         check(report.totalScore == 140)
         check(report.overallPercentage == 70.0)
-        // Raw-total G.TOTAL band (140 -> BE under the default 120/200/280/350 bands),
-        // matching the client's offline report fallback (overallBand(totalScore)).
-        check(report.overallGrade == "BE")
+        // D17/G1.4: the overall level is the band of the MEAN percentage (70 % -> ME under the
+        // default 80/65/50/35/20/0 bands). The old raw-total thresholds called 140 a "BE"
+        // only because they were sized for a five-subject total; that rule is gone.
+        check(report.overallGrade == "ME")
         check(report.classPosition == 2)
         check(report.totalStudentsInClass == 2)
 
@@ -1152,5 +1166,281 @@ class TraditionalExamWebTests(
             Array<AppNotificationPayload>::class.java,
         )
         check(notifications.any { it.title == "Score edited by grade coordinator" && it.message.contains("Review Missing") })
+    }
+
+    // ------------------------------------------------------------ report-v1 data slice
+
+    private fun saveMarks(token: String, examId: String, entries: List<MarkEntryDto>): List<TraditionalMarkDto> =
+        objectMapper.readValue(
+            mockMvc.perform(
+                post("/traditional/exams/" + examId + "/marks").header("Authorization", auth(token))
+                    .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(entries))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<TraditionalMarkDto>::class.java,
+        ).toList()
+
+    private fun examWithGrading(token: String, examId: String): TraditionalExamDto = objectMapper.readValue(
+        mockMvc.perform(get("/traditional/exams/" + examId).header("Authorization", auth(token)))
+            .andExpect(status().isOk).andReturn().response.contentAsString,
+        TraditionalExamDto::class.java,
+    )
+
+    private fun classEntity(teacher: UserEntity, name: String, grade: String, subject: String): TeacherClassEntity =
+        teacherClassRepository.save(TeacherClassEntity().apply {
+            teacherUserId = teacher.id
+            this.schoolId = this@TraditionalExamWebTests.schoolId
+            this.name = name
+            this.gradeLevel = grade
+            this.subject = subject
+            isActive = true
+        })
+
+    private fun enrol(student: UserEntity, clazz: TeacherClassEntity) {
+        classMembershipRepository.save(ClassMembershipEntity().apply {
+            classId = clazz.id
+            studentId = student.id
+        })
+    }
+
+    /** The school's own split, not the platform defaults: 75 % is a ME here but an EE on 80/65. */
+    private fun schoolBands(): GradingConfigDto = GradingConfigDto(
+        bands = listOf(
+            GradingBandDto("EE", 90),
+            GradingBandDto("ME", 70),
+            GradingBandDto("AE", 50),
+            GradingBandDto("BE", 30),
+            GradingBandDto("E", 0),
+        ),
+    )
+
+    @Test
+    fun `capture session snapshots its grading bands and a later grade setting cannot re-band it`() {
+        val coordinator = user(Role.TEACHER, "Coordinator Bands", "0700001600", grade = "Grade 9", subRole = SubRole.GRADE_COORDINATOR)
+        val student = user(Role.STUDENT, "Band Learner", "0700001601", grade = "Grade 9")
+        val token = token(coordinator)
+        val sessionBands = schoolBands()
+        val exam = createExam(
+            token, "Grade 9",
+            listOf(SubjectConfigDto("MAT", "Mathematics", 100, TraditionalSubjectType.SINGLE)),
+            grading = sessionBands,
+        )
+        check(exam.grading?.bands == sessionBands.bands) { "the create response must echo the resolved snapshot" }
+
+        // The coordinator's list is saved back as the grade's last-used config...
+        val lastUsed = objectMapper.readValue(
+            mockMvc.perform(get("/traditional/grades/Grade 9/grading").header("Authorization", auth(token)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            GradingConfigDto::class.java,
+        )
+        check(lastUsed.bands == sessionBands.bands)
+
+        // ...so the next session created without an explicit list resolves it.
+        val second = createExam(token, "Grade 9", listOf(SubjectConfigDto("MAT", "Mathematics", 100, TraditionalSubjectType.SINGLE)))
+        check(second.grading?.bands == sessionBands.bands)
+
+        // Marks are banded by the session snapshot: 75 % >= 70 is ME (it would be AE on the defaults).
+        val saved = saveMarks(token, exam.examId, listOf(MarkEntryDto(student.id.toString(), "MAT", 75)))
+        check(saved.single().gradeBand == "ME")
+
+        // The coordinator later changes the grade setting.
+        mockMvc.perform(
+            post("/traditional/grades/Grade 9/grading").header("Authorization", auth(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        GradingConfigDto(bands = listOf(GradingBandDto("EE", 60), GradingBandDto("E", 0)))
+                    )
+                )
+        ).andExpect(status().isNoContent)
+
+        // The old exam keeps its session snapshot, both on read and for later mark writes.
+        check(examWithGrading(token, exam.examId).grading?.bands == sessionBands.bands)
+        val rebanded = saveMarks(token, exam.examId, listOf(MarkEntryDto(student.id.toString(), "MAT", 75)))
+        check(rebanded.single().gradeBand == "ME")
+
+        // A new session prefills from the changed setting.
+        val third = createExam(token, "Grade 9", listOf(SubjectConfigDto("MAT", "Mathematics", 100, TraditionalSubjectType.SINGLE)))
+        check(third.grading?.bands == listOf(GradingBandDto("EE", 60), GradingBandDto("E", 0)))
+
+        // Editing a session may replace its bands (and the last-used config) explicitly.
+        val editedBands = GradingConfigDto(bands = listOf(GradingBandDto("A", 50), GradingBandDto("B", 0)))
+        val updated = objectMapper.readValue(
+            mockMvc.perform(
+                put("/traditional/exams/" + third.examId).header("Authorization", auth(token))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(UpdateTraditionalExamRequest(grading = editedBands)))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            TraditionalExamDto::class.java,
+        )
+        check(updated.grading?.bands == editedBands.bands)
+    }
+
+    @Test
+    fun `invalid session bands are rejected before a session is created`() {
+        val coordinator = user(Role.TEACHER, "Coordinator Bad Bands", "0700001610", grade = "Grade 9", subRole = SubRole.GRADE_COORDINATOR)
+        val token = token(coordinator)
+        val subjects = listOf(SubjectConfigDto("MAT", "Mathematics", 100, TraditionalSubjectType.SINGLE))
+        val invalid = listOf(
+            // duplicate threshold
+            GradingConfigDto(bands = listOf(GradingBandDto("EE", 80), GradingBandDto("ME", 80), GradingBandDto("E", 0))),
+            // duplicate label
+            GradingConfigDto(bands = listOf(GradingBandDto("EE", 80), GradingBandDto("ee", 60), GradingBandDto("E", 0))),
+            // threshold outside 0..100
+            GradingConfigDto(bands = listOf(GradingBandDto("EE", 120), GradingBandDto("E", 0))),
+            // no bands at all
+            GradingConfigDto(bands = emptyList()),
+        )
+        invalid.forEachIndexed { index, grading ->
+            val request = CreateTraditionalExamRequest(
+                examId = "TRAD_BAD_BANDS_" + index,
+                title = "Bad bands session " + index,
+                term = ExamTerm.TERM_2,
+                gradeLevel = "Grade 9",
+                year = 2026,
+                subjects = subjects,
+                grading = grading,
+            )
+            mockMvc.perform(
+                post("/traditional/exams").header("Authorization", auth(token))
+                    .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request))
+            ).andExpect(status().isBadRequest)
+        }
+    }
+
+    @Test
+    fun `overall level is the band of the mean percentage not the raw score total`() {
+        val coordinator = user(Role.TEACHER, "Coordinator Mean Band", "0700001700", grade = "Grade 10", subRole = SubRole.GRADE_COORDINATOR)
+        val student = user(Role.STUDENT, "Mean Band Learner", "0700001701", grade = "Grade 10")
+        val coordinatorToken = token(coordinator)
+        val studentToken = token(student)
+        val subjects = (1..8).map { SubjectConfigDto("S" + it, "Subject " + it, 100, TraditionalSubjectType.SINGLE) }
+        val exam = createExam(coordinatorToken, "Grade 10", subjects)
+        saveMarks(
+            coordinatorToken, exam.examId,
+            listOf(45, 45, 45, 45, 44, 44, 44, 44).mapIndexed { index, score ->
+                MarkEntryDto(student.id.toString(), "S" + (index + 1), score)
+            },
+        )
+
+        // G1.4 reproduction: TOTAL 356 over eight subjects is a 44.5 % mean -> BE. The old raw
+        // thresholds (EE >= 350) printed "Overall 44.5 % - Grade EE".
+        val ranking = objectMapper.readValue(
+            mockMvc.perform(get("/traditional/exams/" + exam.examId + "/grade-wide-ranking").header("Authorization", auth(coordinatorToken)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<StudentGradeRowDto>::class.java,
+        )
+        check(ranking.single().totalPercentage == 356.0)
+        check(ranking.single().overallGrade == "BE")
+
+        publishExam(exam.examId, coordinatorToken, coordinator.id)
+        val report = objectMapper.readValue(
+            mockMvc.perform(get("/traditional/exams/" + exam.examId + "/results/me").header("Authorization", auth(studentToken)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            TraditionalStudentReportDto::class.java,
+        )
+        check(report.overallPercentage == 44.5)
+        check(report.overallGrade == "BE")
+    }
+
+    @Test
+    fun `grade analysis follows exam order, counts complete learners and reconciles the teacher bars`() {
+        val coordinator = user(Role.TEACHER, "Coordinator Analysis", "0700001800", grade = "Grade 4", subRole = SubRole.GRADE_COORDINATOR)
+        val token = token(coordinator)
+        val classNames = listOf("Grade 4 Lion", "Grade 4 Buffalo", "Grade 4 Elephant", "Grade 4 Rhino", "Grade 4 Leopard")
+        // One Kiswahili teacher per class: five bars for Kiswahili, none for Mathematics.
+        val classTeachers = classNames.mapIndexed { index, _ ->
+            user(
+                Role.TEACHER, "Kiswahili Teacher " + (index + 1),
+                "07000018%02d".format(index + 1), grade = "Grade 4", subRole = SubRole.CTEACHER,
+            )
+        }
+        val classes = classNames.mapIndexed { index, name -> classEntity(classTeachers[index], name, "Grade 4", "KISW") }
+        // No zero mark: a zero subject total would move that learner to the incomplete table
+        // (decision 15) and drop them out of the analysis means.
+        val kisMarks = listOf(listOf(80, 90), listOf(70, 60), listOf(50, 40), listOf(30, 20), listOf(10, 20))
+        val learners = classes.mapIndexed { classIndex, clazz ->
+            (0..1).map { seat ->
+                val student = user(
+                    Role.STUDENT, "Analysis Learner " + classIndex + "-" + seat,
+                    "07000019%02d".format(classIndex * 2 + seat), grade = "Grade 4",
+                )
+                enrol(student, clazz)
+                student
+            }
+        }
+        val exam = createExam(
+            token, "Grade 4",
+            listOf(
+                SubjectConfigDto("MAT", "Mathematics", 100, TraditionalSubjectType.SINGLE),
+                SubjectConfigDto("KIS", "Kiswahili", 100, TraditionalSubjectType.SINGLE),
+            ),
+        )
+        saveMarks(
+            token, exam.examId,
+            learners.flatMapIndexed { classIndex, classLearners ->
+                classLearners.flatMapIndexed { seat, student ->
+                    listOf(
+                        MarkEntryDto(student.id.toString(), "KIS", kisMarks[classIndex][seat]),
+                        MarkEntryDto(student.id.toString(), "MAT", 50),
+                    )
+                }
+            },
+        )
+
+        val analysis = objectMapper.readValue(
+            mockMvc.perform(get("/traditional/exams/" + exam.examId + "/grade-analysis").header("Authorization", auth(token)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            TraditionalGradeAnalysisDto::class.java,
+        )
+        // D10: subject order is the exam's, and the maps follow it.
+        check(analysis.subjects == listOf("Mathematics", "Kiswahili"))
+        check(analysis.classes.size == 5)
+        analysis.classes.forEach { check(it.subjectAverages.keys.toList() == listOf("Mathematics", "Kiswahili")) }
+        // F25: the class teacher comes from the class row, never a blank cell.
+        check(analysis.classes.all { it.teacherName.isNotBlank() })
+        check(analysis.classes.first { it.classTag == "Grade 4 Lion" }.teacherName == "Kiswahili Teacher 1")
+        // D3: the ranked (complete) learner count behind each row.
+        check(analysis.classes.all { it.studentCount == 2 })
+        // Subject means are percentage means; TOTAL is the class mean of learner totals (Σ %).
+        val lion = analysis.classes.first { it.classTag == "Grade 4 Lion" }
+        check(lion.subjectAverages["Kiswahili"] == 85.0)
+        check(lion.subjectAverages["Mathematics"] == 50.0)
+        check(lion.totalAverage == 135.0)
+        check(lion.overallPosition == 1)
+        // Positions are unique sequential and ranked by mean desc.
+        check(lion.subjectPositions["Kiswahili"] == 1)
+        check(analysis.classes.mapNotNull { it.subjectPositions["Kiswahili"] }.sorted() == listOf(1, 2, 3, 4, 5))
+        // D13/D14: five Kiswahili bars whose weighted mean reconciles with the page-1 mean.
+        val kis = analysis.subjectTeacherContributions.first { it.subjectName == "Kiswahili" }
+        check(kis.gradeMean == 47.0)
+        check(kis.teachers.map { it.mean } == listOf(85.0, 65.0, 45.0, 25.0, 15.0))
+        check(kis.teachers.all { it.learners == 2 && !it.shared && !it.former })
+        check(kis.teachers.first { it.mean == 85.0 }.classTags == listOf("Grade 4 Lion"))
+        check(kis.unassigned == null)
+        val weighted = kis.teachers.sumOf { it.mean * it.learners } / kis.teachers.sumOf { it.learners }
+        check(abs(weighted - kis.gradeMean) < 0.011)
+        // No Mathematics assignment in the fixture -> one MUTED Unassigned bar accounts for it.
+        val math = analysis.subjectTeacherContributions.first { it.subjectName == "Mathematics" }
+        check(math.teachers.isEmpty())
+        check(math.unassigned?.learners == 10 && math.unassigned?.mean == 50.0)
+        // D18: the analysis carries the session bands for the legend.
+        check(analysis.grading != null)
+
+        // D11/F5: per-class tables use class positions, not grade-wide ranks.
+        val perClass = objectMapper.readValue(
+            mockMvc.perform(get("/traditional/exams/" + exam.examId + "/per-class-rankings").header("Authorization", auth(token)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            object : TypeReference<Map<String, List<StudentGradeRowDto>>>() {},
+        )
+        check(perClass.keys == classNames.toSet())
+        perClass.forEach { (_, rows) -> check(rows.map { it.rank } == listOf(1, 2)) }
+        check(perClass.getValue("Grade 4 Lion").first().totalPercentage == 140.0)
+
+        // A26: the public class-teacher read the per-class report header uses (raw class tags).
+        val teachersByClass = service.classTeachers(
+            CurrentUser(coordinator.id, Role.TEACHER, SubRole.GRADE_COORDINATOR),
+            exam.examId,
+        )
+        check(teachersByClass == classNames.mapIndexed { index, name -> name to classTeachers[index].name }.toMap())
     }
 }

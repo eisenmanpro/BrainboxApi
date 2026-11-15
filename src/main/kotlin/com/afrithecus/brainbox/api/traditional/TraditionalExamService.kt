@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.traditional
 
+import com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity
 import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
@@ -23,7 +24,6 @@ import com.afrithecus.brainbox.api.traditional.entity.TraditionalEditPermissionE
 import com.afrithecus.brainbox.api.traditional.entity.TraditionalEditRequestEntity
 import com.afrithecus.brainbox.api.traditional.entity.TraditionalExamEntity
 import com.afrithecus.brainbox.api.traditional.entity.TraditionalExamSubjectEntity
-import com.afrithecus.brainbox.api.traditional.entity.TraditionalGradingConfigEntity
 import com.afrithecus.brainbox.api.traditional.entity.TraditionalMarkEntity
 import com.afrithecus.brainbox.api.traditional.entity.TraditionalSubjectConfigEntity
 import com.afrithecus.brainbox.api.traditional.model.ExamTerm
@@ -37,7 +37,6 @@ import com.afrithecus.brainbox.api.traditional.repository.TraditionalEditPermiss
 import com.afrithecus.brainbox.api.traditional.repository.TraditionalEditRequestRepository
 import com.afrithecus.brainbox.api.traditional.repository.TraditionalExamRepository
 import com.afrithecus.brainbox.api.traditional.repository.TraditionalExamSubjectRepository
-import com.afrithecus.brainbox.api.traditional.repository.TraditionalGradingConfigRepository
 import com.afrithecus.brainbox.api.traditional.repository.TraditionalMarkRepository
 import com.afrithecus.brainbox.api.traditional.repository.TraditionalSubjectConfigRepository
 import com.afrithecus.brainbox.api.traditional.web.CaptureStudentDto
@@ -61,6 +60,7 @@ import com.afrithecus.brainbox.api.traditional.web.StudentGradeRowDto
 import com.afrithecus.brainbox.api.traditional.web.SubjectComponentDto
 import com.afrithecus.brainbox.api.traditional.web.SubjectComponentResultDto
 import com.afrithecus.brainbox.api.traditional.web.SubjectConfigDto
+import com.afrithecus.brainbox.api.traditional.web.SubjectTeacherContributionDto
 import com.afrithecus.brainbox.api.traditional.web.TopPerformerDto
 import com.afrithecus.brainbox.api.traditional.web.StrugglingStudentDto
 import com.afrithecus.brainbox.api.traditional.web.TraditionalExamAnalyticsDto
@@ -99,7 +99,6 @@ class TraditionalExamService(
     private val subjectRepository: TraditionalExamSubjectRepository,
     private val markRepository: TraditionalMarkRepository,
     private val subjectConfigRepository: TraditionalSubjectConfigRepository,
-    private val gradingConfigRepository: TraditionalGradingConfigRepository,
     private val gradingConfigService: TraditionalGradingConfigService,
     private val confirmationRepository: TraditionalConfirmationRepository,
     private val editRequestRepository: TraditionalEditRequestRepository,
@@ -144,7 +143,9 @@ class TraditionalExamService(
         if ((current.role == Role.STUDENT || current.role == Role.PARENT) && exam.status != TraditionalExamStatus.PUBLISHED) {
             throw ApiException(ApiErrorCode.FORBIDDEN, "Results are not published yet")
         }
-        return examDto(exam, current)
+        // The detail read is what pre-fills the session editor and feeds the report renderer,
+        // so a legacy exam without a snapshot reports its effective (live) bands here.
+        return examDto(exam, current, sessionGrading(exam))
     }
 
     @Transactional
@@ -154,6 +155,15 @@ class TraditionalExamService(
         requireCoordinatorForGrade(current, request.gradeLevel)
         validateSubjects(request.subjects)
         val user = user(current)
+        // D18/decision 20: the bands are decided with the capture session. An explicit list is
+        // validated and written back as the grade's last-used config; absent, the last-used
+        // config (else the platform defaults) is resolved. Either way the resolved list is
+        // snapshotted on the exam so a later grade-setting change cannot re-band this exam.
+        val grading = gradingConfigService.resolveSessionConfig(
+            gradeLevel = request.gradeLevel.trim(),
+            schoolId = user.schoolId,
+            requested = request.grading,
+        )
         // CREATE_EXAM replays from the client outbox: storing the client id makes
         // the call idempotent and keeps the exam addressable under the id the
         // device stores locally.
@@ -184,6 +194,7 @@ class TraditionalExamService(
             schoolId = user.schoolId
             createdBy = user.id
             this.clientExamId = clientExamId
+            gradingSnapshot = gradingConfigService.snapshot(grading)
         }
         examRepository.save(exam)
         saveSubjects(exam.id, request.subjects)
@@ -211,6 +222,13 @@ class TraditionalExamService(
                 ?: ("Capture scores for " + exam.title + ".")
         }
         request.omitPolicy?.let { exam.omitPolicy = it }
+        // D18: an explicit band list edits the session snapshot and updates the last-used config;
+        // omitting it keeps the bands the session was created with.
+        request.grading?.let { requested ->
+            exam.gradingSnapshot = gradingConfigService.snapshot(
+                gradingConfigService.resolveSessionConfig(exam.gradeLevel, exam.schoolId, requested),
+            )
+        }
         examRepository.save(exam)
         return examDto(exam, current)
     }
@@ -230,6 +248,8 @@ class TraditionalExamService(
         requireStaffWriter(current)
         require(grade.isNotBlank()) { "grade is required" }
         val user = user(current)
+        // The mirrored sessions are capture sessions too: snapshot the resolved bands (D18).
+        val grading = gradingConfigService.resolveSessionConfig(grade, user.schoolId, null)
         // The idempotent mirror is staff-wide, but a coordinator only mirrors their own grade.
         if (gradeAuthority.isCoordinator(user) && !gradeAuthority.overseesGrade(user, grade)) {
             throw ApiException(ApiErrorCode.FORBIDDEN, "You can only generate exams for your grade")
@@ -259,6 +279,7 @@ class TraditionalExamService(
                     schoolId = user.schoolId
                     createdBy = user.id
                     this.clientExamId = clientExamId
+                    gradingSnapshot = gradingConfigService.snapshot(grading)
                 }
                 examRepository.save(created)
                 saveSubjects(created.id, subjects)
@@ -360,6 +381,8 @@ class TraditionalExamService(
         val expectedSubjects = subjectRepository.findAllByExamIdOrderByOrderIndexAsc(exam.id).map { it.subjectId }
         val marksByStudent = markRepository.findAllByExamId(exam.id).groupBy { it.studentId }
         val students = studentsForExam(exam)
+        // F25: class teachers come from the class rows, batch-loaded once.
+        val teacherNames = classTeacherNames(exam)
         val classes = students.groupBy { classTagOf(it, exam) }.toSortedMap().map { (classTag, classStudents) ->
             val rows = classStudents.map { student ->
                 val recorded = marksByStudent[student.id].orEmpty()
@@ -383,7 +406,7 @@ class TraditionalExamService(
             }
             ClassCaptureSummaryDto(
                 classTag = classTag,
-                teacherName = teacherNameForClass(classTag, exam.schoolId),
+                teacherName = teacherNames[TraditionalSubjectTeacherAttribution.normalizeKey(classTag)].orEmpty(),
                 totalStudents = rows.size,
                 completeStudents = rows.count { it.status == CaptureStudentStatus.COMPLETE },
                 partialStudents = rows.count { it.status == CaptureStudentStatus.PARTIAL },
@@ -590,6 +613,8 @@ class TraditionalExamService(
         if (entries.isEmpty()) return emptyList()
         val operator = user(current)
         val subjects = subjectRepository.findAllByExamIdOrderByOrderIndexAsc(exam.id).associateBy { it.subjectId }
+        // The exam's own band snapshot (D18), resolved once for the whole batch.
+        val sessionBands = sessionGrading(exam)
         // A confirmed-but-unfinalized exam is still editable; a fresh write demotes it
         // back to IN_PROGRESS and invalidates the confirmation gate (client TE-7).
         val editable = exam.status == TraditionalExamStatus.PENDING ||
@@ -660,7 +685,7 @@ class TraditionalExamService(
             val percentage = percentage(entry.rawScore, subject.maxScore)
             row.rawScore = entry.rawScore
             row.percentage = percentage
-            row.gradeBand = gradeBand(percentage, gradingFor(exam.gradeLevel, exam.schoolId))
+            row.gradeBand = gradeBand(percentage, sessionBands)
             row.componentScores = entry.componentScores?.let { mapper.writeValueAsString(it) }
             row.enteredBy = operator.id
             row.enteredAt = clock.instant()
@@ -754,7 +779,7 @@ class TraditionalExamService(
         val marks = view.marks
         if (marks.isEmpty()) throw notFound("No complete marks remain after the selected omit policy")
         val subjects = view.subjects.associateBy { it.subjectId }
-        val grading = gradingFor(exam.gradeLevel, exam.schoolId)
+        val grading = sessionGrading(exam)
 
         val byStudent = marks.groupBy { it.studentId }
         val names = userRepository.findAllById(byStudent.keys).associate { it.id to it.name }
@@ -818,49 +843,114 @@ class TraditionalExamService(
         return gradeTable(exam(current, examIdRaw))
     }
 
+    /**
+     * Per-class tables with **class positions**, not grade-wide ones (F5/D11, §2.5C):
+     * each class is sorted by total desc then name asc and re-ranked 1..n.
+     */
     @Transactional(readOnly = true)
     fun perClassRankings(current: CurrentUser, examIdRaw: String): Map<String, List<StudentGradeRowDto>> {
         requireStaffReader(current)
-        return gradeTable(exam(current, examIdRaw)).groupBy { it.classTag }.toSortedMap()
+        return gradeTable(exam(current, examIdRaw))
+            .groupBy { it.classTag }
+            .toSortedMap()
+            .mapValues { (_, classRows) -> classRows.rankedWithinClass() }
+    }
+
+    /**
+     * Class teacher display names keyed by the **raw** class tag exactly as it appears on
+     * `StudentGradeRowDto.classTag` (F25/D11). The per-class report header (A26) needs the
+     * teacher without duplicating the class-row resolution; classes with no resolvable
+     * teacher or no class row (e.g. learners tagged with a bare grade) are absent from the map,
+     * so the renderer omits the clause instead of printing a blank label.
+     */
+    @Transactional(readOnly = true)
+    fun classTeachers(current: CurrentUser, examIdRaw: String): Map<String, String> {
+        requireStaffReader(current)
+        return rawClassTeacherNames(exam(current, examIdRaw))
     }
 
     @Transactional(readOnly = true)
     fun gradeAnalysis(current: CurrentUser, examIdRaw: String): TraditionalGradeAnalysisDto {
         requireStaffReader(current)
         val exam = exam(current, examIdRaw)
-        val subjects = analysisView(exam).subjects
+        val view = analysisView(exam)
+        val subjects = view.subjects
         val table = gradeTable(exam)
         if (table.isEmpty()) throw notFound("No marks recorded for this exam")
-        val complete = table.filter { it.subjects.size >= subjects.size && it.subjects.none { s -> s.rawScore == 0 || s.components?.any { c -> c.rawScore == 0 } == true } }
+        // Complete learners = every subject present and no zero subject total. A zero
+        // component inside a combined subject is a data-quality flag for D15, not a reason
+        // to hide the learner (§2.5B); the subject total is still a real mark there.
+        val complete = table.filter { row ->
+            row.subjects.size >= subjects.size && row.subjects.none { it.rawScore == 0 }
+        }
         if (complete.isEmpty()) throw notFound("No complete marks recorded for this exam")
-        val columns = meanColumns(subjects)
+        // Percentages come from the mark rows so the class and grade means use the same
+        // percentage measure as the lists (D17), keyed by subject id to be name-collision safe.
+        val subjectMaxById = subjects.associate { it.subjectId to it.maxScore }
+        val marksByStudent = view.marks.groupBy { it.studentId }
+        val percentagesByStudent = complete.associate { row ->
+            val studentId = UUID.fromString(row.studentId)
+            studentId to marksByStudent[studentId].orEmpty().associate { mark ->
+                mark.subjectId to (mark.percentage ?: percentage(mark.rawScore, subjectMaxById[mark.subjectId] ?: exam.maxScore))
+            }
+        }
+        // Page-1 subject means in exam subject order (§2.5D): percentage mean over the same
+        // complete learners the lists use. These keys are what the renderer prints.
+        val gradeSubjectMeans = LinkedHashMap<String, Double>()
+        subjects.forEach { subject ->
+            val values = percentagesByStudent.values.mapNotNull { it[subject.subjectId] }
+            gradeSubjectMeans[subject.name] = round2(if (values.isEmpty()) 0.0 else values.average())
+        }
+        val teacherNames = classTeacherNames(exam)
         val summaries = complete.groupBy { it.classTag }.map { (classTag, rows) ->
-            val subjectAverages = columns.mapNotNull { (key, subjectName, componentName) ->
-                rawMean(rows, subjectName, componentName)?.let { key to it }
-            }.toMap()
+            val subjectAverages = LinkedHashMap<String, Double>()
+            subjects.forEach { subject ->
+                val values = rows.mapNotNull { percentagesByStudent[UUID.fromString(it.studentId)]?.get(subject.subjectId) }
+                if (values.isNotEmpty()) subjectAverages[subject.name] = round2(values.average())
+            }
             ClassGradeAnalysisDto(
                 classTag = classTag,
-                teacherName = teacherNameForClass(classTag, exam.schoolId),
+                teacherName = teacherNames[TraditionalSubjectTeacherAttribution.normalizeKey(classTag)].orEmpty(),
                 subjectAverages = subjectAverages,
                 subjectPositions = emptyMap(),
                 totalAverage = round2(rows.map { it.totalPercentage }.average()),
                 overallPosition = 0,
+                studentCount = rows.size,
             )
         }
-        val keys = summaries.flatMap { it.subjectAverages.keys }.distinct()
+        // Subject and overall positions are unique sequential, mean desc then class name asc
+        // (§2.5D/G tie rule), and follow the exam subject order rather than map iteration (F29).
+        val keys = subjects.map { it.name }
         val positions = keys.associateWith { key ->
             summaries.filter { it.subjectAverages.containsKey(key) }
-                .sortedByDescending { it.subjectAverages[key] ?: 0.0 }
+                .sortedWith(compareByDescending<ClassGradeAnalysisDto> { it.subjectAverages[key] ?: 0.0 }.thenBy { it.classTag })
                 .mapIndexed { index, row -> row.classTag to index + 1 }.toMap()
         }
-        val overall = summaries.sortedByDescending { it.totalAverage }.mapIndexed { index, row -> row.classTag to index + 1 }.toMap()
+        val overall = summaries
+            .sortedWith(compareByDescending<ClassGradeAnalysisDto> { it.totalAverage }.thenBy { it.classTag })
+            .mapIndexed { index, row -> row.classTag to index + 1 }.toMap()
         val finalized = summaries.map {
             it.copy(
                 subjectPositions = it.subjectAverages.keys.associateWith { key -> positions[key]?.get(it.classTag) ?: 0 },
                 overallPosition = overall[it.classTag] ?: 0,
             )
         }.sortedBy { it.overallPosition }
-        return TraditionalGradeAnalysisDto(publicExamId(exam), exam.gradeLevel, exam.term.displayName(), exam.year, finalized)
+        return TraditionalGradeAnalysisDto(
+            examId = publicExamId(exam),
+            gradeLevel = exam.gradeLevel,
+            term = exam.term.displayName(),
+            year = exam.year,
+            classes = finalized,
+            subjects = keys,
+            subjectTeacherContributions = subjectTeacherContributions(
+                exam = exam,
+                subjects = subjects,
+                complete = complete,
+                percentagesByStudent = percentagesByStudent,
+                gradeSubjectMeans = gradeSubjectMeans,
+            ),
+            grading = sessionGrading(exam),
+        )
     }
 
     @Transactional(readOnly = true)
@@ -1054,19 +1144,10 @@ class TraditionalExamService(
     @Transactional
     fun saveGradingConfig(current: CurrentUser, gradeLevel: String, schoolIdRaw: String?, config: GradingConfigDto) {
         requireCoordinatorForGrade(current, gradeLevel)
-        val schoolId = schoolId(current, schoolIdRaw)
-        val rows = if (schoolId != null) {
-            gradingConfigRepository.findAllBySchoolIdAndGradeLevel(schoolId, gradeLevel)
-        } else {
-            gradingConfigRepository.findAllByGradeLevel(gradeLevel)
-        }
-        val row = rows.firstOrNull() ?: TraditionalGradingConfigEntity().apply {
-            this.schoolId = schoolId
-            this.gradeLevel = gradeLevel
-        }
-        row.bands = mapper.writeValueAsString(config.bands)
-        row.overallBands = config.overallBands?.let { mapper.writeValueAsString(it) }
-        gradingConfigRepository.save(row)
+        // Same validation/normalisation as a session band edit (D18): 0..100, strictly
+        // descending unique thresholds, unique labels. This config is only the prefill /
+        // last-used default; an existing session keeps its own snapshot.
+        gradingConfigService.saveConfig(gradeLevel, schoolId(current, schoolIdRaw), config)
     }
 
     // ================================================================ internals
@@ -1210,13 +1291,14 @@ class TraditionalExamService(
 
     private fun report(current: CurrentUser, exam: TraditionalExamEntity, student: UserEntity, marks: List<TraditionalMarkEntity>): TraditionalStudentReportDto {
         val subjects = subjectRepository.findAllByExamIdOrderByOrderIndexAsc(exam.id).associateBy { it.subjectId }
-        val grading = gradingFor(exam.gradeLevel, exam.schoolId)
+        val grading = sessionGrading(exam)
         val subjectResults = marks.sortedBy { it.subjectId }.mapNotNull { mark ->
             val subject = subjects[mark.subjectId] ?: return@mapNotNull null
             subjectResult(subject, mark, grading)
         }
         val totalScore = subjectResults.sumOf { it.rawScore }
-        val overallPercentage = if (subjectResults.isNotEmpty()) subjectResults.map { it.percentage }.average() else 0.0
+        val totalPercentage = subjectResults.sumOf { it.percentage }
+        val overallPercentage = TraditionalGradingBands.meanPercentage(totalPercentage, subjectResults.size)
         val classTag = classTagOf(student, exam)
         val cohort = gradeTable(exam).filter { it.classTag == classTag }
         val ordered = cohort.sortedByDescending { it.totalPercentage }
@@ -1233,10 +1315,10 @@ class TraditionalExamService(
             subjectResults = subjectResults,
             totalScore = totalScore,
             overallPercentage = round2(overallPercentage),
-            // Mirror the client's offline report fallback (models/traditional/
-            // TraditionalExamGrading.kt: overallBand(totalScore)), so an online report
-            // and a cached offline report never disagree on the overall grade.
-            overallGrade = overallBand(totalScore, grading),
+            // D17/G1.4: the overall level is the band of the MEAN percentage, not of the raw
+            // score total (raw thresholds were sized for a five-subject total and printed
+            // "44.5 % · Grade EE" on an eight-subject exam).
+            overallGrade = TraditionalGradingBands.bandForMean(totalPercentage, subjectResults.size, grading),
             classPosition = position,
             totalStudentsInClass = ordered.size,
             teacherRemarks = exam.coordinatorRemarks,
@@ -1329,13 +1411,14 @@ class TraditionalExamService(
             TraditionalOmitPolicy.REPLACE_ZEROS_WITH_ONE -> statuses.keys
         }
         val adjusted = if (exam.omitPolicy == TraditionalOmitPolicy.REPLACE_ZEROS_WITH_ONE) {
+            val grading = sessionGrading(exam)
             included.flatMap { studentId ->
                 val bySubject = rawByStudent[studentId].orEmpty().associateBy { it.subjectId }
                 effectiveSubjects.map { subject ->
                     val existing = bySubject[subject.subjectId]
                     when {
-                        existing == null -> syntheticMark(exam, studentId, subject, 1)
-                        existing.rawScore == 0 -> syntheticMark(exam, studentId, subject, 1)
+                        existing == null -> syntheticMark(exam, studentId, subject, 1, grading)
+                        existing.rawScore == 0 -> syntheticMark(exam, studentId, subject, 1, grading)
                         else -> existing
                     }
                 }
@@ -1356,6 +1439,7 @@ class TraditionalExamService(
         studentId: UUID,
         subject: TraditionalExamSubjectEntity,
         score: Int,
+        grading: GradingConfigDto,
     ): TraditionalMarkEntity = TraditionalMarkEntity().apply {
         this.examId = exam.id
         this.studentId = studentId
@@ -1363,7 +1447,7 @@ class TraditionalExamService(
         rawScore = score
         val pct = percentage(score, subject.maxScore)
         percentage = pct
-        gradeBand = gradeBand(pct, gradingFor(exam.gradeLevel, exam.schoolId))
+        gradeBand = gradeBand(pct, grading)
         enteredAt = clock.instant()
     }
 
@@ -1377,7 +1461,7 @@ class TraditionalExamService(
     private fun gradeTable(exam: TraditionalExamEntity): List<StudentGradeRowDto> {
         val view = analysisView(exam)
         val subjects = view.subjects.associateBy { it.subjectId }
-        val grading = gradingFor(exam.gradeLevel, exam.schoolId)
+        val grading = sessionGrading(exam)
         val marks = view.marks
         if (marks.isEmpty()) return emptyList()
         val students = userRepository.findAllById(marks.map { it.studentId }.distinct()).associateBy { it.id }
@@ -1387,19 +1471,30 @@ class TraditionalExamService(
                 subjects[mark.subjectId]?.let { subjectResult(it, mark, grading) }
             }
             val totalScore = results.sumOf { it.rawScore }
+            val totalPercentage = round2(results.sumOf { it.percentage })
             StudentGradeRowDto(
                 rank = 0,
                 studentId = studentId.toString(),
                 studentName = student.name,
                 classTag = classTagOf(student, exam),
                 subjects = results,
-                totalPercentage = round2(results.sumOf { it.percentage }),
+                totalPercentage = totalPercentage,
                 totalScore = totalScore,
-                overallGrade = overallBand(totalScore, grading),
+                // D17/G1.4: overall level = band of MEAN %, not of the raw score total.
+                overallGrade = TraditionalGradingBands.bandForMean(totalPercentage, results.size, grading),
             )
         }
-        return rows.sortedByDescending { it.totalPercentage }.mapIndexed { index, row -> row.copy(rank = index + 1) }
+        // The school sheets rank total desc, then name asc, with unique sequential positions
+        // (§2.5G); a stable tie-break also makes per-class re-ranking deterministic.
+        return rows
+            .sortedWith(compareByDescending<StudentGradeRowDto> { it.totalPercentage }.thenBy { it.studentName })
+            .mapIndexed { index, row -> row.copy(rank = index + 1) }
     }
+
+    /** Sorts one class by total desc then name asc and assigns 1..n positions (§2.5C). */
+    private fun List<StudentGradeRowDto>.rankedWithinClass(): List<StudentGradeRowDto> =
+        sortedWith(compareByDescending<StudentGradeRowDto> { it.totalPercentage }.thenBy { it.studentName })
+            .mapIndexed { index, row -> row.copy(rank = index + 1) }
 
     private fun classComparison(exam: TraditionalExamEntity, studentIds: Set<UUID>, percentages: Map<UUID, Double>): Map<String, Double> {
         val students = userRepository.findAllById(studentIds).associateBy { it.id }
@@ -1420,35 +1515,97 @@ class TraditionalExamService(
         return student.gradeLevel ?: exam.gradeLevel
     }
 
-    private fun teacherNameForClass(classTag: String, schoolId: UUID?): String {
-        val teachers = if (schoolId != null) userRepository.findAllBySchoolIdAndGradeLevelAndRole(schoolId, classTag, Role.TEACHER) else emptyList()
-        return teachers.firstOrNull()?.name.orEmpty()
+    /**
+     * The exam grade's class rows (one query), which are the source of a class's teacher
+     * and of the subject-teacher attribution (D14).
+     */
+    private fun teacherClassesForExam(exam: TraditionalExamEntity): List<TeacherClassEntity> {
+        val classes = exam.schoolId?.let { teacherClassRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(it) }
+            ?: teacherClassRepository.findAllByGradeLevelAndIsActiveTrueOrderByNameAsc(exam.gradeLevel)
+        return classes.filter {
+            it.isActive && it.gradeLevel.equals(exam.gradeLevel, ignoreCase = true)
+        }
+    }
+
+    /**
+     * Class teacher display names keyed by normalized class name (F25). The previous
+     * implementation queried users where gradeLevel == classTag (e.g. "LION"), which never
+     * matched, so the analysis CLASS TEACHER column printed blank. The class row is the
+     * authority; deactivated teachers still keep their name on the class, a missing account
+     * leaves the cell empty (the renderer omits the clause rather than printing a label).
+     */
+    private fun classTeacherNames(exam: TraditionalExamEntity): Map<String, String> =
+        rawClassTeacherNames(exam).entries.associate { (classTag, name) ->
+            TraditionalSubjectTeacherAttribution.normalizeKey(classTag) to name
+        }
+
+    /** Class teacher names keyed by the raw class name (the class tag rows carry). */
+    private fun rawClassTeacherNames(exam: TraditionalExamEntity): Map<String, String> {
+        val classes = teacherClassesForExam(exam)
+        if (classes.isEmpty()) return emptyMap()
+        val teachers = userRepository.findAllById(classes.map { it.teacherUserId }.distinct()).associateBy { it.id }
+        return buildMap {
+            classes.forEach { cls ->
+                val name = teachers[cls.teacherUserId]?.name?.takeIf { it.isNotBlank() } ?: return@forEach
+                putIfAbsent(cls.name, name)
+            }
+        }
+    }
+
+    /**
+     * D13/D14: one contribution panel per exam subject in exam order. The attribution
+     * rules live in [TraditionalSubjectTeacherAttribution]; this method batch-loads the
+     * class assignments and the teacher accounts once (no query per bar), then feeds the
+     * complete learners and the page-1 subject means so the bars reconcile.
+     */
+    private fun subjectTeacherContributions(
+        exam: TraditionalExamEntity,
+        subjects: List<TraditionalExamSubjectEntity>,
+        complete: List<StudentGradeRowDto>,
+        percentagesByStudent: Map<UUID, Map<String, Double>>,
+        gradeSubjectMeans: Map<String, Double>,
+    ): List<SubjectTeacherContributionDto> {
+        val classRows = teacherClassesForExam(exam)
+        val teachersById = if (classRows.isEmpty()) {
+            emptyMap()
+        } else {
+            userRepository.findAllById(classRows.map { it.teacherUserId }.distinct()).associateBy { it.id }
+        }
+        val assignments = classRows.mapNotNull { cls ->
+            val subjectKey = TraditionalSubjectTeacherAttribution.normalizeSubject(cls.subject)
+            if (subjectKey.isEmpty()) return@mapNotNull null
+            val teacher = teachersById[cls.teacherUserId]
+            TraditionalSubjectTeacherAttribution.Assignment(
+                classTag = cls.name,
+                subjectKey = subjectKey,
+                teacherUserId = teacher?.id,
+                teacherName = teacher?.takeIf { it.isActive }?.name
+                    ?: TraditionalSubjectTeacherAttribution.FORMER_TEACHER,
+                former = teacher == null || !teacher.isActive,
+            )
+        }
+        val rows = complete.map { row ->
+            TraditionalSubjectTeacherAttribution.LearnerRow(
+                classTag = row.classTag,
+                percentages = percentagesByStudent[UUID.fromString(row.studentId)].orEmpty(),
+            )
+        }
+        val panels = subjects.map { subject ->
+            TraditionalSubjectTeacherAttribution.SubjectPanel(
+                subjectId = subject.subjectId,
+                subjectName = subject.name,
+                matchKeys = TraditionalSubjectTeacherAttribution.subjectMatchKeys(
+                    subject.name,
+                    subjectComponentDtos(subject).map { it.name },
+                ),
+                gradeMean = gradeSubjectMeans[subject.name] ?: 0.0,
+            )
+        }
+        return TraditionalSubjectTeacherAttribution.build(panels, rows, assignments)
     }
 
     private fun teacherClassTag(teacherId: UUID): String? =
         teacherClassRepository.findAllByTeacherUserIdAndIsActiveTrueOrderByNameAsc(teacherId).firstOrNull()?.name
-
-    private fun meanColumns(subjects: List<TraditionalExamSubjectEntity>): List<Triple<String, String, String?>> =
-        subjects.flatMap { subject ->
-            val components = subjectComponentDtos(subject)
-            if (subject.subjectType == TraditionalSubjectType.COMBINED && components.size == 2) {
-                components.map { Triple(it.name, subject.name, it.name) }
-            } else {
-                listOf(Triple(subject.name, subject.name, null))
-            }
-        }
-
-    private fun rawMean(rows: List<StudentGradeRowDto>, subjectName: String, componentName: String?): Double? {
-        val values = rows.mapNotNull { row ->
-            val result = row.subjects.find { it.subjectName == subjectName } ?: return@mapNotNull null
-            if (componentName != null) {
-                result.components?.find { it.name == componentName }?.rawScore?.toDouble()
-            } else {
-                result.rawScore.toDouble()
-            }
-        }
-        return values.takeIf { it.isNotEmpty() }?.average()?.let { round2(it) }
-    }
 
     /**
      * Learners a capture scope covers. [target] may be a grade ("Grade 4") or a
@@ -1489,8 +1646,18 @@ class TraditionalExamService(
 
     // ---------------------------------------------------------------- grading
 
+    /** Live grade setting: the config screens and the gradebook, never the session snapshot. */
     private fun gradingFor(gradeLevel: String, schoolId: UUID?): GradingConfigDto =
         gradingConfigService.configFor(gradeLevel, schoolId)
+
+    /**
+     * The bands this exam is graded with (D18/decision 20): the snapshot taken when the
+     * capture session was created, or the live grade config for a legacy exam that has none.
+     * Marks, grade bands, lists and analysis all read this.
+     */
+    private fun sessionGrading(exam: TraditionalExamEntity): GradingConfigDto =
+        gradingConfigService.parseSnapshot(exam.gradingSnapshot)
+            ?: gradingFor(exam.gradeLevel, exam.schoolId)
 
     private fun percentage(raw: Int, max: Int): Double =
         if (max > 0) (raw.toDouble() / max * 100.0).coerceIn(0.0, 100.0) else 0.0
@@ -1498,12 +1665,16 @@ class TraditionalExamService(
     private fun gradeBand(percentage: Double, config: GradingConfigDto): String =
         gradingConfigService.band(percentage, config)
 
-    private fun overallBand(totalScore: Int, config: GradingConfigDto): String =
-        gradingConfigService.overallBand(totalScore, config)
-
     // ---------------------------------------------------------------- payload mapping
 
-    private fun examDto(exam: TraditionalExamEntity, current: CurrentUser? = null): TraditionalExamDto = TraditionalExamDto(
+    private fun examDto(
+        exam: TraditionalExamEntity,
+        current: CurrentUser? = null,
+        // D18: the bands the client pre-fills the session editor with. The detail read passes
+        // the effective bands (snapshot else live); list reads use the snapshot only, so a
+        // long exam list never issues a grading-config query per legacy exam.
+        grading: GradingConfigDto? = gradingConfigService.parseSnapshot(exam.gradingSnapshot),
+    ): TraditionalExamDto = TraditionalExamDto(
         examId = publicExamId(exam),
         title = exam.title,
         term = exam.term,
@@ -1529,6 +1700,7 @@ class TraditionalExamService(
         publishedAt = exam.publishedAt?.toEpochMilli(),
         publishedBy = exam.publishedBy?.toString(),
         schoolId = exam.schoolId?.toString(),
+        grading = grading,
     )
 
     private fun subjectDto(entity: TraditionalExamSubjectEntity): SubjectConfigDto = SubjectConfigDto(
