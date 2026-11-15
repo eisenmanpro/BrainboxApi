@@ -1,6 +1,18 @@
 package com.afrithecus.brainbox.api.identity.web
 
 /**
+ * A branding image stored by the media service (D16/A23). The admin app then saves
+ * [url] into [SchoolConfigPayload.logoUrl] or [SchoolConfigPayload.stampUrl], so the
+ * upload and the config update stay separate steps and a cancelled form leaves the
+ * saved branding untouched.
+ */
+data class SchoolBrandingUploadPayload(
+    val kind: String,
+    val url: String,
+    val mediaType: String = "IMAGE",
+)
+
+/**
  * Branding/academic configuration for a school (client models.analytics
  * SchoolConfig in repository/admin/SchoolAnalyticsRepository.kt).
  */

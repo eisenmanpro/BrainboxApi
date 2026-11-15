@@ -10,7 +10,9 @@ import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
+import java.io.ByteArrayInputStream
 import java.util.UUID
+import javax.imageio.ImageIO
 
 /**
  * Media storage for uploads (CBC projects, homework attachments, class-chat files)
@@ -56,6 +58,28 @@ class MediaService(
     /** Teacher documents: 10 MB max, PDF/EPUB/plain text. */
     fun storeDocument(file: MultipartFile): MediaUploadResponsePayload =
         storeChecked(file, MediaPolicies.ATTACHMENT_MAX_BYTES) { it in MediaPolicies.DOCUMENT_KINDS }
+
+    /**
+     * School report branding (logo/stamp, D16/A23): image-only and capped at the 2 MB
+     * the report renderer decodes. The stored URL is what the admin saves into
+     * `logo_url`/`stamp_url`, so it must be an image the renderer can actually read.
+     */
+    fun storeBrandingImage(file: MultipartFile): MediaUploadResponsePayload {
+        requireRenderableBranding(file.bytes)
+        return storeChecked(file, MediaPolicies.BRANDING_MAX_BYTES) { it in MediaPolicies.BRANDING_KINDS }
+    }
+
+    /**
+     * Resolves a stored media URL to its bytes for the PDF renderer. Branding is served
+     * by this deployment at `/media/{uuid}.{ext}`; fetching that URL over HTTP would hit
+     * the report SSRF policy (and fail for a local/dev origin), so a URL whose filename
+     * is one this server wrote is read straight from the object store. Returns null for
+     * any other URL, letting the renderer fall back to its normal HTTP/data: fetch.
+     */
+    fun loadByMediaUrl(url: String): ByteArray? {
+        val filename = storedFilename(url) ?: return null
+        return storage.get(filename)
+    }
 
     /**
      * Deletes a stored file by URL or filename; repeat-safe. The filename must match
@@ -146,6 +170,45 @@ class MediaService(
         )
     }
 
+    /**
+     * Branding is admin-supplied but still rendered server-side: reject a decompression
+     * bomb before it is stored (the header read does not decode the pixels) and refuse
+     * bytes no ImageIO reader can open, since a stored image the renderer cannot decode
+     * would silently fall back to the default mark/stamp.
+     */
+    private fun requireRenderableBranding(bytes: ByteArray) {
+        if (bytes.isEmpty()) throw invalidArgument("An upload file is required")
+        val size = runCatching {
+            ImageIO.createImageInputStream(ByteArrayInputStream(bytes)).use { input ->
+                if (input == null) return@runCatching null
+                val reader = ImageIO.getImageReaders(input).asSequence().firstOrNull() ?: return@runCatching null
+                try {
+                    reader.input = input
+                    reader.getWidth(0).toLong() to reader.getHeight(0).toLong()
+                } finally {
+                    reader.dispose()
+                }
+            }
+        }.getOrNull()
+        if (size == null) throw invalidArgument("The image could not be read as a PNG, JPEG or GIF")
+        if (size.first <= 0L || size.second <= 0L) throw invalidArgument("The image has no readable dimensions")
+        if (size.first * size.second > MAX_BRANDING_PIXELS) {
+            throw invalidArgument("The image is too large to render (at most 16 megapixels)")
+        }
+    }
+
+    /** The object key of a `/media/{uuid}.{ext}` URL, or null when the URL is not one. */
+    private fun storedFilename(url: String): String? {
+        val raw = url.trim()
+        if (raw.isEmpty()) return null
+        val path = runCatching { java.net.URI(raw).path }.getOrNull()
+            ?: raw.substringBefore('?').substringBefore('#')
+        val marker = path.lastIndexOf("/media/")
+        if (marker < 0) return null
+        val filename = path.substring(marker + "/media/".length)
+        return filename.takeIf { FILENAME_REGEX.matches(it) }
+    }
+
     private fun contentTypeFor(filename: String): String {
         val extension = filename.substringAfterLast('.', "").lowercase()
         return MediaKind.entries.firstOrNull { it.extension == extension }?.contentType ?: "application/octet-stream"
@@ -154,5 +217,8 @@ class MediaService(
     private companion object {
         /** A UUID plus the detected extension; the only filenames the server ever writes. */
         val FILENAME_REGEX = Regex("""^[A-Za-z0-9-]{1,64}\.[A-Za-z0-9]{1,5}$""")
+
+        /** 4096 x 4096 pixels: far beyond any crest/stamp, small enough to render safely. */
+        const val MAX_BRANDING_PIXELS = 16_000_000L
     }
 }

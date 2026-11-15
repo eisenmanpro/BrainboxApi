@@ -34,7 +34,7 @@ last list page; dense list pages carry a 4 % watermark.
   is deterministic (newest year → term ordinal → publication time) and returns null when none.
 - **D12/D18** — learner exam history and per-session grading snapshots (below).
 - **D16** — `SchoolConfigPayload.logoUrl/stampUrl` flow into `ReportBranding`; the BrainBox mark and the standard
-  Exam Office stamp remain the fallbacks.
+  Exam Office stamp remain the fallbacks. Both can be uploaded through the media service (below).
 - **Roster-only learners** (imported, no `class_memberships` row) are visible to class CBC reports/analytics and
   are accepted by mark writes that carry their `classId`.
 
@@ -63,6 +63,17 @@ Capture-session create/edit accepts `grading.bands` (labels + thresholds, strict
 (`traditional_exams.grading_snapshot`, V16), echoed by `TraditionalExamDto.grading` for prefill, written back
 as last-used, and used by every mark write, report level, legend and grade mean. Changing a later grade setting
 never re-bands an old exam. `GET traditional/grades/{grade}/grading` returns the prefill.
+
+## Branding images (D16/A23)
+
+`POST admin/schools/{schoolId}/config/branding/{logo|stamp}` (multipart field `file`) stores the image through
+the shared media object store and returns `{ kind, url }`; the admin saves that URL with the existing config
+PUT, so a cancelled form leaves the saved branding untouched. ICT admin (own school) or platform admin only;
+PNG/JPEG/GIF, 2 MB max — the same 2 MB the renderer decodes, so a stored image is always renderable (WebP is
+refused rather than silently dropped). The URL is a public `/media/{uuid}.{ext}` link; the renderer resolves
+a key written by this server straight from the object store instead of fetching it over HTTP, so branding
+renders the same for a loopback development origin as on a public deployment. A pasted http(s) or
+`data:image/` URL still works and keeps the SSRF-guarded fetch path.
 
 ## Verification
 

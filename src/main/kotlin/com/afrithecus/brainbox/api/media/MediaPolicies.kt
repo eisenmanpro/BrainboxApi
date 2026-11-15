@@ -12,6 +12,20 @@ object MediaPolicies {
     const val BYTES_PER_MB = 1024L * 1024L
     const val ATTACHMENT_MAX_BYTES = 10L * BYTES_PER_MB
 
+    /**
+     * Report branding (school logo / stamp, D16/A23): the same 2 MB cap the PDF
+     * renderer enforces when it decodes an image, so a stored image is always
+     * renderable instead of being silently dropped at report time.
+     */
+    const val BRANDING_MAX_BYTES = 2L * BYTES_PER_MB
+
+    /**
+     * Formats ImageIO can decode for the report branding slots. WebP is deliberately
+     * excluded: it would store, but the PDF renderer cannot read it and would fall
+     * back to the BrainBox mark / Exam Office stamp without telling the admin.
+     */
+    val BRANDING_KINDS = setOf(MediaKind.PNG, MediaKind.JPEG, MediaKind.GIF)
+
     val HOMEWORK_ATTACHMENT_KINDS = setOf(
         MediaKind.PDF,
         MediaKind.DOC,

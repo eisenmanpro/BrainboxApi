@@ -19,6 +19,16 @@ object ReportImages {
 
     private const val TIMEOUT_MILLIS = 2500
     private const val MAX_BYTES = 2 * 1024 * 1024
+
+    /**
+     * Optional hook installed by [ReportMediaBridge] in the running application: maps a
+     * `/media/{key}` URL to bytes from the media object store. Branding images uploaded
+     * through the API are served at such a URL, and a local/dev origin is not a public
+     * host, so the renderer must read its own media directly instead of fetching it.
+     * Null in plain unit tests; remote http(s) and data: URLs keep their normal path.
+     */
+    @Volatile
+    internal var mediaResolver: ((String) -> ByteArray?)? = null
     private val markCache = java.util.Collections.synchronizedMap(java.util.WeakHashMap<PDDocument, PDImageXObject>())
     private val stampCache = java.util.Collections.synchronizedMap(
         java.util.WeakHashMap<PDDocument, Pair<String, PDImageXObject>>(),
@@ -73,6 +83,8 @@ object ReportImages {
                 payload.toByteArray(Charsets.ISO_8859_1)
             }
         }
+        val stored = runCatching { mediaResolver?.invoke(url) }.getOrNull()
+        if (stored != null && stored.isNotEmpty()) return stored
         if (!SafeImageUrl.isAllowed(url)) return ByteArray(0)
         val uri = runCatching { URI(url.trim()) }.getOrNull() ?: return ByteArray(0)
         val host = SafeImageUrl.normalizeHost(uri.host) ?: return ByteArray(0)

@@ -38,6 +38,17 @@ class SchoolConfigService(
         return payload(schoolId, repository.findById(schoolId).orElse(null))
     }
 
+    /**
+     * Access check for the branding image upload (D16/A23); returns the resolved school
+     * id so the controller can hand the stored URL back to the same admin.
+     */
+    @Transactional(readOnly = true)
+    fun requireBrandingUploadAccess(admin: CurrentUser, schoolIdRaw: String): UUID {
+        val schoolId = requireSchool(schoolIdRaw)
+        access.require(admin, schoolId)
+        return schoolId
+    }
+
     @Transactional
     fun update(admin: CurrentUser, schoolIdRaw: String, request: SchoolConfigPayload): SchoolConfigPayload {
         val schoolId = requireSchool(schoolIdRaw)
