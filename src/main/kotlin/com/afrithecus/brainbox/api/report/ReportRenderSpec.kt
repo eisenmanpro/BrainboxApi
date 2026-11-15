@@ -14,6 +14,9 @@ sealed interface ReportRenderSpec {
     val branding: ReportBranding
 }
 
+/** One resolved grading level for the legend, from the exam's session snapshot (D18). */
+data class ReportGradingBand(val label: String, val minPercentage: Double)
+
 data class GradeTableSpec(
     override val title: String,
     override val branding: ReportBranding,
@@ -21,6 +24,10 @@ data class GradeTableSpec(
     val rows: List<StudentGradeRowDto>,
     /** Per-class tables render a section per class; grade-wide renders one class column. */
     val perClass: Boolean = false,
+    /** Session-resolved grading bands (D18) used for the legend; empty = platform defaults. */
+    val bands: List<ReportGradingBand> = emptyList(),
+    /** Class tag -> class teacher name (D11), shown in the per-class header. */
+    val classTeachers: Map<String, String> = emptyMap(),
 ) : ReportRenderSpec
 
 data class GradeAnalysisSpec(
