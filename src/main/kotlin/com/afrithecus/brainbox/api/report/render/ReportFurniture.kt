@@ -170,8 +170,20 @@ object ReportFurniture {
         return total
     }
 
-    /** Double-ruled EXAM OFFICE stamp, rotated 90 degrees and centred on (cx, cy). */
-    fun examOfficeStamp(canvas: ReportCanvas, cx: Float, cy: Float) {
+    /**
+     * Double-ruled EXAM OFFICE stamp, rotated 90 degrees and centred on (cx, cy); the school's
+     * uploaded stamp replaces it when configured (D16/A23).
+     */
+    fun examOfficeStamp(canvas: ReportCanvas, branding: ReportBranding, cx: Float, cy: Float) {
+        val uploaded = ReportImages.brandingStamp(canvas.document, branding.stampUrl)
+        if (uploaded != null) {
+            val max = 76f
+            val scale = minOf(max / uploaded.width, max / uploaded.height)
+            val width = uploaded.width * scale
+            val height = uploaded.height * scale
+            canvas.image(uploaded, cx - width / 2f, cy - height / 2f, width, height)
+            return
+        }
         canvas.stream.saveGraphicsState()
         // local (u,v) -> page (cx - v, cy + u): a 90 degree rotation about (cx, cy)
         canvas.stream.transform(Matrix(0f, 1f, -1f, 0f, cx, cy))
@@ -184,10 +196,24 @@ object ReportFurniture {
         canvas.stream.restoreGraphicsState()
     }
 
-    /** Horizontal stamp for the totals block of a filled list page (A13). */
-    fun horizontalStamp(canvas: ReportCanvas, x: Float, y: Float) {
+    /**
+     * Horizontal stamp for the totals block of a filled list page (A13). The school's uploaded
+     * stamp is drawn in the same 118 x 26 slot when configured; otherwise the standard Exam
+     * Office stamp is drawn (D16/A23).
+     */
+    fun horizontalStamp(canvas: ReportCanvas, branding: ReportBranding, x: Float, y: Float) {
         val width = 118f
         val height = 26f
+        val uploaded = ReportImages.brandingStamp(canvas.document, branding.stampUrl)
+        if (uploaded != null) {
+            val maxWidth = 114f
+            val maxHeight = 22f
+            val scale = minOf(maxWidth / uploaded.width, maxHeight / uploaded.height)
+            val imageWidth = uploaded.width * scale
+            val imageHeight = uploaded.height * scale
+            canvas.image(uploaded, x + (width - imageWidth) / 2f, y + (height - imageHeight) / 2f, imageWidth, imageHeight)
+            return
+        }
         canvas.strokeRect(x, y, width, height, ReportTheme.MUTED, 0.9f)
         canvas.strokeRect(x + 2.4f, y + 2.4f, width - 4.8f, height - 4.8f, ReportTheme.MUTED, 0.4f)
         canvas.tracked("EXAM OFFICE", x + 14f, y + 12f, canvas.theme.sansBold, 6.6f, 1.6f, ReportTheme.MUTED)

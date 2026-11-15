@@ -1045,6 +1045,20 @@ class TraditionalExamService(
         }
         val studentId = parseUuid(request.studentId, "student id")
         verifyEditRequesterTeaches(current, exam, studentId)
+        // D15: the request must name the mark that is actually stored. The old score is what the
+        // teacher saw when opening the request; if another edit already changed the mark, the
+        // request is stale and must be re-opened instead of silently approving a different mark.
+        val currentScore = markRepository.findByExamIdAndStudentIdAndSubjectId(exam.id, studentId, request.subjectId)
+            ?.rawScore ?: 0
+        if (request.oldScore != currentScore) {
+            throw conflict("The mark changed since this request was opened; reload the marks and request again")
+        }
+        // D15: a genuine zero/missing subject is a mark that was never captured, so its correction
+        // must produce a real mark (the note in the incomplete-marks table says "correct to 1 or the
+        // mark actually scored"). A non-zero edit (e.g. a typo fix) keeps the legacy behaviour.
+        if (currentScore <= 0 && request.newScore < 1) {
+            throw invalidArgument("A missing or zero mark must be corrected to at least 1 (or the mark actually scored)")
+        }
         val row = TraditionalEditRequestEntity().apply {
             if (requestedId != null) id = requestedId
             this.examId = exam.id

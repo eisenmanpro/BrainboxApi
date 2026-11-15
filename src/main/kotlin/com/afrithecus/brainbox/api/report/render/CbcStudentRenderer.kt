@@ -393,7 +393,7 @@ class CbcStudentRenderer(
         ReportFurniture.eyebrow(canvas, "Learning-area level mix", MARGIN, mixSectionTop)
         val mixTop = mixSectionTop + 12f
         levelMixPanel(canvas, entry.card, MARGIN, mixTop)
-        analyticsSignOff(canvas, entry, mixTop + MIX_HEIGHT + 60f)
+        analyticsSignOff(canvas, branding, entry, mixTop + MIX_HEIGHT + 60f)
         ReportFurniture.cardFooter(canvas, branding, termLabel + " " + yearLabel, page, pages)
     }
 
@@ -757,11 +757,11 @@ class CbcStudentRenderer(
     }
 
     /** Exam Office stamp + official-record line; no personal signatory (D5/Q1). */
-    private fun analyticsSignOff(canvas: ReportCanvas, entry: CbcStudentCard, top: Float) {
+    private fun analyticsSignOff(canvas: ReportCanvas, branding: ReportBranding, entry: CbcStudentCard, top: Float) {
         val termLabel = prettyTerm(entry.card.term)
         val yearLabel = entry.year?.toString().orEmpty()
         ReportFurniture.divider(canvas, canvas.top(top), ReportTheme.LINE2)
-        ReportFurniture.horizontalStamp(canvas, MARGIN, canvas.top(top + 40f))
+        ReportFurniture.horizontalStamp(canvas, branding, MARGIN, canvas.top(top + 40f))
         val textX = MARGIN + 118f + 20f
         val textWidth = canvas.width - MARGIN - textX
         canvas.tracked("OFFICIAL SCHOOL RECORD", textX, canvas.top(top + 24f), canvas.theme.sansBold, 6.6f, 1.4f, ReportTheme.NAVY)

@@ -253,7 +253,7 @@ class CbcClassRenderer(
             followUp(canvas, recommendations.size, followTop, contentWidth)
         }
 
-        signOff(canvas, contentWidth)
+        signOff(canvas, branding, contentWidth)
         ReportFurniture.cardFooter(canvas, branding, termLabel, pages, pages)
     }
 
@@ -618,9 +618,9 @@ class CbcClassRenderer(
     }
 
     /** Exam Office stamp + official-record line (D5: never a personal signatory). */
-    private fun signOff(canvas: ReportCanvas, contentWidth: Float) {
+    private fun signOff(canvas: ReportCanvas, branding: ReportBranding, contentWidth: Float) {
         val right = 36f + contentWidth
-        ReportFurniture.horizontalStamp(canvas, right - 118f, canvas.top(SIGN_OFF_STAMP_TOP + 26f))
+        ReportFurniture.horizontalStamp(canvas, branding, right - 118f, canvas.top(SIGN_OFF_STAMP_TOP + 26f))
         canvas.trackedR("OFFICIAL SCHOOL RECORD", right, canvas.top(SIGN_OFF_STAMP_TOP - 9f), canvas.theme.sansBold, 5.4f, 1f, ReportTheme.MUTED)
         val footnoteWidth = contentWidth - 118f - 60f
         canvas.text(

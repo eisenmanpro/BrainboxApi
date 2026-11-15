@@ -143,7 +143,7 @@ class GradeAnalysisRenderer(private val properties: ReportProperties) {
             } else {
                 drawClassTable(canvas, theme, analysis, classes, subjects, page, bands, lastTablePage)
             }
-            if (stamp) ReportFurniture.horizontalStamp(canvas, PAGE_WIDTH - MARGIN - 118f, STAMP_Y)
+            if (stamp) ReportFurniture.horizontalStamp(canvas, spec.branding, PAGE_WIDTH - MARGIN - 118f, STAMP_Y)
             ReportFurniture.footer(canvas, footerLeft(spec), pageNo, totalPages)
         }
     }
@@ -373,7 +373,7 @@ class GradeAnalysisRenderer(private val properties: ReportProperties) {
                 drawPanel(canvas, theme, x, top, PANEL_WIDTH, PANEL_HEIGHT, panel)
             }
             canvas.text(FOOTNOTE, MARGIN, 38f, theme.sansItalic, 6f, ReportTheme.MUTED)
-            if (stamp) ReportFurniture.horizontalStamp(canvas, PAGE_WIDTH - MARGIN - 118f, STAMP_Y)
+            if (stamp) ReportFurniture.horizontalStamp(canvas, spec.branding, PAGE_WIDTH - MARGIN - 118f, STAMP_Y)
             ReportFurniture.footer(canvas, footerLeft(spec), pageNo, totalPages)
         }
     }

@@ -32,6 +32,10 @@ class SchoolConfigEntity {
     @Column(name = "logo_url", length = 512)
     var logoUrl: String? = null
 
+    /** School stamp used on reports; null keeps the standard Exam Office stamp (D16/A23). */
+    @Column(name = "stamp_url", length = 512)
+    var stampUrl: String? = null
+
     @Column(name = "primary_color", length = 16)
     var primaryColor: String? = null
 

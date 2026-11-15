@@ -66,6 +66,7 @@ data class TraditionalListRow(
 /** Everything the list painters need for one document (or one class of a bundle). */
 data class TraditionalListModel(
     val documentTitle: String,
+    val branding: ReportBranding,
     val gradeLevel: String,
     val examTitle: String,
     val termLabel: String,
@@ -305,6 +306,7 @@ object TraditionalReportModel {
 
         return TraditionalListModel(
             documentTitle = spec.title,
+            branding = spec.branding,
             gradeLevel = spec.exam.gradeLevel.trim(),
             examTitle = spec.exam.title.trim(),
             termLabel = "${spec.exam.term.displayName()} ${spec.exam.year}",
@@ -650,7 +652,7 @@ internal object TraditionalListPainter {
             ReportTheme.MUTED,
         )
         if (lastDocumentPage) {
-            ReportFurniture.horizontalStamp(canvas, x + width - 126f, canvas.top(top + 51f))
+            ReportFurniture.horizontalStamp(canvas, model.branding, x + width - 126f, canvas.top(top + 51f))
         }
         val legendY = if (top + blockHeight + 30f < canvas.height - 30f) {
             canvas.top(top + blockHeight + 14f)
@@ -724,6 +726,7 @@ internal object TraditionalListPainter {
                     if (lastDocumentPage) {
                         ReportFurniture.horizontalStamp(
                             canvas,
+                            branding,
                             canvas.width - MARGIN - 118f,
                             canvas.top(tableTop + 30f),
                         )

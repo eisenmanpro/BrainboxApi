@@ -11,6 +11,8 @@ data class ReportBranding(
     val schoolName: String,
     val motto: String? = null,
     val logoUrl: String? = null,
+    /** School stamp image; null keeps the standard Exam Office stamp (D16/A23). */
+    val stampUrl: String? = null,
     val address: String? = null,
     val phone: String? = null,
     val email: String? = null,
@@ -22,6 +24,7 @@ data class ReportBranding(
             schoolName = config.schoolName,
             motto = config.motto,
             logoUrl = config.logoUrl,
+            stampUrl = config.stampUrl,
             address = config.address,
             phone = config.phone,
             email = config.email,

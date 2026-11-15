@@ -20,6 +20,9 @@ object ReportImages {
     private const val TIMEOUT_MILLIS = 2500
     private const val MAX_BYTES = 2 * 1024 * 1024
     private val markCache = java.util.Collections.synchronizedMap(java.util.WeakHashMap<PDDocument, PDImageXObject>())
+    private val stampCache = java.util.Collections.synchronizedMap(
+        java.util.WeakHashMap<PDDocument, Pair<String, PDImageXObject>>(),
+    )
 
     /** School logo when configured and embedding is enabled; null means "use the fallback". */
     fun brandingLogo(document: PDDocument, url: String?, embed: Boolean): PDImageXObject? {
@@ -27,6 +30,20 @@ object ReportImages {
         val bytes = runCatching { fetch(url) }.getOrNull() ?: return null
         if (bytes.isEmpty()) return null
         return toImage(document, bytes)
+    }
+
+    /**
+     * School stamp when configured (D16/A23); null means the caller draws the standard Exam
+     * Office stamp. Cached per document so each report fetches a remote stamp once.
+     */
+    fun brandingStamp(document: PDDocument, url: String?): PDImageXObject? {
+        val key = url?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        stampCache[document]?.let { (cached, image) -> if (cached == key) return image }
+        val bytes = runCatching { fetch(key) }.getOrNull() ?: return null
+        if (bytes.isEmpty()) return null
+        val image = toImage(document, bytes) ?: return null
+        stampCache[document] = key to image
+        return image
     }
 
     /** Bundled BrainBox mark shown when a school has not uploaded a logo (decision Q10). */

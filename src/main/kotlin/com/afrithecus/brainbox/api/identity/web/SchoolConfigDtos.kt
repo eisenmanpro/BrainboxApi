@@ -9,6 +9,8 @@ data class SchoolConfigPayload(
     val schoolName: String,
     val motto: String? = null,
     val logoUrl: String? = null,
+    /** School stamp image for reports; null = the standard Exam Office stamp (D16/A23). */
+    val stampUrl: String? = null,
     val primaryColor: String? = null,
     val address: String? = null,
     val phone: String? = null,

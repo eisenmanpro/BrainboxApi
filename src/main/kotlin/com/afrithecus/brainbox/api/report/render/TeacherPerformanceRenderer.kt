@@ -185,7 +185,7 @@ class TeacherPerformanceRenderer(
         }
 
         // D5: the signatory is the Exam Office stamp, never a personal name.
-        ReportFurniture.horizontalStamp(canvas, 36f + contentWidth - 118f, fy + 18f)
+        ReportFurniture.horizontalStamp(canvas, spec.branding, 36f + contentWidth - 118f, fy + 18f)
         canvas.trackedR("OFFICIAL SCHOOL RECORD", 36f + contentWidth, fy + 54f, canvas.theme.sansBold, 5.4f, 1f, ReportTheme.MUTED)
         ReportFurniture.cardFooter(canvas, spec.branding, termLabel + " " + yearLabel, 1, 1)
     }

@@ -48,6 +48,7 @@ class SchoolConfigService(
         entity.schoolName = request.schoolName.trim()
         entity.motto = request.motto?.trim()?.takeIf { it.isNotEmpty() }
         entity.logoUrl = request.logoUrl?.trim()?.takeIf { it.isNotEmpty() }
+        entity.stampUrl = request.stampUrl?.trim()?.takeIf { it.isNotEmpty() }
         entity.primaryColor = request.primaryColor?.trim()?.takeIf { it.isNotEmpty() }
         entity.address = request.address?.trim()?.takeIf { it.isNotEmpty() }
         entity.phone = request.phone?.trim()?.takeIf { it.isNotEmpty() }
@@ -112,6 +113,10 @@ class SchoolConfigService(
         request.watermarkText?.trim()?.takeIf { it.isNotEmpty() }?.let {
             if (it.length > MAX_WATERMARK) throw invalidArgument("watermarkText must be at most " + MAX_WATERMARK + " characters")
         }
+        // D16/A23: branding images are fetched server-side while rendering, so only a plain
+        // http(s) URL (or an inline data:image URL used by tests) is accepted.
+        validateImageUrl("logoUrl", request.logoUrl)
+        validateImageUrl("stampUrl", request.stampUrl)
         if (request.academicCalendar.size > MAX_CALENDAR_TERMS) {
             throw invalidArgument("academicCalendar must have at most " + MAX_CALENDAR_TERMS + " entries")
         }
@@ -131,6 +136,17 @@ class SchoolConfigService(
             row.stream?.trim()?.takeIf { it.isNotEmpty() }?.let {
                 if (it.length > MAX_STREAM_NAME) throw invalidArgument("streams must be at most " + MAX_STREAM_NAME + " characters")
             }
+        }
+    }
+
+    private fun validateImageUrl(field: String, raw: String?) {
+        val value = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return
+        if (value.length > MAX_IMAGE_URL) throw invalidArgument(field + " must be at most " + MAX_IMAGE_URL + " characters")
+        if (value.startsWith("data:image/", ignoreCase = true)) return
+        val parsed = runCatching { java.net.URI(value) }.getOrNull()
+        val scheme = parsed?.scheme?.lowercase()
+        if (parsed == null || (scheme != "http" && scheme != "https") || parsed.host.isNullOrBlank()) {
+            throw invalidArgument(field + " must be an http(s) image URL")
         }
     }
 
@@ -178,6 +194,7 @@ class SchoolConfigService(
             schoolName = entity?.schoolName?.takeIf { it.isNotBlank() } ?: fallbackName,
             motto = entity?.motto,
             logoUrl = entity?.logoUrl,
+            stampUrl = entity?.stampUrl,
             primaryColor = entity?.primaryColor,
             address = entity?.address,
             phone = entity?.phone,
@@ -195,6 +212,7 @@ class SchoolConfigService(
         const val MAX_NAME = 120
         const val MAX_MOTTO = 160
         const val MAX_WATERMARK = 120
+        const val MAX_IMAGE_URL = 2048
         const val MAX_CALENDAR_TERMS = 12
         const val MAX_ROOMS = 100
         const val MAX_ROOM_NAME = 120

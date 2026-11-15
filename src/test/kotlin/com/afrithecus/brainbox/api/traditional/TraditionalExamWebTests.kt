@@ -1443,4 +1443,76 @@ class TraditionalExamWebTests(
         )
         check(teachersByClass == classNames.mapIndexed { index, name -> name to classTeachers[index].name }.toMap())
     }
+
+    @Test
+    fun `incomplete mark correction needs the current mark and a positive replacement`() {
+        val coordinator = user(Role.TEACHER, "Coordinator Correct", "0700000950", grade = "Grade 5", subRole = SubRole.GRADE_COORDINATOR)
+        val zeroLearner = user(Role.STUDENT, "Zero Learner", "0700000951", grade = "Grade 5")
+        val token = token(coordinator)
+        val exam = createExam(token, "Grade 5", listOf(SubjectConfigDto("MAT", "Mathematics", 100, TraditionalSubjectType.SINGLE)))
+        mockMvc.perform(
+            post("/traditional/exams/" + exam.examId + "/marks").header("Authorization", auth(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(MarkEntryDto(zeroLearner.id.toString(), "MAT", 0))))
+        ).andExpect(status().isOk)
+        mockMvc.perform(
+            post("/traditional/exams/" + exam.examId + "/confirm").param("grade", "Grade 5").header("Authorization", auth(token))
+        ).andExpect(status().isNoContent)
+        mockMvc.perform(post("/traditional/exams/" + exam.examId + "/pre-final").header("Authorization", auth(token)))
+            .andExpect(status().isOk)
+        mockMvc.perform(post("/traditional/exams/" + exam.examId + "/finalize").header("Authorization", auth(token)))
+            .andExpect(status().isOk)
+
+        // D15: a stale old score (the mark is 0, the request claims 7) is rejected instead of
+        // approving a correction against a mark the teacher never saw.
+        mockMvc.perform(
+            post("/traditional/exams/" + exam.examId + "/edit-requests").header("Authorization", auth(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(editRequest(exam.examId, zeroLearner.id, "MAT", 7, 1)))
+        ).andExpect(status().isConflict)
+
+        // A zero/missing mark corrected to 0 would leave the learner incomplete forever.
+        mockMvc.perform(
+            post("/traditional/exams/" + exam.examId + "/edit-requests").header("Authorization", auth(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(editRequest(exam.examId, zeroLearner.id, "MAT", 0, 0)))
+        ).andExpect(status().isBadRequest)
+
+        // Valid correction: 0 -> 1, approved with a reviewed-at/requester audit trail.
+        val created = objectMapper.readValue(
+            mockMvc.perform(
+                post("/traditional/exams/" + exam.examId + "/edit-requests").header("Authorization", auth(token))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(editRequest(exam.examId, zeroLearner.id, "MAT", 0, 1)))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            EditRequestDto::class.java,
+        )
+        check(created.status == TraditionalEditStatus.PENDING)
+        check(created.oldScore == 0 && created.newScore == 1)
+        check(created.teacherId == coordinator.id.toString())
+        val approved = objectMapper.readValue(
+            mockMvc.perform(
+                post("/traditional/edit-requests/" + created.id + "/approve").header("Authorization", auth(token))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            EditRequestDto::class.java,
+        )
+        check(approved.status == TraditionalEditStatus.APPROVED)
+        check(approved.reviewedBy != null && approved.reviewedAt != null)
+
+        // The approved correction is applied through the normal mark entry; the learner then has
+        // a real mark and is no longer an incomplete row in the report data.
+        mockMvc.perform(
+            post("/traditional/exams/" + exam.examId + "/marks").header("Authorization", auth(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(MarkEntryDto(zeroLearner.id.toString(), "MAT", 1))))
+        ).andExpect(status().isOk)
+        val rows = objectMapper.readValue(
+            mockMvc.perform(get("/traditional/exams/" + exam.examId + "/grade-wide-ranking").header("Authorization", auth(token)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<StudentGradeRowDto>::class.java,
+        )
+        val corrected = rows.single { it.studentId == zeroLearner.id.toString() }
+        check(corrected.subjects.single().rawScore == 1)
+        check(corrected.subjects.none { it.rawScore == 0 })
+    }
 }
