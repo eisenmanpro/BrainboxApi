@@ -130,6 +130,7 @@ class CbcAnalyticsService(
                 strandName = name,
                 classAverage = round2(average),
                 studentBreakdown = rows.associate { it.studentId.toString() to masteryLevel(ratingScore(it.rating)) },
+                studentRatings = rows.associate { it.studentId.toString() to letterRating(it.rating) },
                 isWeakStrand = average < WEAK_THRESHOLD,
                 recommendation = if (average < WEAK_THRESHOLD) "Reteach and practise " + name else null,
             )
@@ -305,6 +306,14 @@ class CbcAnalyticsService(
         "MEETING" -> 70.0
         "APPROACHING" -> 50.0
         else -> 30.0
+    }
+
+    /** Report-vocabulary letter for a stored rating (F50): ME and AE stay distinguishable. */
+    private fun letterRating(rating: String): String = when (rating.trim().uppercase()) {
+        "EXCEEDING" -> "EE"
+        "MEETING" -> "ME"
+        "APPROACHING" -> "AE"
+        else -> "BE"
     }
 
     private fun masteryLevel(score: Double): String = when {

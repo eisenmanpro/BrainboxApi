@@ -484,7 +484,7 @@ class CbcClassRenderer(
                 if (rowHeight >= 64f) 13f else 10.5f,
                 ReportTheme.NAVY,
             )
-            val rated = strand.studentBreakdown.size
+            val rated = ratingEntries(strand).size
             canvas.textR(
                 when {
                     support == null -> "no learner ratings"
@@ -660,6 +660,14 @@ class CbcClassRenderer(
     }
 
     /**
+     * Exact per-learner ratings for one strand. The server now supplies letter ratings
+     * (EE/ME/AE/BE) in [CbcStrandMasteryPayload.studentRatings] so ME and AE never collapse
+     * (F50); older payloads only carry the mastery words in studentBreakdown.
+     */
+    private fun ratingEntries(strand: CbcStrandMasteryPayload): Map<String, String> =
+        strand.studentRatings.ifEmpty { strand.studentBreakdown }
+
+    /**
      * Learners needing support in one strand, or null when the payload has no learner-level
      * ratings (the table prints a dash rather than inventing a zero).
      *
@@ -668,8 +676,9 @@ class CbcClassRenderer(
      * EE/ME/AE/BE/DE. Both are recognised: anything that is not meeting/exceeding counts.
      */
     private fun learnersNeedingSupport(strand: CbcStrandMasteryPayload): Int? {
-        if (strand.studentBreakdown.isEmpty()) return null
-        return strand.studentBreakdown.values.count { needsSupport(it) }
+        val entries = ratingEntries(strand)
+        if (entries.isEmpty()) return null
+        return entries.values.count { needsSupport(it) }
     }
 
     private fun needsSupport(rating: String?): Boolean {
@@ -680,7 +689,7 @@ class CbcClassRenderer(
 
     /** Distinct learners flagged in at least one weak strand; null when no breakdown exists at all. */
     private fun flaggedLearners(recommendations: List<CbcStrandMasteryPayload>): Int? {
-        val maps = recommendations.map { it.studentBreakdown }.filter { it.isNotEmpty() }
+        val maps = recommendations.map { ratingEntries(it) }.filter { it.isNotEmpty() }
         if (maps.isEmpty()) return null
         val flagged = mutableSetOf<String>()
         maps.forEach { breakdown ->

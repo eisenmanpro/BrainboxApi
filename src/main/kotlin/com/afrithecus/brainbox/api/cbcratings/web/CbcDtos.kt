@@ -26,6 +26,13 @@ data class CbcStrandMasteryPayload(
     val studentBreakdown: Map<String, String> = emptyMap(),
     val isWeakStrand: Boolean = false,
     val recommendation: String? = null,
+    /**
+     * Exact letter ratings per learner (EE/ME/AE/BE) for this strand (F50). [studentBreakdown]
+     * collapses MEETING and APPROACHING into one mastery word, so the class report cannot tell
+     * an ME learner from an AE one; this map does. Additive: older clients ignore it, and it is
+     * last so existing positional constructions keep working.
+     */
+    val studentRatings: Map<String, String> = emptyMap(),
 )
 
 data class SubjectTeacherPerformancePayload(

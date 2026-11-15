@@ -142,6 +142,31 @@ class CbcClassDetailRendererTest {
     }
 
     @Test
+    fun recommendation_page_distinguishes_meeting_from_approaching_learners() {
+        // F50: the legacy mastery words collapse MEETING and APPROACHING into PROFICIENT, so the
+        // old fallback would count two learners here. The exact letter ratings must win: only the
+        // APPROACHING (AE) learner needs support; both MEETING (ME) learners are on track.
+        val exact = weakStrand.copy(
+            studentBreakdown = mapOf(
+                "s_1" to "PROFICIENT",
+                "s_2" to "PROFICIENT",
+                "s_3" to "MASTER",
+                "s_4" to "ADVANCED",
+            ),
+            studentRatings = mapOf(
+                "s_1" to "ME",
+                "s_2" to "AE",
+                "s_3" to "EE",
+                "s_4" to "ME",
+            ),
+        )
+        val bytes = render(classReport(listOf(onTrackStrand, exact), studentCount = 0), detailed = true)
+        val pageTwo = compact(pageText(bytes, 2))
+        assertTrue(pageTwo.contains("1of4"), "exactly one learner (AE) needs support, got: " + pageTwo.take(400))
+        assertTrue(pageTwo.contains("of4ratedlearners"), "the exact-rating map size must be the denominator")
+    }
+
+    @Test
     fun recommendation_page_prints_a_dash_when_no_learner_breakdown_exists() {
         val noBreakdown = weakStrand.copy(studentBreakdown = emptyMap())
         val bytes = render(classReport(listOf(onTrackStrand, noBreakdown)), detailed = true)
