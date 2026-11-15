@@ -75,11 +75,21 @@ class MediaObjectService(
     }
 
     /**
-     * Reaps unclaimed uploads older than the grace period. An upload is claimed by
-     * the config write that saves it, so this only catches abandoned uploads.
+     * Scheduled entrypoint. Deliberately parameterless: a Kotlin default argument
+     * would compile to a synthetic `sweep$default` call that evaluates [clock] on
+     * the receiver directly. The scheduler receives the Spring CGLIB proxy, whose
+     * fields are never initialised, so the default argument read a null clock and
+     * every scheduled sweep failed with an NPE while direct (test) calls worked.
      */
     @Transactional
-    fun sweep(cutoff: Instant = clock.instant().minus(UNCLAIMED_TTL)): Int {
+    fun sweep(): Int = sweep(clock.instant().minus(UNCLAIMED_TTL))
+
+    /**
+     * Reaps unclaimed uploads older than [cutoff]. An upload is claimed by the
+     * config write that saves it, so this only catches abandoned uploads.
+     */
+    @Transactional
+    fun sweep(cutoff: Instant): Int {
         val stale = objects.findAllByReferencedAtIsNullAndCreatedAtBefore(cutoff)
         stale.forEach { row ->
             media.delete(row.storageKey)

@@ -9,3 +9,11 @@ logging:
   level:
     com.afrithecus.brainbox.api: DEBUG
     org.springframework.security: INFO
+
+# The dev mail transport is the logging sink (no SMTP credentials), so Boot's
+# MailHealthIndicator cannot connect and drags /actuator/health to 503. Local
+# readiness is the DB/readiness probe; mail is verified on staging/prod.
+management:
+  health:
+    mail:
+      enabled: false

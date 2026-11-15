@@ -285,4 +285,12 @@ class SchoolBrandingUploadTests(
         mockMvc.perform(get(URI(payload.url).path)).andExpect(status().isNotFound)
         assertTrue(mediaObjects.findById(key).isEmpty)
     }
+
+    @Test
+    fun `the scheduled entrypoint works through the spring proxy`() {
+        // Regression: the scheduler calls the bean through its CGLIB proxy. With a Kotlin
+        // default argument the call went through `sweep$default`, which reads fields on the
+        // uninitialised proxy (clock == null) and made every scheduled sweep fail with an NPE.
+        mediaObjectService.sweep()
+    }
 }
