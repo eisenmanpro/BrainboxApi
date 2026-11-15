@@ -19,6 +19,7 @@ import com.afrithecus.brainbox.api.traditional.web.TraditionalSubjectResultDto
 import org.apache.pdfbox.Loader
 import org.apache.pdfbox.text.PDFTextStripper
 import org.junit.jupiter.api.Test
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /** The server renderer produces real, branded, text-extractable PDFs per family. */
@@ -73,29 +74,54 @@ class ReportRendererTests {
         assertTrue(String(bytes, 0, 5, Charsets.ISO_8859_1) == "%PDF-", "missing PDF header")
         val content = text(bytes)
         assertTrue(content.contains("Alliance High School"), "branding school name missing")
-        mustContain.forEach { assertTrue(content.contains(it), "missing text: " + it) }
+        // Letter-spaced caps labels extract with one space per glyph (PDF text extraction
+        // inserts spaces for the tracking gaps); body text extracts contiguously.
+        val compact = content.replace(Regex("\\s+"), "")
+        mustContain.forEach {
+            val plain = it.replace(" ", "")
+            assertTrue(content.contains(it) || compact.contains(plain), "missing text: " + it)
+        }
     }
 
     @Test
     fun `grade table pdf carries branding and rows`() {
         val spec = GradeTableSpec("End Term 2 2026", branding, exam(), listOf(row(1, "Alice Mwangi", 80, 60), row(2, "Bob Otieno", 70, 90)))
-        assertPdf(renderer.render(spec), listOf("Mathematics", "English", "Alice Mwangi", "Bob Otieno"))
+        // Decision 13: the score-table headers are always abbreviated.
+        assertPdf(renderer.render(spec), listOf("MATH", "ENG", "Alice Mwangi", "Bob Otieno", "TOTALS"))
     }
 
     @Test
     fun `per-class and analysis pdfs render`() {
         val table = GradeTableSpec("End Term 2 2026", branding, exam(), listOf(row(1, "Alice Mwangi", 80, 60)), perClass = true)
-        assertPdf(renderer.render(table), listOf("Grade 4 East"))
+        // D19: per-class tables render through an artifact that names the one class.
+        val single = renderer.renderArtifact(ReportArtifact(table, classTag = "Grade 4 East"))
+        assertPdf(single, listOf("Alice Mwangi", "GRADE 4 EAST", "CLASS TOTALS"))
+        assertTrue(!text(single).contains("Bob Otieno"), "a single-class PDF must not contain another class")
         val analysis = TraditionalGradeAnalysisDto(
             examId = "exam_1",
             gradeLevel = "Grade 4",
             term = "Term 2",
             year = 2026,
             classes = listOf(
-                ClassGradeAnalysisDto("Grade 4 East", "Mr Kimani", mapOf("Mathematics" to 75.0), mapOf("Mathematics" to 1), 75.0, 1),
+                ClassGradeAnalysisDto(
+                    classTag = "Grade 4 East",
+                    teacherName = "Mr Kimani",
+                    subjectAverages = mapOf("Mathematics" to 75.0),
+                    subjectPositions = mapOf("Mathematics" to 1),
+                    totalAverage = 75.0,
+                    overallPosition = 1,
+                    studentCount = 30,
+                ),
             ),
+            subjects = listOf("Mathematics"),
         )
-        assertPdf(renderer.render(GradeAnalysisSpec("Grade 4", branding, analysis)), listOf("Mr Kimani"))
+        assertPdf(renderer.render(GradeAnalysisSpec("Grade 4", branding, analysis)), listOf("Mr Kimani", "Mathematics"))
+    }
+
+    @Test
+    fun `per-class specs cannot render without a class tag`() {
+        val table = GradeTableSpec("End Term 2 2026", branding, exam(), listOf(row(1, "Alice Mwangi", 80, 60)), perClass = true)
+        assertFailsWith<IllegalArgumentException> { renderer.render(table) }
     }
 
     @Test

@@ -23,6 +23,12 @@ enum class ReportJobStatus { QUEUED, IN_PROGRESS, READY, FAILED }
 data class ReportGenerationRequestPayload(
     val reportType: ReportType,
     val classId: String? = null,
+    /**
+     * Per-class tables (D19): a class tag/name such as "5 Lion", or null/blank for ALL.
+     * ALL renders one PDF per class and the job bundles them into a single zip artifact.
+     * Ignored by report types that are not per-class.
+     */
+    val classTag: String? = null,
     val studentIds: List<String> = emptyList(),
     val teacherId: String? = null,
     val teacherName: String? = null,

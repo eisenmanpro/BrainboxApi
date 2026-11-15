@@ -13,19 +13,23 @@ import kotlin.math.roundToInt
 /**
  * Design tokens and embedded fonts for the report renderers (plan A1, decision 5).
  *
- * Lato (sans) and Liberation Serif (display) are bundled with the API under
- * `src/main/resources/report/fonts` together with their SIL OFL licences, so a
- * generated PDF looks the same on a developer machine and on a stripped server.
+ * Liberation Sans (body) and Liberation Serif (display) are bundled with the API under
+ * `src/main/resources/report/fonts` together with their SIL OFL licence, so a generated
+ * PDF looks the same on a developer machine and on a stripped server. Body text uses
+ * Liberation Sans because embedded Lato loses the "ti" pair on text extraction (A14/F20).
  * If a bundled font is missing the loader falls back to the PDF standard 14 fonts
  * instead of failing the report.
  */
 class ReportTheme(private val document: PDDocument) {
 
-    val sans: PDFont = load("Lato-Regular.ttf", Standard14Fonts.FontName.HELVETICA)
-    val sansLight: PDFont = load("Lato-Light.ttf", Standard14Fonts.FontName.HELVETICA)
-    val sansBold: PDFont = load("Lato-Bold.ttf", Standard14Fonts.FontName.HELVETICA_BOLD)
-    val sansBlack: PDFont = load("Lato-Black.ttf", Standard14Fonts.FontName.HELVETICA_BOLD)
-    val sansItalic: PDFont = load("Lato-Italic.ttf", Standard14Fonts.FontName.HELVETICA_OBLIQUE)
+    // A14/F20: Lato's PDFBox ToUnicode table loses the "ti" pair ("Otieno" -> "O eno"), so
+    // body text uses Liberation Sans (decision 5's documented extraction fallback). Display
+    // text stays Liberation Serif, which extracts cleanly.
+    val sans: PDFont = load("LiberationSans-Regular.ttf", Standard14Fonts.FontName.HELVETICA)
+    val sansLight: PDFont = load("LiberationSans-Regular.ttf", Standard14Fonts.FontName.HELVETICA)
+    val sansBold: PDFont = load("LiberationSans-Bold.ttf", Standard14Fonts.FontName.HELVETICA_BOLD)
+    val sansBlack: PDFont = load("LiberationSans-Bold.ttf", Standard14Fonts.FontName.HELVETICA_BOLD)
+    val sansItalic: PDFont = load("LiberationSans-Italic.ttf", Standard14Fonts.FontName.HELVETICA_OBLIQUE)
     val serif: PDFont = load("LiberationSerif-Regular.ttf", Standard14Fonts.FontName.TIMES_ROMAN)
     val serifBold: PDFont = load("LiberationSerif-Bold.ttf", Standard14Fonts.FontName.TIMES_BOLD)
 

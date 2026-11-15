@@ -1,5 +1,8 @@
 package com.afrithecus.brainbox.api.report
 
+import com.afrithecus.brainbox.api.report.render.GradeAnalysisRenderer
+import com.afrithecus.brainbox.api.report.render.TraditionalCombinedRenderer
+import com.afrithecus.brainbox.api.report.render.TraditionalPerClassRenderer
 import com.afrithecus.brainbox.api.report.web.ReportType
 import com.afrithecus.brainbox.api.traditional.model.displayName
 import org.apache.pdfbox.pdmodel.PDDocument
@@ -31,19 +34,46 @@ import kotlin.math.roundToInt
 @Component
 class ReportRenderer(private val properties: ReportProperties) {
 
-    fun render(spec: ReportRenderSpec): ByteArray {
+    // The traditional documents are rendered by the ported report-book renderers (A9a/A9b/A10);
+    // the legacy canvas below still serves the CBC/student/template reports.
+    private val combinedRenderer = TraditionalCombinedRenderer(properties)
+    private val perClassRenderer = TraditionalPerClassRenderer(properties)
+    private val analysisRenderer = GradeAnalysisRenderer(properties)
+
+    fun render(spec: ReportRenderSpec): ByteArray = when (spec) {
+        // The traditional report-book documents own their PDDocument and return bytes directly.
+        is GradeTableSpec -> if (spec.perClass) {
+            throw IllegalArgumentException("Per-class tables need a class tag; use renderArtifact()")
+        } else {
+            combinedRenderer.render(spec)
+        }
+        is GradeAnalysisSpec -> analysisRenderer.render(spec)
+        // The remaining report families still use the legacy canvas below.
+        else -> renderLegacy(spec)
+    }
+
+    private fun renderLegacy(spec: ReportRenderSpec): ByteArray {
         PDDocument().use { document ->
             when (spec) {
-                is GradeTableSpec -> renderGradeTable(document, spec)
-                is GradeAnalysisSpec -> renderGradeAnalysis(document, spec)
                 is TraditionalStudentsSpec -> renderTraditionalStudents(document, spec)
                 is CbcStudentsSpec -> renderCbcStudents(document, spec)
                 is CbcClassSpec -> renderCbcClass(document, spec)
                 is TemplateSpec -> renderTemplate(document, spec)
+                else -> Unit
             }
             val out = ByteArrayOutputStream()
             document.save(out)
             return out.toByteArray()
+        }
+    }
+
+    /** Renders one planned artifact (D19); per-class artifacts carry the class tag. */
+    fun renderArtifact(artifact: ReportArtifact): ByteArray {
+        val spec = artifact.spec
+        return if (artifact.classTag != null && spec is GradeTableSpec) {
+            perClassRenderer.render(spec, artifact.classTag)
+        } else {
+            render(spec)
         }
     }
 

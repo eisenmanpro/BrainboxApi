@@ -45,7 +45,7 @@ object ReportFurniture {
 
         val crestX = MARGIN + 16f
         val centerY = height - bandHeight / 2f
-        crest(canvas, logo, crestX, centerY, 34f)
+        crest(canvas, logo, branding.schoolName, crestX, centerY, 34f)
 
         val textX = crestX + 30f
         canvas.text(branding.schoolName, textX, height - bandHeight / 2 + 6f, canvas.theme.serifBold, 15f, ReportTheme.PAPER)
@@ -74,7 +74,7 @@ object ReportFurniture {
     }
 
     /** School crest: uploaded logo when present, otherwise the bundled BrainBox mark. */
-    fun crest(canvas: ReportCanvas, logo: PDImageXObject?, cx: Float, cy: Float, size: Float) {
+    fun crest(canvas: ReportCanvas, logo: PDImageXObject?, schoolName: String, cx: Float, cy: Float, size: Float) {
         canvas.fillRound(cx - size / 2, cy - size / 2, size, size, 7f, ReportTheme.PAPER)
         canvas.ring(cx, cy, size / 2, ReportTheme.mix(ReportTheme.GOLD2, ReportTheme.PAPER, 0.25f), 0.8f)
         val image = logo ?: ReportImages.brainboxMark(canvas.document)
@@ -86,7 +86,7 @@ object ReportFurniture {
             canvas.image(image, cx - imageWidth / 2, cy - imageHeight / 2, imageWidth, imageHeight)
             return
         }
-        canvas.textC(initials(canvas.toString()), cx, cy - 4.6f, canvas.theme.serifBold, 12.5f, ReportTheme.DARK)
+        canvas.textC(initials(schoolName), cx, cy - 4.6f, canvas.theme.serifBold, 12.5f, ReportTheme.DARK)
     }
 
     /** One-line title strip under the band: left title, right meta, hairline. */

@@ -48,6 +48,23 @@ class ReportCanvasTest {
     }
 
     @Test
+    fun `extraction keeps ti pairs and accented glyphs (A14, F20)`() {
+        PDDocument().use { document ->
+            val theme = ReportTheme(document)
+            val canvas = ReportCanvas(document, theme, PDRectangle.A4.width, PDRectangle.A4.height)
+            canvas.text("Otieno correction continued Mathematics Ngũgĩ", 36f, 700f, theme.sans, 10f, ReportTheme.INK)
+            canvas.close()
+            val bytes = ByteArrayOutputStream().also { document.save(it) }.toByteArray()
+            Loader.loadPDF(bytes).use { reloaded ->
+                val text = PDFTextStripper().getText(reloaded)
+                listOf("Otieno", "correction", "continued", "Mathematics", "Ngũgĩ").forEach { word ->
+                    assertTrue(text.contains(word), "missing \"" + word + "\" in: " + text)
+                }
+            }
+        }
+    }
+
+    @Test
     fun `canvas renders and text extracts including accented names`() {
         PDDocument().use { document ->
             val theme = ReportTheme(document)

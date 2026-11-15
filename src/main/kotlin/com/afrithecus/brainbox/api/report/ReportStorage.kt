@@ -17,8 +17,8 @@ class ReportStorage(
     private val properties: StorageProperties,
 ) {
 
-    fun save(storageName: String, bytes: ByteArray): Long {
-        storage.put(storageName, bytes, "application/pdf")
+    fun save(storageName: String, bytes: ByteArray, contentType: String = "application/pdf"): Long {
+        storage.put(storageName, bytes, contentType)
         return bytes.size.toLong()
     }
 

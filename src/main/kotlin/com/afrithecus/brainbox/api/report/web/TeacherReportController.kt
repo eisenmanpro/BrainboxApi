@@ -156,8 +156,9 @@ class TeacherReportController(
         // must not both pass the weekly cap.
         val remaining = reserveDownload(job)
         val fileName = (job.fileName ?: (id.toString() + ".pdf")).replace("\"", "")
+        val contentType = if (fileName.endsWith(".zip", ignoreCase = true)) "application/zip" else "application/pdf"
         return ResponseEntity.ok()
-            .header(HttpHeaders.CONTENT_TYPE, "application/pdf")
+            .header(HttpHeaders.CONTENT_TYPE, contentType)
             .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
             .header("X-Reports-Quota-Remaining", remaining.toString())
             .body(bytes)

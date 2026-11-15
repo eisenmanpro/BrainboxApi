@@ -88,6 +88,54 @@ class ReportDataService(
         }
     }
 
+    /**
+     * One render task per artifact (D19). Per-class tables render one PDF per class: a
+     * request with a class tag yields exactly that class, a blank tag yields every class
+     * of the exam and the job bundles the files. Every other report type is a single PDF.
+     */
+    fun buildArtifacts(
+        request: ReportGenerationRequestPayload,
+        actor: CurrentUser,
+        branding: ReportBranding,
+    ): List<ReportArtifact> {
+        if (request.reportType != ReportType.TRADITIONAL_PER_CLASS_TABLES) {
+            return listOf(ReportArtifact(build(request, actor, branding)))
+        }
+        val examId = requireExamId(request)
+        val exam = traditional.getExam(actor, examId)
+        val rows = withAbsentRows(actor, exam, traditional.gradeWideRanking(actor, examId))
+        val bands = exam.grading?.bands
+            ?.map { ReportGradingBand(it.grade, it.minPercentage.toDouble()) }
+            .orEmpty()
+        val classTags = rows.map { it.classTag }.filter { it.isNotBlank() }.distinct().sorted()
+        val requested = request.classTag?.trim()?.takeIf { it.isNotEmpty() }
+        val selected = if (requested == null) {
+            classTags
+        } else {
+            classTags.filter { it.equals(requested, ignoreCase = true) }
+        }
+        if (selected.isEmpty()) {
+            throw invalidArgument("classTag is not one of this exam's classes")
+        }
+        val title = exam.title + " - Per Class Tables"
+        val classTeachers = runCatching { traditional.classTeachers(actor, examId) }.getOrDefault(emptyMap())
+        return selected.map { classTag ->
+            val classRows = rows.filter { it.classTag.equals(classTag, ignoreCase = true) }
+            ReportArtifact(
+                spec = GradeTableSpec(
+                    title = title,
+                    branding = branding,
+                    exam = exam,
+                    rows = classRows,
+                    perClass = true,
+                    bands = bands,
+                    classTeachers = classTeachers,
+                ),
+                classTag = classTag,
+            )
+        }
+    }
+
     /** Rough row/student count driving the server-side sync/async decision. */
     fun estimate(request: ReportGenerationRequestPayload, actor: CurrentUser): Int = when (request.reportType) {
         ReportType.TRADITIONAL_COMBINED, ReportType.TRADITIONAL_PER_CLASS_TABLES,
@@ -111,7 +159,15 @@ class ReportDataService(
         val exam = traditional.getExam(actor, examId)
         val ranked = withAbsentRows(actor, exam, traditional.gradeWideRanking(actor, examId))
         val title = if (perClass) exam.title + " - Per Class Tables" else exam.title
-        return GradeTableSpec(title, branding, exam, ranked, perClass)
+        // D18: the lists print the bands resolved when the capture session was created, not
+        // whatever the grade setting happens to be at download time.
+        val bands = exam.grading?.bands
+            ?.map { ReportGradingBand(it.grade, it.minPercentage.toDouble()) }
+            .orEmpty()
+        // D11/F25: the class teacher on the per-class header comes from the class row, resolved
+        // by the traditional service; raw class tags match StudentGradeRowDto.classTag.
+        val classTeachers = runCatching { traditional.classTeachers(actor, examId) }.getOrDefault(emptyMap())
+        return GradeTableSpec(title, branding, exam, ranked, perClass, bands, classTeachers)
     }
 
     private fun cbcStudentCards(request: ReportGenerationRequestPayload, actor: CurrentUser, detailed: Boolean): List<CbcStudentCard> {
@@ -144,7 +200,10 @@ class ReportDataService(
     ): List<StudentGradeRowDto> {
         val present = rows.map { it.studentId }.toSet()
         val roster = runCatching { traditional.students(actor, exam.examId, exam.gradeLevel) }.getOrDefault(emptyList())
-        val grading = runCatching { traditional.gradingConfig(actor, exam.gradeLevel, null) }.getOrNull()
+        // The session snapshot is authoritative for this exam (D18); the live grade setting is
+        // only a fallback for legacy exams that predate the snapshot.
+        val grading = exam.grading
+            ?: runCatching { traditional.gradingConfig(actor, exam.gradeLevel, null) }.getOrNull()
         val zeroGrade = grading?.bands?.minByOrNull { it.minPercentage }?.grade
             ?: grading?.bands?.lastOrNull()?.grade ?: "-"
         val overallZero = grading?.overallBands?.minByOrNull { it.minRawScore }?.grade ?: zeroGrade
@@ -178,3 +237,12 @@ class ReportDataService(
     private fun requireExamId(request: ReportGenerationRequestPayload): String =
         request.examId?.takeIf { it.isNotBlank() } ?: throw invalidArgument("examId is required for a traditional report")
 }
+
+/**
+ * A single PDF the job must render. [classTag] is set for per-class tables so the renderer
+ * renders exactly that class; the job names and (when there are several) bundles the files.
+ */
+data class ReportArtifact(
+    val spec: ReportRenderSpec,
+    val classTag: String? = null,
+)

@@ -226,12 +226,18 @@ class ReportCanvas(
         text(value, rightX - textWidth(value, font, size), y, font, size, color)
     }
 
+    /**
+     * Letter-spaced caps. Uses the PDF character-spacing operator on one string instead of
+     * drawing each glyph separately, so the extracted text stays a word ("TOTALS") rather
+     * than "T O T A L S" (A14).
+     */
     fun tracked(value: String?, x: Float, y: Float, font: PDFont, size: Float, spacing: Float, color: Color) {
         if (value.isNullOrEmpty()) return
-        var cx = x
-        for (ch in value) {
-            text(ch.toString(), cx, y, font, size, color)
-            cx += textWidth(ch.toString(), font, size) + spacing
+        try {
+            stream.setCharacterSpacing(spacing)
+            text(value, x, y, font, size, color)
+        } finally {
+            stream.setCharacterSpacing(0f)
         }
     }
 
