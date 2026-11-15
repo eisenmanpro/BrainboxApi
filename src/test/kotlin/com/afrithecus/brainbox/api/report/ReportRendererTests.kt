@@ -182,17 +182,17 @@ class ReportRendererTests {
     @Test
     fun `blank templates render for every report type`() {
         ReportType.entries.forEach { type ->
-            val bytes = renderer.render(TemplateSpec("Template - " + type.name, branding, type))
+            val bytes = renderer.render(TemplateSpec(ReportTitles.templateTitle(type), branding, type))
             assertPdf(bytes)
-            val content = text(bytes)
-            assertTrue(content.contains("Template - " + type.name), "template title missing for " + type)
-            assertTrue(content.contains("Blank template"), "template subtitle missing for " + type)
+            val compact = text(bytes).replace(Regex("\\s+"), "")
+            assertTrue(compact.contains("TEMPLATE"), "template watermark missing for " + type)
+            assertTrue(compact.contains("Blanktemplate"), "template subtitle missing for " + type)
+            assertTrue(compact.contains(ReportTitles.title(type).replace(" ", "")), "template title missing for " + type)
         }
-        val cbc = text(renderer.render(TemplateSpec("Template - CBC", branding, ReportType.CBC_STUDENT)))
-        assertTrue(cbc.contains("CBC Learning Areas"), "CBC student template sections missing")
-        assertTrue(cbc.contains("Communication & Collaboration"), "CBC strand names missing")
-        val detailed = text(renderer.render(TemplateSpec("Template - CBC", branding, ReportType.DETAILED_CBC_CLASS)))
-        assertTrue(detailed.contains("Weak Strand Recommendations"), "detailed class section missing")
+        val cbc = text(renderer.render(TemplateSpec("Template - CBC", branding, ReportType.CBC_STUDENT))).replace(Regex("\\s+"), "")
+        assertTrue(cbc.contains("CBCLEARNINGAREAS"), "CBC student template sections missing")
+        val detailed = text(renderer.render(TemplateSpec("Template - CBC", branding, ReportType.DETAILED_CBC_CLASS))).replace(Regex("\\s+"), "")
+        assertTrue(detailed.contains("WEAKSTRANDRECOMMENDATIONS"), "detailed class section missing")
     }
 
     @Test
@@ -211,12 +211,25 @@ class ReportRendererTests {
             CbcStudentDetail(learningStreakDays = 12, totalXp = 450, classAverageScore = 71.5, classPercentile = 80),
         )
         val detailed = CbcStudentsSpec("Detailed Student CBC Report", branding, listOf(student), detailed = true)
-        assertPdf(
-            renderer.render(detailed),
-            listOf("CBC Analytics Report", "Attendance & Engagement", "CBC Assessment Levels", "Reads fluently", "12 days", "450 XP", "71.5%", "80th"),
-        )
+        val detailedText = text(renderer.render(detailed)).replace(Regex("\\s+"), "")
+        listOf(
+            "CBCAnalyticsReport",
+            "LEARNINGSTREAK",
+            "TOTALXP",
+            "CLASSAVERAGE",
+            "CLASSPERCENTILE",
+            "Readsfluently",
+            "12",
+            "450",
+            "71.5%",
+            "80th",
+            "OFFICIALSCHOOLRECORD",
+        ).forEach { expected ->
+            assertTrue(detailedText.contains(expected), "detailed analytics page missing: " + expected)
+        }
+        assertTrue(!detailedText.contains("AttendanceEngagement"), "legacy analytics page must be gone")
         val plain = text(renderer.render(CbcStudentsSpec("Student CBC Report", branding, listOf(student))))
-        assertTrue(!plain.contains("CBC Assessment Levels"), "plain CBC report must not include the analytics page")
+        assertTrue(!plain.contains("CBC Analytics Report"), "plain CBC report must not include the analytics page")
     }
 
     @Test
@@ -233,7 +246,9 @@ class ReportRendererTests {
             subjectTeacherPerformance = emptyList(),
         )
         val detailed = text(renderer.render(CbcClassSpec("Detailed Class CBC Report", branding, classReport, detailed = true)))
-        assertTrue(detailed.contains("Weak Strand Recommendations"), "detailed class report needs the separate section")
-        assertTrue(detailed.contains("Reteach fractions"), "weak strand recommendation missing")
+            .replace(Regex("\\s+"), "")
+        assertTrue(detailed.contains("WEAKSTRANDRECOMMENDATIONS"), "detailed class report needs the separate section")
+        assertTrue(detailed.contains("Reteachfractions"), "weak strand recommendation missing")
+        assertTrue(!detailed.contains("Keepreadingdaily"), "on-track strands must not repeat on the recommendations page")
     }
 }

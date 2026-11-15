@@ -78,10 +78,53 @@ data class CbcClassSpec(
     val classReport: CbcClassReportPayload,
     /** Academic year shown in the landscape header; null renders the term box only. */
     val year: Int? = null,
-    /** When set (teacher-performance report) only this teacher's row is shown. */
-    val focusTeacher: String? = null,
     /** DETAILED_CBC_CLASS renders weak-strand recommendations as a separate section. */
     val detailed: Boolean = false,
+) : ReportRenderSpec
+
+/** One strand achieved by the teacher's taught subject (A6/D4). */
+data class TeacherStrandScore(
+    val code: String,
+    /** Learning-area name joined from the class report when available (else the code). */
+    val name: String,
+    val percentage: Double,
+)
+
+/** One subject the teacher delivers in this class (A6/D4). */
+data class TeacherSubjectPerformance(
+    val subject: String,
+    val average: Double,
+    val learners: Int,
+    val strands: List<TeacherStrandScore> = emptyList(),
+)
+
+/**
+ * TEACHER_PERFORMANCE spec (type 4, D4/F10).
+ *
+ * Unlike [CbcClassSpec], every figure here is **teacher-specific**: the averages and strand
+ * scores are the ones achieved by the named teacher in the taught subjects, and the class
+ * average is the class-level comparison baseline. Built by ReportDataService from
+ * CbcAnalyticsService.classReport (subjectTeacherPerformance + strandMastery); the renderer
+ * never re-derives class-wide numbers into "the teacher's" performance.
+ */
+data class TeacherPerformanceSpec(
+    override val title: String,
+    override val branding: ReportBranding,
+    val teacherName: String,
+    val className: String,
+    val term: String,
+    val year: Int?,
+    /** Mean of the teacher's taught-subject averages. */
+    val teacherAverage: Double,
+    /** Whole-class average, used only for the teacher-vs-class comparison. */
+    val classAverage: Double,
+    /** Distinct subjects the teacher teaches in this class. */
+    val subjects: List<TeacherSubjectPerformance>,
+    /** Distinct subjects taught in the class by any teacher (coverage denominator). */
+    val subjectsInClass: Int,
+    val learners: Int,
+    val topSubject: String?,
+    val topSubjectAverage: Double,
 ) : ReportRenderSpec
 
 /** A blank, branded template (no report data) for the templates screen. */

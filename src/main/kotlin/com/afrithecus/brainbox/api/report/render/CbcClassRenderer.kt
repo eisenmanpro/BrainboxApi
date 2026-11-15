@@ -1,22 +1,35 @@
 package com.afrithecus.brainbox.api.report.render
 
 import com.afrithecus.brainbox.api.cbcratings.web.CbcClassReportPayload
+import com.afrithecus.brainbox.api.cbcratings.web.CbcStrandMasteryPayload
 import com.afrithecus.brainbox.api.report.CbcClassSpec
 import com.afrithecus.brainbox.api.report.ReportBranding
 import com.afrithecus.brainbox.api.report.ReportProperties
 import org.apache.pdfbox.pdmodel.PDDocument
+import org.apache.pdfbox.pdmodel.font.PDFont
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject
 import org.springframework.stereotype.Component
+import java.awt.Color
 import java.io.ByteArrayOutputStream
+import kotlin.math.min
 
 /**
- * CBC_CLASS report (plan A5, type 3, v1 page 03).
+ * CBC_CLASS report (plan A5, type 3, v1 page 03) and DETAILED_CBC_CLASS (plan A8, type 6).
  *
- * One A4 landscape page: hero header, four KPI tiles (overall average, strands assessed,
- * on track, needs support - with the real roster count from D2), strand mastery bars with
- * On Track / Needs Support chips, subject and teacher impact bars, and the "focus for next
- * term" callout built from the weakest strands. Teacher performance (A6) is a different
- * report and never renders through this class-level view.
+ * Page 1 is the v1 class report: hero header, four KPI tiles (overall average, strands
+ * assessed, on track, needs support - with the real roster count from D2), strand mastery
+ * bars with On Track / Needs Support chips, subject and teacher impact bars, and the "focus
+ * for next term" callout built from the weakest strands.
+ *
+ * DETAILED_CBC_CLASS (A8/Q10) keeps that page and **only** appends a second page when at
+ * least one weak strand carries a recommendation. The second page is a compact continuation
+ * sheet in the same v1 table language: a "Weak strand recommendations" table (strand,
+ * average, learners needing support, recommendation), a key-figures strip derived from the
+ * same payload, the Exam Office stamp and the official-record line. It never repeats the
+ * class strand list, so on-track learning areas cannot leak onto it (A8/F7).
+ *
+ * Teacher performance (A6) is a different report (TeacherPerformanceRenderer) and never
+ * renders through this class-level view.
  */
 @Component
 class CbcClassRenderer(
@@ -24,13 +37,21 @@ class CbcClassRenderer(
 ) {
 
     fun render(spec: CbcClassSpec): ByteArray {
-        require(spec.focusTeacher == null) { "Teacher performance reports are not class reports" }
         return PDDocument().use { document ->
             document.documentInformation.title = spec.title
             val theme = ReportTheme(document)
             val logo = ReportImages.brandingLogo(document, spec.branding.logoUrl, properties.embedLogo)
-            ReportCanvas(document, theme, 841.89f, 595.28f).use { canvas ->
-                draw(canvas, spec.branding, logo, spec.classReport, spec.year?.toString().orEmpty())
+            val report = spec.classReport
+            val recommendations = recommendationsFor(spec)
+            val pages = if (recommendations.isEmpty()) 1 else 2
+            val yearLabel = spec.year?.toString().orEmpty()
+            ReportCanvas(document, theme, LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT).use { canvas ->
+                draw(canvas, spec.branding, logo, report, yearLabel, 1, pages)
+            }
+            if (recommendations.isNotEmpty()) {
+                ReportCanvas(document, theme, LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT).use { canvas ->
+                    drawRecommendations(canvas, spec.branding, logo, report, recommendations, pages)
+                }
             }
             val out = ByteArrayOutputStream()
             document.save(out)
@@ -38,7 +59,27 @@ class CbcClassRenderer(
         }
     }
 
-    private fun draw(canvas: ReportCanvas, branding: ReportBranding, logo: PDImageXObject?, report: CbcClassReportPayload, specYear: String) {
+    /**
+     * A8: the recommendations page exists only for DETAILED_CBC_CLASS and only when a weak
+     * strand actually has a recommendation - a weak strand without one is a data gap, not a
+     * reason to print an empty page.
+     */
+    private fun recommendationsFor(spec: CbcClassSpec): List<CbcStrandMasteryPayload> {
+        if (!spec.detailed) return emptyList()
+        return spec.classReport.strandMastery.filter { it.isWeakStrand && !it.recommendation.isNullOrBlank() }
+    }
+
+    // ------------------------------------------------------------------ page 1 (A5)
+
+    private fun draw(
+        canvas: ReportCanvas,
+        branding: ReportBranding,
+        logo: PDImageXObject?,
+        report: CbcClassReportPayload,
+        specYear: String,
+        page: Int,
+        pages: Int,
+    ) {
         val termLabel = prettyTerm(report.term)
         ReportFurniture.cardWatermark(canvas, branding)
         val offset = ReportFurniture.cardHeader(
@@ -164,8 +205,503 @@ class CbcClassRenderer(
             36f + contentWidth - 18f,
             focusY + focusHeight / 2f,
         )
-        ReportFurniture.cardFooter(canvas, branding, termLabel, 1, 1)
+        ReportFurniture.cardFooter(canvas, branding, termLabel, page, pages)
     }
+
+    // ------------------------------------------------- page 2 (A8 detailed recommendations)
+
+    /**
+     * A4 landscape continuation sheet. Reading order: compact identity header, the
+     * recommendations table (the only place a weak strand is named), the derived key
+     * figures, an optional plain-language review note, then the Exam Office sign-off.
+     * Secondary blocks appear only when the table leaves room, so a many-strand class still
+     * fits one sheet; nothing is ever clipped.
+     */
+    private fun drawRecommendations(
+        canvas: ReportCanvas,
+        branding: ReportBranding,
+        logo: PDImageXObject?,
+        report: CbcClassReportPayload,
+        recommendations: List<CbcStrandMasteryPayload>,
+        pages: Int,
+    ) {
+        val termLabel = prettyTerm(report.term)
+        ReportFurniture.cardWatermark(canvas, branding)
+        val contentTop = continuationHeader(canvas, branding, logo, report.className, termLabel)
+        val contentWidth = canvas.width - 72f
+
+        sectionHeading(canvas, "WEAK STRAND RECOMMENDATIONS", 36f, contentTop + 2f, contentWidth)
+        summaryLine(canvas, recommendations.size, report.strandMastery.size, 36f, contentTop + 20f)
+
+        val tableTop = contentTop + 34f
+        val tableBottom = recommendationsTable(canvas, report, recommendations, tableTop, BOTTOM_CONTENT_LIMIT)
+
+        // Totals-style figures under the table (the v1 "so what does this mean" idiom). A short
+        // table gets the tall card treatment so a one- or two-finding page is not half empty.
+        val tallFigures = recommendations.size <= 3
+        val figuresHeight = if (tallFigures) TALL_FIGURES_HEIGHT else SHORT_FIGURES_HEIGHT
+        val figuresTop = tableBottom + 18f
+        val figuresShown = figuresTop + figuresHeight <= BOTTOM_CONTENT_LIMIT
+        if (figuresShown) {
+            keyFigures(canvas, report, recommendations, figuresTop, contentWidth, figuresHeight, tallFigures)
+        }
+
+        // Only the sparsest sheets have room for the plain-language review note; denser sheets
+        // keep the table + figures and let the footnote carry the explanation.
+        val followTop = if (figuresShown) figuresTop + figuresHeight + 16f else tableBottom + 18f
+        if (followTop + FOLLOW_UP_HEIGHT <= BOTTOM_CONTENT_LIMIT) {
+            followUp(canvas, recommendations.size, followTop, contentWidth)
+        }
+
+        signOff(canvas, contentWidth)
+        ReportFurniture.cardFooter(canvas, branding, termLabel, pages, pages)
+    }
+
+    /** Compact continuation header: double frame, crest + school left, serif title, class + term right. */
+    private fun continuationHeader(
+        canvas: ReportCanvas,
+        branding: ReportBranding,
+        logo: PDImageXObject?,
+        className: String,
+        termLabel: String,
+    ): Float {
+        val width = canvas.width
+        val height = canvas.height
+        canvas.strokeRect(11f, 11f, width - 22f, height - 22f, ReportTheme.NAVY, 0.9f)
+        canvas.strokeRect(15f, 15f, width - 30f, height - 30f, ReportTheme.mix(ReportTheme.NAVY, ReportTheme.PAPER, 0.72f), 0.4f)
+        canvas.fillRect(15f, height - 19f, width - 30f, 3.2f, ReportTheme.NAVY)
+
+        val crestX = 48f
+        val crestR = 17f
+        val crestCy = canvas.top(44f)
+        canvas.fillRound(crestX - crestR, crestCy - crestR, crestR * 2, crestR * 2, crestR, ReportTheme.MINT)
+        canvas.ring(crestX, crestCy, crestR, ReportTheme.NAVY, 1.3f)
+        canvas.ring(crestX, crestCy, crestR - 3.6f, ReportTheme.GOLD, 0.45f)
+        val image = logo ?: ReportImages.brainboxMark(canvas.document)
+        if (image != null) {
+            canvas.fillRound(crestX - crestR + 4f, crestCy - crestR + 4f, (crestR - 4f) * 2, (crestR - 4f) * 2, crestR - 4f, ReportTheme.PAPER)
+            val max = crestR * 2 - 11f
+            val scale = minOf(max / image.width, max / image.height)
+            val imageWidth = image.width * scale
+            val imageHeight = image.height * scale
+            canvas.image(image, crestX - imageWidth / 2f, crestCy - imageHeight / 2f, imageWidth, imageHeight)
+        } else {
+            canvas.textC(ReportFurniture.initials(branding.schoolName), crestX, crestCy - 4.2f, canvas.theme.serifBold, 11f, ReportTheme.NAVY)
+        }
+
+        val title = "Detailed Class CBC Report"
+        val titleSize = 19f
+        val titleWidth = canvas.textWidth(title, canvas.theme.serifBold, titleSize)
+        val centreX = width / 2f
+        canvas.textC(title, centreX, canvas.top(40f), canvas.theme.serifBold, titleSize, ReportTheme.NAVY)
+        canvas.trackedC("CLASS CBC REPORT  ·  RECOMMENDATIONS", centreX, canvas.top(55f), canvas.theme.sansBold, 6f, 1.3f, ReportTheme.MUTED)
+
+        // school identity, kept clear of the centred title
+        val textX = crestX + crestR + 13f
+        val nameMax = centreX - titleWidth / 2f - 24f - textX
+        var nameSize = 15f
+        while (nameSize > 10f && canvas.textWidth(branding.schoolName, canvas.theme.serifBold, nameSize) > nameMax) nameSize -= 0.5f
+        canvas.text(
+            canvas.ellipsis(branding.schoolName, canvas.theme.serifBold, nameSize, nameMax),
+            textX,
+            canvas.top(37f),
+            canvas.theme.serifBold,
+            nameSize,
+            ReportTheme.NAVY,
+        )
+        val motto = branding.motto?.takeIf { it.isNotBlank() }
+        if (motto != null) {
+            canvas.tracked(
+                canvas.ellipsis(motto.uppercase(), canvas.theme.sansBold, 6.2f, nameMax),
+                textX,
+                canvas.top(51f),
+                canvas.theme.sansBold,
+                6.2f,
+                1.35f,
+                ReportTheme.TEAL,
+            )
+        } else {
+            val contact = listOfNotNull(
+                branding.address?.takeIf { it.isNotBlank() },
+                branding.phone?.takeIf { it.isNotBlank() },
+                branding.email?.takeIf { it.isNotBlank() },
+            ).joinToString("   |   ")
+            canvas.text(
+                canvas.ellipsis(contact, canvas.theme.sans, 6.4f, nameMax),
+                textX,
+                canvas.top(51f),
+                canvas.theme.sans,
+                6.4f,
+                ReportTheme.MUTED,
+            )
+        }
+
+        // class + term, right, kept clear of the centred title
+        val rightEdge = width - 36f
+        val rightMax = centreX + titleWidth / 2f + 24f
+        canvas.trackedR("CLASS  ·  TERM", rightEdge, canvas.top(34f), canvas.theme.sansBold, 5.6f, 1.2f, ReportTheme.MUTED)
+        val meta = listOf(className, termLabel).filter { it.isNotBlank() }.joinToString("  ·  ")
+        canvas.textR(
+            canvas.ellipsis(meta, canvas.theme.sansBold, 9.6f, rightEdge - rightMax),
+            rightEdge,
+            canvas.top(48f),
+            canvas.theme.sansBold,
+            9.6f,
+            ReportTheme.NAVY,
+        )
+
+        val ruleY = canvas.top(66f)
+        canvas.line(36f, ruleY, width - 36f, ruleY, ReportTheme.LINE, 0.7f)
+        canvas.diamond(36f, ruleY, 2f, ReportTheme.GOLD)
+        canvas.diamond(width - 36f, ruleY, 2f, ReportTheme.GOLD)
+        return 78f
+    }
+
+    /** Section label with the trailing hairline used across the v1 card pages. */
+    private fun sectionHeading(canvas: ReportCanvas, label: String, x: Float, top: Float, width: Float) {
+        val baseline = canvas.top(top)
+        canvas.fillRect(x, baseline - 1.5f, 6f, 6f, ReportTheme.TEAL)
+        canvas.tracked(label, x + 12f, baseline, canvas.theme.sansBold, 6.8f, 1.4f, ReportTheme.NAVY)
+        val labelWidth = canvas.trackedWidth(label, canvas.theme.sansBold, 6.8f, 1.4f)
+        canvas.line(x + 12f + labelWidth + 12f, baseline + 2f, x + width, baseline + 2f, ReportTheme.LINE, 0.6f)
+    }
+
+    private fun summaryLine(canvas: ReportCanvas, weakCount: Int, totalStrands: Int, x: Float, top: Float) {
+        val count = if (totalStrands > 0) "$weakCount of $totalStrands learning areas" else "$weakCount learning areas"
+        val rest = " below target - reviewed with subject teachers"
+        val baseline = canvas.top(top)
+        canvas.text(count, x, baseline, canvas.theme.sansBold, 8.8f, ReportTheme.AMBER)
+        canvas.text(rest, x + canvas.textWidth(count, canvas.theme.sansBold, 8.8f), baseline, canvas.theme.sans, 8.8f, ReportTheme.MUTED)
+    }
+
+    /**
+     * The recommendation table. Row height adapts to how many weak strands carry a
+     * recommendation so two findings do not become two thin lines on a landscape page; when
+     * a class has too many findings for one page the list truncates with an explicit note
+     * instead of overflowing the sign-off block (A8/Q10).
+     */
+    private fun recommendationsTable(
+        canvas: ReportCanvas,
+        report: CbcClassReportPayload,
+        recommendations: List<CbcStrandMasteryPayload>,
+        top: Float,
+        bottomLimit: Float,
+    ): Float {
+        val x = 36f
+        val width = canvas.width - 72f
+        val colStrand = 226f
+        val colAverage = 100f
+        val colLearners = 154f
+        val colRecommendation = width - colStrand - colAverage - colLearners
+
+        val headerFont = canvas.theme.sansBold
+        val headerSize = 6.2f
+        val headerSpacing = 1.1f
+        val learnersHeader = "LEARNERS NEEDING SUPPORT"
+        val learnersHeaderWidth = canvas.trackedWidth(learnersHeader, headerFont, headerSize, headerSpacing)
+        val twoLineLearnerHeader = learnersHeaderWidth > colLearners - 28f
+        val headerHeight = if (twoLineLearnerHeader) 32f else 26f
+
+        val available = (bottomLimit - top - headerHeight).coerceAtLeast(0f)
+        val idealRowHeight = when {
+            recommendations.size <= 2 -> 96f
+            recommendations.size <= 4 -> 72f
+            recommendations.size <= 6 -> 56f
+            else -> 48f
+        }
+        var shown = recommendations.size
+        var rowHeight = min(idealRowHeight, available / shown)
+        if (rowHeight < MIN_TABLE_ROW_HEIGHT) {
+            // reserve one line for the "showing N of M" note before truncating
+            val forRows = (available - 15f).coerceAtLeast(MIN_TABLE_ROW_HEIGHT)
+            shown = (forRows / MIN_TABLE_ROW_HEIGHT).toInt().coerceIn(1, recommendations.size)
+            rowHeight = min(idealRowHeight, forRows / shown)
+        }
+        val truncated = shown < recommendations.size
+
+        canvas.fillRound(x, canvas.top(top + headerHeight), width, headerHeight, 3f, ReportTheme.NAVY)
+        val headerBaseline = if (twoLineLearnerHeader) {
+            canvas.top(top + headerHeight / 2f + 4f) - 0.36f * headerSize
+        } else {
+            canvas.top(top + headerHeight / 2f) - 0.36f * headerSize
+        }
+        canvas.tracked("STRAND", x + 14f, headerBaseline, headerFont, headerSize, headerSpacing, ReportTheme.PAPER)
+        canvas.trackedR("AVERAGE", x + colStrand + colAverage - 14f, headerBaseline, headerFont, headerSize, headerSpacing, ReportTheme.PAPER)
+        canvas.tracked("RECOMMENDATION", x + colStrand + colAverage + colLearners + 14f, headerBaseline, headerFont, headerSize, headerSpacing, ReportTheme.PAPER)
+        if (twoLineLearnerHeader) {
+            canvas.trackedR("LEARNERS NEEDING", x + colStrand + colAverage + colLearners - 14f, canvas.top(top + 12f), headerFont, headerSize, headerSpacing, ReportTheme.PAPER)
+            canvas.trackedR("SUPPORT", x + colStrand + colAverage + colLearners - 14f, canvas.top(top + 23f), headerFont, headerSize, headerSpacing, ReportTheme.PAPER)
+        } else {
+            canvas.trackedR(learnersHeader, x + colStrand + colAverage + colLearners - 14f, headerBaseline, headerFont, headerSize, headerSpacing, ReportTheme.PAPER)
+        }
+
+        val rows = recommendations.take(shown)
+        rows.forEachIndexed { index, strand ->
+            val rowTop = top + headerHeight + index * rowHeight
+            val rowY = canvas.top(rowTop + rowHeight)
+            if (index % 2 == 1) canvas.fillRect(x, rowY, width, rowHeight, ReportTheme.MINT_SOFT)
+            canvas.line(x, rowY, x + width, rowY, ReportTheme.LINE, 0.45f)
+            canvas.fillRect(x, rowY + 8f, 2.6f, rowHeight - 16f, ReportTheme.AMBER)
+
+            val centreY = canvas.top(rowTop + rowHeight / 2f)
+            val spread = min(14f, rowHeight * 0.16f)
+            val nameSize = if (rowHeight >= 64f) 9.2f else 9f
+            canvas.text(
+                canvas.ellipsis(strand.strandName, canvas.theme.sansBold, nameSize, colStrand - 30f),
+                x + 14f,
+                centreY + 3.4f,
+                canvas.theme.sansBold,
+                nameSize,
+                ReportTheme.INK,
+            )
+            canvas.text(
+                canvas.ellipsis(strand.strandCode, canvas.theme.sans, 6.6f, colStrand - 30f),
+                x + 14f,
+                centreY - 8f,
+                canvas.theme.sans,
+                6.6f,
+                ReportTheme.MUTED,
+            )
+
+            val averageRight = x + colStrand + colAverage - 14f
+            canvas.textR(
+                ReportTheme.pct(strand.classAverage),
+                averageRight,
+                centreY + spread + 1.2f,
+                canvas.theme.sansBlack,
+                if (rowHeight >= 64f) 13f else 10.5f,
+                ReportTheme.AMBER,
+            )
+            supportChip(canvas, averageRight, centreY - spread - 0.6f)
+
+            val learnersRight = x + colStrand + colAverage + colLearners - 14f
+            val support = learnersNeedingSupport(strand)
+            canvas.textR(
+                support?.toString() ?: "\u2014",
+                learnersRight,
+                centreY + spread + 1.2f,
+                canvas.theme.sansBlack,
+                if (rowHeight >= 64f) 13f else 10.5f,
+                ReportTheme.NAVY,
+            )
+            val rated = strand.studentBreakdown.size
+            canvas.textR(
+                when {
+                    support == null -> "no learner ratings"
+                    rated == 1 -> "of 1 rated learner"
+                    rated > 1 -> "of " + rated + " rated learners"
+                    else -> "learners with ratings"
+                },
+                learnersRight,
+                centreY - 8f,
+                canvas.theme.sans,
+                6.4f,
+                ReportTheme.MUTED,
+            )
+
+            val recommendationX = x + colStrand + colAverage + colLearners + 14f
+            val recommendationWidth = colRecommendation - 28f
+            val lines = wrapLines(canvas, strand.recommendation.orEmpty(), canvas.theme.sans, 8.4f, recommendationWidth, 2)
+            val firstBaseline = centreY + if (lines.size == 1) 3.2f else 7.4f
+            lines.forEachIndexed { lineIndex, line ->
+                canvas.text(line, recommendationX, firstBaseline - lineIndex * 11.6f, canvas.theme.sans, 8.4f, ReportTheme.INK)
+            }
+        }
+
+        val tableBottom = top + headerHeight + rows.size * rowHeight
+        canvas.strokeRound(x, canvas.top(tableBottom), width, headerHeight + rows.size * rowHeight, 3f, ReportTheme.LINE, 0.7f)
+        if (truncated) {
+            canvas.text(
+                "Showing $shown of " + recommendations.size + " weak-strand recommendations.",
+                x,
+                canvas.top(tableBottom + 11f),
+                canvas.theme.sans,
+                6.6f,
+                ReportTheme.MUTED,
+            )
+            return tableBottom + 15f
+        }
+        return tableBottom
+    }
+
+    /** Derived key figures for the page: no new payload fields, every value captioned. */
+    private fun keyFigures(
+        canvas: ReportCanvas,
+        report: CbcClassReportPayload,
+        recommendations: List<CbcStrandMasteryPayload>,
+        top: Float,
+        width: Float,
+        height: Float,
+        tall: Boolean,
+    ) {
+        val x = 36f
+        val y = canvas.top(top + height)
+        canvas.box(x, y, width, height, 6f, ReportTheme.PAPER, ReportTheme.LINE, 0.8f)
+        val meanWeak = recommendations.map { it.classAverage }.average()
+        val flagged = flaggedLearners(recommendations)
+        // Denominator = learners who actually have a rating in any weak strand; the class roster
+        // can be much larger than the assessed set, and "1 of 20" would imply 19 were cleared (F49 honesty).
+        val learnersTotal = recommendations.flatMap { it.studentBreakdown.keys }.distinct().size
+        val cells = listOf(
+            Triple(
+                "BELOW TARGET",
+                recommendations.size.toString() + " of " + report.strandMastery.size,
+                "learning areas need support",
+            ),
+            Triple(
+                "MEAN OF WEAK STRANDS",
+                ReportTheme.pct(meanWeak),
+                "average across the listed strands",
+            ),
+            Triple(
+                "LEARNERS FLAGGED",
+                when {
+                    flagged == null -> "\u2014"
+                    learnersTotal > 0 -> flagged.toString() + " of " + learnersTotal
+                    else -> flagged.toString()
+                },
+                if (flagged == null) "no learner-level ratings recorded" else "below meeting in at least one strand",
+            ),
+        )
+        val valueSize = if (tall) 21f else 13f
+        val valueBaseline = if (tall) y + 38f else y + 27f
+        val captionBaseline = if (tall) y + 15f else y + 13f
+        val cellWidth = width / cells.size
+        cells.forEachIndexed { index, (label, value, caption) ->
+            val cellX = x + index * cellWidth
+            if (index > 0) canvas.line(cellX, y + 10f, cellX, y + height - 10f, ReportTheme.LINE, 0.6f)
+            canvas.tracked(label, cellX + 16f, y + height - 15f, canvas.theme.sansBold, 5.8f, 1.3f, ReportTheme.TEAL_DARK)
+            canvas.text(
+                canvas.ellipsis(value, canvas.theme.sansBlack, valueSize, cellWidth - 32f),
+                cellX + 16f,
+                valueBaseline,
+                canvas.theme.sansBlack,
+                valueSize,
+                ReportTheme.NAVY,
+            )
+            canvas.text(
+                canvas.ellipsis(caption, canvas.theme.sans, 6.4f, cellWidth - 32f),
+                cellX + 16f,
+                captionBaseline,
+                canvas.theme.sans,
+                6.4f,
+                ReportTheme.MUTED,
+            )
+        }
+    }
+
+    /** Plain-language review note for a sparse recommendations page (one or two findings). */
+    private fun followUp(canvas: ReportCanvas, weakCount: Int, top: Float, width: Float) {
+        val x = 36f
+        val y = canvas.top(top + FOLLOW_UP_HEIGHT)
+        canvas.box(x, y, width, FOLLOW_UP_HEIGHT, 8f, ReportTheme.MINT_SOFT, ReportTheme.TEAL, 0.8f)
+        canvas.tracked("REVIEW & FOLLOW-UP", 54f, y + FOLLOW_UP_HEIGHT - 15f, canvas.theme.sansBold, 5.9f, 1.3f, ReportTheme.TEAL_DARK)
+        canvas.text(
+            canvas.ellipsis(
+                "Subject teachers review each recommendation with the class teacher and carry the agreed action into next term's focus.",
+                canvas.theme.sans,
+                8.6f,
+                width - 300f,
+            ),
+            54f,
+            y + 17f,
+            canvas.theme.sans,
+            8.6f,
+            ReportTheme.INK,
+        )
+        ReportFurniture.cardChipRight(
+            canvas,
+            if (weakCount == 1) "1 STRAND BELOW TARGET" else weakCount.toString() + " STRANDS BELOW TARGET",
+            x + width - 18f,
+            y + FOLLOW_UP_HEIGHT / 2f,
+        )
+    }
+
+    /** Exam Office stamp + official-record line (D5: never a personal signatory). */
+    private fun signOff(canvas: ReportCanvas, contentWidth: Float) {
+        val right = 36f + contentWidth
+        ReportFurniture.horizontalStamp(canvas, right - 118f, canvas.top(SIGN_OFF_STAMP_TOP + 26f))
+        canvas.trackedR("OFFICIAL SCHOOL RECORD", right, canvas.top(SIGN_OFF_STAMP_TOP - 9f), canvas.theme.sansBold, 5.4f, 1f, ReportTheme.MUTED)
+        val footnoteWidth = contentWidth - 118f - 60f
+        canvas.text(
+            canvas.ellipsis(
+                "LEARNERS NEEDING SUPPORT counts learners rated below meeting expectation (not ME or EE) in that learning area; denominators count learners with a rating there.",
+                canvas.theme.sans,
+                6.4f,
+                footnoteWidth,
+            ),
+            36f,
+            canvas.top(FIRST_FOOTNOTE_TOP),
+            canvas.theme.sans,
+            6.4f,
+            ReportTheme.MUTED,
+        )
+        canvas.text(
+            canvas.ellipsis(
+                "A dash means no learner-level ratings were recorded for that learning area.",
+                canvas.theme.sans,
+                6.4f,
+                footnoteWidth,
+            ),
+            36f,
+            canvas.top(FIRST_FOOTNOTE_TOP + 11f),
+            canvas.theme.sans,
+            6.4f,
+            ReportTheme.MUTED,
+        )
+    }
+
+    private fun supportChip(canvas: ReportCanvas, rightX: Float, centreY: Float) {
+        val label = "Needs Support"
+        val chipWidth = canvas.textWidth(label, canvas.theme.sansBold, 6.2f) + 14f
+        val chipHeight = 12f
+        canvas.fillRound(rightX - chipWidth, centreY - chipHeight / 2f, chipWidth, chipHeight, chipHeight / 2f, ReportTheme.AMBER_SOFT)
+        canvas.textC(label, rightX - chipWidth / 2f, centreY - 2.1f, canvas.theme.sansBold, 6.2f, ReportTheme.AMBER)
+    }
+
+    /**
+     * Learners needing support in one strand, or null when the payload has no learner-level
+     * ratings (the table prints a dash rather than inventing a zero).
+     *
+     * The class payload stores CbcAnalyticsService.masteryLevel words (MASTER, ADVANCED,
+     * PROFICIENT, DEVELOPING, NOVICE) in studentBreakdown, while the report vocabulary is
+     * EE/ME/AE/BE/DE. Both are recognised: anything that is not meeting/exceeding counts.
+     */
+    private fun learnersNeedingSupport(strand: CbcStrandMasteryPayload): Int? {
+        if (strand.studentBreakdown.isEmpty()) return null
+        return strand.studentBreakdown.values.count { needsSupport(it) }
+    }
+
+    private fun needsSupport(rating: String?): Boolean {
+        val level = rating?.trim()?.uppercase().orEmpty()
+        if (level.isEmpty()) return false
+        return level != "EE" && level != "ME" && level != "MASTER" && level != "ADVANCED"
+    }
+
+    /** Distinct learners flagged in at least one weak strand; null when no breakdown exists at all. */
+    private fun flaggedLearners(recommendations: List<CbcStrandMasteryPayload>): Int? {
+        val maps = recommendations.map { it.studentBreakdown }.filter { it.isNotEmpty() }
+        if (maps.isEmpty()) return null
+        val flagged = mutableSetOf<String>()
+        maps.forEach { breakdown ->
+            breakdown.forEach { (studentId, rating) ->
+                if (needsSupport(rating)) flagged.add(studentId)
+            }
+        }
+        return flagged.size
+    }
+
+    /** Wraps to at most [maxLines] lines, ellipsising the remainder of the text. */
+    private fun wrapLines(canvas: ReportCanvas, value: String, font: PDFont, size: Float, maxWidth: Float, maxLines: Int): List<String> {
+        val lines = canvas.wrap(value, font, size, maxWidth)
+        if (lines.size <= maxLines) return lines
+        val kept = lines.take(maxLines).toMutableList()
+        val tail = lines.drop(maxLines - 1).joinToString(" ")
+        kept[kept.size - 1] = canvas.ellipsis(tail, font, size, maxWidth)
+        return kept
+    }
+
+    // ------------------------------------------------------------------ primitives
 
     private fun kpi(
         canvas: ReportCanvas,
@@ -176,7 +712,7 @@ class CbcClassRenderer(
         label: String,
         value: String,
         caption: String,
-        accent: java.awt.Color,
+        accent: Color,
         icon: Int,
     ) {
         canvas.box(x, y, width, height, 8f, ReportTheme.PAPER, ReportTheme.LINE, 0.8f)
@@ -190,7 +726,7 @@ class CbcClassRenderer(
         canvas.text(canvas.ellipsis(caption, canvas.theme.sans, 6.6f, width - 60f), x + 52f, y + height - 52f, canvas.theme.sans, 6.6f, ReportTheme.MUTED)
     }
 
-    private fun icon(canvas: ReportCanvas, kind: Int, cx: Float, cy: Float, ink: java.awt.Color) {
+    private fun icon(canvas: ReportCanvas, kind: Int, cx: Float, cy: Float, ink: Color) {
         canvas.fillInk(ink)
         when (kind) {
             0 -> {
@@ -215,7 +751,7 @@ class CbcClassRenderer(
         }
     }
 
-    private fun bar(canvas: ReportCanvas, x: Float, y: Float, width: Float, height: Float, fraction: Double, fill: java.awt.Color) {
+    private fun bar(canvas: ReportCanvas, x: Float, y: Float, width: Float, height: Float, fraction: Double, fill: Color) {
         canvas.fillRound(x, y, width, height, height / 2f, ReportTheme.mix(ReportTheme.LINE, ReportTheme.PAPER, 0.35f))
         val filled = (width * fraction.coerceIn(0.0, 1.0)).toFloat().coerceAtLeast(if (fraction > 0) height else 0f)
         if (filled > 0f) canvas.fillRound(x, y, filled, height, height / 2f, fill)
@@ -225,5 +761,26 @@ class CbcClassRenderer(
         val trimmed = term.trim()
         if (trimmed.uppercase().startsWith("TERM_")) return "Term " + trimmed.substringAfter("TERM_").trim()
         return trimmed
+    }
+
+    private companion object {
+        const val LANDSCAPE_WIDTH = 841.89f
+        const val LANDSCAPE_HEIGHT = 595.28f
+
+        /** Content must stop above this top-down offset so the sign-off block never collides. */
+        const val BOTTOM_CONTENT_LIMIT = 482f
+
+        /** Row floor for the recommendations table (average, chip and two-line recommendation fit). */
+        const val MIN_TABLE_ROW_HEIGHT = 46f
+
+        /** Figure cards under the table: tall for one to three findings, compact from four up. */
+        const val TALL_FIGURES_HEIGHT = 92f
+        const val SHORT_FIGURES_HEIGHT = 56f
+
+        /** Plain-language review note shown only when the sheet has room left for it. */
+        const val FOLLOW_UP_HEIGHT = 58f
+
+        const val SIGN_OFF_STAMP_TOP = 508f
+        const val FIRST_FOOTNOTE_TOP = 498f
     }
 }

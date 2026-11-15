@@ -83,7 +83,9 @@ class StudentAnalyticsService(
             attendance.count { it.status == "PRESENT" || it.status == "LATE" }.toDouble() / attendance.size * 100.0
         }
         val classes = classesFor(teacher, student)
-        val comparisons = classes.firstOrNull()?.let { classComparisons(teacher, it.id.toString()) }
+        // A7/F48: the percentile is learner-relative, so it is computed inside the learner's
+        // class instead of reusing the class-level comparisons payload (no student context).
+        val comparisons = classes.firstOrNull()?.let { classComparisonsFor(teacher, it, student.id) }
         return StudentAnalyticsPayload(
             studentId = student.id.toString(),
             studentName = student.name,
@@ -238,9 +240,29 @@ class StudentAnalyticsService(
     @Transactional(readOnly = true)
     fun classComparisons(teacher: UserEntity, classIdRaw: String): ClassComparisonsPayload {
         requireTeacher(teacher)
-        val clazz = requireClassAccess(teacher, classIdRaw)
-        val studentIds = membershipRepository.findAllByClassId(clazz.id).map { it.studentId }
-        val submissions = studentIds.flatMap { examSubmissionRepository.findAllByUserId(it) }
+        return classComparisonsFor(teacher, requireClassAccess(teacher, classIdRaw), null)
+    }
+
+    /**
+     * A7/F48: class average, per-subject means and - when a learner is given - that learner's
+     * percentile. Percentile = share of classmates whose mean submission percentage is at or
+     * below the learner's, rounded to 1..100; 0 means "not recorded" (no submissions or a single
+     * learner in the class), which the detailed CBC card renders explicitly.
+     */
+    private fun classComparisonsFor(
+        teacher: UserEntity,
+        clazz: com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity,
+        studentId: UUID?,
+    ): ClassComparisonsPayload {
+        requireTeacher(teacher)
+        // F49/F14: memberships plus roster-only learners, so class averages/percentiles cover
+        // every learner in the class rather than only app-registered accounts.
+        val studentIds = (
+            membershipRepository.findAllByClassId(clazz.id).map { it.studentId } +
+                userRepository.findAllByProvisionedClassIdOrderByNameAsc(clazz.id).map { it.id }
+            ).distinct()
+        val byStudent = studentIds.associateWith { examSubmissionRepository.findAllByUserId(it) }
+        val submissions = byStudent.values.flatten()
         val classAverage = if (submissions.isEmpty()) 0.0 else submissions.map { it.percentage.toDouble() }.average()
         val bySubject = submissions
             .mapNotNull { submission ->
@@ -248,9 +270,28 @@ class StudentAnalyticsService(
             }
             .groupBy({ it.first }, { it.second })
             .mapValues { round2(it.value.average()) }
+        val percentile = studentId?.let { id ->
+            val own = byStudent[id].orEmpty()
+            if (own.isEmpty()) {
+                0
+            } else {
+                val means = studentIds.mapNotNull { sid ->
+                    val rows = byStudent[sid].orEmpty()
+                    if (rows.isEmpty()) null else rows.map { it.percentage.toDouble() }.average()
+                }
+                if (means.size <= 1) {
+                    0
+                } else {
+                    val ownMean = own.map { it.percentage.toDouble() }.average()
+                    Math.round(means.count { it <= ownMean + 1e-9 }.toDouble() / means.size * 100.0)
+                        .toInt()
+                        .coerceIn(1, 100)
+                }
+            }
+        } ?: 0
         return ClassComparisonsPayload(
             classAverageScore = round2(classAverage),
-            studentPercentile = 0,
+            studentPercentile = percentile,
             subjectComparisons = bySubject,
         )
     }
@@ -284,7 +325,11 @@ class StudentAnalyticsService(
 
     private fun classesFor(teacher: UserEntity, student: UserEntity) =
         classRepository.findAllByTeacherUserIdAndIsActiveTrueOrderByNameAsc(teacher.id)
-            .filter { clazz -> membershipRepository.findByClassIdAndStudentId(clazz.id, student.id) != null }
+            .filter { clazz ->
+                // F49: roster-only learners are linked by provisioned_class_id, not a membership.
+                membershipRepository.findByClassIdAndStudentId(clazz.id, student.id) != null ||
+                    student.provisionedClassId == clazz.id
+            }
 
     private fun requireStudent(teacher: UserEntity, raw: String): UserEntity {
         val student = userRepository.findById(parseUuid(raw, "studentId")).orElse(null)

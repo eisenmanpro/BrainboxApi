@@ -112,7 +112,9 @@ class CbcAnalyticsService(
         requireTeacher(teacher)
         val clazz = requireClassAccess(teacher, classIdRaw)
         val term = termRaw.trim().ifEmpty { "TERM_1" }
-        val studentIds = membershipRepository.findAllByClassId(clazz.id).map { it.studentId }
+        // F49/F14: the class roster is memberships plus roster-only (provisioned) learners, so
+        // class reports count every learner in the class, not only app-registered accounts.
+        val studentIds = rosterIds(clazz)
         val ratings = if (studentIds.isEmpty()) {
             emptyList()
         } else {
@@ -238,7 +240,7 @@ class CbcAnalyticsService(
         val clazz = requireClassAccess(teacher, classIdRaw)
         val strand = strandRepository.findByCode(strandCodeRaw.trim().uppercase())
             ?: throw notFound("Strand not found")
-        val studentIds = membershipRepository.findAllByClassId(clazz.id).map { it.studentId }
+        val studentIds = rosterIds(clazz)
         val ratings = if (studentIds.isEmpty()) {
             emptyList()
         } else {
@@ -264,6 +266,11 @@ class CbcAnalyticsService(
 
     // ------------------------------------------------------------ internals
 
+    /** Memberships plus roster-only (provisioned) learners of the class (F49). */
+    private fun rosterIds(clazz: com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity): List<UUID> =
+        (membershipRepository.findAllByClassId(clazz.id).map { it.studentId } +
+            userRepository.findAllByProvisionedClassIdOrderByNameAsc(clazz.id).map { it.id }).distinct()
+
     private fun requireClassAccess(teacher: UserEntity, classIdRaw: String): com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity {
         val clazz = classRepository.findById(parseUuid(classIdRaw, "classId")).orElse(null)
             ?: throw notFound("Class not found")
@@ -278,7 +285,11 @@ class CbcAnalyticsService(
         val teacherClasses = classRepository.findAllByTeacherUserIdAndIsActiveTrueOrderByNameAsc(teacher.id)
             .map { it.id }
             .toSet()
-        if (studentClasses.intersect(teacherClasses).isEmpty()) throw forbidden("Not your learner")
+        // A roster-only learner belongs to the class recorded on their provisioned_class_id.
+        val provisioned = student.provisionedClassId
+        if (studentClasses.intersect(teacherClasses).isEmpty() && (provisioned == null || provisioned !in teacherClasses)) {
+            throw forbidden("Not your learner")
+        }
     }
     private fun requireViewerAccess(viewer: UserEntity, student: UserEntity) {
         when (viewer.role) {

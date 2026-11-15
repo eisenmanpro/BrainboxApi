@@ -103,6 +103,12 @@ class StudentAnalyticsWebTests(
             classId = clazz.id
             studentId = student.id
         })
+        // A7/F48: a second classmate gives the learner a real percentile to report.
+        val classmate = user(Role.STUDENT, "Brian Classmate", "0755100004", school.id)
+        membershipRepository.save(ClassMembershipEntity().apply {
+            classId = clazz.id
+            studentId = classmate.id
+        })
         val exam = examRepository.save(ExamEntity().apply {
             title = "Mid-Term"
             subject = "Mathematics"
@@ -115,6 +121,14 @@ class StudentAnalyticsWebTests(
             score = 80
             totalPoints = 100
             percentage = 80
+            submittedAt = Instant.now()
+        })
+        submissionRepository.save(ExamSubmissionEntity().apply {
+            examId = exam.id
+            userId = classmate.id
+            score = 60
+            totalPoints = 100
+            percentage = 60
             submittedAt = Instant.now()
         })
         attendanceRepository.save(AttendanceRecordEntity().apply {
@@ -137,6 +151,9 @@ class StudentAnalyticsWebTests(
         check(analytics.quickStats.avgScore == 80)
         check(analytics.quickStats.attendancePercentage == 100.0)
         check(analytics.classComparisons != null)
+        // A7/F48: the analytics payload now carries the learner's real percentile (80 vs 60 = top).
+        check(analytics.classComparisons!!.studentPercentile == 100)
+        check(analytics.classComparisons!!.classAverageScore == 70.0)
 
         val performance = objectMapper.readValue(
             mockMvc.perform(get("/teacher/analytics/student/" + student.id + "/subject-performance")
@@ -176,7 +193,7 @@ class StudentAnalyticsWebTests(
                 .andExpect(status().isOk).andReturn().response.contentAsString,
             ClassComparisonsPayload::class.java,
         )
-        check(comparisons.classAverageScore == 80.0)
+        check(comparisons.classAverageScore == 70.0)
 
         val achievements = objectMapper.readValue(
             mockMvc.perform(get("/teacher/analytics/student/" + student.id + "/achievements")

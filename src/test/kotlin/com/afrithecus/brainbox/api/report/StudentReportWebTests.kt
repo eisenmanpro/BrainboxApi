@@ -138,9 +138,10 @@ class StudentReportWebTests(
     fun `detailed cbc report carries the analytics page`() {
         val job = generate(token(student), StudentReportRequestPayload(reportType = ReportType.DETAILED_CBC_STUDENT, term = "Term 2"))
         val text = Loader.loadPDF(download(job)).use { PDFTextStripper().getText(it) }
-        check(text.contains("CBC Analytics Report")) { "detailed page missing" }
-        check(text.contains("Attendance & Engagement"))
-        check(text.contains("CBC Assessment Levels"))
+            .replace(Regex("\\s+"), "")
+        check(text.contains("CBCAnalyticsReport")) { "detailed analytics page missing" }
+        check(text.contains("OFFICIALSCHOOLRECORD")) { "detailed page sign-off missing" }
+        check(!text.contains("AttendanceEngagement")) { "legacy analytics page must be gone" }
     }
 
     @Test

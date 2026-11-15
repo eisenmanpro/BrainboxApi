@@ -146,7 +146,7 @@ class ReportGenerationService(
         val reportType = runCatching { ReportType.valueOf(reportTypeRaw.trim().uppercase()) }.getOrNull()
             ?: throw invalidArgument("Unknown reportType: " + reportTypeRaw)
         val branding = ReportBranding.from(schoolConfig.branding(resolveSchool(user, schoolIdRaw)))
-        val spec = TemplateSpec("Template - " + titleOf(reportType), branding, reportType)
+        val spec = TemplateSpec(ReportTitles.templateTitle(reportType), branding, reportType)
         return RenderedTemplate(renderer.render(spec), "Template_" + reportType.name + ".pdf")
     }
 
@@ -319,17 +319,8 @@ class ReportGenerationService(
         }
     }
 
-    private fun titleOf(type: ReportType): String = when (type) {
-        ReportType.CBC_CLASS -> "Class CBC Report"
-        ReportType.DETAILED_CBC_CLASS -> "Detailed Class CBC Report"
-        ReportType.CBC_STUDENT -> "Student CBC Report"
-        ReportType.DETAILED_CBC_STUDENT -> "Detailed Student CBC Report"
-        ReportType.TRADITIONAL_COMBINED -> "Combined Grade Report"
-        ReportType.TRADITIONAL_STUDENT -> "Student Traditional Exam Report"
-        ReportType.TRADITIONAL_PER_CLASS_TABLES -> "Per Class Tables"
-        ReportType.TRADITIONAL_GRADE_ANALYSIS -> "Grade Analysis"
-        ReportType.TEACHER_PERFORMANCE -> "Teacher Performance Report"
-    }
+    /** D6/F19: one canonical title source shared by the job, templates and renderer. */
+    private fun titleOf(type: ReportType): String = ReportTitles.title(type)
 
     private companion object {
         const val READY = "READY"

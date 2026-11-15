@@ -46,7 +46,7 @@ class ReportDataService(
         ReportType.TRADITIONAL_GRADE_ANALYSIS -> {
             val examId = requireExamId(request)
             val analysis = traditional.gradeAnalysis(actor, examId)
-            GradeAnalysisSpec(analysis.gradeLevel + " Grade Analysis", branding, analysis)
+            GradeAnalysisSpec(ReportTitles.analysis(analysis.gradeLevel), branding, analysis)
         }
         ReportType.TRADITIONAL_STUDENT -> {
             val examId = requireExamId(request)
@@ -57,13 +57,13 @@ class ReportDataService(
             val bands = exam.grading?.bands
                 ?.map { ReportGradingBand(it.grade, it.minPercentage.toDouble()) }
                 .orEmpty()
-            TraditionalStudentsSpec("Student Traditional Exam Report", branding, reports, bands)
+            TraditionalStudentsSpec(ReportTitles.title(ReportType.TRADITIONAL_STUDENT), branding, reports, bands)
         }
         ReportType.CBC_STUDENT, ReportType.DETAILED_CBC_STUDENT -> {
             val detailed = request.reportType == ReportType.DETAILED_CBC_STUDENT
             val card = cbcStudentCards(request, actor, detailed)
             CbcStudentsSpec(
-                title = if (detailed) "Detailed Student CBC Report" else "Student CBC Report",
+                title = ReportTitles.title(request.reportType),
                 branding = branding,
                 cards = card,
                 detailed = detailed,
@@ -74,24 +74,14 @@ class ReportDataService(
             val classId = request.classId ?: throw invalidArgument("classId is required for a CBC class report")
             val report = cbc.classReport(teacher, classId, request.term)
             CbcClassSpec(
-                title = if (request.reportType == ReportType.DETAILED_CBC_CLASS) "Detailed Class CBC Report" else "Class CBC Report",
+                title = ReportTitles.title(request.reportType),
                 branding = branding,
                 classReport = report,
                 year = request.year,
                 detailed = request.reportType == ReportType.DETAILED_CBC_CLASS,
             )
         }
-        ReportType.TEACHER_PERFORMANCE -> {
-            val teacher = teacher(actor)
-            val classId = request.classId ?: throw invalidArgument("classId is required for a teacher performance report")
-            val report = cbc.classReport(teacher, classId, request.term)
-            CbcClassSpec(
-                title = "Teacher Performance Report",
-                branding = branding,
-                classReport = report,
-                focusTeacher = request.teacherName?.takeIf { it.isNotBlank() },
-            )
-        }
+        ReportType.TEACHER_PERFORMANCE -> teacherPerformanceSpec(request, actor, branding)
     }
 
     /**
@@ -123,7 +113,7 @@ class ReportDataService(
         if (selected.isEmpty()) {
             throw invalidArgument("classTag is not one of this exam's classes")
         }
-        val title = exam.title + " - Per Class Tables"
+        val title = ReportTitles.perClass(exam.title)
         val classTeachers = runCatching { traditional.classTeachers(actor, examId) }.getOrDefault(emptyMap())
         return selected.map { classTag ->
             val classRows = rows.filter { it.classTag.equals(classTag, ignoreCase = true) }
@@ -164,7 +154,7 @@ class ReportDataService(
         val examId = requireExamId(request)
         val exam = traditional.getExam(actor, examId)
         val ranked = withAbsentRows(actor, exam, traditional.gradeWideRanking(actor, examId))
-        val title = if (perClass) exam.title + " - Per Class Tables" else exam.title
+        val title = if (perClass) ReportTitles.perClass(exam.title) else ReportTitles.combined(exam.title)
         // D18: the lists print the bands resolved when the capture session was created, not
         // whatever the grade setting happens to be at download time.
         val bands = exam.grading?.bands
@@ -201,8 +191,10 @@ class ReportDataService(
         return CbcStudentDetail(
             learningStreakDays = analytics.quickStats.streakDays,
             totalXp = analytics.quickStats.totalXP,
-            classAverageScore = analytics.classComparisons?.classAverageScore,
-            classPercentile = analytics.classComparisons?.studentPercentile,
+            // 0.0 means "no submissions in this class", not a real class mean (F48) - render it
+            // as not recorded rather than telling a parent the class averaged 0%.
+            classAverageScore = analytics.classComparisons?.classAverageScore?.takeIf { it > 0.0 },
+            classPercentile = analytics.classComparisons?.studentPercentile?.takeIf { it > 0 },
         )
     }
 
@@ -244,6 +236,61 @@ class ReportDataService(
         }
         return (rows + absent).sortedByDescending { it.totalPercentage }.mapIndexed { index, row -> row.copy(rank = index + 1) }
     }
+
+    /**
+     * D4/F10: the teacher performance document is built from the **target teacher's** subject rows
+     * in the class report, never by filtering the class view: averages, strand scores and coverage
+     * must describe one teacher. The target is the requested teacher name when the coordinator/
+     * ICT admin supplies one, otherwise the actor; the class scope (and therefore the grade scope)
+     * is already enforced by ReportGenerationService, so a coordinator can inspect a colleague in
+     * their own grade while the actor's token still owns the job. A teacher with no rows in this
+     * class renders a valid empty report (zero figures, explicit note) rather than someone else's
+     * numbers.
+     */
+    private fun teacherPerformanceSpec(
+        request: ReportGenerationRequestPayload,
+        actor: CurrentUser,
+        branding: ReportBranding,
+    ): TeacherPerformanceSpec {
+        val requester = teacher(actor)
+        val classId = request.classId ?: throw invalidArgument("classId is required for a teacher performance report")
+        val report = cbc.classReport(requester, classId, request.term)
+        val targetName = request.teacherName?.trim()?.takeIf { it.isNotEmpty() } ?: requester.name.trim()
+        val mine = report.subjectTeacherPerformance.filter { normalizeName(it.teacherName) == normalizeName(targetName) }
+        val teacherName = mine.firstOrNull()?.teacherName?.trim()?.takeIf { it.isNotEmpty() } ?: targetName
+        val strandNames = report.strandMastery.associate { it.strandCode to it.strandName }
+        val subjects = mine.map { row ->
+            TeacherSubjectPerformance(
+                subject = row.subject,
+                average = row.classAverage,
+                learners = row.studentCount,
+                strands = row.strandScores.map { (code, score) ->
+                    TeacherStrandScore(code = code, name = strandNames[code] ?: code, percentage = score)
+                },
+            )
+        }
+        val teacherAverage = if (subjects.isEmpty()) 0.0 else subjects.map { it.average }.average()
+        val top = subjects.maxByOrNull { it.average }
+        return TeacherPerformanceSpec(
+            title = ReportTitles.title(ReportType.TEACHER_PERFORMANCE),
+            branding = branding,
+            teacherName = teacherName,
+            className = report.className,
+            term = report.term,
+            year = request.year,
+            teacherAverage = teacherAverage,
+            classAverage = report.overallClassAverage,
+            subjects = subjects,
+            subjectsInClass = report.subjectTeacherPerformance.map { it.subject }.filter { it.isNotBlank() }.distinct().size,
+            learners = mine.maxOfOrNull { it.studentCount } ?: report.studentCount,
+            topSubject = top?.subject,
+            topSubjectAverage = top?.average ?: 0.0,
+        )
+    }
+
+    /** Trim/case/whitespace-insensitive teacher-name match (D14-style normalisation). */
+    private fun normalizeName(value: String): String =
+        value.trim().lowercase().replace(Regex("\\s+"), " ").removeSuffix(".").removeSuffix(" ")
 
     private fun teacher(actor: CurrentUser) = userRepository.findById(actor.userId).orElse(null)
         ?: throw invalidArgument("Report owner not found")
