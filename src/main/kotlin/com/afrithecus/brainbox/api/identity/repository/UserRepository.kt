@@ -23,23 +23,47 @@ interface UserRepository : JpaRepository<UserEntity, UUID> {
     @Query("SELECT u FROM UserEntity u WHERE u.id = :id")
     fun findByIdForUpdate(@Param("id") id: UUID): UserEntity?
 
-    /** Admin listing with optional role/school/active filters and free-text search. */
+    /**
+     * Admin listing with optional role/school/active filters (no free-text query).
+     *
+     * G1.1: this is deliberately separate from [searchWithQuery]. Hibernate 7 infers a
+     * null String parameter inside LOWER(CONCAT('%', :q, '%')) as bytea on Postgres, so
+     * passing q = null made GET /admin/users and GET /admin/schools/{id}/teachers answer
+     * 500 ("function lower(bytea) does not exist"). Keeping the null case in a query that
+     * never mentions the text parameter removes the ambiguity.
+     */
     @Query(
         """
         SELECT u FROM UserEntity u WHERE
         (:role IS NULL OR u.role = :role) AND
         (:schoolId IS NULL OR u.schoolId = :schoolId) AND
-        (:active IS NULL OR u.isActive = :active) AND
-        (:q IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', :q, '%')) OR
-         LOWER(u.phoneNumber) LIKE LOWER(CONCAT('%', :q, '%')) OR
-         LOWER(u.studentAdmissionNumber) LIKE LOWER(CONCAT('%', :q, '%')))
+        (:active IS NULL OR u.isActive = :active)
         """
     )
     fun search(
         @Param("role") role: Role?,
         @Param("schoolId") schoolId: UUID?,
         @Param("active") active: Boolean?,
-        @Param("q") q: String?,
+        pageable: Pageable,
+    ): Page<UserEntity>
+
+    /** Admin listing with a non-null free-text query (name/phone/admission). See [search]. */
+    @Query(
+        """
+        SELECT u FROM UserEntity u WHERE
+        (:role IS NULL OR u.role = :role) AND
+        (:schoolId IS NULL OR u.schoolId = :schoolId) AND
+        (:active IS NULL OR u.isActive = :active) AND
+        (LOWER(u.name) LIKE LOWER(CONCAT('%', :q, '%')) OR
+         LOWER(u.phoneNumber) LIKE LOWER(CONCAT('%', :q, '%')) OR
+         LOWER(u.studentAdmissionNumber) LIKE LOWER(CONCAT('%', :q, '%')))
+        """
+    )
+    fun searchWithQuery(
+        @Param("role") role: Role?,
+        @Param("schoolId") schoolId: UUID?,
+        @Param("active") active: Boolean?,
+        @Param("q") q: String,
         pageable: Pageable,
     ): Page<UserEntity>
 

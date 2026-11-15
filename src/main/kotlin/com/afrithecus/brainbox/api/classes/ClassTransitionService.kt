@@ -102,13 +102,14 @@ class ClassTransitionService(
             userRepository.findAllById(membershipRepository.findAllByClassId(clazz.id).map { it.studentId })
                 .filter { it.isActive && it.role == Role.STUDENT }
         } else {
-            userRepository.search(
-                Role.STUDENT,
-                schoolId,
-                true,
-                query?.trim()?.takeIf { it.isNotEmpty() },
-                PageRequest.of(0, capped),
-            ).content
+            val text = query?.trim()?.takeIf { it.isNotEmpty() }
+            val pageable = PageRequest.of(0, capped)
+            // G1.1: split query so a blank search never binds a null String.
+            if (text == null) {
+                userRepository.search(Role.STUDENT, schoolId, true, pageable).content
+            } else {
+                userRepository.searchWithQuery(Role.STUDENT, schoolId, true, text, pageable).content
+            }
         }
 
         val classesById = classRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)

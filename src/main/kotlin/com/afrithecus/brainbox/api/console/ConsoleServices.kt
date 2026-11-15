@@ -74,7 +74,15 @@ class ConsoleUserService(
         val size = limit.coerceIn(1, MAX_PAGE)
         // The repository search covers role/school/active and the free-text fields; the console
         // adds the sub-role and the verified/suspended split on top of it in memory.
-        val found = users.search(role, schoolId, activeFromStatus(status), query?.trim()?.takeIf { it.isNotEmpty() }, PageRequest.of(0, size))
+        val text = query?.trim()?.takeIf { it.isNotEmpty() }
+        val pageable = PageRequest.of(0, size)
+        // G1.1: the null free-text case uses a query that never binds a null String
+        // (Hibernate 7/Postgres would bind it as bytea inside LOWER(CONCAT(...))).
+        val found = if (text == null) {
+            users.search(role, schoolId, activeFromStatus(status), pageable)
+        } else {
+            users.searchWithQuery(role, schoolId, activeFromStatus(status), text, pageable)
+        }
         val rows = found.content
             // The platform's message sender is an account, not a person: it is never administered
             // from here, so it never appears in the list (or in the counts below).

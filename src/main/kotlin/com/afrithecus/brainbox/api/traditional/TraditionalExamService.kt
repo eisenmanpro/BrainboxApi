@@ -120,15 +120,10 @@ class TraditionalExamService(
     fun listExams(current: CurrentUser, grade: String?): List<TraditionalExamDto> {
         val user = user(current)
         val exams = when (current.role) {
-            Role.STUDENT -> {
-                val target = grade?.takeIf { it.isNotBlank() } ?: user.gradeLevel
-                publishedForSchool(user.schoolId, target)
-            }
-            Role.PARENT -> {
-                val child = primaryChild(current)
-                val target = grade?.takeIf { it.isNotBlank() } ?: child?.gradeLevel
-                publishedForSchool(scopeSchoolId(current), target)
-            }
+            // D12/A18: a learner (and their parent) sees every published exam they have
+            // marks for, across terms/years and previous grades - no current-grade filter.
+            Role.STUDENT -> publishedForLearner(user)
+            Role.PARENT -> primaryChild(current)?.let(::publishedForLearner).orEmpty()
             else -> {
                 val all = examsForStaff(user)
                 if (grade.isNullOrBlank()) all else all.filter { it.gradeLevel.equals(grade, ignoreCase = true) }
@@ -646,7 +641,12 @@ class TraditionalExamService(
                 if (!clazz.gradeLevel.equals(exam.gradeLevel, ignoreCase = true)) {
                     throw invalidArgument("That class is not in the exam's grade")
                 }
-                if (classMembershipRepository.findByClassIdAndStudentId(classId, studentId) == null) {
+                val member = classMembershipRepository.findByClassIdAndStudentId(classId, studentId) != null
+                // G1.2: imported/roster-only learners carry provisionedClassId instead of a
+                // class_memberships row, so the optional classId is valid for them too.
+                val provisioned = !member &&
+                    userRepository.findById(studentId).orElse(null)?.provisionedClassId == classId
+                if (!member && !provisioned) {
                     throw invalidArgument("The learner is not a member of that class")
                 }
             }
@@ -1291,6 +1291,18 @@ class TraditionalExamService(
         if (own != null) return own
         if (current.role != Role.PARENT) return null
         return primaryChild(current)?.schoolId
+    }
+
+    /**
+     * D12/A18: the learner's previous finalised exams. Only exams with a mark of the
+     * learner's own are listed, so another learner's exam can never surface; FINALIZED
+     * but unpublished exams stay hidden (the publication gate, matching myResult).
+     */
+    private fun publishedForLearner(learner: UserEntity): List<TraditionalExamEntity> {
+        val examIds = markRepository.findAllByStudentId(learner.id).map { it.examId }.toSet()
+        if (examIds.isEmpty()) return emptyList()
+        return examRepository.findAllByStatusOrderByPublishedAtDesc(TraditionalExamStatus.PUBLISHED)
+            .filter { it.id in examIds && (it.schoolId == null || it.schoolId == learner.schoolId) }
     }
 
     private fun publishedForSchool(schoolId: UUID?, grade: String?): List<TraditionalExamEntity> {

@@ -40,6 +40,12 @@ import com.afrithecus.brainbox.api.traditional.web.TraditionalMarkDto
 import com.afrithecus.brainbox.api.traditional.web.TraditionalStudentReportDto
 import com.afrithecus.brainbox.api.traditional.web.UpdateTraditionalExamRequest
 import com.afrithecus.brainbox.api.traditional.web.ValidateAccessResponse
+import com.afrithecus.brainbox.api.report.ReportStorage
+import com.afrithecus.brainbox.api.report.repository.ReportJobRepository
+import com.afrithecus.brainbox.api.report.web.ReportJobPayload
+import com.afrithecus.brainbox.api.report.web.ReportJobStatus
+import com.afrithecus.brainbox.api.report.web.ReportType
+import com.afrithecus.brainbox.api.report.web.StudentReportRequestPayload
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -56,6 +62,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.core.type.TypeReference
 import tools.jackson.databind.ObjectMapper
+import java.net.URI
 import java.util.UUID
 import kotlin.math.abs
 
@@ -79,6 +86,8 @@ class TraditionalExamWebTests(
     @Autowired private val classMembershipRepository: ClassMembershipRepository,
     @Autowired private val examRepository: TraditionalExamRepository,
     @Autowired private val service: TraditionalExamService,
+    @Autowired private val reportJobs: ReportJobRepository,
+    @Autowired private val reportStorage: ReportStorage,
 ) {
 
     private lateinit var schoolId: UUID
@@ -1514,5 +1523,154 @@ class TraditionalExamWebTests(
         val corrected = rows.single { it.studentId == zeroLearner.id.toString() }
         check(corrected.subjects.single().rawScore == 1)
         check(corrected.subjects.none { it.rawScore == 0 })
+    }
+
+    /** A19: fetch the PDF behind the job's signed URL. */
+    private fun download(job: ReportJobPayload): ByteArray {
+        val uri = URI(job.fileUrl)
+        return mockMvc.perform(get(uri.rawPath + "?" + uri.rawQuery))
+            .andExpect(status().isOk).andReturn().response.contentAsByteArray
+    }
+
+    @Test
+    fun `mark writes accept the optional classId for a provisioned roster-only learner`() {
+        val classTeacher = user(Role.TEACHER, "Roster Class Teacher", "0700002100", grade = "Grade 3", subRole = SubRole.CTEACHER)
+        val coordinator = user(Role.TEACHER, "Roster Coordinator", "0700002101", grade = "Grade 3", subRole = SubRole.GRADE_COORDINATOR)
+        val rosterLearner = user(Role.STUDENT, "Roster Learner", "0700002102", grade = "Grade 3")
+        val tokenCoord = token(coordinator)
+
+        val clazz = TeacherClassEntity().apply {
+            teacherUserId = classTeacher.id
+            this.schoolId = this@TraditionalExamWebTests.schoolId
+            name = "Grade 3R"
+            gradeLevel = "Grade 3"
+            subject = "Mathematics"
+            isActive = true
+        }
+        teacherClassRepository.save(clazz)
+        val otherClass = TeacherClassEntity().apply {
+            teacherUserId = classTeacher.id
+            this.schoolId = this@TraditionalExamWebTests.schoolId
+            name = "Grade 3S"
+            gradeLevel = "Grade 3"
+            subject = "Mathematics"
+            isActive = true
+        }
+        teacherClassRepository.save(otherClass)
+        // G1.2: imported learners carry provisioned_class_id instead of a membership row.
+        rosterLearner.provisionedClassId = clazz.id
+        userRepository.save(rosterLearner)
+
+        val exam = createExam(tokenCoord, "Grade 3", listOf(SubjectConfigDto("MAT", "Mathematics", 100, TraditionalSubjectType.SINGLE)))
+        mockMvc.perform(
+            post("/traditional/exams/" + exam.examId + "/marks").header("Authorization", auth(tokenCoord))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(MarkEntryDto(rosterLearner.id.toString(), "MAT", 66, classId = clazz.id.toString()))))
+        ).andExpect(status().isOk)
+
+        // A different class is still rejected for the same provisioned learner.
+        mockMvc.perform(
+            post("/traditional/exams/" + exam.examId + "/marks").header("Authorization", auth(tokenCoord))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(MarkEntryDto(rosterLearner.id.toString(), "MAT", 67, classId = otherClass.id.toString()))))
+        ).andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `learners and parents see every published exam with their own marks across years`() {
+        val parent = user(Role.PARENT, "History Parent", "0700002200")
+        val learner = user(Role.STUDENT, "History Learner", "0700002201", grade = "Grade 5", parentId = parent.id)
+        val other = user(Role.STUDENT, "Other Learner", "0700002202", grade = "Grade 4")
+        val coordinator = user(Role.TEACHER, "History Coordinator", "0700002203", grade = "Grade 4", subRole = SubRole.GRADE_COORDINATOR)
+        val coordToken = token(coordinator)
+        val learnerToken = token(learner)
+        val parentToken = token(parent)
+        val subjects = listOf(SubjectConfigDto("MAT", "Mathematics", 100, TraditionalSubjectType.SINGLE))
+
+        val previous = createExam(coordToken, "Grade 4", subjects, year = 2025)
+        saveMarks(coordToken, previous.examId, listOf(MarkEntryDto(learner.id.toString(), "MAT", 60)))
+        publishExam(previous.examId, coordToken, coordinator.id)
+
+        val current = createExam(coordToken, "Grade 4", subjects, year = 2026)
+        saveMarks(coordToken, current.examId, listOf(MarkEntryDto(learner.id.toString(), "MAT", 70)))
+        publishExam(current.examId, coordToken, coordinator.id)
+
+        val otherLearnerExam = createExam(coordToken, "Grade 4", subjects, year = 2026)
+        saveMarks(coordToken, otherLearnerExam.examId, listOf(MarkEntryDto(other.id.toString(), "MAT", 80)))
+        publishExam(otherLearnerExam.examId, coordToken, coordinator.id)
+
+        // FINALIZED but unpublished: the learner must never see it.
+        val hidden = createExam(coordToken, "Grade 4", subjects, year = 2026)
+        saveMarks(coordToken, hidden.examId, listOf(MarkEntryDto(learner.id.toString(), "MAT", 50)))
+        mockMvc.perform(
+            post("/traditional/exams/" + hidden.examId + "/confirm").param("grade", "Grade 4")
+                .header("Authorization", auth(coordToken))
+        ).andExpect(status().isNoContent)
+        mockMvc.perform(
+            post("/traditional/exams/" + hidden.examId + "/pre-final").header("Authorization", auth(coordToken))
+        ).andExpect(status().isOk)
+        mockMvc.perform(
+            post("/traditional/exams/" + hidden.examId + "/finalize").param("coordinatorId", coordinator.id.toString())
+                .header("Authorization", auth(coordToken))
+        ).andExpect(status().isOk)
+
+        fun ids(token: String): Set<String> = objectMapper.readValue(
+            mockMvc.perform(get("/traditional/exams").header("Authorization", auth(token)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<TraditionalExamDto>::class.java,
+        ).map { it.examId }.toSet()
+
+        // The learner's current grade is Grade 5; both Grade 4 published exams still appear.
+        val learnerIds = ids(learnerToken)
+        check(previous.examId in learnerIds && current.examId in learnerIds)
+        check(otherLearnerExam.examId !in learnerIds) { "another learner's exam must never be listed" }
+        check(hidden.examId !in learnerIds) { "FINALIZED-unpublished exams stay hidden from learners" }
+        check(ids(parentToken) == learnerIds)
+
+        // Staff list is unchanged: the coordinator still sees every school session.
+        val staffIds = ids(coordToken)
+        check(hidden.examId in staffIds && otherLearnerExam.examId in staffIds)
+    }
+
+    @Test
+    fun `learner re-downloads a published exam report after job rows are pruned`() {
+        val learner = user(Role.STUDENT, "Reprint Learner", "0700002300", grade = "Grade 4")
+        val coordinator = user(Role.TEACHER, "Reprint Coordinator", "0700002301", grade = "Grade 4", subRole = SubRole.GRADE_COORDINATOR)
+        val coordToken = token(coordinator)
+        val learnerToken = token(learner)
+        val exam = createExam(coordToken, "Grade 4", listOf(SubjectConfigDto("MAT", "Mathematics", 100, TraditionalSubjectType.SINGLE)))
+        saveMarks(coordToken, exam.examId, listOf(MarkEntryDto(learner.id.toString(), "MAT", 72)))
+        publishExam(exam.examId, coordToken, coordinator.id)
+
+        fun generate(requestId: String): ReportJobPayload {
+            val body = objectMapper.writeValueAsString(
+                StudentReportRequestPayload(
+                    reportType = ReportType.TRADITIONAL_STUDENT,
+                    examId = exam.examId,
+                    term = "TERM_2",
+                    year = 2026,
+                    jobRequestId = requestId,
+                )
+            )
+            val response = mockMvc.perform(
+                post("/student/reports/generate").header("Authorization", auth(learnerToken))
+                    .contentType(MediaType.APPLICATION_JSON).content(body)
+            ).andExpect(status().isOk).andReturn().response.contentAsString
+            return objectMapper.readValue(response, ReportJobPayload::class.java)
+        }
+
+        val first = generate("A19-FIRST")
+        check(first.status == ReportJobStatus.READY) { "expected READY, got " + first.status + " " + first.message }
+        check(String(download(first), 0, 5, Charsets.ISO_8859_1) == "%PDF-")
+
+        // Simulated 90-day retention prune: the job rows and their rendered files are gone.
+        reportJobs.findAll().filter { it.ownerId == learner.id }.forEach { job -> job.storageName?.let(reportStorage::delete) }
+        reportJobs.deleteAll()
+
+        // Regeneration is from DB data, never from the stored file, so it still succeeds.
+        val again = generate("A19-SECOND")
+        check(again.status == ReportJobStatus.READY) { "regeneration after prune failed: " + again.message }
+        check(again.fileSize > 0)
+        check(String(download(again), 0, 5, Charsets.ISO_8859_1) == "%PDF-")
     }
 }

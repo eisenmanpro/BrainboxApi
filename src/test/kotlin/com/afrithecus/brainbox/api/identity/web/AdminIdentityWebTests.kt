@@ -1,8 +1,10 @@
 package com.afrithecus.brainbox.api.identity.web
 
 import com.afrithecus.brainbox.api.auth.web.AuthResponse
+import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
+import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import org.junit.jupiter.api.Test
@@ -263,5 +265,66 @@ class AdminIdentityWebTests(
         check(objectMapper.readValue(detail, SchoolDetailPayload::class.java).basicInfo.name == "Discovery Academy")
         // Invalid identifiers return the public validation error, not 401.
         mockMvc.perform(get("/schools/some-id")).andExpect(status().isBadRequest)
+    }
+
+    /** G1.3: a school ICT admin signs in like any teacher account. */
+    private fun ictAdmin(schoolId: UUID): AuthResponse {
+        val phone = "0799000001"
+        userRepository.save(UserEntity().apply {
+            phoneNumber = phone
+            email = phone + "@ict.test"
+            passwordHash = passwordEncoder.encode("password123") ?: error("encode")
+            name = "School ICT Admin"
+            role = Role.TEACHER
+            subRole = SubRole.ICT_ADMIN
+            this.schoolId = schoolId
+            isActive = true
+            isVerified = true
+        })
+        val response = mockMvc.perform(
+            post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"identifier\":\"" + phone + "\",\"password\":\"password123\"}")
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        return objectMapper.readValue(response, AuthResponse::class.java)
+    }
+
+    @Test
+    fun `school ICT admin creates teachers in its own school only and blank search lists do not fail`() {
+        val platformAdmin = newAdmin()
+        val seed = signup("0722000040", extra = """"schoolName":"ICT High"""")
+        val schoolId = UUID.fromString(seed.user.schoolId!!)
+        approveSchool(schoolId.toString())
+        val ict = ictAdmin(schoolId)
+
+        // G1.1: absent and blank free-text search must answer 200, not 500 (Postgres bytea).
+        mockMvc.perform(get("/admin/users").header("Authorization", bearer(platformAdmin.sessionToken)))
+            .andExpect(status().isOk)
+        mockMvc.perform(get("/admin/users?search=").header("Authorization", bearer(platformAdmin.sessionToken)))
+            .andExpect(status().isOk)
+        mockMvc.perform(get("/admin/schools/" + schoolId + "/teachers").header("Authorization", bearer(ict.sessionToken)))
+            .andExpect(status().isOk)
+        mockMvc.perform(get("/admin/schools/" + schoolId + "/teachers").header("Authorization", bearer(platformAdmin.sessionToken)))
+            .andExpect(status().isOk)
+
+        // G1.3: the school ICT admin may add a teacher to its own school.
+        mockMvc.perform(
+            post("/admin/schools/" + schoolId + "/teachers").header("Authorization", bearer(ict.sessionToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"Own Teacher","email":"own@ict.test","phoneNumber":"0722777003"}""")
+        ).andExpect(status().isOk)
+
+        // ... but never another school's teachers.
+        val other = schoolRepository.save(SchoolEntity().apply { name = "Other High"; isActive = true })
+        mockMvc.perform(
+            post("/admin/schools/" + other.id + "/teachers").header("Authorization", bearer(ict.sessionToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"Sneaky","email":"sneaky@other.test","phoneNumber":"0722777004"}""")
+        ).andExpect(status().isForbidden)
+        // The platform admin keeps cross-school reach.
+        mockMvc.perform(
+            post("/admin/schools/" + other.id + "/teachers").header("Authorization", bearer(platformAdmin.sessionToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"Platform Made","email":"made@other.test","phoneNumber":"0722777005"}""")
+        ).andExpect(status().isOk)
     }
 }

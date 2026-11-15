@@ -84,13 +84,14 @@ class IdentityAdminService(
         }
         val pageIndex = page.coerceAtLeast(0)
         val pageSize = limit.coerceIn(1, 100)
-        val result = userRepository.search(
-            role = role,
-            schoolId = schoolId,
-            active = active,
-            q = search?.takeIf { it.isNotBlank() },
-            pageable = PageRequest.of(pageIndex, pageSize, Sort.by(Sort.Direction.DESC, "createdAt")),
-        )
+        val text = search?.takeIf { it.isNotBlank() }
+        val pageable = PageRequest.of(pageIndex, pageSize, Sort.by(Sort.Direction.DESC, "createdAt"))
+        // G1.1: split query so a blank search never binds a null String (bytea on Postgres).
+        val result = if (text == null) {
+            userRepository.search(role, schoolId, active, pageable)
+        } else {
+            userRepository.searchWithQuery(role, schoolId, active, text, pageable)
+        }
         return AdminUserListResponse(
             users = result.content.map { userPayloadFactory.toPayload(it) },
             total = result.totalElements.toInt(),
@@ -202,9 +203,25 @@ class IdentityAdminService(
 
     // ----------------------------------------------------- teacher management
 
+    /**
+     * G1.3: an ICT admin administers its own school's teachers; only a platform ADMIN may
+     * act on another school. The controller admits both roles and the tenant scope is
+     * enforced here, where the school row is available.
+     */
+    private fun requireSchoolScope(current: CurrentUser, school: SchoolEntity) {
+        if (current.role == Role.ADMIN) return
+        // CurrentUser is derived from token claims and carries no tenant; resolve the row.
+        val actor = userRepository.findById(current.userId).orElse(null)
+            ?: throw notFound("User not found")
+        if (actor.schoolId == null || actor.schoolId != school.id) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "You can only manage teachers in your own school")
+        }
+    }
+
     @Transactional
-    fun createTeacher(schoolIdRaw: String, request: CreateTeacherRequest): TeacherPayload {
+    fun createTeacher(current: CurrentUser, schoolIdRaw: String, request: CreateTeacherRequest): TeacherPayload {
         val school = findSchool(schoolIdRaw)
+        requireSchoolScope(current, school)
         val phone = request.phoneNumber.trim()
         val email = request.email.trim().lowercase()
         if (userRepository.existsByPhoneNumber(phone)) {
@@ -248,14 +265,15 @@ class IdentityAdminService(
     }
 
     @Transactional(readOnly = true)
-    fun listTeachers(schoolIdRaw: String): List<TeacherPayload> {
+    fun listTeachers(current: CurrentUser, schoolIdRaw: String): List<TeacherPayload> {
         val school = findSchool(schoolIdRaw)
+        requireSchoolScope(current, school)
+        // G1.1: no free-text filter, so use the query that never binds a null String.
         val teachers = userRepository.search(
-            role = Role.TEACHER,
-            schoolId = school.id,
-            active = null,
-            q = null,
-            pageable = PageRequest.of(0, 10000, Sort.by("name")),
+            Role.TEACHER,
+            school.id,
+            null,
+            PageRequest.of(0, 10000, Sort.by("name")),
         ).content
         return teachers.map { teacher ->
             val code = teacherCodeRepository.findByTeacherUserIdAndActiveTrue(teacher.id)?.code
@@ -264,8 +282,9 @@ class IdentityAdminService(
     }
 
     @Transactional
-    fun removeTeacher(schoolIdRaw: String, teacherIdRaw: String) {
+    fun removeTeacher(current: CurrentUser, schoolIdRaw: String, teacherIdRaw: String) {
         val school = findSchool(schoolIdRaw)
+        requireSchoolScope(current, school)
         val teacherId = parseUuid(teacherIdRaw, "teacherId")
         val teacher = userRepository.findById(teacherId).orElseThrow { notFound("Teacher not found") }
         if (teacher.role != Role.TEACHER || teacher.schoolId != school.id) {

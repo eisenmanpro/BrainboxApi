@@ -90,16 +90,33 @@ class AdminIdentityController(private val service: IdentityAdminService) {
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build()
     }
 
+    /**
+     * G1.3: a school ICT admin manages its own school's teachers (the school admin UI
+     * implies it); the service enforces the tenant scope. Platform ADMIN keeps full reach.
+     */
     @PostMapping("/schools/{id}/teachers")
-    fun createTeacher(@PathVariable id: String, @Valid @RequestBody request: CreateTeacherRequest): TeacherPayload =
-        service.createTeacher(id, request)
+    @PreAuthorize("hasAnyRole('ADMIN','ICT_ADMIN')")
+    fun createTeacher(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable id: String,
+        @Valid @RequestBody request: CreateTeacherRequest,
+    ): TeacherPayload = service.createTeacher(currentUser, id, request)
 
     @GetMapping("/schools/{id}/teachers")
-    fun listTeachers(@PathVariable id: String): List<TeacherPayload> = service.listTeachers(id)
+    @PreAuthorize("hasAnyRole('ADMIN','ICT_ADMIN')")
+    fun listTeachers(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable id: String,
+    ): List<TeacherPayload> = service.listTeachers(currentUser, id)
 
     @DeleteMapping("/schools/{id}/teachers/{teacherId}")
-    fun removeTeacher(@PathVariable id: String, @PathVariable teacherId: String): ResponseEntity<Void> {
-        service.removeTeacher(id, teacherId)
+    @PreAuthorize("hasAnyRole('ADMIN','ICT_ADMIN')")
+    fun removeTeacher(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable id: String,
+        @PathVariable teacherId: String,
+    ): ResponseEntity<Void> {
+        service.removeTeacher(currentUser, id, teacherId)
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build()
     }
 
