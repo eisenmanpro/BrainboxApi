@@ -119,6 +119,18 @@ object ReportFurniture {
         canvas.watermark(label, canvas.width / 2, canvas.height / 2 + 30f, if (canvas.width < 700) 34f else 40f)
     }
 
+    /** Very pale card watermark (approx. 1.5 % ink) - the v1 cards keep body rows readable. */
+    fun cardWatermark(canvas: ReportCanvas, branding: ReportBranding) {
+        val label = branding.watermarkText?.takeIf { it.isNotBlank() } ?: branding.schoolName
+        canvas.watermark(
+            label,
+            canvas.width / 2,
+            canvas.height / 2 + 40f,
+            58f,
+            ReportTheme.mix(ReportTheme.NAVY, ReportTheme.PAPER, 0.985f),
+        )
+    }
+
     /** Level chip used in the lists and legend. */
     fun levelCell(canvas: ReportCanvas, grade: String, cx: Float, cy: Float, width: Float, height: Float) {
         canvas.fillRound(cx - width / 2, cy - height / 2, width, height, 2.4f, ReportTheme.gradeFill(grade))
@@ -184,5 +196,189 @@ object ReportFurniture {
 
     fun divider(canvas: ReportCanvas, y: Float, color: Color = ReportTheme.LINE) {
         canvas.line(MARGIN, y, canvas.width - MARGIN, y, color, 0.6f)
+    }
+
+    // ------------------------------------------------ v1 card furniture (A3/A4/A5)
+
+    /**
+     * Light identity header used by the student cards (v1 pages 01/02): double frame,
+     * round school crest, serif school name, motto/contact, academic-year box and the
+     * centred serif title with its gold diamonds. Returns the top-down content offset.
+     */
+    fun cardHeader(
+        canvas: ReportCanvas,
+        branding: ReportBranding,
+        logo: PDImageXObject?,
+        yearLabel: String,
+        termLabel: String,
+        title: String,
+        subtitle: String,
+        landscape: Boolean = false,
+    ): Float {
+        val width = canvas.width
+        val height = canvas.height
+        canvas.strokeRect(11f, 11f, width - 22f, height - 22f, ReportTheme.NAVY, 0.9f)
+        canvas.strokeRect(15f, 15f, width - 30f, height - 30f, ReportTheme.mix(ReportTheme.NAVY, ReportTheme.PAPER, 0.72f), 0.4f)
+        canvas.fillRect(15f, height - 19f, width - 30f, 3.2f, ReportTheme.NAVY)
+
+        // crest: uploaded logo, else the BrainBox mark, else the school initials
+        val crestX = MARGIN + 12f
+        val crestCy = height - (if (landscape) 58f else 64f)
+        val crestR = if (landscape) 22f else 25f
+        canvas.fillRound(crestX - crestR, crestCy - crestR, crestR * 2, crestR * 2, crestR, ReportTheme.MINT)
+        canvas.ring(crestX, crestCy, crestR, ReportTheme.NAVY, 1.5f)
+        canvas.ring(crestX, crestCy, crestR - 4.2f, ReportTheme.GOLD, 0.5f)
+        val image = logo ?: ReportImages.brainboxMark(canvas.document)
+        if (image != null) {
+            canvas.fillRound(crestX - crestR + 5f, crestCy - crestR + 5f, (crestR - 5f) * 2, (crestR - 5f) * 2, crestR - 5f, ReportTheme.PAPER)
+            val max = crestR * 2 - 13f
+            val scale = minOf(max / image.width, max / image.height)
+            val imageWidth = image.width * scale
+            val imageHeight = image.height * scale
+            canvas.image(image, crestX - imageWidth / 2, crestCy - imageHeight / 2, imageWidth, imageHeight)
+        } else {
+            canvas.textC(initials(branding.schoolName), crestX, crestCy - (if (landscape) 4.6f else 5.4f), canvas.theme.serifBold, if (landscape) 13f else 15f, ReportTheme.NAVY)
+        }
+
+        // school identity
+        val textX = crestX + crestR + 15f
+        val nameY = height - (if (landscape) 48f else 52f)
+        val maxName = width - MARGIN - 136f - textX
+        var nameSize = if (landscape) 18f else 21f
+        while (nameSize > 11f && canvas.textWidth(branding.schoolName, canvas.theme.serifBold, nameSize) > maxName) nameSize -= 0.5f
+        canvas.text(branding.schoolName, textX, nameY, canvas.theme.serifBold, nameSize, ReportTheme.NAVY)
+        branding.motto?.takeIf { it.isNotBlank() }?.let {
+            canvas.tracked(it.uppercase(), textX, nameY - 12f, canvas.theme.sansBold, 6.2f, 1.35f, ReportTheme.TEAL)
+        }
+        val contact = listOfNotNull(
+            branding.address?.takeIf { it.isNotBlank() },
+            branding.phone?.takeIf { it.isNotBlank() },
+            branding.email?.takeIf { it.isNotBlank() },
+        ).joinToString("   |   ")
+        canvas.text(contact, textX, nameY - 23f, canvas.theme.sans, 6.4f, ReportTheme.MUTED)
+
+        // academic year / term box
+        val boxW = 128f
+        val boxH = 56f
+        val boxX = width - MARGIN - boxW
+        val boxY = height - 58f - boxH
+        canvas.box(boxX, boxY, boxW, boxH, 4f, ReportTheme.PAPER, ReportTheme.LINE, 0.8f)
+        canvas.trackedC("ACADEMIC YEAR", boxX + boxW / 2, boxY + boxH - 14f, canvas.theme.sansBold, 5.4f, 1.1f, ReportTheme.MUTED)
+        canvas.textC(yearLabel, boxX + boxW / 2, boxY + boxH - 27f, canvas.theme.sansBold, 10f, ReportTheme.NAVY)
+        canvas.line(boxX + 16f, boxY + 31f, boxX + boxW - 16f, boxY + 31f, ReportTheme.LINE, 0.5f)
+        canvas.trackedC("TERM", boxX + boxW / 2, boxY + 21f, canvas.theme.sansBold, 5.4f, 1.1f, ReportTheme.MUTED)
+        canvas.textC(termLabel, boxX + boxW / 2, boxY + 8f, canvas.theme.sansBold, 9.4f, ReportTheme.NAVY)
+
+        // centred title with the v1 hairlines and gold diamonds
+        val titleY = height - (if (landscape) 106f else 128f)
+        val titleSize = if (landscape) 21f else 25f
+        val titleWidth = canvas.textWidth(title, canvas.theme.serifBold, titleSize)
+        val centreX = width / 2
+        canvas.line(MARGIN + 24f, titleY + 2f, centreX - titleWidth / 2 - 18f, titleY + 2f, ReportTheme.LINE, 0.7f)
+        val rightEnd = if (landscape) width - MARGIN - 128f - 48f else width - MARGIN - 24f
+        canvas.line(centreX + titleWidth / 2 + 18f, titleY + 2f, rightEnd, titleY + 2f, ReportTheme.LINE, 0.7f)
+        canvas.diamond(MARGIN + 24f, titleY + 2f, 2.2f, ReportTheme.GOLD)
+        canvas.diamond(rightEnd, titleY + 2f, 2.2f, ReportTheme.GOLD)
+        canvas.textC(title, centreX, titleY, canvas.theme.serifBold, titleSize, ReportTheme.NAVY)
+        canvas.trackedC(subtitle.uppercase(), centreX, titleY - 15f, canvas.theme.sansBold, 6.8f, 1.5f, ReportTheme.MUTED)
+        return if (landscape) 138f else 148f
+    }
+
+    /** Four labelled identity cells under the header (v1 meta strip). */
+    fun metaStrip(canvas: ReportCanvas, topOffset: Float, cells: List<Pair<String, String>>, weights: List<Float>) {
+        if (cells.isEmpty()) return
+        val x = MARGIN
+        val w = canvas.width - MARGIN * 2
+        val h = 42f
+        val y = canvas.height - topOffset - h
+        canvas.box(x, y, w, h, 5f, ReportTheme.MINT_SOFT, ReportTheme.LINE, 0.7f)
+        val sum = weights.sum().takeIf { it > 0f } ?: cells.size.toFloat()
+        var cursor = x
+        cells.forEachIndexed { index, (label, value) ->
+            val cellW = w * (weights.getOrElse(index) { 1f }) / sum
+            if (index > 0) canvas.line(cursor, y + 8f, cursor, y + h - 8f, ReportTheme.LINE, 0.6f)
+            canvas.tracked(label.uppercase(), cursor + 12f, y + h - 13f, canvas.theme.sansBold, 5.6f, 1.3f, ReportTheme.MUTED)
+            canvas.text(canvas.ellipsis(value, canvas.theme.sansBold, 9.6f, cellW - 22f), cursor + 12f, y + 13f, canvas.theme.sansBold, 9.6f, ReportTheme.NAVY)
+            cursor += cellW
+        }
+    }
+
+    /** Section eyebrow: small teal square + tracked label. */
+    fun eyebrow(canvas: ReportCanvas, label: String, x: Float, topY: Float) {
+        val y = canvas.top(topY)
+        canvas.fillRect(x, y - 1.5f, 6f, 6f, ReportTheme.TEAL)
+        canvas.tracked(label.uppercase(), x + 12f, y, canvas.theme.sansBold, 6.4f, 1.4f, ReportTheme.NAVY)
+    }
+
+    /** Wave footer of the v1 cards (school left, page/generation right). */
+    fun cardFooter(canvas: ReportCanvas, branding: ReportBranding, termLabel: String, page: Int, pages: Int) {
+        canvas.wave(40f, 7.5f, 0.5f, 2.2f, ReportTheme.mix(ReportTheme.TEAL, ReportTheme.PAPER, 0.15f))
+        canvas.wave(27f, 6.5f, 2.15f, 3.05f, ReportTheme.NAVY)
+        canvas.fillRect(15f, 0f, canvas.width - 30f, 3f, ReportTheme.NAVY)
+        canvas.text(branding.schoolName + "  |  " + termLabel, MARGIN + 8f, 12.5f, canvas.theme.sansBold, 7.2f, ReportTheme.PAPER)
+        val today = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy", java.util.Locale.US))
+        val right = "Page " + page + " of " + pages + "   |   Generated by BrainBox   |   " + today
+        canvas.textR(right, canvas.width - MARGIN - 8f, 12.5f, canvas.theme.sans, 6.4f, ReportTheme.mix(ReportTheme.PAPER, ReportTheme.NAVY, 0.15f))
+    }
+
+    /** Rounded level chip used on the student cards. */
+    fun cardChip(canvas: ReportCanvas, label: String, cx: Float, cy: Float) {
+        if (label.isBlank()) return
+        val textWidth = canvas.textWidth(label, canvas.theme.sansBold, 7.2f)
+        val chipWidth = textWidth + 16f
+        val chipHeight = 15f
+        canvas.fillRound(cx - chipWidth / 2, cy - chipHeight / 2, chipWidth, chipHeight, chipHeight / 2, ReportTheme.gradeFill(label))
+        canvas.textC(label, cx, cy - 2.7f, canvas.theme.sansBold, 7.2f, ReportTheme.gradeInk(label))
+    }
+
+    fun cardChipRight(canvas: ReportCanvas, label: String, rightX: Float, cy: Float) {
+        val textWidth = canvas.textWidth(label, canvas.theme.sansBold, 7.2f)
+        cardChip(canvas, label, rightX - (textWidth + 16f) / 2f, cy)
+    }
+
+    /** Arrow-ended ribbon used by the summary cards. */
+    fun ribbon(canvas: ReportCanvas, label: String, cx: Float, cy: Float, fill: Color, ink: Color) {
+        val textWidth = canvas.textWidth(label, canvas.theme.sansBold, 8.2f)
+        val ribbonWidth = textWidth + 34f
+        val ribbonHeight = 17f
+        val x = cx - ribbonWidth / 2
+        val y = cy - ribbonHeight / 2
+        canvas.fillInk(fill)
+        canvas.stream.moveTo(x, cy)
+        canvas.stream.lineTo(x + 7f, y + ribbonHeight)
+        canvas.stream.lineTo(x + ribbonWidth - 7f, y + ribbonHeight)
+        canvas.stream.lineTo(x + ribbonWidth, cy)
+        canvas.stream.lineTo(x + ribbonWidth - 7f, y)
+        canvas.stream.lineTo(x + 7f, y)
+        canvas.stream.closePath()
+        canvas.stream.fill()
+        canvas.textC(label, cx, cy - 3f, canvas.theme.sansBold, 8.2f, ink)
+    }
+
+    /** Gold medal: two ribbon tails, a disc and a star. */
+    fun medal(canvas: ReportCanvas, cx: Float, cy: Float, radius: Float, disc: Color) {
+        canvas.fillInk(ReportTheme.mix(disc, ReportTheme.NAVY, 0.25f))
+        canvas.stream.moveTo(cx - radius * 0.45f, cy - radius * 0.2f)
+        canvas.stream.lineTo(cx - radius * 0.8f, cy - radius * 1.9f)
+        canvas.stream.lineTo(cx - radius * 0.1f, cy - radius * 1.55f)
+        canvas.stream.lineTo(cx + radius * 0.2f, cy - radius * 2.0f)
+        canvas.stream.lineTo(cx + radius * 0.55f, cy - radius * 0.2f)
+        canvas.stream.closePath()
+        canvas.stream.fill()
+        canvas.fillInk(disc)
+        canvas.circle(cx, cy, radius)
+        canvas.stream.fill()
+        canvas.star(cx, cy - radius * 0.05f, radius * 0.5f, ReportTheme.PAPER)
+    }
+
+    /** Handwritten-style signature curve above the class-teacher line. */
+    fun signature(canvas: ReportCanvas, x: Float, y: Float, ink: Color) {
+        canvas.strokeInk(ink, 1.1f)
+        canvas.stream.moveTo(x, y)
+        canvas.stream.curveTo(x + 12f, y + 18f, x + 26f, y - 10f, x + 40f, y + 6f)
+        canvas.stream.curveTo(x + 50f, y + 17f, x + 58f, y - 2f, x + 70f, y + 8f)
+        canvas.stream.curveTo(x + 80f, y + 16f, x + 88f, y + 1f, x + 104f, y + 9f)
+        canvas.stream.curveTo(x + 118f, y + 15f, x + 128f, y + 3f, x + 146f, y + 8f)
+        canvas.stream.stroke()
     }
 }

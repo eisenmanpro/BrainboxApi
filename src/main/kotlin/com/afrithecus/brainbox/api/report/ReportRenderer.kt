@@ -1,8 +1,11 @@
 package com.afrithecus.brainbox.api.report
 
+import com.afrithecus.brainbox.api.report.render.CbcClassRenderer
+import com.afrithecus.brainbox.api.report.render.CbcStudentRenderer
 import com.afrithecus.brainbox.api.report.render.GradeAnalysisRenderer
 import com.afrithecus.brainbox.api.report.render.TraditionalCombinedRenderer
 import com.afrithecus.brainbox.api.report.render.TraditionalPerClassRenderer
+import com.afrithecus.brainbox.api.report.render.TraditionalStudentRenderer
 import com.afrithecus.brainbox.api.report.web.ReportType
 import com.afrithecus.brainbox.api.traditional.model.displayName
 import org.apache.pdfbox.pdmodel.PDDocument
@@ -39,6 +42,9 @@ class ReportRenderer(private val properties: ReportProperties) {
     private val combinedRenderer = TraditionalCombinedRenderer(properties)
     private val perClassRenderer = TraditionalPerClassRenderer(properties)
     private val analysisRenderer = GradeAnalysisRenderer(properties)
+    private val traditionalStudentRenderer = TraditionalStudentRenderer(properties)
+    private val cbcStudentRenderer = CbcStudentRenderer(properties)
+    private val cbcClassRenderer = CbcClassRenderer(properties)
 
     fun render(spec: ReportRenderSpec): ByteArray = when (spec) {
         // The traditional report-book documents own their PDDocument and return bytes directly.
@@ -48,6 +54,11 @@ class ReportRenderer(private val properties: ReportProperties) {
             combinedRenderer.render(spec)
         }
         is GradeAnalysisSpec -> analysisRenderer.render(spec)
+        // The v1-style student/class cards (A3/A4/A5). Detailed variants keep the legacy
+        // canvas until A7/A8 port the analytics pages, and teacher performance is A6.
+        is TraditionalStudentsSpec -> traditionalStudentRenderer.render(spec)
+        is CbcStudentsSpec -> if (spec.detailed) renderLegacy(spec) else cbcStudentRenderer.render(spec)
+        is CbcClassSpec -> if (spec.detailed || spec.focusTeacher != null) renderLegacy(spec) else cbcClassRenderer.render(spec)
         // The remaining report families still use the legacy canvas below.
         else -> renderLegacy(spec)
     }

@@ -297,6 +297,18 @@ data class TraditionalStudentReportDto(
     val teacherRemarks: String? = null,
     val schoolName: String,
     val schoolLogo: String? = null,
+    /** Resolved class teacher for the card signature block (A3). */
+    val classTeacherName: String? = null,
+)
+
+/** The single latest PUBLISHED paper exam with marks for a learner (D7/F13). */
+data class PaperExamSnapshotDto(
+    val examId: String,
+    val examTitle: String,
+    val term: String,
+    val year: Int,
+    val examDate: String,
+    val results: List<TraditionalSubjectResultDto>,
 )
 
 data class TopPerformerDto(

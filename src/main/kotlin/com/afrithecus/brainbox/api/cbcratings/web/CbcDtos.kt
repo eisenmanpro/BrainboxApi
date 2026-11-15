@@ -45,6 +45,8 @@ data class CbcClassReportPayload(
     val overallClassAverage: Double = 0.0,
     val subjectTeacherPerformance: List<SubjectTeacherPerformancePayload> = emptyList(),
     val generatedAt: Long = 0,
+    /** Real roster size, so class KPIs never invent a learner count (D2/F14). */
+    val studentCount: Int = 0,
 )
 
 data class CbcStrandRatingPayload(
@@ -52,6 +54,8 @@ data class CbcStrandRatingPayload(
     val descriptor: String,
     val rating: String,
     val evidenceLink: String? = null,
+    /** Parent-facing learning-area name resolved from the strand catalogue (D1/F6). */
+    val strandName: String? = null,
 )
 
 data class PaperExamResultPayload(
@@ -60,6 +64,12 @@ data class PaperExamResultPayload(
     val maxScore: Double,
     val percentage: Double,
     val grade: String,
+    /** The single latest published paper exam these rows belong to (D7). */
+    val examId: String = "",
+    val examTitle: String = "",
+    val term: String = "",
+    val year: Int = 0,
+    val examDate: String = "",
 )
 
 data class CbcReportCardPayload(
@@ -71,6 +81,8 @@ data class CbcReportCardPayload(
     val overallGrade: String = "ME",
     val paperExamResults: List<PaperExamResultPayload> = emptyList(),
     val gradeLevel: String? = null,
+    /** Learner meta used by the printed card; null when the record has none. */
+    val admissionNumber: String? = null,
 )
 
 data class StudentStrandRatingPayload(

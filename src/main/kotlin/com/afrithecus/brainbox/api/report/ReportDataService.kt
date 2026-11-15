@@ -50,9 +50,14 @@ class ReportDataService(
         }
         ReportType.TRADITIONAL_STUDENT -> {
             val examId = requireExamId(request)
+            val exam = traditional.getExam(actor, examId)
             val reports = request.studentIds.map { traditional.myResult(actor, examId, it) }
             if (reports.isEmpty()) throw invalidArgument("studentIds are required for a traditional student report")
-            TraditionalStudentsSpec("Student Traditional Exam Report", branding, reports)
+            // D18: the card legend follows the capture session's resolved bands.
+            val bands = exam.grading?.bands
+                ?.map { ReportGradingBand(it.grade, it.minPercentage.toDouble()) }
+                .orEmpty()
+            TraditionalStudentsSpec("Student Traditional Exam Report", branding, reports, bands)
         }
         ReportType.CBC_STUDENT, ReportType.DETAILED_CBC_STUDENT -> {
             val detailed = request.reportType == ReportType.DETAILED_CBC_STUDENT
@@ -72,6 +77,7 @@ class ReportDataService(
                 title = if (request.reportType == ReportType.DETAILED_CBC_CLASS) "Detailed Class CBC Report" else "Class CBC Report",
                 branding = branding,
                 classReport = report,
+                year = request.year,
                 detailed = request.reportType == ReportType.DETAILED_CBC_CLASS,
             )
         }
@@ -175,7 +181,15 @@ class ReportDataService(
         val viewer = userRepository.findById(actor.userId).orElseThrow { invalidArgument("Report owner not found") }
         return request.studentIds.map { studentId ->
             val card = cbc.studentReportForViewer(viewer, studentId, request.term)
-            CbcStudentCard(studentId, card.studentName, card.gradeLevel, card.term, card, detailFor(viewer, studentId, detailed))
+            CbcStudentCard(
+                studentId = studentId,
+                studentName = card.studentName,
+                gradeLevel = card.gradeLevel,
+                term = card.term,
+                card = card,
+                detail = detailFor(viewer, studentId, detailed),
+                year = request.year ?: java.time.LocalDate.now().year,
+            )
         }
     }
 

@@ -11,6 +11,7 @@ import com.afrithecus.brainbox.api.cbcratings.web.CbcReportCardPayload
 import com.afrithecus.brainbox.api.cbcratings.web.CbcStrandInfoPayload
 import com.afrithecus.brainbox.api.cbcratings.web.CbcStrandMasteryPayload
 import com.afrithecus.brainbox.api.cbcratings.web.CbcStrandRatingPayload
+import com.afrithecus.brainbox.api.cbcratings.web.PaperExamResultPayload
 import com.afrithecus.brainbox.api.cbcratings.web.StrandMasteryDetailPayload
 import com.afrithecus.brainbox.api.cbcratings.web.StudentStrandRatingPayload
 import com.afrithecus.brainbox.api.cbcratings.web.SubjectTeacherPerformancePayload
@@ -26,6 +27,7 @@ import com.afrithecus.brainbox.api.identity.LearnerAccess
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
+import com.afrithecus.brainbox.api.traditional.TraditionalExamService
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
@@ -46,6 +48,7 @@ class CbcAnalyticsService(
     private val userRepository: UserRepository,
     private val feedbackRepository: TeacherFeedbackRepository,
     private val attendanceRepository: AttendanceRecordRepository,
+    private val traditionalExamService: TraditionalExamService,
     private val clock: Clock,
 ) {
 
@@ -147,6 +150,7 @@ class CbcAnalyticsService(
                 ),
             ),
             generatedAt = clock.instant().toEpochMilli(),
+            studentCount = studentIds.size,
         )
     }
 
@@ -184,6 +188,8 @@ class CbcAnalyticsService(
                 descriptor = strands[it.strandCode]?.descriptor ?: "",
                 rating = it.rating,
                 evidenceLink = it.evidence,
+                // D1/F6: the printed card shows the learning-area name, never CBC1..7.
+                strandName = strands[it.strandCode]?.name,
             )
         }
         val attendance = attendanceRepository.findAllByStudentIdOrderByAttendanceDateDesc(student.id)
@@ -196,6 +202,23 @@ class CbcAnalyticsService(
         val average = if (ratings.isEmpty()) 0.0 else ratings.map { ratingScore(it.rating) }.average()
         val comments = feedbackRepository.findAllByStudentIdOrderByCreatedAtDesc(student.id)
             .firstOrNull()?.textFeedback.orEmpty()
+        // D7/F13: the card's paper-exam block carries exactly one exam - the latest
+        // PUBLISHED traditional exam in which this learner has marks (never a cumulative list).
+        val paperExam = runCatching { traditionalExamService.latestPublishedPaperExamFor(student.id) }.getOrNull()
+        val paperResults = paperExam?.results.orEmpty().map { result ->
+            PaperExamResultPayload(
+                subject = result.subjectName,
+                score = result.rawScore.toDouble(),
+                maxScore = result.maxScore.toDouble(),
+                percentage = result.percentage,
+                grade = result.grade,
+                examId = paperExam?.examId.orEmpty(),
+                examTitle = paperExam?.examTitle.orEmpty(),
+                term = paperExam?.term.orEmpty(),
+                year = paperExam?.year ?: 0,
+                examDate = paperExam?.examDate.orEmpty(),
+            )
+        }
         return CbcReportCardPayload(
             studentName = student.name,
             term = term,
@@ -203,7 +226,9 @@ class CbcAnalyticsService(
             teacherComments = comments,
             attendancePercentage = round2(attendancePercentage),
             overallGrade = overallGradeCode(average),
+            paperExamResults = paperResults,
             gradeLevel = student.gradeLevel,
+            admissionNumber = student.studentAdmissionNumber,
         )
     }
 

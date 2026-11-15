@@ -194,6 +194,11 @@ class ReportCanvas(
 
     /** Diagonal watermark in a very pale tint (3-4 % ink, plan A13). */
     fun watermark(label: String?, cx: Float, cy: Float, size: Float) {
+        watermark(label, cx, cy, size, ReportTheme.mix(ReportTheme.NAVY, ReportTheme.PAPER, 0.96f))
+    }
+
+    /** Watermark with an explicit ink; the student cards use a paler tint so body rows stay clean. */
+    fun watermark(label: String?, cx: Float, cy: Float, size: Float, ink: Color) {
         if (label.isNullOrBlank()) return
         stream.saveGraphicsState()
         // Translate to the page centre, rotate there, then draw the text around the local
@@ -203,7 +208,7 @@ class ReportCanvas(
         stream.transform(Matrix.getRotateInstance(Math.toRadians(-28.0), 0f, 0f))
         val font = theme.sansBlack
         val width = textWidth(label, font, size)
-        text(label, -width / 2f, 0f, font, size, ReportTheme.mix(ReportTheme.NAVY, ReportTheme.PAPER, 0.96f))
+        text(label, -width / 2f, 0f, font, size, ink)
         stream.restoreGraphicsState()
     }
 

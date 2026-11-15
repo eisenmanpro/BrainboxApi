@@ -54,6 +54,7 @@ import com.afrithecus.brainbox.api.traditional.web.GradingConfigDefaults
 import com.afrithecus.brainbox.api.traditional.web.GradingConfigDto
 import com.afrithecus.brainbox.api.traditional.web.MarkEntryDto
 import com.afrithecus.brainbox.api.traditional.web.OverallGradingBandDto
+import com.afrithecus.brainbox.api.traditional.web.PaperExamSnapshotDto
 import com.afrithecus.brainbox.api.traditional.web.PreFinalCheckSummaryDto
 import com.afrithecus.brainbox.api.traditional.web.StudentDto
 import com.afrithecus.brainbox.api.traditional.web.StudentGradeRowDto
@@ -761,6 +762,48 @@ class TraditionalExamService(
         return report(current, exam, student, marks)
     }
 
+    /**
+     * D7/F13: the single latest PUBLISHED paper exam in which this learner has marks,
+     * with that exam's subject rows. "Latest" is newest exam year, then term, then
+     * publication time, resolved in Kotlin so the rule is deterministic and unit-testable.
+     * FINALIZED-but-unpublished marks never reach a learner/parent-facing PDF. Returns
+     * null when the learner has no published paper-exam marks (explicit empty state).
+     */
+    @Transactional(readOnly = true)
+    fun latestPublishedPaperExamFor(studentId: UUID): PaperExamSnapshotDto? {
+        val marks = markRepository.findAllByStudentId(studentId)
+        if (marks.isEmpty()) return null
+        val marksByExam = marks.groupBy { it.examId }
+        val published = examRepository.findAllById(marksByExam.keys)
+            .filter { it.status == TraditionalExamStatus.PUBLISHED && marksByExam[it.id].orEmpty().isNotEmpty() }
+        if (published.isEmpty()) return null
+        val exam = published.sortedWith(
+            compareByDescending<TraditionalExamEntity> { it.year }
+                .thenByDescending { it.term.ordinal }
+                .thenByDescending { it.publishedAt ?: it.createdAt },
+        ).first()
+        val grading = sessionGrading(exam)
+        val subjects = subjectRepository.findAllByExamIdOrderByOrderIndexAsc(exam.id).associateBy { it.subjectId }
+        val ordered = marksByExam[exam.id].orEmpty().sortedBy { mark ->
+            subjects[mark.subjectId]?.orderIndex ?: Int.MAX_VALUE
+        }
+        val results = ordered.mapNotNull { mark ->
+            subjects[mark.subjectId]?.let { subject -> subjectResult(subject, mark, grading) }
+        }
+        if (results.isEmpty()) return null
+        val date = exam.publishedAt ?: exam.createdAt
+        val label = java.time.LocalDate.ofInstant(date, clock.zone)
+            .format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.US))
+        return PaperExamSnapshotDto(
+            examId = publicExamId(exam),
+            examTitle = exam.title,
+            term = exam.term.displayName(),
+            year = exam.year,
+            examDate = label,
+            results = results,
+        )
+    }
+
     @Transactional(readOnly = true)
     fun analytics(current: CurrentUser, examIdRaw: String): TraditionalExamAnalyticsDto {
         requireStaffReader(current)
@@ -1324,6 +1367,7 @@ class TraditionalExamService(
             teacherRemarks = exam.coordinatorRemarks,
             schoolName = school?.name.orEmpty(),
             schoolLogo = school?.logoUrl,
+            classTeacherName = rawClassTeacherNames(exam)[classTag],
         )
     }
 

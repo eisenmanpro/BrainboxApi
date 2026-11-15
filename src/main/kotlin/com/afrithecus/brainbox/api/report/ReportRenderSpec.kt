@@ -40,6 +40,8 @@ data class TraditionalStudentsSpec(
     override val title: String,
     override val branding: ReportBranding,
     val reports: List<TraditionalStudentReportDto>,
+    /** Session-resolved grading bands (D18) for the card legend; empty = v1 default labels. */
+    val bands: List<ReportGradingBand> = emptyList(),
 ) : ReportRenderSpec
 
 data class CbcStudentCard(
@@ -50,6 +52,8 @@ data class CbcStudentCard(
     val card: CbcReportCardPayload,
     /** Extra analytics rendered only on the detailed second page. */
     val detail: CbcStudentDetail? = null,
+    /** Academic year shown in the card header; null falls back to the request year. */
+    val year: Int? = null,
 )
 
 /** Engagement data for the detailed CBC student page; every field is optional. */
@@ -72,6 +76,8 @@ data class CbcClassSpec(
     override val title: String,
     override val branding: ReportBranding,
     val classReport: CbcClassReportPayload,
+    /** Academic year shown in the landscape header; null renders the term box only. */
+    val year: Int? = null,
     /** When set (teacher-performance report) only this teacher's row is shown. */
     val focusTeacher: String? = null,
     /** DETAILED_CBC_CLASS renders weak-strand recommendations as a separate section. */
