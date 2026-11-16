@@ -38,4 +38,28 @@ class SchoolAnnouncementEntity : BaseEntity() {
 
     @Column(name = "meeting_title", length = 200)
     var meetingTitle: String? = null
+
+    /**
+     * Structured targeting (findings round): ALL | TEACHERS | PARENTS | LEARNERS | GRADE |
+     * CLASS | INDIVIDUALS. Null on a legacy row, where [audience] alone decides.
+     */
+    @Column(name = "target_type", length = 24)
+    var targetType: String? = null
+
+    /** JSON array of grade levels ("Grade 5" as entered, canonicalised for matching). */
+    @Column(name = "target_grade_levels", columnDefinition = "text")
+    var targetGradeLevels: String? = null
+
+    /** JSON array of school class ids. */
+    @Column(name = "target_class_ids", columnDefinition = "text")
+    var targetClassIds: String? = null
+
+    /** JSON array of teacher user ids (staff targeting). */
+    @Column(name = "target_teacher_ids", columnDefinition = "text")
+    var targetTeacherIds: String? = null
+
+    /** JSON array of learner user ids (learner/parent targeting; F9: one account). */
+    @Column(name = "target_student_ids", columnDefinition = "text")
+    var targetStudentIds: String? = null
+
 }

@@ -40,6 +40,7 @@ import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
@@ -349,7 +350,7 @@ class CbcProjectService(
             projectRepository.findAllByStatusOrderByCreatedAtDesc(ProjectStatus.FEATURED)
         return paged(
             rows = rows,
-            voterKey = guestId?.let(::requireGuestId)?.let(::keyForGuest),
+            voterKey = guestKeyOrNull(guestId),
             schoolId = null,
             gradeBand = gradeBand,
             subject = subject,
@@ -368,19 +369,20 @@ class CbcProjectService(
     fun featuredPublic(guestId: String?, limitRaw: Int): List<CbcProjectPayload> {
         val limit = limitRaw.coerceIn(1, 50)
         val rows = projectRepository.findAllByStatusOrderByCreatedAtDesc(ProjectStatus.FEATURED).take(limit)
-        val votes = votesFor(guestId?.let(::requireGuestId)?.let(::keyForGuest), rows.map { it.id })
+        val votes = votesFor(guestKeyOrNull(guestId), rows.map { it.id })
         return rows.map { payload(it, votes[it.id], redact = true) }
     }
 
     @Transactional(readOnly = true)
     fun detailPublic(guestId: String?, projectIdRaw: String): CbcProjectPayload {
         val project = requirePublicProject(projectIdRaw)
-        val vote = guestId?.let(::requireGuestId)?.let { votesFor(keyForGuest(it), listOf(project.id))[project.id] }
+        val voterKey = guestKeyOrNull(guestId)
+        val vote = voterKey?.let { votesFor(it, listOf(project.id))[project.id] }
         return payload(project, vote, redact = true)
     }
 
     @Transactional
-    fun votePublic(guestIdRaw: String, projectIdRaw: String, request: CbcVoteRequest): PublicVoteResponsePayload {
+    fun votePublic(guestIdRaw: String?, projectIdRaw: String, request: CbcVoteRequest): PublicVoteResponsePayload {
         val guestId = requireGuestId(guestIdRaw)
         val project = requirePublicProject(projectIdRaw)
         val type = runCatching { VoteType.valueOf(request.voteType.trim().uppercase()) }.getOrNull()
@@ -391,7 +393,7 @@ class CbcProjectService(
     }
 
     @Transactional
-    fun removeVotePublic(guestIdRaw: String, projectIdRaw: String): PublicVoteResponsePayload {
+    fun removeVotePublic(guestIdRaw: String?, projectIdRaw: String): PublicVoteResponsePayload {
         val guestId = requireGuestId(guestIdRaw)
         val project = requirePublicProject(projectIdRaw)
         applyRemoveVote(project, keyForGuest(guestId))
@@ -403,7 +405,7 @@ class CbcProjectService(
         commentsPage(requirePublicProject(projectIdRaw), pageRaw, limitRaw)
 
     @Transactional
-    fun addCommentPublic(guestIdRaw: String, projectIdRaw: String, request: PublicCommentRequestPayload): ProjectCommentPayload {
+    fun addCommentPublic(guestIdRaw: String?, projectIdRaw: String, request: PublicCommentRequestPayload): ProjectCommentPayload {
         val guestId = requireGuestId(guestIdRaw)
         val project = requirePublicProject(projectIdRaw)
         val comment = saveComment(project, request.content, request.parentCommentId, request.mentions) {
@@ -415,7 +417,7 @@ class CbcProjectService(
     }
 
     @Transactional
-    fun trackPublic(guestIdRaw: String, projectIdRaw: String, request: PublicTrackRequestPayload): PublicTrackResponsePayload {
+    fun trackPublic(guestIdRaw: String?, projectIdRaw: String, request: PublicTrackRequestPayload): PublicTrackResponsePayload {
         val guestId = requireGuestId(guestIdRaw)
         val project = requirePublicProject(projectIdRaw)
         val email = request.email.trim().lowercase()
@@ -433,7 +435,7 @@ class CbcProjectService(
     }
 
     @Transactional
-    fun reportPublic(guestIdRaw: String, projectIdRaw: String, request: PublicReportRequestPayload): PublicReportResponsePayload {
+    fun reportPublic(guestIdRaw: String?, projectIdRaw: String, request: PublicReportRequestPayload): PublicReportResponsePayload {
         val guestId = requireGuestId(guestIdRaw)
         val project = requirePublicProject(projectIdRaw)
         val reason = request.reason.trim()
@@ -453,13 +455,13 @@ class CbcProjectService(
     @Transactional
     fun recordViewPublic(guestIdRaw: String?, projectIdRaw: String) {
         val project = requirePublicProject(projectIdRaw)
-        val guestId = guestIdRaw?.takeIf { it.isNotBlank() }?.let(::requireGuestId)
-        if (guestId == null) {
+        val voterKey = guestKeyOrNull(guestIdRaw)
+        if (voterKey == null) {
             project.viewCount += 1
             projectRepository.save(project)
             return
         }
-        recordProjectView(project, keyForGuest(guestId), null)
+        recordProjectView(project, voterKey, null)
     }
 
     // ------------------------------------------------------------ internals
@@ -679,10 +681,43 @@ class CbcProjectService(
         return project
     }
 
-    private fun requireGuestId(raw: String): String {
-        val guestId = raw.trim()
-        if (!GUEST_ID_REGEX.matches(guestId)) throw invalidArgument("X-Guest-Id must be 'guest_' followed by a UUID")
+    /**
+     * Mutations need a verified anonymous identity. A missing or malformed value is a generic
+     * 400 — the caller is never told which header, schema or prefix was expected, and the
+     * rejected value is logged (hashed) server-side so abuse stays visible to operators
+     * without ever echoing attacker-controlled text back.
+     */
+    private fun requireGuestId(raw: String?): String {
+        val guestId = raw?.trim().orEmpty()
+        if (!GUEST_ID_REGEX.matches(guestId)) {
+            logRejectedGuestId(guestId)
+            throw invalidArgument(GUEST_ID_REJECTED)
+        }
         return guestId
+    }
+
+    /**
+     * Reads tolerate an absent or unverifiable guest id: an anonymous browser simply has no
+     * vote state. This is what made the public project page render a raw header-validation
+     * error to visitors instead of the feed.
+     */
+    private fun guestKeyOrNull(raw: String?): String? {
+        val guestId = raw?.trim().orEmpty()
+        if (guestId.isEmpty()) return null
+        if (!GUEST_ID_REGEX.matches(guestId)) {
+            logRejectedGuestId(guestId)
+            return null
+        }
+        return keyForGuest(guestId)
+    }
+
+    /** Logs a short SHA-256 prefix of a rejected guest id — never the raw client value. */
+    private fun logRejectedGuestId(value: String) {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(value.toByteArray(Charsets.UTF_8))
+            .take(4)
+            .joinToString("") { "%02x".format(it) }
+        log.warn("Rejected CBC guest id (length={}, digest={})", value.length, digest)
     }
 
     private fun guestName(guestId: String): String = "Guest " + (1000 + guestId.hashCode().absoluteValue % 9000)
@@ -727,6 +762,11 @@ class CbcProjectService(
         runCatching { UUID.fromString(raw) }.getOrNull() ?: throw invalidArgument(label + " is not a valid identifier")
 
     private companion object {
+        val log = LoggerFactory.getLogger(CbcProjectService::class.java)
+
+        /** Generic, non-disclosing rejection for a missing/malformed anonymous identity. */
+        const val GUEST_ID_REJECTED = "Request could not be verified. Refresh the page and try again."
+
         val GUEST_ID_REGEX = Regex("^guest_[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
         val EMAIL_REGEX = Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
         val CBC_REPORT_REASONS = setOf(

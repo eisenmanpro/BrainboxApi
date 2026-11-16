@@ -30,12 +30,18 @@ class CoordinatorGradeGuard(
      *
      * @param blankGradeMessage the complaint when the account has no grade on record; the
      * signup, console and transfer flows each need different wording.
+     * @param takenMessage the complaint when another active coordinator holds the grade. The
+     * signup flow passes a neutral "contact your school admin" line so a self-signup cannot
+     * infer who holds the grade; an authenticated admin assigning a coordinator keeps the
+     * explicit message because they can act on it.
      */
     fun requireAvailable(
         schoolId: UUID?,
         gradeLevel: String?,
         excludingUserId: UUID? = null,
         blankGradeMessage: String = "Select the one grade you coordinate.",
+        takenMessage: String =
+            "That grade already has a coordinator at this school. Move that assignment before adding another.",
     ) {
         val school = schoolId ?: throw invalidArgument("A grade coordinator must belong to a school.")
         val grade = gradeLevel?.trim()?.takeIf { it.isNotEmpty() } ?: throw invalidArgument(blankGradeMessage)
@@ -43,9 +49,7 @@ class CoordinatorGradeGuard(
         val taken = users.findAllBySchoolIdAndSubRoleAndIsActiveTrue(school, SubRole.GRADE_COORDINATOR)
             .firstOrNull { it.id != excludingUserId && it.gradeLevel?.trim()?.equals(grade, ignoreCase = true) == true }
         if (taken != null) {
-            throw conflict(
-                grade + " already has a grade coordinator at this school. Move that assignment before adding another.",
-            )
+            throw conflict(takenMessage)
         }
     }
 }

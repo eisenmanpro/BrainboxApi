@@ -80,6 +80,20 @@ class AdminSchoolController(private val service: AdminSchoolService) {
         @PathVariable schoolId: String,
     ): List<ManagedTeacherPayload> = service.managedTeachers(current, schoolId)
 
+    /**
+     * The school's learners for the admin audience picker (announcement targeting):
+     * filterable by grade, class and a name/phone search. Roster-only learners are excluded
+     * because they cannot receive anything.
+     */
+    @GetMapping("/{schoolId}/students")
+    fun students(
+        @AuthenticationPrincipal current: CurrentUser,
+        @PathVariable schoolId: String,
+        @RequestParam(required = false) gradeLevel: String?,
+        @RequestParam(required = false) classId: String?,
+        @RequestParam(required = false) q: String?,
+    ): List<AdminStudentPayload> = service.students(current, schoolId, gradeLevel, classId, q)
+
     @GetMapping("/{schoolId}/attendance/overview")
     fun attendanceOverview(
         @AuthenticationPrincipal current: CurrentUser,

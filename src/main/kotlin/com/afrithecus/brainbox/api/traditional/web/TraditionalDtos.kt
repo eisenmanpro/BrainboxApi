@@ -139,6 +139,13 @@ data class CaptureSummaryDto(
     val studentsWithEmptyFields: Int,
     val studentsWithNoScores: Int,
     val myConfirmed: Boolean = false,
+    /**
+     * True when the server narrowed this summary to the caller's own class because they are a
+     * class teacher who is not a coordinator/ICT admin: `classes`, every count below and
+     * `totalStudents` then describe that one class only. Additive: clients that ignore it keep
+     * working, and coordinators/admins always see the full grade (false).
+     */
+    val ownClassOnly: Boolean = false,
     val classes: List<ClassCaptureSummaryDto>,
 )
 

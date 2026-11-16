@@ -39,4 +39,10 @@ data class SchoolConfigPayload(
      * list here would wipe every class a teacher can pick. A non-null list replaces it.
      */
     val classes: List<SchoolClassPayload>? = null,
+    /**
+     * The school's own landing-gallery images (findings round: admin gallery upload).
+     * Up to 4 absolute http(s) URLs or /media paths. NULL means "leave untouched" (older
+     * clients); an empty list clears the gallery so the platform editorial images show again.
+     */
+    val galleryUrls: List<String>? = null,
 )

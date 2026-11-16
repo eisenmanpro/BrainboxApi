@@ -115,7 +115,14 @@ class TeacherAuthService(
         }
         // A coordinator is a class teacher with grade-wide duties, and each grade has exactly one.
         if (subRole == SubRole.GRADE_COORDINATOR) {
-            coordinatorGradeGuard.requireAvailable(school.id, grades.first())
+            // A self-signup cannot resolve or move a coordinator assignment, so it gets a
+            // neutral "contact your school admin" line instead of "there is already one".
+            coordinatorGradeGuard.requireAvailable(
+                school.id,
+                grades.first(),
+                takenMessage = "We could not complete your coordinator signup for this grade. " +
+                    "Please contact your school admin to be assigned.",
+            )
         }
         val teacher = UserEntity().apply {
             phoneNumber = phone

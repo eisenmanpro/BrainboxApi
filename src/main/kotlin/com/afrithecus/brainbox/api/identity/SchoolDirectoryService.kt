@@ -12,6 +12,7 @@ import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.repository.SchoolDetailRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolJoinRequestRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolReportRepository
+import com.afrithecus.brainbox.api.identity.repository.SchoolConfigRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolReviewRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
@@ -46,6 +47,7 @@ import java.util.UUID
 @Service
 class SchoolDirectoryService(
     private val schoolRepository: SchoolRepository,
+    private val configRepository: SchoolConfigRepository,
     private val detailRepository: SchoolDetailRepository,
     private val reviewRepository: SchoolReviewRepository,
     private val joinRequestRepository: SchoolJoinRequestRepository,
@@ -56,14 +58,20 @@ class SchoolDirectoryService(
 ) {
 
     @Transactional(readOnly = true)
-    fun list(): List<SchoolListPayload> =
-        schoolRepository.findAllByOrderByNameAsc().filter { it.isActive }.map(::listPayload)
+    fun list(): List<SchoolListPayload> {
+        val schools = schoolRepository.findAllByOrderByNameAsc().filter { it.isActive }
+        val galleries = galleriesFor(schools)
+        return schools.map { listPayload(it, galleries[it.id].orEmpty()) }
+    }
 
     @Transactional(readOnly = true)
-    fun search(query: String): List<SchoolListPayload> =
-        if (query.isBlank()) emptyList()
-        else schoolRepository.findByNameContainingIgnoreCaseOrderByNameAsc(query.trim())
-            .filter { it.isActive }.map(::listPayload)
+    fun search(query: String): List<SchoolListPayload> {
+        if (query.isBlank()) return emptyList()
+        val schools = schoolRepository.findByNameContainingIgnoreCaseOrderByNameAsc(query.trim())
+            .filter { it.isActive }
+        val galleries = galleriesFor(schools)
+        return schools.map { listPayload(it, galleries[it.id].orEmpty()) }
+    }
 
     @Transactional(readOnly = true)
     fun trending(limit: Int): List<SchoolListPayload> =
@@ -77,7 +85,9 @@ class SchoolDirectoryService(
         val reviews = reviewRepository.findAllBySchoolIdOrderByCreatedAtDesc(school.id).map {
             SchoolReviewPayload(it.userName, it.rating, it.comment, it.reviewDate.toString())
         }
-        val imageUrls = detail?.let { parseList(it.imageUrls) } ?: emptyList()
+        // The school's own uploaded gallery wins over the platform editorial images; a
+        // school with no gallery of its own keeps the editorial set unchanged.
+        val imageUrls = schoolGallery(school.id).ifEmpty { detail?.let { parseList(it.imageUrls) } ?: emptyList() }
         return SchoolDetailPayload(
             basicInfo = SchoolBasicInfoPayload(
                 name = school.name,
@@ -191,12 +201,13 @@ class SchoolDirectoryService(
 
     // ------------------------------------------------------------ internals
 
-    private fun listPayload(school: SchoolEntity): SchoolListPayload {
+    private fun listPayload(school: SchoolEntity, ownGallery: List<String> = emptyList()): SchoolListPayload {
         val logos = parseList(school.logoUrls).ifEmpty { listOfNotNull(school.logoUrl) }
         // FEAT-01: the list now carries the same editorial media the detail payload has.
-        // A school without a gallery keeps the legacy logo fallback so existing cards
-        // never lose their single image; the gallery is capped at the four the UI renders.
-        val gallery = parseList(school.imageUrls).ifEmpty { logos }.take(4)
+        // Precedence: the school's own uploaded gallery (>> admin gallery upload) overrides
+        // the platform editorial images; with neither, a school keeps the legacy logo
+        // fallback so existing cards never lose their single image (capped at four).
+        val gallery = ownGallery.ifEmpty { parseList(school.imageUrls) }.ifEmpty { logos }.take(4)
         return SchoolListPayload(
             id = school.id.toString(),
             name = school.name,
@@ -211,6 +222,17 @@ class SchoolDirectoryService(
             featuredTagline = school.featuredTagline?.takeIf { it.isNotBlank() },
             story = school.story?.takeIf { it.isNotBlank() },
         )
+    }
+
+    /** The school's own landing gallery from its config row (empty when it has none). */
+    private fun schoolGallery(schoolId: UUID): List<String> =
+        parseList(configRepository.findById(schoolId).orElse(null)?.galleryUrls)
+
+    /** Batch form of [schoolGallery] so the directory list stays one query. */
+    private fun galleriesFor(schools: List<SchoolEntity>): Map<UUID, List<String>> {
+        if (schools.isEmpty()) return emptyMap()
+        return configRepository.findAllBySchoolIdIn(schools.map { it.id })
+            .associate { it.schoolId to parseList(it.galleryUrls) }
     }
 
     private fun requireSchool(raw: String): SchoolEntity {

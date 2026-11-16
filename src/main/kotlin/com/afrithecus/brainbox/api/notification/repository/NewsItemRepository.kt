@@ -11,5 +11,8 @@ interface NewsItemRepository : JpaRepository<NewsItemEntity, UUID> {
 
     fun findAllByOrderByCreatedAtDesc(): List<NewsItemEntity>
 
+    /** The articles one author published (the teacher's own news surface), newest first. */
+    fun findAllByAuthorIdOrderByCreatedAtDesc(authorId: UUID): List<NewsItemEntity>
+
     fun findAllByStatusAndCategoryIgnoreCaseOrderByPublishedAtDesc(status: NewsStatus, category: String): List<NewsItemEntity>
 }

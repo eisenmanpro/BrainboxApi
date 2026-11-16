@@ -33,6 +33,16 @@ class NewsController(private val service: NewsService) {
         @RequestParam(required = false) category: String?,
     ): List<NewsItemPayload> = service.list(current, category)
 
+    /**
+     * The caller's own articles (teacher news surface). Declared before `/{newsId}` and
+     * literal, so Spring's path matcher prefers it over the id route.
+     */
+    @GetMapping("/mine")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    fun mine(
+        @AuthenticationPrincipal current: CurrentUser,
+    ): List<NewsItemPayload> = service.mine(current)
+
     @GetMapping("/{newsId}")
     fun detail(
         @AuthenticationPrincipal current: CurrentUser?,

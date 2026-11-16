@@ -9,6 +9,14 @@ import org.springframework.http.HttpStatus
 enum class ApiErrorCode(val httpStatus: HttpStatus) {
     INVALID_ARGUMENT(HttpStatus.BAD_REQUEST),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED),
+    /**
+     * No account exists for the supplied identifier. Login-only: the client shows a
+     * "check the email or phone number" hint instead of a generic failure. Throttling
+     * still applies to every miss, so this is not a free enumeration oracle.
+     */
+    ACCOUNT_NOT_FOUND(HttpStatus.UNAUTHORIZED),
+    /** The account exists but the password/PIN is wrong. Login-only, same throttle. */
+    INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED),
     FORBIDDEN(HttpStatus.FORBIDDEN),
     /** Correct credentials, but the account's email address has not been confirmed yet. */
     EMAIL_NOT_VERIFIED(HttpStatus.FORBIDDEN),

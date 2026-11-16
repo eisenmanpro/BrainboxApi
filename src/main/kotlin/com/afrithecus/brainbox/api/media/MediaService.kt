@@ -70,6 +70,13 @@ class MediaService(
     }
 
     /**
+     * A school's own landing-gallery image: 5 MB, PNG/JPEG/GIF/WebP (the landing is a
+     * browser surface, so WebP is fine here even though the PDF branding slots exclude it).
+     */
+    fun storeGalleryImage(file: MultipartFile): MediaUploadResponsePayload =
+        storeChecked(file, MediaPolicies.GALLERY_MAX_BYTES) { it in MediaPolicies.GALLERY_KINDS }
+
+    /**
      * Resolves a stored media URL to its bytes for the PDF renderer. Branding is served
      * by this deployment at `/media/{uuid}.{ext}`; fetching that URL over HTTP would hit
      * the report SSRF policy (and fail for a local/dev origin), so a URL whose filename

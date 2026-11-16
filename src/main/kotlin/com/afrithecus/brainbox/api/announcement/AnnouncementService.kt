@@ -7,6 +7,7 @@ import com.afrithecus.brainbox.api.announcement.web.AnnouncementAnalyticsPayload
 import com.afrithecus.brainbox.api.announcement.web.StudentAcknowledgementStatusPayload
 import com.afrithecus.brainbox.api.announcement.web.TeacherAnnouncementPayload
 import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
+import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.common.domain.GradeNormalizer
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
@@ -38,6 +39,7 @@ class AnnouncementService(
     private val announcementRepository: TeacherAnnouncementRepository,
     private val viewRepository: AnnouncementViewRepository,
     private val membershipRepository: ClassMembershipRepository,
+    private val classRepository: TeacherClassRepository,
     private val userRepository: UserRepository,
     private val notificationService: NotificationService,
     private val codec: QuestionCodec,
@@ -57,6 +59,9 @@ class AnnouncementService(
         val now = clock.instant()
         return announcementRepository.findAllByTeacherIdNotAndSchoolIdOrderBySentAtDesc(teacher.id, schoolId)
             .filter { it.deliveredAt != null && !hidden(it, now) }
+            // The delivered copy of an admin school announcement must honour its staff/class/
+            // grade targeting; learner-only copies never appear in the teacher feed.
+            .filter { it.sourceSchoolAnnouncementId == null || schoolCopyVisibleToTeacher(it, teacher) }
             .map(::payload)
     }
 
@@ -251,6 +256,29 @@ class AnnouncementService(
     private fun hidden(entity: TeacherAnnouncementEntity, now: Instant): Boolean =
         entity.expiresAt?.isBefore(now) == true
 
+    /**
+     * A delivered school-announcement copy seen from a teacher's side: the staff copy is
+     * filtered by its explicit staff/class/grade targets, and the learner copy is never a
+     * teacher-feed item.
+     */
+    private fun schoolCopyVisibleToTeacher(entity: TeacherAnnouncementEntity, teacher: UserEntity): Boolean {
+        val explicitTeachers = codec.parseList(entity.targetTeacherIds).orEmpty()
+            .mapNotNull { runCatching { UUID.fromString(it) }.getOrNull() }
+        val teacherClasses = classRepository.findAllByTeacherUserIdAndIsActiveTrueOrderByNameAsc(teacher.id)
+        val teacherGrades = (teacherClasses.map { it.gradeLevel } + listOfNotNull(teacher.gradeLevel))
+            .mapNotNull { GradeNormalizer.canonicalKey(it) }.toSet()
+        return when (entity.audience) {
+            "SCHOOL" -> true
+            "TEACHER" -> explicitTeachers.isEmpty() || teacher.id in explicitTeachers
+            "GRADE" -> codec.parseList(entity.targetGradeLevels).orEmpty()
+                .mapNotNull { GradeNormalizer.canonicalKey(it) }
+                .any { it in teacherGrades }
+            "CLASS" -> codec.parseList(entity.targetClassIds).orEmpty()
+                .any { it in teacherClasses.map { clazz -> clazz.id.toString() } }
+            else -> false
+        }
+    }
+
     private fun visibleTo(
         entity: TeacherAnnouncementEntity,
         user: UserEntity,
@@ -275,7 +303,13 @@ class AnnouncementService(
                     else -> true
                 }
             }
-            "TEACHER" -> user.role == Role.TEACHER
+            "TEACHER" -> {
+                // A staff copy can name individual teachers (school announcements targeted at
+                // people, not a whole role); an untargeted staff copy reaches every teacher.
+                val explicitTeachers = codec.parseList(entity.targetTeacherIds).orEmpty()
+                    .mapNotNull { runCatching { UUID.fromString(it) }.getOrNull() }
+                user.role == Role.TEACHER && (explicitTeachers.isEmpty() || user.id in explicitTeachers)
+            }
             "GRADE" -> codec.parseList(entity.targetGradeLevels).orEmpty()
                 .mapNotNull { it.toIntOrNull() }
                 .any { it in grades }

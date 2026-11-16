@@ -239,7 +239,9 @@ class TraditionalExamController(
     fun marks(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @PathVariable examId: String,
-    ): List<TraditionalMarkDto> = service.marks(currentUser, examId)
+        @RequestParam(required = false) classTag: String?,
+        @RequestParam(required = false) grade: String?,
+    ): List<TraditionalMarkDto> = service.marks(currentUser, examId, classTag, grade)
 
     @PostMapping("/exams/{examId}/marks")
     fun saveMarks(

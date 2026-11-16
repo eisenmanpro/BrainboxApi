@@ -134,13 +134,29 @@ class AuthService(
     fun login(request: LoginRequest, deviceId: String?): AuthResponse {
         val identifier = request.identifier.trim()
         authThrottle.check(LOGIN_THROTTLE_PREFIX + identifier)
-        val user = resolveByIdentifier(identifier)
-            ?: failLogin(identifier)
+        // Login errors are distinguishable because the UI has to tell the user what to fix
+        // ("no such account" vs "wrong password"). Every failure still records a throttle
+        // hit, so a wrong identifier is no cheaper than a wrong password.
+        val user = resolveByIdentifier(identifier) ?: run {
+            authThrottle.recordFailure(LOGIN_THROTTLE_PREFIX + identifier)
+            throw ApiException(
+                ApiErrorCode.ACCOUNT_NOT_FOUND,
+                "No account matches those details. Check the email address or phone number and try again.",
+            )
+        }
 
         // A roster-only learner record has no credentials by design; it must never
         // yield a session even if someone knows its admission number.
         if (user.accountKind != AccountKind.FULL) failLogin(identifier)
-        if (!user.isActive) failLogin(identifier)
+        // A rejected/frozen account is a real state the user cannot fix by retyping a
+        // password; the 403 names it without disclosing credentials or other accounts.
+        if (!user.isActive) {
+            authThrottle.recordFailure(LOGIN_THROTTLE_PREFIX + identifier)
+            throw ApiException(
+                ApiErrorCode.ACCOUNT_INACTIVE,
+                "This account is not active. Contact your school admin to restore access.",
+            )
+        }
         if (!passwordEncoder.matches(request.password, user.passwordHash)) failLogin(identifier)
 
         // A signup account has no access until the emailed code is confirmed (gaps.md item 3).
@@ -170,10 +186,13 @@ class AuthService(
         return issueAuthResponse(user, deviceId, includeTokens = true, message = "Login successful")
     }
 
-    /** Same message for a missing account and a wrong password (anti-enumeration). */
+    /** A wrong credential on a real account: friendly copy, throttled like every failure. */
     private fun failLogin(identifier: String): Nothing {
         authThrottle.recordFailure(LOGIN_THROTTLE_PREFIX + identifier)
-        throw unauthorized("Invalid identifier or password")
+        throw ApiException(
+            ApiErrorCode.INVALID_CREDENTIALS,
+            "That password is not correct. Check it and try again.",
+        )
     }
 
     @Transactional

@@ -64,8 +64,29 @@ class SchoolConfigController(
         return SchoolBrandingUploadPayload(kind = slot, url = stored.url, mediaType = stored.mediaType)
     }
 
+    /**
+     * Uploads one landing-gallery image for the school (multipart `file`, PNG/JPEG/GIF/WebP
+     * up to 5 MB) and returns `{url, mediaType:"IMAGE"}`. Two-phase like the branding slots:
+     * the admin adds the URL to `galleryUrls` and saves the config, so a cancelled edit never
+     * changes the public landing page. School-scoped by the service's access check.
+     */
+    @PostMapping("/{schoolId}/config/gallery", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    fun uploadGalleryImage(
+        @AuthenticationPrincipal current: CurrentUser,
+        @PathVariable schoolId: String,
+        @RequestPart("file") file: MultipartFile,
+    ): com.afrithecus.brainbox.api.media.MediaUploadResponsePayload {
+        service.requireBrandingUploadAccess(current, schoolId)
+        val stored = mediaService.storeGalleryImage(file)
+        mediaObjects.register(stored.url, PURPOSE_GALLERY)
+        return stored
+    }
+
     private companion object {
         /** The media_objects purpose for the two-phase branding upload lifecycle. */
         const val PURPOSE_BRANDING = "BRANDING"
+
+        /** The media_objects purpose for the school's landing-gallery uploads. */
+        const val PURPOSE_GALLERY = "GALLERY"
     }
 }

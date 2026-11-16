@@ -64,6 +64,13 @@ class SchoolConfigEntity {
     @Column(columnDefinition = "text")
     var classes: String? = null
 
+    /**
+     * JSON array of the school's own landing-gallery image URLs (max 4). Non-empty overrides
+     * the platform editorial gallery (schools.image_urls) on every public school payload.
+     */
+    @Column(name = "gallery_urls", columnDefinition = "text")
+    var galleryUrls: String? = null
+
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant = Instant.now()
 

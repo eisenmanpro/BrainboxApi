@@ -28,9 +28,21 @@ data class SchoolAnnouncementPayload(
     val announcementId: String,
     val title: String,
     val body: String,
+    /** Legacy free-text audience; still honoured when no structured target is supplied. */
     val audience: String,
     val postedBy: String = "",
     val postedAt: Long = 0,
     val scheduledMeetingDate: Long? = null,
     val meetingTitle: String? = null,
+    /**
+     * Structured targeting (findings round): ALL | TEACHERS | PARENTS | LEARNERS | GRADE |
+     * CLASS | INDIVIDUALS. Absent/null keeps the legacy [audience] behaviour.
+     */
+    val targetType: String? = null,
+    val targetGradeLevels: List<String> = emptyList(),
+    val targetClassIds: List<String> = emptyList(),
+    val targetTeacherIds: List<String> = emptyList(),
+    val targetStudentIds: List<String> = emptyList(),
+    /** Active recipients the target resolves to; computed server-side on read too. */
+    val estimatedReach: Int = 0,
 )

@@ -1,7 +1,7 @@
 package com.afrithecus.brainbox.api.media
 
 /** The upload surfaces, each with its own size cap and allow-list. */
-enum class MediaPurpose { MEDIA, HOMEWORK_ATTACHMENT, DOCUMENT, CHAT_ATTACHMENT }
+enum class MediaPurpose { MEDIA, HOMEWORK_ATTACHMENT, DOCUMENT, CHAT_ATTACHMENT, GALLERY }
 
 /**
  * Size caps and allow-lists shared by the proxied multipart upload and the
@@ -25,6 +25,14 @@ object MediaPolicies {
      * back to the BrainBox mark / Exam Office stamp without telling the admin.
      */
     val BRANDING_KINDS = setOf(MediaKind.PNG, MediaKind.JPEG, MediaKind.GIF)
+
+    /**
+     * A school's own landing gallery: 5 MB per image, and WebP is welcome because the
+     * landing is a browser surface (unlike the report branding slots the PDF renderer
+     * decodes).
+     */
+    const val GALLERY_MAX_BYTES = 5L * BYTES_PER_MB
+    val GALLERY_KINDS = setOf(MediaKind.PNG, MediaKind.JPEG, MediaKind.GIF, MediaKind.WEBP)
 
     val HOMEWORK_ATTACHMENT_KINDS = setOf(
         MediaKind.PDF,
@@ -51,5 +59,6 @@ object MediaPolicies {
         MediaPurpose.HOMEWORK_ATTACHMENT -> kind in HOMEWORK_ATTACHMENT_KINDS
         MediaPurpose.CHAT_ATTACHMENT -> kind in CHAT_ATTACHMENT_KINDS
         MediaPurpose.DOCUMENT -> kind in DOCUMENT_KINDS
+        MediaPurpose.GALLERY -> kind in GALLERY_KINDS
     }
 }

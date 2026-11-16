@@ -167,6 +167,19 @@ class NewsService(
     @Transactional(readOnly = true)
     fun listAllForStaff(): List<NewsItemPayload> = repository.findAllByOrderByCreatedAtDesc().map { payload(it, null) }
 
+    /**
+     * The signed-in author's own articles, all statuses, newest first — the teacher news
+     * surface needs ids to edit or delete what it published; the public feed only returns
+     * published rows.
+     */
+    @Transactional(readOnly = true)
+    fun mine(current: CurrentUser): List<NewsItemPayload> {
+        requireNewsAuthor(current)
+        val rows = repository.findAllByAuthorIdOrderByCreatedAtDesc(current.userId)
+        val votes = viewerVotes(current, rows.map { it.id })
+        return rows.map { payload(it, votes[it.id], current) }
+    }
+
     @Transactional
     fun create(current: CurrentUser, request: CreateNewsRequest): NewsItemPayload {
         val isPlatformAdmin = requireNewsAuthor(current)
@@ -315,6 +328,13 @@ class NewsService(
      * Authoring is open to teaching staff and platform administrators. Returns true when the caller
      * is a platform admin (who may also manage other people's articles), false for a teacher (own
      * articles only). Learners and guardians may read and engage, never author.
+     */
+    /**
+     * Anyone who teaches may publish news — Role.TEACHER covers every teaching sub-role
+     * (subject teacher, class teacher, grade coordinator and ICT admin), exactly like the
+     * controller's `hasAnyRole('ADMIN','TEACHER')` gate. The returned flag means "platform
+     * administrator" and selects the draft/scheduled semantics; a teacher's article is
+     * published immediately and bylined to their account.
      */
     private fun requireNewsAuthor(current: CurrentUser): Boolean = when (current.role) {
         Role.ADMIN -> true

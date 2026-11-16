@@ -51,14 +51,16 @@ class CbcPublicController(private val service: CbcProjectService) {
 
     @PostMapping("/{projectId}/vote")
     fun vote(
-        @RequestHeader("X-Guest-Id") guestId: String,
+        // Optional on the wire: a missing/malformed anonymous id is a generic 400 from the
+        // service, never Spring's "Required request header … is not present" schema hint.
+        @RequestHeader(value = "X-Guest-Id", required = false) guestId: String?,
         @PathVariable projectId: String,
         @Valid @RequestBody request: CbcVoteRequest,
     ): PublicVoteResponsePayload = service.votePublic(guestId, projectId, request)
 
     @DeleteMapping("/{projectId}/vote")
     fun removeVote(
-        @RequestHeader("X-Guest-Id") guestId: String,
+        @RequestHeader(value = "X-Guest-Id", required = false) guestId: String?,
         @PathVariable projectId: String,
     ): PublicVoteResponsePayload = service.removeVotePublic(guestId, projectId)
 
@@ -71,21 +73,21 @@ class CbcPublicController(private val service: CbcProjectService) {
 
     @PostMapping("/{projectId}/comments")
     fun addComment(
-        @RequestHeader("X-Guest-Id") guestId: String,
+        @RequestHeader(value = "X-Guest-Id", required = false) guestId: String?,
         @PathVariable projectId: String,
         @Valid @RequestBody request: PublicCommentRequestPayload,
     ): ProjectCommentPayload = service.addCommentPublic(guestId, projectId, request)
 
     @PostMapping("/{projectId}/track")
     fun track(
-        @RequestHeader("X-Guest-Id") guestId: String,
+        @RequestHeader(value = "X-Guest-Id", required = false) guestId: String?,
         @PathVariable projectId: String,
         @Valid @RequestBody request: PublicTrackRequestPayload,
     ): PublicTrackResponsePayload = service.trackPublic(guestId, projectId, request)
 
     @PostMapping("/{projectId}/report")
     fun report(
-        @RequestHeader("X-Guest-Id") guestId: String,
+        @RequestHeader(value = "X-Guest-Id", required = false) guestId: String?,
         @PathVariable projectId: String,
         @Valid @RequestBody request: PublicReportRequestPayload,
     ): PublicReportResponsePayload = service.reportPublic(guestId, projectId, request)

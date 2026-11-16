@@ -27,6 +27,22 @@ data class PendingTeacherPayload(
     val joinedAt: Long = 0L,
 )
 
+/**
+ * A learner row for the admin audience picker (school announcements targeting, findings
+ * "ADMIN ANNOUNCEMENTS 1"): exactly what a picker needs to filter by grade/class and to
+ * address one learner — plus the guardian contact F9 keeps on the same account.
+ */
+data class AdminStudentPayload(
+    val id: String,
+    val name: String,
+    val gradeLevel: String? = null,
+    val classIds: List<String> = emptyList(),
+    val classNames: List<String> = emptyList(),
+    /** Guardian/learner contact: the linked parent's name, else the recorded guardian name. */
+    val parentName: String? = null,
+    val parentPhone: String? = null,
+)
+
 /** A teacher the school manages: an approved (VERIFIED) or frozen (FROZEN) account. */
 data class ManagedTeacherPayload(
     val id: String,

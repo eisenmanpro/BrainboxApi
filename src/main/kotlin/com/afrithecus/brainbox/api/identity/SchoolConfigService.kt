@@ -6,6 +6,7 @@ import com.afrithecus.brainbox.api.exams.QuestionCodec
 import com.afrithecus.brainbox.api.identity.entity.SchoolConfigEntity
 import com.afrithecus.brainbox.api.identity.repository.SchoolConfigRepository
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
+import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.web.SchoolClassPayload
 import com.afrithecus.brainbox.api.identity.web.SchoolConfigPayload
@@ -25,6 +26,7 @@ import java.util.UUID
 class SchoolConfigService(
     private val repository: SchoolConfigRepository,
     private val schoolRepository: SchoolRepository,
+    private val classRepository: TeacherClassRepository,
     private val codec: QuestionCodec,
     private val mapper: ObjectMapper,
     private val access: AdminSchoolAccess,
@@ -62,6 +64,7 @@ class SchoolConfigService(
         // previous values are needed to remove the object this write replaces.
         val previousLogo = entity.logoUrl
         val previousStamp = entity.stampUrl
+        val previousGallery = codec.parseList(entity.galleryUrls).orEmpty()
         entity.schoolName = request.schoolName.trim()
         entity.motto = request.motto?.trim()?.takeIf { it.isNotEmpty() }
         entity.logoUrl = request.logoUrl?.trim()?.takeIf { it.isNotEmpty() }
@@ -75,6 +78,7 @@ class SchoolConfigService(
         entity.cbcStrands = codec.toJson(request.cbcStrands.filter { it.isNotBlank() })
         entity.rooms = codec.toJson(cleanRooms(request.rooms))
         request.classes?.let { entity.classes = mapper.writeValueAsString(cleanClasses(it)) }
+        request.galleryUrls?.let { entity.galleryUrls = codec.toJson(cleanGalleryUrls(it)) }
         entity.updatedAt = clock.instant()
         repository.saveAndFlush(entity)
         // Claim the uploads this config keeps, then delete the previous logo/stamp
@@ -85,6 +89,11 @@ class SchoolConfigService(
             previous = listOf(previousLogo, previousStamp),
             keep = listOf(entity.logoUrl, entity.stampUrl),
         )
+        // The school gallery is the same two-phase lifecycle: claim what the config keeps,
+        // remove the uploaded object a replaced slot no longer references.
+        val savedGallery = codec.parseList(entity.galleryUrls).orEmpty()
+        savedGallery.forEach { mediaObjects.claim(it) }
+        mediaObjects.discardSuperseded(previous = previousGallery, keep = savedGallery)
         auditLogService.record(schoolId, actor, "Updated school config")
         return payload(schoolId, entity)
     }
@@ -96,6 +105,45 @@ class SchoolConfigService(
     @Transactional(readOnly = true)
     fun configuredClasses(schoolId: UUID): List<SchoolClassPayload> =
         parseClasses(repository.findById(schoolId).orElse(null)?.classes)
+
+    /**
+     * Rewrites the signup class catalogue (`school_configs.classes`) from the school's live
+     * `teacher_classes` rows.
+     *
+     * Data-model decision (findings round, admin School Config redesign): **teacher_classes is
+     * authoritative for class instances** — it owns the teacher, the learners' memberships and
+     * the exam class tags. The catalogue is only the signup/create picker's snapshot, so the
+     * admin class CRUD calls this after every create/rename/delete to keep the two from drifting.
+     * A config row is created when the school has none yet.
+     */
+    @Transactional
+    fun syncClassCatalogue(schoolId: UUID, removedNames: Collection<String> = emptyList()) {
+        val classes = classRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
+        val entity = repository.findById(schoolId).orElse(null) ?: SchoolConfigEntity().apply {
+            this.schoolId = schoolId
+            schoolName = schoolRepository.findById(schoolId).orElse(null)?.name.orEmpty()
+            createdAt = clock.instant()
+        }
+        // Merge, never blind-replace: the catalogue may legitimately hold classes that have no
+        // teacher_classes row yet (the school configured them before assigning a teacher), and a
+        // class write must not silently delete those from the signup picker. Only the name this
+        // operation removed is dropped.
+        val removed = removedNames.map { it.trim().lowercase() }.toSet()
+        val merged = LinkedHashMap<String, SchoolClassPayload>()
+        parseClasses(entity.classes).forEach { row ->
+            if (row.name.lowercase() !in removed) merged[row.name.lowercase()] = row
+        }
+        classes.forEach { row ->
+            merged[row.name.lowercase()] = SchoolClassPayload(
+                name = row.name,
+                gradeLevel = row.gradeLevel,
+                stream = row.stream,
+            )
+        }
+        entity.classes = mapper.writeValueAsString(merged.values.toList())
+        entity.updatedAt = clock.instant()
+        repository.saveAndFlush(entity)
+    }
 
     /** Branding for report rendering, falling back to the directory name/logo. */
     @Transactional(readOnly = true)
@@ -144,6 +192,12 @@ class SchoolConfigService(
         validateImageUrl("stampUrl", request.stampUrl)
         if (request.academicCalendar.size > MAX_CALENDAR_TERMS) {
             throw invalidArgument("academicCalendar must have at most " + MAX_CALENDAR_TERMS + " entries")
+        }
+        request.galleryUrls?.let { gallery ->
+            if (gallery.size > MAX_GALLERY) {
+                throw invalidArgument("galleryUrls must have at most " + MAX_GALLERY + " entries")
+            }
+            gallery.forEach { validateGalleryUrl(it) }
         }
         if (request.rooms.size > MAX_ROOMS) throw invalidArgument("rooms must have at most " + MAX_ROOMS + " entries")
         request.rooms.filter { it.isNotBlank() }.forEach {
@@ -208,6 +262,27 @@ class SchoolConfigService(
         return out
     }
 
+    /**
+     * The landing gallery is rendered as <img src>, so an entry must be an absolute http(s)
+     * URL or a path this server serves (/media/...). A data: URL is accepted only by the
+     * branding slots, never here.
+     */
+    private fun validateGalleryUrl(raw: String) {
+        val value = raw.trim()
+        if (value.isEmpty()) return
+        if (value.length > MAX_IMAGE_URL) throw invalidArgument("galleryUrls entries must be at most " + MAX_IMAGE_URL + " characters")
+        if (value.startsWith("/media/") && !value.contains("..")) return
+        val parsed = runCatching { java.net.URI(value) }.getOrNull()
+        val scheme = parsed?.scheme?.lowercase()
+        if (parsed == null || (scheme != "http" && scheme != "https") || parsed.host.isNullOrBlank()) {
+            throw invalidArgument("galleryUrls entries must be http(s) URLs or /media paths")
+        }
+    }
+
+    /** Trim, drop blanks, de-duplicate and cap at the four images the landing renders. */
+    private fun cleanGalleryUrls(urls: List<String>): List<String> =
+        urls.map { it.trim() }.filter { it.isNotEmpty() }.distinct().take(MAX_GALLERY)
+
     /** Trim, drop blanks and de-duplicate while preserving the caller's order. */
     private fun cleanRooms(rooms: List<String>): List<String> =
         rooms.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
@@ -229,6 +304,7 @@ class SchoolConfigService(
             cbcStrands = codec.parseList(entity?.cbcStrands).orEmpty(),
             rooms = codec.parseList(entity?.rooms).orEmpty(),
             classes = parseClasses(entity?.classes),
+            galleryUrls = codec.parseList(entity?.galleryUrls).orEmpty(),
         )
     }
 
@@ -242,6 +318,7 @@ class SchoolConfigService(
         const val MAX_ROOMS = 100
         const val MAX_ROOM_NAME = 120
         const val MAX_CLASSES = 200
+        const val MAX_GALLERY = 4
         const val MAX_CLASS_NAME = 120
         const val MAX_GRADE_NAME = 64
         const val MAX_STREAM_NAME = 64

@@ -17,6 +17,7 @@ import com.afrithecus.brainbox.api.identity.entity.SchoolBackupEntity
 import com.afrithecus.brainbox.api.identity.entity.SchoolPerformanceSnapshotEntity
 import com.afrithecus.brainbox.api.identity.entity.SchoolSystemSettingsEntity
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
+import com.afrithecus.brainbox.api.identity.model.AccountKind
 import com.afrithecus.brainbox.api.identity.model.AccountStatus
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.model.Role
@@ -31,6 +32,7 @@ import com.afrithecus.brainbox.api.identity.web.AuditLogEntryPayload
 import com.afrithecus.brainbox.api.identity.web.BackupDownload
 import com.afrithecus.brainbox.api.identity.web.BackupResultPayload
 import com.afrithecus.brainbox.api.identity.web.BackupSummaryPayload
+import com.afrithecus.brainbox.api.identity.web.AdminStudentPayload
 import com.afrithecus.brainbox.api.identity.web.ManagedTeacherPayload
 import com.afrithecus.brainbox.api.identity.web.PendingTeacherPayload
 import com.afrithecus.brainbox.api.identity.web.ClassAttendanceSummaryPayload
@@ -314,6 +316,67 @@ class AdminSchoolService(
         return rows.map { row ->
             val pair = details.getValue(row.id)
             managedPayload(row, pair.settings, pair.derived)
+        }
+    }
+
+    /**
+     * The school's learners for the admin audience picker (announcement targeting).
+     * Filters are optional and combine with AND: `gradeLevel` matches the learner's own
+     * grade or their class grade, `classId` a current class membership, `q` a
+     * case-insensitive name/phone/admission search. The guardian contact is the same
+     * account F9 keeps for the learner (linked parent row, else the guardian fields).
+     * Roster-only records are provisioned for reports only and cannot receive anything,
+     * so they are excluded.
+     */
+    @Transactional(readOnly = true)
+    fun students(
+        current: CurrentUser,
+        schoolIdRaw: String,
+        gradeLevel: String?,
+        classId: String?,
+        query: String?,
+    ): List<AdminStudentPayload> {
+        val schoolId = requireSchoolId(schoolIdRaw)
+        access.require(current, schoolId)
+        val learners = userRepository.findAllBySchoolIdAndRoleOrderByNameAsc(schoolId, Role.STUDENT)
+            .filter { it.accountKind == AccountKind.FULL }
+        if (learners.isEmpty()) return emptyList()
+        val schoolClasses = classRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
+        val memberships = if (schoolClasses.isEmpty()) {
+            emptyList()
+        } else {
+            membershipRepository.findAllByClassIdIn(schoolClasses.map { it.id })
+        }
+        val classById = schoolClasses.associateBy { it.id }
+        val classesByStudent = memberships.groupBy { it.studentId }
+        val askedClass = classId?.trim()?.takeIf { it.isNotEmpty() }
+            ?.let { runCatching { UUID.fromString(it) }.getOrNull() ?: throw invalidArgument("classId is not a valid identifier") }
+        val askedGrade = gradeLevel?.trim()?.takeIf { it.isNotEmpty() }
+        val needle = query?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+        val parentIds = learners.mapNotNull { it.parentUserId }.distinct()
+        val parents = if (parentIds.isEmpty()) emptyMap() else userRepository.findAllById(parentIds).associateBy { it.id }
+        return learners.mapNotNull { learner ->
+            val rows = classesByStudent[learner.id].orEmpty()
+            val classRows = rows.mapNotNull { classById[it.classId] }
+            val grades = (classRows.map { it.gradeLevel } + listOfNotNull(learner.gradeLevel))
+                .map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+            if (askedClass != null && rows.none { it.classId == askedClass }) return@mapNotNull null
+            if (askedGrade != null && grades.none { it.equals(askedGrade, ignoreCase = true) }) return@mapNotNull null
+            if (needle != null) {
+                val haystack = listOfNotNull(learner.name, learner.phoneNumber, learner.studentAdmissionNumber)
+                    .joinToString(" ").lowercase()
+                if (!haystack.contains(needle)) return@mapNotNull null
+            }
+            val parent = learner.parentUserId?.let { parents[it] }
+            AdminStudentPayload(
+                id = learner.id.toString(),
+                name = learner.name,
+                gradeLevel = learner.gradeLevel ?: classRows.firstOrNull()?.gradeLevel,
+                classIds = rows.map { it.classId.toString() },
+                classNames = classRows.map { it.name },
+                parentName = parent?.name ?: learner.guardianName,
+                parentPhone = parent?.phoneNumber ?: learner.guardianPhone,
+            )
         }
     }
 

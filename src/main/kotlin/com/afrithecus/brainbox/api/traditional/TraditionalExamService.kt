@@ -411,9 +411,17 @@ class TraditionalExamService(
                 students = rows,
             )
         }
-        val complete = classes.sumOf { it.completeStudents }
-        val partial = classes.sumOf { it.partialStudents }
-        val missing = classes.sumOf { it.missingStudents }
+        // Own-class scoping (findings "EXAM SESSION"): a class teacher who is neither a
+        // coordinator nor school-wide staff only ever sees their own class in the capture
+        // summary. Coordinators and ICT/platform admins keep the whole grade.
+        val operator = user(current)
+        val ownTags = if (current.role == Role.TEACHER) ownClassTags(operator.id) else emptySet()
+        val ownClassOnly = current.role == Role.TEACHER && ownTags.isNotEmpty() &&
+            !gradeAuthority.isSchoolWide(operator) && !gradeAuthority.isCoordinator(operator)
+        val visibleClasses = if (ownClassOnly) classes.filter { it.classTag in ownTags } else classes
+        val complete = visibleClasses.sumOf { it.completeStudents }
+        val partial = visibleClasses.sumOf { it.partialStudents }
+        val missing = visibleClasses.sumOf { it.missingStudents }
         val myConfirmed = confirmationRepository.findAllByExamId(exam.id)
             .any { it.teacherId == current.userId && it.confirmedAt != null }
         return CaptureSummaryDto(
@@ -428,7 +436,8 @@ class TraditionalExamService(
             studentsWithEmptyFields = partial,
             studentsWithNoScores = missing,
             myConfirmed = myConfirmed,
-            classes = classes,
+            ownClassOnly = ownClassOnly,
+            classes = visibleClasses,
         )
     }
 
@@ -518,6 +527,9 @@ class TraditionalExamService(
     fun remindTeacher(current: CurrentUser, examIdRaw: String, teacherIdRaw: String) {
         requireStaffWriter(current)
         val exam = exam(current, examIdRaw)
+        // "Remind teachers" is a coordinator action (the web hides the button for everyone
+        // else); enforce it server-side so a class teacher cannot fire grade-wide reminders.
+        requireCoordinatorForExam(current, exam)
         val teacher = userRepository.findById(parseUuid(teacherIdRaw, "teacher id")).orElse(null)
             ?: throw notFound("Teacher not found")
         notify(
@@ -593,11 +605,48 @@ class TraditionalExamService(
         }.sortedByDescending { it.allowed }
     }
 
+    /**
+     * The exam's captured marks.
+     *
+     * Optional `classTag` / `grade` narrow the read so a client can load one class (or one
+     * grade) instead of the whole grade by accident. With neither filter the previous
+     * behaviour is unchanged, so older clients keep working; a filtered read never widens
+     * the caller's authority — it only projects rows onto a class tag / grade.
+     */
     @Transactional(readOnly = true)
-    fun marks(current: CurrentUser, examIdRaw: String): List<TraditionalMarkDto> {
+    fun marks(
+        current: CurrentUser,
+        examIdRaw: String,
+        classTag: String? = null,
+        grade: String? = null,
+    ): List<TraditionalMarkDto> {
         requireStaffWriter(current)
         val exam = exam(current, examIdRaw)
-        return markRepository.findAllByExamId(exam.id).map { markDto(it, publicExamId(exam)) }
+        val rows = markRepository.findAllByExamId(exam.id)
+        val requestedTag = classTag?.trim()?.takeIf { it.isNotEmpty() }
+        val requestedGrade = grade?.trim()?.takeIf { it.isNotEmpty() }
+        if (requestedTag == null && requestedGrade == null) {
+            return rows.map { markDto(it, publicExamId(exam)) }
+        }
+        val students = userRepository.findAllById(rows.map { it.studentId }.distinct()).associateBy { it.id }
+        val filtered = rows.filter { row ->
+            val student = students[row.studentId] ?: return@filter false
+            val studentGrade = student.gradeLevel
+            val tag = classTagOf(student, exam)
+            val tagMatches = requestedTag == null || tag.equals(requestedTag, ignoreCase = true)
+            val gradeMatches = requestedGrade == null ||
+                (studentGrade?.equals(requestedGrade, ignoreCase = true) == true) ||
+                classTagGradeMatches(exam, tag, requestedGrade)
+            tagMatches && gradeMatches
+        }
+        return filtered.map { markDto(it, publicExamId(exam)) }
+    }
+
+    /** Whether [classTag] belongs to a class of [grade] in this exam's grade. */
+    private fun classTagGradeMatches(exam: TraditionalExamEntity, classTag: String, grade: String): Boolean {
+        val clazz = teacherClassRepository.findAllByGradeLevelAndIsActiveTrueOrderByNameAsc(exam.gradeLevel)
+            .firstOrNull { it.name.equals(classTag, ignoreCase = true) } ?: return false
+        return clazz.gradeLevel.equals(grade, ignoreCase = true)
     }
 
     @Transactional
@@ -663,7 +712,10 @@ class TraditionalExamService(
                 throw conflict("Exam marks are locked; an approved edit permission is required")
             }
             if (entry.rawScore < 0 || entry.rawScore > subject.maxScore) {
-                throw invalidArgument("Score for " + entry.subjectId + " must be between 0 and " + subject.maxScore)
+                throw invalidArgument(
+                    subject.name + ": score must be between 0 and " + subject.maxScore +
+                        " (received " + entry.rawScore + ")",
+                )
             }
             val components = subjectComponentDtos(subject)
             if (subject.subjectType == TraditionalSubjectType.COMBINED && components.isNotEmpty()) {
@@ -672,11 +724,19 @@ class TraditionalExamService(
                 for (component in components) {
                     val value = scores[component.componentId] ?: 0
                     if (value < 0 || value > component.maxScore) {
-                        throw invalidArgument("Component " + component.name + " must be between 0 and " + component.maxScore)
+                        throw invalidArgument(
+                            component.name + ": component score must be between 0 and " + component.maxScore +
+                                " (received " + value + ")",
+                        )
                     }
                     sum += value
                 }
-                if (sum != entry.rawScore) throw invalidArgument("Component scores must sum to " + entry.rawScore)
+                if (sum != entry.rawScore) {
+                    throw invalidArgument(
+                        (subject.name) + ": component scores must add up to " + entry.rawScore +
+                            " (they add up to " + sum + ")",
+                    )
+                }
             }
             val row = markRepository.findByExamIdAndStudentIdAndSubjectId(exam.id, studentId, entry.subjectId)
                 ?: TraditionalMarkEntity().apply {
@@ -1101,6 +1161,16 @@ class TraditionalExamService(
     @Transactional
     fun requestEdit(current: CurrentUser, examIdRaw: String, request: EditRequestDto): EditRequestDto {
         requireEditRequester(current)
+        // A grade coordinator edits their grade's marks directly — an edit *request* is the
+        // class teacher's path (F7). School-wide staff keep direct edit too; they should not
+        // enter the class-teacher request queue either.
+        val requester = user(current)
+        if (gradeAuthority.isCoordinator(requester)) {
+            throw ApiException(
+                ApiErrorCode.FORBIDDEN,
+                "Coordinators edit their grade's marks directly; score edit requests are for class teachers",
+            )
+        }
         val exam = exam(current, examIdRaw)
         // The client generates the request id locally and later approves/denies by it
         // (the response is best-effort); adopt it so those calls resolve, and replay
@@ -2044,12 +2114,16 @@ class TraditionalExamService(
      * (spec 10 section 5.3 guard 1 / Appendix A); a plain (sub-role-less) teacher may
      * not. A platform admin is accepted as the tenant-level override.
      */
+    /**
+     * Who may open a score edit request: any teaching account (a plain subject/class teacher
+     * included — a class-owning teacher is exactly who needs this path) and platform admins.
+     * [verifyEditRequesterTeaches] still proves the caller actually teaches the affected
+     * learner. Grade coordinators are refused in [requestEdit]: they edit directly.
+     */
     private fun requireEditRequester(current: CurrentUser) {
         if (current.role == Role.ADMIN) return
-        if (current.role == Role.TEACHER &&
-            (current.subRole == SubRole.CTEACHER || current.subRole == SubRole.GRADE_COORDINATOR || current.subRole == SubRole.ICT_ADMIN)
-        ) return
-        throw ApiException(ApiErrorCode.FORBIDDEN, "Only C/Teachers and coordinators can request a score edit")
+        if (current.role == Role.TEACHER) return
+        throw ApiException(ApiErrorCode.FORBIDDEN, "Only teaching staff can request a score edit")
     }
 
     /**

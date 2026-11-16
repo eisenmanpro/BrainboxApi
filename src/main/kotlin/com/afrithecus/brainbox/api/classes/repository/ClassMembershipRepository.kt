@@ -10,6 +10,9 @@ interface ClassMembershipRepository : JpaRepository<ClassMembershipEntity, UUID>
 
     fun findAllByClassId(classId: UUID): List<ClassMembershipEntity>
 
+    /** Batch form for the admin audience picker (students of many classes at once). */
+    fun findAllByClassIdIn(classIds: Collection<UUID>): List<ClassMembershipEntity>
+
     fun countByClassId(classId: UUID): Long
 
     fun findAllByStudentId(studentId: UUID): List<ClassMembershipEntity>

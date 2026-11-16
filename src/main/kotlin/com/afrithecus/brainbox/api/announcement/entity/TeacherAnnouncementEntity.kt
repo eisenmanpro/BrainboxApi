@@ -42,6 +42,14 @@ class TeacherAnnouncementEntity : BaseEntity() {
     @Column(name = "target_student_ids", columnDefinition = "text")
     var targetStudentIds: String? = null
 
+    /** Explicit staff targets (school announcements addressed to individual teachers). */
+    @Column(name = "target_teacher_ids", columnDefinition = "text")
+    var targetTeacherIds: String? = null
+
+    /** Set when this inbox row is the delivery copy of a school announcement. */
+    @Column(name = "source_school_announcement_id")
+    var sourceSchoolAnnouncementId: UUID? = null
+
     @Column(name = "is_priority", nullable = false)
     var isPriority: Boolean = false
 
