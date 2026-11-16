@@ -276,6 +276,23 @@ class NotificationNewsWebTests(
         )
         check(detail.content == "Applications are now open.")
 
+        // imageUrl is rendered as an <img src>: free text or a page link can never
+        // resolve, so the server rejects it instead of storing a broken card.
+        mockMvc.perform(
+            post("/news").header("Authorization", auth(adminToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(CreateNewsRequest("Bad image", "Body", imageUrl = "Photo by https://example.com/ from Pexels")))
+        ).andExpect(status().isBadRequest)
+        val mediaImage = objectMapper.readValue(
+            mockMvc.perform(
+                post("/news").header("Authorization", auth(adminToken))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(CreateNewsRequest("Managed image", "Body", imageUrl = "/media/news/photo.jpg")))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            NewsItemPayload::class.java,
+        )
+        check(mediaImage.imageUrl == "/media/news/photo.jpg")
+
         // the feed is public: signed-out readers get the same list
         val publicFeed = objectMapper.readValue(
             mockMvc.perform(get("/news")).andExpect(status().isOk).andReturn().response.contentAsString,

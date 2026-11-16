@@ -184,7 +184,7 @@ class NewsService(
         val saved = repository.save(NewsItemEntity().apply {
             title = request.title.trim()
             content = request.content
-            imageUrl = request.imageUrl?.trim()?.takeIf { it.isNotEmpty() }
+            imageUrl = normalizeImageUrl(request.imageUrl)
             category = request.category.trim().ifBlank { "News" }
             author = if (isPlatformAdmin) {
                 request.author?.trim()?.takeIf { it.isNotEmpty() } ?: DEFAULT_AUTHOR
@@ -207,7 +207,7 @@ class NewsService(
         val status = if (isPlatformAdmin) parseStatus(request.status) else NewsStatus.PUBLISHED
         article.title = request.title.trim()
         article.content = request.content
-        article.imageUrl = request.imageUrl?.trim()?.takeIf { it.isNotEmpty() }
+        article.imageUrl = normalizeImageUrl(request.imageUrl)
         article.category = request.category.trim().ifBlank { "News" }
         if (isPlatformAdmin) {
             request.author?.trim()?.takeIf { it.isNotEmpty() }?.let { article.author = it }
@@ -336,6 +336,28 @@ class NewsService(
     private fun displayName(current: CurrentUser): String =
         userRepository.findById(current.userId).map { it.name.trim() }.orElse("")
             .takeIf { it.isNotEmpty() } ?: DEFAULT_TEACHER_AUTHOR
+
+    /**
+     * The public card renders imageUrl directly as an <img src>. A photo credit, a
+     * page link or a free-text sentence stored here can never resolve, so only an
+     * absolute http(s) URL or a site-relative /media/ path is accepted.
+     */
+    private fun normalizeImageUrl(raw: String?): String? {
+        val value = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        if (value.length > 512) throw invalidArgument("imageUrl must be at most 512 characters")
+        val isMediaPath = value.startsWith("/media/")
+        val isHttp = runCatching {
+            val uri = java.net.URI(value)
+            (uri.scheme == "http" || uri.scheme == "https") && !uri.host.isNullOrBlank()
+        }.getOrDefault(false)
+        if (!isHttp && !isMediaPath) {
+            throw invalidArgument("imageUrl must be an http(s) URL or a /media/ path")
+        }
+        if (value.any { it.isWhitespace() }) {
+            throw invalidArgument("imageUrl must not contain whitespace")
+        }
+        return value
+    }
 
     private fun parseStatus(raw: String): NewsStatus =
         runCatching { NewsStatus.valueOf(raw.trim().uppercase()) }.getOrNull()
