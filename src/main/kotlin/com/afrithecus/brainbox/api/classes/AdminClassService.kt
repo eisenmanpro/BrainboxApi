@@ -46,10 +46,8 @@ class AdminClassService(
     fun list(current: CurrentUser, schoolIdRaw: String): List<AdminClassPayload> {
         val schoolId = schoolId(schoolIdRaw)
         access.require(current, schoolId)
-        // Unify the two halves of the model on read: every class the school has configured but
-        // not yet turned into a teacher_classes row becomes one (unassigned), so the admin sees
-        // and can act on the complete list instead of a subset.
-        materialiseCatalogueClasses(schoolId)
+        // The live rows are the authoritative list; a catalogue-only entry has no teacher to
+        // own a NOT NULL teacher_classes row, so it cannot be materialised on read.
         val classes = classRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
         val teacherIds = classes.mapNotNull { it.teacherUserId }.distinct()
         val teachers = if (teacherIds.isEmpty()) emptyMap() else userRepository.findAllById(teacherIds).associateBy { it.id }
@@ -63,17 +61,18 @@ class AdminClassService(
         val name = requireName(request.name)
         val grade = requireGrade(request.gradeLevel)
         requireNameAvailable(schoolId, name, excludingId = null)
+        // teacher_classes.teacher_user_id is a NOT NULL foreign key to users; a school id
+        // cannot stand in for the owner (it used to, and class creation failed the FK). A
+        // class therefore starts with its class teacher, which the admin can reassign later.
         val teacher = request.teacherUserId?.let { requireTeacher(schoolId, it) }
+            ?: throw invalidArgument("Select the class teacher for the new class")
         val entity = classRepository.save(TeacherClassEntity().apply {
             this.schoolId = schoolId
             this.name = name
             this.gradeLevel = grade
             this.subject = request.subject?.trim()?.takeIf { it.isNotEmpty() } ?: "General"
             this.stream = request.stream?.trim()?.takeIf { it.isNotEmpty() }
-            // A class without a teacher is a real state (a newly added class before an admin
-            // assigns the teacher); the placeholder keeps the NOT NULL ownership column valid
-            // and the payload reports the class as unassigned (teacherUserId = null).
-            teacherUserId = teacher?.id ?: schoolId
+            teacherUserId = teacher.id
             isActive = true
         })
         schoolConfigService.syncClassCatalogue(schoolId)
@@ -102,7 +101,7 @@ class AdminClassService(
             removedNames = if (previousName.equals(entity.name, ignoreCase = true)) emptyList() else listOf(previousName),
         )
         auditLogService.record(schoolId, actor, "Updated class " + entity.name)
-        val teacher = entity.teacherUserId?.let { userRepository.findById(it).orElse(null) }
+        val teacher = userRepository.findById(entity.teacherUserId).orElse(null)
         return payload(entity, teacher)
     }
 
@@ -133,32 +132,6 @@ class AdminClassService(
         classRepository.delete(entity)
         schoolConfigService.syncClassCatalogue(schoolId, removedNames = listOf(entity.name))
         auditLogService.record(schoolId, actor, "Deleted class " + entity.name)
-    }
-
-    /**
-     * Creates a `teacher_classes` row for each catalogue class that has none yet (unassigned:
-     * the placeholder owner is the school id, and the payload reports `teacherUserId = null`).
-     * Existing rows are untouched, so this is safe to run on every list read.
-     */
-    private fun materialiseCatalogueClasses(schoolId: UUID) {
-        val catalogue = schoolConfigService.configuredClasses(schoolId)
-        if (catalogue.isEmpty()) return
-        val existing = classRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
-            .map { it.name.trim().lowercase() }.toSet()
-        val missing = catalogue.filter { it.name.trim().lowercase() !in existing }
-        if (missing.isEmpty()) return
-        missing.forEach { row ->
-            classRepository.save(TeacherClassEntity().apply {
-                this.schoolId = schoolId
-                name = row.name.trim()
-                gradeLevel = row.gradeLevel.trim()
-                stream = row.stream
-                subject = "General"
-                teacherUserId = schoolId
-                isActive = true
-            })
-        }
-        schoolConfigService.syncClassCatalogue(schoolId)
     }
 
     // ------------------------------------------------------------ internals
