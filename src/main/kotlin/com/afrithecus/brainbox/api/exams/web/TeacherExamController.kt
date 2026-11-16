@@ -81,6 +81,24 @@ class TeacherExamController(
         @PathVariable examId: String,
     ): ExamAnalysisReportPayload = analysis.analysis(teacher(currentUser), examId)
 
+    /**
+     * Student grade table for an adaptive exam (the web analytics screen reads it under the
+     * same name it already uses for paper exams). Derived from the analysis report, so it
+     * always agrees with `/{examId}/analysis`.
+     */
+    @GetMapping("/{examId}/grade-table")
+    fun gradeTable(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable examId: String,
+    ): List<ExamGradeRowPayload> = analysis.gradeTable(teacher(currentUser), examId)
+
+    /** Grade distribution for an adaptive exam: the same percentages, bucketed on the CBC bands. */
+    @GetMapping("/{examId}/grade-analysis")
+    fun gradeAnalysis(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable examId: String,
+    ): ExamGradeAnalysisPayload = analysis.gradeAnalysis(teacher(currentUser), examId)
+
     @GetMapping("/{examId}/remediation")
     fun remediation(
         @AuthenticationPrincipal currentUser: CurrentUser,

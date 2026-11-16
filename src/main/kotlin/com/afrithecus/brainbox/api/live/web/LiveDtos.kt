@@ -15,6 +15,11 @@ data class MaterialPayload(val name: String, val url: String)
 data class LiveClassPayload(
     val id: String,
     val title: String,
+    /**
+     * The school class this session targets, when the client picked one (web-only field:
+     * Android's LiveClass model has no equivalent). Null for an Android-authored session.
+     */
+    val classId: String? = null,
     val teacherId: String,
     val teacherName: String,
     val subject: String,
@@ -127,6 +132,12 @@ data class LiveClassSettingsPayload(
 data class TeacherLiveClassRequest(
     val id: String = "",
     val title: String = "",
+    /**
+     * Optional school class this session targets (web schedule form). Must belong to the
+     * caller's school. Blank/absent leaves an existing link untouched, so an Android edit
+     * of a web-authored session cannot silently drop it.
+     */
+    val classId: String? = null,
     val subject: String = "",
     val description: String = "",
     val scheduledStart: Long = 0,

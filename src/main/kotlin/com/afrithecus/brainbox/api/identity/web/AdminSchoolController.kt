@@ -62,6 +62,24 @@ class AdminSchoolController(private val service: AdminSchoolService) {
         @PathVariable schoolId: String,
     ): List<UserApprovalRequestPayload> = service.approvals(current, schoolId)
 
+    @GetMapping("/{schoolId}/pending-teachers")
+    fun pendingTeachers(
+        @AuthenticationPrincipal current: CurrentUser,
+        @PathVariable schoolId: String,
+    ): List<PendingTeacherPayload> = service.pendingTeachers(current, schoolId)
+
+    @GetMapping("/{schoolId}/rejected-teachers")
+    fun rejectedTeachers(
+        @AuthenticationPrincipal current: CurrentUser,
+        @PathVariable schoolId: String,
+    ): List<PendingTeacherPayload> = service.rejectedTeachers(current, schoolId)
+
+    @GetMapping("/{schoolId}/managed-teachers")
+    fun managedTeachers(
+        @AuthenticationPrincipal current: CurrentUser,
+        @PathVariable schoolId: String,
+    ): List<ManagedTeacherPayload> = service.managedTeachers(current, schoolId)
+
     @GetMapping("/{schoolId}/attendance/overview")
     fun attendanceOverview(
         @AuthenticationPrincipal current: CurrentUser,

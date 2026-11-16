@@ -142,6 +142,22 @@ class TraditionalExamController(
         @PathVariable examId: String,
     ): List<EditRequestDto> = service.editRequests(currentUser, examId)
 
+    /**
+     * The caller's edit-request queue across their exams (coordinator panel + dashboard
+     * counts). Server-side scoping per CD-06; `?status=PENDING|APPROVED|DENIED` narrows it.
+     */
+    @GetMapping("/edit-requests")
+    fun editRequestsForCaller(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @RequestParam(required = false) status: String?,
+    ): List<EditRequestDto> = service.editRequestsForCaller(currentUser, status)
+
+    /** Coordinator panel counters, scoped exactly like [editRequestsForCaller] (CD-06). */
+    @GetMapping("/edit-requests/summary")
+    fun editRequestSummary(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+    ): TraditionalCoordinatorSummaryDto = service.coordinatorSummary(currentUser)
+
     @PostMapping("/exams/{examId}/edit-requests")
     fun requestEdit(
         @AuthenticationPrincipal currentUser: CurrentUser,
@@ -262,6 +278,16 @@ class TraditionalExamController(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @PathVariable examId: String,
     ): TraditionalGradeAnalysisDto = service.gradeAnalysis(currentUser, examId)
+
+    /**
+     * The grade's ranked result table — the same rows as the grade-wide ranking, offered
+     * under the name the web's analytics screen reads. Coordinator-scoped by the service.
+     */
+    @GetMapping("/exams/{examId}/grade-table")
+    fun gradeTable(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable examId: String,
+    ): List<StudentGradeRowDto> = service.gradeWideRanking(currentUser, examId)
 
     @GetMapping("/exams/{examId}/grade-wide-ranking")
     fun gradeWideRanking(

@@ -293,4 +293,79 @@ class NewsEngagementWebTests(
             delete("/news/${article.id}").header("Authorization", auth(admin))
         ).andExpect(status().isNoContent)
     }
+
+    @Test
+    fun `comment authors edit and delete their own comments and nobody else can`() {
+        newUser("0779300030", "news.admin3@test", Role.ADMIN)
+        val admin = login("news.admin3@test")
+        val article = publish(admin, "Comment moderation")
+        val author = signup("0779300031")
+        val other = signup("0779300032")
+
+        fun comment(token: String, content: String): NewsCommentPayload = objectMapper.readValue(
+            mockMvc.perform(
+                post("/news/${article.id}/comments").header("Authorization", auth(token))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"content":"$content","authorName":"Reader"}""")
+            ).andExpect(status().isCreated).andReturn().response.contentAsString,
+            NewsCommentPayload::class.java,
+        )
+
+        val own = comment(author.sessionToken!!, "first take")
+        val second = comment(other.sessionToken!!, "another reader")
+
+        // Only the author may edit or delete; another reader is refused.
+        mockMvc.perform(
+            put("/news/${article.id}/comments/${own.id}").header("Authorization", auth(other.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON).content("""{"content":"hijacked"}""")
+        ).andExpect(status().isForbidden)
+        mockMvc.perform(
+            delete("/news/${article.id}/comments/${own.id}").header("Authorization", auth(other.sessionToken!!))
+        ).andExpect(status().isForbidden)
+        // Signed-out callers have no power either.
+        mockMvc.perform(
+            put("/news/${article.id}/comments/${own.id}")
+                .contentType(MediaType.APPLICATION_JSON).content("""{"content":"anon"}""")
+        ).andExpect(status().isUnauthorized)
+
+        val edited = objectMapper.readValue(
+            mockMvc.perform(
+                put("/news/${article.id}/comments/${own.id}").header("Authorization", auth(author.sessionToken!!))
+                    .contentType(MediaType.APPLICATION_JSON).content("""{"content":"second take"}""")
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            NewsCommentPayload::class.java,
+        )
+        check(edited.content == "second take")
+
+        // A comment id from another article cannot be edited through this article's path.
+        val otherArticle = publish(admin, "Second thread")
+        mockMvc.perform(
+            put("/news/${otherArticle.id}/comments/${own.id}").header("Authorization", auth(author.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON).content("""{"content":"cross-thread"}""")
+        ).andExpect(status().isNotFound)
+
+        // Blank edits are rejected.
+        mockMvc.perform(
+            put("/news/${article.id}/comments/${own.id}").header("Authorization", auth(author.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON).content("""{"content":"   "}""")
+        ).andExpect(status().isBadRequest)
+
+        // Deleting decrements the article count.
+        mockMvc.perform(
+            delete("/news/${article.id}/comments/${own.id}").header("Authorization", auth(author.sessionToken!!))
+        ).andExpect(status().isNoContent)
+        check(objectMapper.readValue(
+            mockMvc.perform(get("/news/${article.id}")).andReturn().response.contentAsString,
+            NewsItemPayload::class.java,
+        ).commentCount == 1)
+        check(objectMapper.readValue(
+            mockMvc.perform(get("/news/${article.id}/comments")).andReturn().response.contentAsString,
+            Array<NewsCommentPayload>::class.java,
+        ).none { it.id == own.id })
+
+        // The platform admin moderates any comment.
+        mockMvc.perform(
+            delete("/news/${article.id}/comments/${second.id}").header("Authorization", auth(admin))
+        ).andExpect(status().isNoContent)
+    }
 }

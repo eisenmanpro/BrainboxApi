@@ -65,6 +65,7 @@ import com.afrithecus.brainbox.api.traditional.web.SubjectTeacherContributionDto
 import com.afrithecus.brainbox.api.traditional.web.TopPerformerDto
 import com.afrithecus.brainbox.api.traditional.web.StrugglingStudentDto
 import com.afrithecus.brainbox.api.traditional.web.TraditionalExamAnalyticsDto
+import com.afrithecus.brainbox.api.traditional.web.TraditionalCoordinatorSummaryDto
 import com.afrithecus.brainbox.api.traditional.web.TraditionalExamDto
 import com.afrithecus.brainbox.api.traditional.web.TraditionalGradeAnalysisDto
 import com.afrithecus.brainbox.api.traditional.web.TraditionalMarkDto
@@ -1010,6 +1011,91 @@ class TraditionalExamService(
         requireStaffReader(current)
         val exam = exam(current, examIdRaw)
         return editRequestRepository.findAllByExamIdOrderByCreatedAtDesc(exam.id).map { editRequestDto(it, publicExamId(exam)) }
+    }
+
+    /**
+     * The coordinator's edit-request queue for a whole grade/school, scoped **server-side**
+     * to the caller (CD-06) so a client never has to decide whose requests it may see:
+     *
+     *  - platform ADMIN / ICT_ADMIN: every exam of the school;
+     *  - GRADE_COORDINATOR: only exams of the one grade they coordinate — an unassigned
+     *    coordinator sees nothing rather than the school-wide list;
+     *  - any other teacher: only the requests they raised themselves.
+     *
+     * `status` optionally narrows to PENDING / APPROVED / DENIED (an unknown value is a 400,
+     * not a silently empty list).
+     */
+    @Transactional(readOnly = true)
+    fun editRequestsForCaller(current: CurrentUser, statusRaw: String?): List<EditRequestDto> {
+        requireStaffReader(current)
+        val user = user(current)
+        val status = statusRaw?.trim()?.takeIf { it.isNotEmpty() }?.let { raw ->
+            runCatching { TraditionalEditStatus.valueOf(raw.uppercase()) }.getOrNull()
+                ?: throw invalidArgument("Unknown edit-request status: " + raw)
+        }
+        val exams = examsForStaff(user).associateBy { it.id }
+        if (exams.isEmpty()) return emptyList()
+        val rows = editRequestRepository.findAllByExamIdInOrderByCreatedAtDesc(exams.keys)
+        return scopedEditRequests(user, exams, rows)
+            .filter { status == null || it.status == status }
+            .map { editRequestDto(it, publicExamId(exams.getValue(it.examId))) }
+    }
+
+    /**
+     * Coordinator panel counters, computed server-side on exactly the same scope as
+     * [editRequestsForCaller] (CD-06). An unassigned coordinator gets zeroes, never
+     * school-wide numbers.
+     */
+    @Transactional(readOnly = true)
+    fun coordinatorSummary(current: CurrentUser): TraditionalCoordinatorSummaryDto {
+        requireStaffReader(current)
+        val user = user(current)
+        val exams = summaryExams(user)
+        val pendingEdits = if (exams.isEmpty()) {
+            emptyList()
+        } else {
+            val byId = exams.associateBy { it.id }
+            scopedEditRequests(user, byId, editRequestRepository.findAllByExamIdInOrderByCreatedAtDesc(byId.keys))
+                .filter { it.status == TraditionalEditStatus.PENDING }
+        }
+        return TraditionalCoordinatorSummaryDto(
+            pendingEditRequests = pendingEdits.size,
+            pendingExamsForFinalization = exams.count {
+                it.status == TraditionalExamStatus.CONFIRMED || it.status == TraditionalExamStatus.PRE_FINAL
+            },
+            totalExams = exams.size,
+        )
+    }
+
+    /** The exam set a caller may see in the coordinator panel; empty for an unassigned coordinator. */
+    private fun summaryExams(user: UserEntity): List<TraditionalExamEntity> {
+        val all = examsForStaff(user)
+        if (user.role != Role.TEACHER || gradeAuthority.isSchoolWide(user)) return all
+        if (gradeAuthority.isCoordinator(user)) {
+            val grade = gradeAuthority.coordinatorGrade(user) ?: return emptyList()
+            return all.filter { it.gradeLevel.trim().equals(grade.trim(), ignoreCase = true) }
+        }
+        return all.filter { it.createdBy == user.id }
+    }
+
+    /**
+     * Applies the caller's authority to a pre-fetched request list. `exams` is keyed by
+     * server id and is already school-scoped by [examsForStaff].
+     */
+    private fun scopedEditRequests(
+        user: UserEntity,
+        exams: Map<UUID, TraditionalExamEntity>,
+        rows: List<TraditionalEditRequestEntity>,
+    ): List<TraditionalEditRequestEntity> {
+        if (user.role != Role.TEACHER || gradeAuthority.isSchoolWide(user)) return rows
+        if (gradeAuthority.isCoordinator(user)) {
+            val grade = gradeAuthority.coordinatorGrade(user) ?: return emptyList()
+            val gradeExams = exams.filterValues {
+                it.gradeLevel.trim().equals(grade.trim(), ignoreCase = true)
+            }.keys
+            return rows.filter { it.examId in gradeExams }
+        }
+        return rows.filter { it.requesterId == user.id }
     }
 
     @Transactional

@@ -9,4 +9,7 @@ interface TraditionalEditRequestRepository : JpaRepository<TraditionalEditReques
     fun findAllByExamIdOrderByCreatedAtDesc(examId: UUID): List<TraditionalEditRequestEntity>
 
     fun findAllByExamIdAndStatus(examId: UUID, status: com.afrithecus.brainbox.api.traditional.model.TraditionalEditStatus): List<TraditionalEditRequestEntity>
+
+    /** Every request across a set of exams (the caller's scoped queue), newest first. */
+    fun findAllByExamIdInOrderByCreatedAtDesc(examIds: Collection<UUID>): List<TraditionalEditRequestEntity>
 }

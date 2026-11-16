@@ -5,6 +5,7 @@ import com.afrithecus.brainbox.api.classes.web.CreateClassRequest
 import com.afrithecus.brainbox.api.classes.web.TeacherClassPayload
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
+import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.messaging.web.MessagePayload
 import com.afrithecus.brainbox.api.messaging.web.SendMessageRequest
@@ -198,6 +199,17 @@ class MessagingWebTests(
         val host = signupStudent("0776000006", "Msg High")
         val schoolId = host.user.schoolId!!
         val teacher = newTeacher(schoolId, "0776777003")
+        val ictAdmin = userRepository.save(UserEntity().apply {
+            phoneNumber = "0776777004"
+            email = "ict.admin.msg@test"
+            passwordHash = passwordEncoder.encode("teacherpass123") ?: error("encode")
+            name = "Msg ICT Admin"
+            role = Role.TEACHER
+            subRole = SubRole.ICT_ADMIN
+            this.schoolId = UUID.fromString(schoolId)
+            isActive = true
+            isVerified = true
+        })
         val otherSchool = signupStudent("0776000007", "Other High")
 
         val teachers = mockMvc.perform(
@@ -205,6 +217,8 @@ class MessagingWebTests(
         ).andExpect(status().isOk).andReturn().response.contentAsString
         val members = objectMapper.readValue(teachers, Array<SchoolMemberPayload>::class.java)
         check(members.any { it.id == teacher.user.id })
+        // The project-approval picker needs the staff sub-role to find an ICT admin.
+        check(members.any { it.id == ictAdmin.id.toString() && it.subRole == "ICT_ADMIN" })
 
         // another school's student cannot list members here
         mockMvc.perform(

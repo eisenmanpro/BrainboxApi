@@ -62,4 +62,10 @@ data class SchoolMemberPayload(
     val name: String,
     val role: String,
     val avatarUrl: String? = null,
+    /**
+     * Staff sub-role (CTEACHER / GRADE_COORDINATOR / ICT_ADMIN). The project-approval
+     * picker needs it to reach an ICT admin rather than an arbitrary colleague; it is
+     * null for accounts that have no staff sub-role.
+     */
+    val subRole: String? = null,
 )

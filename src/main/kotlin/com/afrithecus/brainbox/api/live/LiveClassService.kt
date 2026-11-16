@@ -339,6 +339,7 @@ class LiveClassService(
         return LiveClassPayload(
             id = clazz.id.toString(),
             title = clazz.title,
+            classId = clazz.schoolClassId?.toString(),
             teacherId = clazz.teacherId.toString(),
             teacherName = clazz.teacherName,
             subject = clazz.subject,

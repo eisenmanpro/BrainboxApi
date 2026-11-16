@@ -424,6 +424,22 @@ data class TraditionalGradeAnalysisDto(
     val grading: GradingConfigDto? = null,
 )
 
+/**
+ * Coordinator panel counters, computed server-side and scoped to the caller (CD-06).
+ *
+ * The web used to derive these from the raw lists, so a coordinator without an
+ * assignment could see school-wide numbers that were not theirs. The scope here is the
+ * same one `GET /traditional/edit-requests` applies: whole school for the ICT/platform
+ * admin, the assigned grade for a coordinator (nothing without one), only their own
+ * requests for a plain teacher.
+ */
+data class TraditionalCoordinatorSummaryDto(
+    val pendingEditRequests: Int = 0,
+    /** Capture sessions that are confirmed/pre-final and waiting for this coordinator. */
+    val pendingExamsForFinalization: Int = 0,
+    val totalExams: Int = 0,
+)
+
 /** Body for POST /traditional/exams (client sends the full TraditionalExam model). */
 data class CreateTraditionalExamRequest(
     /** The client's deterministic exam id; stored and echoed so CREATE_EXAM replay is idempotent. */

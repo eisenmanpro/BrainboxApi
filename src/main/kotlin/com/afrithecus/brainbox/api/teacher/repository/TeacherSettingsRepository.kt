@@ -7,4 +7,7 @@ import java.util.UUID
 interface TeacherSettingsRepository : JpaRepository<TeacherSettingsEntity, UUID> {
 
     fun findByTeacherId(teacherId: UUID): TeacherSettingsEntity?
+
+    /** Batch read for the admin teacher lists (avoids one query per row). */
+    fun findAllByTeacherIdIn(teacherIds: Collection<UUID>): List<TeacherSettingsEntity>
 }

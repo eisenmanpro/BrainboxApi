@@ -24,6 +24,7 @@ import com.afrithecus.brainbox.api.notification.web.NewsReportRequest
 import com.afrithecus.brainbox.api.notification.web.NewsReportResponsePayload
 import com.afrithecus.brainbox.api.notification.web.NewsVoteRequest
 import com.afrithecus.brainbox.api.notification.web.NewsVoteResponsePayload
+import com.afrithecus.brainbox.api.notification.web.UpdateNewsCommentRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
@@ -89,6 +90,29 @@ class NewsService(
         article.commentCount += 1
         repository.save(article)
         return commentPayload(comment)
+    }
+
+    @Transactional
+    fun updateComment(
+        current: CurrentUser,
+        newsIdRaw: String,
+        commentIdRaw: String,
+        request: UpdateNewsCommentRequest,
+    ): NewsCommentPayload {
+        val comment = requireOwnComment(current, newsIdRaw, commentIdRaw)
+        val content = request.content.trim()
+        if (content.isEmpty()) throw invalidArgument("comment must not be blank")
+        comment.content = content
+        return commentPayload(commentRepository.save(comment))
+    }
+
+    @Transactional
+    fun deleteComment(current: CurrentUser, newsIdRaw: String, commentIdRaw: String) {
+        val comment = requireOwnComment(current, newsIdRaw, commentIdRaw)
+        commentRepository.delete(comment)
+        val article = requireArticle(newsIdRaw)
+        article.commentCount = (article.commentCount - 1).coerceAtLeast(0)
+        repository.save(article)
     }
 
     @Transactional
@@ -271,6 +295,21 @@ class NewsService(
 
     private fun requireArticle(raw: String): NewsItemEntity =
         repository.findById(parseUuid(raw)).orElse(null) ?: throw notFound("News item not found")
+
+    /**
+     * A commenter may edit or delete only their own comment; a platform admin may moderate any comment.
+     * The comment must belong to the article in the path, so a URL cannot be assembled across threads.
+     */
+    private fun requireOwnComment(current: CurrentUser, newsIdRaw: String, commentIdRaw: String): NewsCommentEntity {
+        val article = requireArticle(newsIdRaw)
+        val comment = commentRepository.findById(parseUuid(commentIdRaw)).orElse(null)
+            ?: throw notFound("Comment not found")
+        if (comment.newsId != article.id) throw notFound("Comment not found")
+        if (current.role != Role.ADMIN && comment.userId != current.userId) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "You can only change your own comments")
+        }
+        return comment
+    }
 
     /**
      * Authoring is open to teaching staff and platform administrators. Returns true when the caller

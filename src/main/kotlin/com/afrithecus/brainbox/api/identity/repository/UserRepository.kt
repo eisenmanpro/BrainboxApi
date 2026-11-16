@@ -80,6 +80,15 @@ interface UserRepository : JpaRepository<UserEntity, UUID> {
 
     fun findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId: UUID): List<UserEntity>
 
+    /**
+     * Every account of one role in a school, **any** active/verification state.
+     *
+     * The ICT admin's teacher lists need the rows the active-only query drops: a REJECTED
+     * or FROZEN decision sets `isActive = false`, and those rows are exactly what the
+     * rejected/managed tabs render.
+     */
+    fun findAllBySchoolIdAndRoleOrderByNameAsc(schoolId: UUID, role: Role): List<UserEntity>
+
     fun findAllBySchoolIdAndGradeLevelAndRole(schoolId: UUID, gradeLevel: String, role: Role): List<UserEntity>
 
     fun findAllByGradeLevelAndRole(gradeLevel: String, role: Role): List<UserEntity>

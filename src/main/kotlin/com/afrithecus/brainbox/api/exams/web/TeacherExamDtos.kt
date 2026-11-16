@@ -125,6 +125,51 @@ data class ExamAnalysisReportPayload(
     val studentPerformances: List<StudentExamPerformancePayload> = emptyList(),
 )
 
+/**
+ * One row of an **adaptive** exam's grade table (the web analytics screen's table).
+ *
+ * [totalScore] mirrors [score] because the shared table renderer reads `totalScore` for the
+ * score column and `gradeBand` for the level column; [rank] is 1-based over the highest
+ * percentage first. The band uses the six platform CBC levels, the same scale the
+ * traditional engine and both clients use, so a learner's level means the same thing on
+ * every report.
+ */
+data class ExamGradeRowPayload(
+    val rank: Int,
+    val studentId: String,
+    val studentName: String,
+    val score: Int,
+    val maxScore: Int,
+    val totalScore: Int,
+    val percentage: Double,
+    val gradeBand: String,
+)
+
+/** One band of an adaptive exam's grade distribution (count + share of the graded learners). */
+data class ExamGradeBandCountPayload(
+    val grade: String,
+    val minPercentage: Double,
+    val count: Int,
+    /** Share of the graded learners in this band, 0-100 with two decimals. */
+    val percentage: Double,
+)
+
+/** Grade distribution payload for an adaptive exam (the web's `getGradeAnalysis`). */
+data class ExamGradeAnalysisPayload(
+    val examId: String,
+    val examTitle: String,
+    val className: String,
+    val totalStudents: Int,
+    val averageScore: Double,
+    val medianScore: Double,
+    val highestScore: Int,
+    val lowestScore: Int,
+    /** Fraction 0-1, matching [ExamAnalysisReportPayload.passRate]. */
+    val passRate: Double,
+    val gradeAnalysis: List<ExamGradeBandCountPayload> = emptyList(),
+    val generatedAt: Long = 0L,
+)
+
 data class RemediationAssignmentPayload(
     val cbcStrand: String,
     val action: String,

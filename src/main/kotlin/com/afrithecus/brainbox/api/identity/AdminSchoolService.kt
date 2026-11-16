@@ -2,6 +2,7 @@ package com.afrithecus.brainbox.api.identity
 
 import com.afrithecus.brainbox.api.announcement.SchoolAnnouncementService
 import com.afrithecus.brainbox.api.attendance.model.AttendanceStatus
+import com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity
 import com.afrithecus.brainbox.api.attendance.repository.AttendanceRecordRepository
 import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
@@ -10,6 +11,7 @@ import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.conflict
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
+import com.afrithecus.brainbox.api.exams.QuestionCodec
 import com.afrithecus.brainbox.api.gradebook.repository.GradebookEntryRepository
 import com.afrithecus.brainbox.api.identity.entity.SchoolBackupEntity
 import com.afrithecus.brainbox.api.identity.entity.SchoolPerformanceSnapshotEntity
@@ -23,11 +25,14 @@ import com.afrithecus.brainbox.api.identity.repository.SchoolBackupRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolPerformanceSnapshotRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolSystemSettingsRepository
+import com.afrithecus.brainbox.api.identity.repository.TeacherCodeRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.identity.web.AuditLogEntryPayload
 import com.afrithecus.brainbox.api.identity.web.BackupDownload
 import com.afrithecus.brainbox.api.identity.web.BackupResultPayload
 import com.afrithecus.brainbox.api.identity.web.BackupSummaryPayload
+import com.afrithecus.brainbox.api.identity.web.ManagedTeacherPayload
+import com.afrithecus.brainbox.api.identity.web.PendingTeacherPayload
 import com.afrithecus.brainbox.api.identity.web.ClassAttendanceSummaryPayload
 import com.afrithecus.brainbox.api.identity.web.ClassRankingPayload
 import com.afrithecus.brainbox.api.identity.web.CoordinatorAssignmentPayload
@@ -39,6 +44,8 @@ import com.afrithecus.brainbox.api.identity.web.SubjectSchoolPerformancePayload
 import com.afrithecus.brainbox.api.identity.web.SystemSettingsPayload
 import com.afrithecus.brainbox.api.identity.web.TeacherPerformancePayload
 import com.afrithecus.brainbox.api.identity.web.UserApprovalRequestPayload
+import com.afrithecus.brainbox.api.teacher.entity.TeacherSettingsEntity
+import com.afrithecus.brainbox.api.teacher.repository.TeacherSettingsRepository
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -70,6 +77,9 @@ class AdminSchoolService(
     private val announcementService: SchoolAnnouncementService,
     private val backupRepository: SchoolBackupRepository,
     private val snapshotRepository: SchoolPerformanceSnapshotRepository,
+    private val teacherSettingsRepository: TeacherSettingsRepository,
+    private val teacherCodeRepository: TeacherCodeRepository,
+    private val questionCodec: QuestionCodec,
     private val auditLogService: AuditLogService,
     private val access: AdminSchoolAccess,
     private val signInPolicy: AdminSignInPolicyService,
@@ -254,6 +264,141 @@ class AdminSchoolService(
         val schoolId = requireSchoolId(schoolIdRaw)
         access.require(current, schoolId)
         return approvalsFor(schoolId)
+    }
+
+    // ------------------------------------------------ teacher management lists
+
+    /**
+     * Teachers waiting for this ICT admin's approval. The web's Pending tab renders these
+     * (`AdminApprovalsRepository.getPendingTeachers`), and `approveTeacher`/
+     * `rejectTeacher` act on the same rows by id.
+     */
+    @Transactional(readOnly = true)
+    fun pendingTeachers(current: CurrentUser, schoolIdRaw: String): List<PendingTeacherPayload> {
+        val schoolId = requireSchoolId(schoolIdRaw)
+        access.require(current, schoolId)
+        val rows = teacherRows(schoolId, AccountStatus.PENDING_VERIFICATION)
+        val details = detailsFor(rows)
+        return rows.map { row ->
+            val pair = details.getValue(row.id)
+            pendingPayload(row, pair.settings, pair.derived, pair.teacherCode)
+        }
+    }
+
+    /** Teachers the school rejected; a mistaken rejection is re-approvable from this list. */
+    @Transactional(readOnly = true)
+    fun rejectedTeachers(current: CurrentUser, schoolIdRaw: String): List<PendingTeacherPayload> {
+        val schoolId = requireSchoolId(schoolIdRaw)
+        access.require(current, schoolId)
+        val rows = teacherRows(schoolId, AccountStatus.REJECTED)
+        val details = detailsFor(rows)
+        return rows.map { row ->
+            val pair = details.getValue(row.id)
+            pendingPayload(row, pair.settings, pair.derived, pair.teacherCode)
+        }
+    }
+
+    /**
+     * The manageable roster: approved teachers plus frozen accounts. A FROZEN account is
+     * inactive, so this list deliberately does not use the active-only query.
+     */
+    @Transactional(readOnly = true)
+    fun managedTeachers(current: CurrentUser, schoolIdRaw: String): List<ManagedTeacherPayload> {
+        val schoolId = requireSchoolId(schoolIdRaw)
+        access.require(current, schoolId)
+        // The caller's own account is not something they manage; freezing/transferring
+        // yourself is never a valid action, so it is not offered in the list.
+        val rows = teacherRows(schoolId, AccountStatus.VERIFIED, AccountStatus.FROZEN)
+            .filter { it.id != current.userId }
+        val details = detailsFor(rows)
+        return rows.map { row ->
+            val pair = details.getValue(row.id)
+            managedPayload(row, pair.settings, pair.derived)
+        }
+    }
+
+    private fun teacherRows(schoolId: UUID, vararg statuses: AccountStatus): List<UserEntity> {
+        val wanted = statuses.toSet()
+        return userRepository.findAllBySchoolIdAndRoleOrderByNameAsc(schoolId, Role.TEACHER)
+            .filter { it.verificationStatus in wanted }
+            .sortedBy { it.name.lowercase() }
+    }
+
+    private fun pendingPayload(
+        user: UserEntity,
+        settings: TeacherSettingsEntity?,
+        derived: DerivedTeacherDetails,
+        teacherCode: String?,
+    ): PendingTeacherPayload {
+        return PendingTeacherPayload(
+            id = user.id.toString(),
+            name = user.name,
+            phoneNumber = user.phoneNumber.orEmpty(),
+            teacherCode = teacherCode,
+            className = derived.className,
+            gradeLevels = derived.gradeLevels,
+            subjects = derived.subjects,
+            tscNumber = settings?.tscNumber,
+            joinedAt = user.createdAt.toEpochMilli(),
+        )
+    }
+
+    private fun managedPayload(
+        user: UserEntity,
+        settings: TeacherSettingsEntity?,
+        derived: DerivedTeacherDetails,
+    ): ManagedTeacherPayload {
+        return ManagedTeacherPayload(
+            id = user.id.toString(),
+            name = user.name,
+            phoneNumber = user.phoneNumber.orEmpty(),
+            role = user.role.name,
+            subRole = user.subRole?.name,
+            className = derived.className,
+            gradeLevels = derived.gradeLevels,
+            subjects = derived.subjects,
+            tscNumber = settings?.tscNumber,
+            isFrozen = user.verificationStatus == AccountStatus.FROZEN,
+            verificationStatus = user.verificationStatus.name,
+        )
+    }
+
+    /** Batch-reads the per-teacher settings and owned classes for one list, keyed by user id. */
+    private fun detailsFor(rows: List<UserEntity>): Map<UUID, TeacherPair> {
+        if (rows.isEmpty()) return emptyMap()
+        val ids = rows.map { it.id }
+        val settings = teacherSettingsRepository.findAllByTeacherIdIn(ids).associateBy { it.teacherId }
+        val classes = classRepository.findAllByTeacherUserIdInAndIsActiveTrueOrderByNameAsc(ids)
+            .groupBy { it.teacherUserId }
+        val codes = teacherCodeRepository.findAllByTeacherUserIdInAndActiveTrue(ids).associateBy { it.teacherUserId }
+        return rows.associate { row ->
+            val entity = settings[row.id]
+            row.id to TeacherPair(entity, DerivedTeacherDetails(entity, classes[row.id].orEmpty()), codes[row.id]?.code)
+        }
+    }
+
+    private class TeacherPair(
+        val settings: TeacherSettingsEntity?,
+        val derived: DerivedTeacherDetails,
+        val teacherCode: String?,
+    )
+
+    /**
+     * N3 rule shared with the teacher profile read: the admin-approved catalogue
+     * (`primary_class_name` / `grades_taught` / `subjects_taught`) wins when present;
+     * otherwise fall back to the classes the teacher actually owns. An empty list is a
+     * real "nothing assigned", never an invented value.
+     */
+    private inner class DerivedTeacherDetails(
+        settings: TeacherSettingsEntity?,
+        classes: List<TeacherClassEntity>,
+    ) {
+        val className: String? = settings?.primaryClassName?.takeIf { it.isNotBlank() }
+            ?: classes.firstOrNull()?.name
+        val gradeLevels: List<String> = questionCodec.parseList(settings?.gradesTaught).orEmpty()
+            .ifEmpty { classes.map { it.gradeLevel }.distinct() }
+        val subjects: List<String> = questionCodec.parseList(settings?.subjectsTaught).orEmpty()
+            .ifEmpty { classes.map { it.subject }.distinct() }
     }
 
     @Transactional(readOnly = true)

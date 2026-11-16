@@ -45,6 +45,7 @@ import kotlin.math.round
 @Service
 class TeacherLiveClassService(
     private val classRepository: LiveClassRepository,
+    private val teacherClassRepository: com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository,
     private val participantRepository: LiveClassParticipantRepository,
     private val messageRepository: LiveClassMessageRepository,
     private val pollRepository: LivePollRepository,
@@ -279,6 +280,11 @@ class TeacherLiveClassService(
         entity.teacherId = teacher.id
         entity.teacherName = teacher.name
         entity.schoolId = teacher.schoolId
+        // A blank/absent classId keeps the existing link: Android's model has no such
+        // field, so one of its edits must not silently unlink a web-authored session.
+        request.classId?.trim()?.takeIf { it.isNotEmpty() }?.let { raw ->
+            entity.schoolClassId = ownedSchoolClass(teacher, raw).id
+        }
         entity.title = request.title.trim()
         entity.subject = request.subject.trim()
         entity.description = request.description.trim()
@@ -298,6 +304,20 @@ class TeacherLiveClassService(
         entity.materialIds = mapper.writeValueAsString(request.materialIds.filter { it.isNotBlank() })
         request.recordingUrl?.let { entity.recordingUrl = it }
         request.analyticsId?.let { entity.analyticsId = it }
+    }
+
+    /**
+     * Resolves the school class a session targets and refuses one in another tenant. The
+     * link is web-only (Android has no field for it), so it stays optional but, once sent,
+     * it must be a real class of the caller's school.
+     */
+    private fun ownedSchoolClass(teacher: UserEntity, raw: String): com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity {
+        val id = parseUuid(raw, "classId")
+        val clazz = teacherClassRepository.findById(id).orElse(null) ?: throw notFound("Class not found")
+        if (clazz.schoolId != teacher.schoolId) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "That class is not in your school")
+        }
+        return clazz
     }
 
     private fun resolveOwned(teacher: UserEntity, raw: String): LiveClassEntity? {

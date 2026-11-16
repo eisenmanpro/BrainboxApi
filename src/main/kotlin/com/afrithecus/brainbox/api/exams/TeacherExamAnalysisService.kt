@@ -17,6 +17,9 @@ import com.afrithecus.brainbox.api.exams.repository.ExamRepository
 import com.afrithecus.brainbox.api.exams.repository.ExamReviewMarkRepository
 import com.afrithecus.brainbox.api.exams.repository.ExamSubmissionRepository
 import com.afrithecus.brainbox.api.exams.web.ExamAnalysisReportPayload
+import com.afrithecus.brainbox.api.exams.web.ExamGradeAnalysisPayload
+import com.afrithecus.brainbox.api.exams.web.ExamGradeBandCountPayload
+import com.afrithecus.brainbox.api.exams.web.ExamGradeRowPayload
 import com.afrithecus.brainbox.api.exams.web.KeyQuestionsSummaryPayload
 import com.afrithecus.brainbox.api.exams.web.QuestionGradingDetailPayload
 import com.afrithecus.brainbox.api.exams.web.QuestionStatsPayload
@@ -104,6 +107,66 @@ class TeacherExamAnalysisService(
             studentPerformances = performances,
         )
     }
+
+    /**
+     * The adaptive exam's student grade table: one row per submission, ranked by percentage
+     * (the same ordering [analysis] already prints), with the CBC level band of that
+     * percentage. Reuses [analysis] so the two can never disagree about the numbers.
+     */
+    @Transactional(readOnly = true)
+    fun gradeTable(teacher: UserEntity, examId: String): List<ExamGradeRowPayload> =
+        analysis(teacher, examId).studentPerformances.map { performance ->
+            ExamGradeRowPayload(
+                rank = performance.rank ?: 0,
+                studentId = performance.studentId,
+                studentName = performance.studentName,
+                score = performance.score,
+                maxScore = performance.maxScore,
+                totalScore = performance.score,
+                percentage = performance.percentage,
+                gradeBand = bandOf(performance.percentage),
+            )
+        }
+
+    /**
+     * The adaptive exam's grade distribution: the same percentages [analysis] averages,
+     * bucketed on the six platform CBC level bands (EE/ME/AE/BE/DE/E). Every band is always
+     * present, so a chart never has to invent an absent one.
+     */
+    @Transactional(readOnly = true)
+    fun gradeAnalysis(teacher: UserEntity, examId: String): ExamGradeAnalysisPayload {
+        examService.requireTeacher(teacher)
+        val exam = examService.requireOwnedExam(teacher, examId)
+        val report = analysis(teacher, examId)
+        val performances = report.studentPerformances
+        val counts = performances.groupingBy { bandOf(it.percentage) }.eachCount()
+        val bands = BAND_THRESHOLDS.map { (label, minimum) ->
+            val count = counts[label] ?: 0
+            ExamGradeBandCountPayload(
+                grade = label,
+                minPercentage = minimum,
+                count = count,
+                percentage = if (performances.isEmpty()) 0.0 else round2(count * 100.0 / performances.size),
+            )
+        }
+        return ExamGradeAnalysisPayload(
+            examId = report.examId,
+            examTitle = exam.title,
+            className = report.className,
+            totalStudents = report.totalStudents,
+            averageScore = report.averageScore,
+            medianScore = report.medianScore,
+            highestScore = report.highestScore,
+            lowestScore = report.lowestScore,
+            passRate = report.passRate,
+            gradeAnalysis = bands,
+            generatedAt = clock.millis(),
+        )
+    }
+
+    /** The platform's six CBC level bands; the same percentages the clients print. */
+    private fun bandOf(percentage: Double): String =
+        BAND_THRESHOLDS.firstOrNull { percentage >= it.second }?.first ?: "E"
 
     /** All reviewable pairs across the teacher's exams that nobody has marked yet. */
     @Transactional(readOnly = true)
@@ -450,5 +513,19 @@ class TeacherExamAnalysisService(
 
     private companion object {
         val ACTIONS = setOf("PRACTICE_EXERCISES", "EXTRA_LESSON", "LEARNING_LAB", "MONITOR_ONLY")
+
+        /**
+         * The six platform CBC level bands, highest first (EE/ME/AE/BE/DE/E). These are the
+         * thresholds both clients fall back to when a school has no configured scale, so an
+         * adaptive exam's level means the same as a paper exam's.
+         */
+        val BAND_THRESHOLDS = listOf(
+            "EE" to 80.0,
+            "ME" to 65.0,
+            "AE" to 50.0,
+            "BE" to 35.0,
+            "DE" to 20.0,
+            "E" to 0.0,
+        )
     }
 }

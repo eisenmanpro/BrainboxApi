@@ -10,6 +10,9 @@ interface TeacherCodeRepository : JpaRepository<TeacherCodeEntity, UUID> {
 
     fun findByTeacherUserIdAndActiveTrue(teacherUserId: UUID): TeacherCodeEntity?
 
+    /** Batch read for the admin teacher lists (one code per teacher at most). */
+    fun findAllByTeacherUserIdInAndActiveTrue(teacherUserIds: Collection<UUID>): List<TeacherCodeEntity>
+
     fun existsByCode(code: String): Boolean
 
     fun existsByTeacherUserId(teacherUserId: UUID): Boolean

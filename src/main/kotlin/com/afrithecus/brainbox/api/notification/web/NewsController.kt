@@ -49,6 +49,24 @@ class NewsController(private val service: NewsService) {
         @Valid @RequestBody request: AddNewsCommentRequest,
     ): ResponseEntity<NewsCommentPayload> = ResponseEntity.status(HttpStatus.CREATED).body(service.addComment(current, newsId, request))
 
+    @PutMapping("/{newsId}/comments/{commentId}")
+    fun updateComment(
+        @AuthenticationPrincipal current: CurrentUser,
+        @PathVariable newsId: String,
+        @PathVariable commentId: String,
+        @Valid @RequestBody request: UpdateNewsCommentRequest,
+    ): NewsCommentPayload = service.updateComment(current, newsId, commentId, request)
+
+    @DeleteMapping("/{newsId}/comments/{commentId}")
+    fun deleteComment(
+        @AuthenticationPrincipal current: CurrentUser,
+        @PathVariable newsId: String,
+        @PathVariable commentId: String,
+    ): ResponseEntity<Void> {
+        service.deleteComment(current, newsId, commentId)
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build()
+    }
+
     @PostMapping("/{newsId}/vote")
     fun vote(
         @AuthenticationPrincipal current: CurrentUser,

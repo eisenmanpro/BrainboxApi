@@ -183,6 +183,7 @@ class MessagingService(
                     id = it.id.toString(),
                     name = it.name,
                     role = it.role.name,
+                    subRole = it.subRole?.name,
                 )
             }
     }

@@ -24,6 +24,14 @@ class LiveClassEntity : BaseEntity() {
     @Column(name = "school_id")
     var schoolId: UUID? = null
 
+    /**
+     * The school class this session targets ([com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity]).
+     * Web-only: Android's LiveClass has no such field, so it is nullable and its payload
+     * field is optional. Validated against the teacher's school on write.
+     */
+    @Column(name = "school_class_id")
+    var schoolClassId: UUID? = null
+
     @Column(nullable = false, length = 220)
     var title: String = ""
 

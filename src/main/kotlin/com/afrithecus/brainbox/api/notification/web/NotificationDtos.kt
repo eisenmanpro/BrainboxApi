@@ -90,3 +90,8 @@ data class AddNewsCommentRequest(
     val authorName: String? = null,
     val authorAvatar: String? = null,
 )
+
+/** Edit of the caller's own comment; the article id is checked so ids cannot be mixed across threads. */
+data class UpdateNewsCommentRequest(
+    @field:NotBlank @field:Size(max = 2000) val content: String,
+)
