@@ -7,6 +7,23 @@ import jakarta.validation.constraints.Size
 
 /** Public school directory payloads (docs/ongoing/api_schools_changes.md). */
 
+/**
+ * School-authored public profile fields (findings round: admin School Config). Additive and
+ * optional; a value the school has not filled in stays null/empty rather than being invented.
+ * The landing card/dialog should render these over the platform editorial copy where present.
+ */
+data class SchoolProfilePayload(
+  val motto: String? = null,
+  val website: String? = null,
+  val type: String? = null,
+  val hours: String? = null,
+  val phone: String? = null,
+  val email: String? = null,
+  val about: String? = null,
+  val facilities: List<String> = emptyList(),
+  val highlights: List<String> = emptyList(),
+)
+
 data class SchoolListPayload(
     val id: String,
     val name: String,
@@ -28,6 +45,8 @@ data class SchoolListPayload(
     val featuredTagline: String? = null,
     /** School-authored story, else null. */
     val story: String? = null,
+    /** School-authored profile (motto/about/contact/facilities/highlights), else null when unset. */
+    val profile: SchoolProfilePayload? = null,
 )
 
 data class SchoolBasicInfoPayload(
@@ -99,6 +118,8 @@ data class SchoolDetailPayload(
     val reviews: List<SchoolReviewPayload>,
     val enrollment: EnrollmentProcessPayload,
     val importantDates: List<ImportantDatePayload>,
+    /** School-authored profile (admin School Config); null when the school has not filled it. */
+    val profile: SchoolProfilePayload? = null,
 )
 
 /** Generic acknowledgement for join-request and report submissions. */

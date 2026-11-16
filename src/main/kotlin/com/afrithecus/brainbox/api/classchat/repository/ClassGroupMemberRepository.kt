@@ -21,4 +21,9 @@ interface ClassGroupMemberRepository : JpaRepository<ClassGroupMemberEntity, UUI
     @Modifying
     @Query("DELETE FROM ClassGroupMemberEntity m WHERE m.groupId = :groupId")
     fun deleteAllByGroupId(@Param("groupId") groupId: UUID)
+
+    /** Removes one explicit membership (leave); repeat-safe. */
+    @Modifying
+    @Query("DELETE FROM ClassGroupMemberEntity m WHERE m.groupId = :groupId AND m.memberId = :memberId")
+    fun deleteByGroupIdAndMemberId(@Param("groupId") groupId: UUID, @Param("memberId") memberId: UUID)
 }

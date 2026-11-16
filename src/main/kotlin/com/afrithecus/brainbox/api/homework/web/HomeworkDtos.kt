@@ -58,6 +58,13 @@ data class HomeworkUpsertRequest(
     val cbcSubStrandTag: String? = null,
     val assignedStudentIds: List<String>? = null,
     val scope: String = "SCHOOL_GRADE_CLASS",
+    /**
+     * REGULAR or SPECIALIZED. Null (older clients) preserves the stored kind, so an
+     * edit from a client that predates V27 cannot downgrade a specialized homework.
+     */
+    val kind: String? = null,
+    @field:Size(max = 280)
+    val specializationReason: String? = null,
     val isDraft: Boolean = false,
     val isActive: Boolean = true,
 )
@@ -85,6 +92,8 @@ data class HomeworkPayload(
     val cbcSubStrandTag: String? = null,
     val assignedStudentIds: List<String>? = null,
     val scope: String,
+    val kind: String = "REGULAR",
+    val specializationReason: String? = null,
     val isDraft: Boolean,
     val isActive: Boolean,
     val createdAt: Long,

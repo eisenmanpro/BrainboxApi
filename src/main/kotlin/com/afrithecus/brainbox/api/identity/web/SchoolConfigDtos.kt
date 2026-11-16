@@ -45,4 +45,16 @@ data class SchoolConfigPayload(
      * clients); an empty list clears the gallery so the platform editorial images show again.
      */
     val galleryUrls: List<String>? = null,
+    /**
+     * Public school-profile fields shown on the landing card/dialog (findings round).
+     * Additive: older clients omit them and the stored values stay untouched (NULL in the
+     * request means "leave unchanged" for lists; blank strings clear the field).
+     */
+    val website: String? = null,
+    val type: String? = null,
+    val hours: String? = null,
+    val about: String? = null,
+    /** NULL = leave unchanged (older clients); an empty list clears the stored list. */
+    val facilities: List<String>? = null,
+    val highlights: List<String>? = null,
 )

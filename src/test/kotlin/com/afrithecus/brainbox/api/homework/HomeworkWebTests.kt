@@ -102,6 +102,9 @@ class HomeworkWebTests(
         type: String = "FREE_TEXT",
         isDraft: Boolean = false,
         term: ExamTerm? = null,
+        kind: String = "REGULAR",
+        specializationReason: String? = null,
+        scope: String = "SCHOOL_GRADE_CLASS",
     ) = HomeworkUpsertRequest(
         id = id, classId = classId, title = title,
         description = "Complete the following textbook exercises and show all working.",
@@ -109,6 +112,7 @@ class HomeworkWebTests(
         dueDate = System.currentTimeMillis() + 24L * 3600 * 1000,
         submissionType = type, checklistItems = checklist,
         gradingMode = "MANUAL", assignedStudentIds = assigned,
+        kind = kind, specializationReason = specializationReason, scope = scope,
         isDraft = isDraft,
     )
 
@@ -428,6 +432,105 @@ class HomeworkWebTests(
                 .file(MockMultipartFile("file", "bad.zip", "application/zip", ByteArray(16)))
                 .header("Authorization", auth(s1.sessionToken!!))
         ).andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `specialized homework targets named learners and requires a focus reason`() {
+        val host = signupStudent("0775000100", "HW High")
+        val teacher = newTeacher(host.user.schoolId!!, "0775777100")
+        val student1 = signupStudent("0775000101", "HW High")
+        val student2 = signupStudent("0775000102", "HW High")
+        val classId = createClass(teacher, listOf(student1, student2))
+
+        // The default create path stays REGULAR with no focus reason.
+        val regular = objectMapper.readValue(
+            upsert(teacher, hwRequest("hw_reg_1", classId)),
+            HomeworkPayload::class.java,
+        )
+        check(regular.kind == "REGULAR")
+        check(regular.specializationReason == null)
+
+        // A valid specialized assignment round-trips its kind, reason and targets and
+        // is forced to class scope even when the client asks for a wider scope.
+        val specBody = upsert(
+            teacher,
+            hwRequest(
+                "hw_spec_1", classId,
+                assigned = listOf(student1.user.id),
+                kind = "SPECIALIZED",
+                specializationReason = "Remedial fractions focus for the two learners below mastery",
+                scope = "SCHOOL_GRADE",
+            ),
+        )
+        val spec = objectMapper.readValue(specBody, HomeworkPayload::class.java)
+        check(spec.kind == "SPECIALIZED")
+        check(spec.specializationReason!!.startsWith("Remedial fractions"))
+        check(spec.assignedStudentIds == listOf(student1.user.id))
+        check(spec.scope == "SCHOOL_GRADE_CLASS")
+
+        // The teacher list carries the kind so the Specialized tab can filter it.
+        val listed = objectMapper.readValue(
+            mockMvc.perform(get("/teacher/homework").header("Authorization", auth(teacher.sessionToken!!)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<HomeworkPayload>::class.java,
+        )
+        check(listed.single { it.id == "hw_spec_1" }.kind == "SPECIALIZED")
+        check(listed.single { it.id == "hw_reg_1" }.kind == "REGULAR")
+
+        // Older clients (pre-V27 Android/web) omit kind + specializationReason on edit:
+        // the stored kind, reason and targets must survive instead of downgrading.
+        val legacyEdit = hwRequest("hw_spec_1", classId, title = "Fractions booster (edited)").copy(
+            kind = null,
+            assignedStudentIds = null,
+            specializationReason = null,
+        )
+        val edited = objectMapper.readValue(upsert(teacher, legacyEdit), HomeworkPayload::class.java)
+        check(edited.kind == "SPECIALIZED")
+        check(edited.specializationReason!!.startsWith("Remedial fractions"))
+        check(edited.assignedStudentIds == listOf(student1.user.id))
+
+        // The targeted learner still receives a normal homework of its submission type.
+        val mine = objectMapper.readValue(
+            mockMvc.perform(get("/homework").header("Authorization", auth(student1.sessionToken!!)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<StudentHomeworkPayload>::class.java,
+        )
+        check(mine.any { it.id == "hw_spec_1" })
+        check(mine.none { it.id == "hw_spec_1" && it.type != "FREE_TEXT" })
+
+        // Publishing without targeted learners is refused.
+        mockMvc.perform(
+            post("/teacher/homework").header("Authorization", auth(teacher.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                    hwRequest("hw_spec_2", classId, kind = "SPECIALIZED", specializationReason = "Remedial fractions focus")
+                ))
+        ).andExpect(status().isBadRequest)
+
+        // A too-short focus reason is refused.
+        mockMvc.perform(
+            post("/teacher/homework").header("Authorization", auth(teacher.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                    hwRequest("hw_spec_3", classId, assigned = listOf(student1.user.id), kind = "SPECIALIZED", specializationReason = "bad")
+                ))
+        ).andExpect(status().isBadRequest)
+
+        // Unknown kinds are refused.
+        mockMvc.perform(
+            post("/teacher/homework").header("Authorization", auth(teacher.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(hwRequest("hw_spec_4", classId, assigned = listOf(student1.user.id), kind = "WAT")))
+        ).andExpect(status().isBadRequest)
+
+        // A draft may be incomplete: the teacher is still building the intervention.
+        val draft = objectMapper.readValue(
+            upsert(teacher, hwRequest("hw_spec_draft", classId, kind = "SPECIALIZED", isDraft = true)),
+            HomeworkPayload::class.java,
+        )
+        check(draft.isDraft)
+        check(draft.kind == "SPECIALIZED")
+        check(draft.specializationReason == null)
     }
 
     private companion object {

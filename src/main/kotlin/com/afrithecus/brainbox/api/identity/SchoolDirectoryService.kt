@@ -25,6 +25,7 @@ import com.afrithecus.brainbox.api.identity.web.SchoolContactPayload
 import com.afrithecus.brainbox.api.identity.web.SchoolDetailPayload
 import com.afrithecus.brainbox.api.identity.web.SchoolFacultyPayload
 import com.afrithecus.brainbox.api.identity.web.SchoolListPayload
+import com.afrithecus.brainbox.api.identity.web.SchoolProfilePayload
 import com.afrithecus.brainbox.api.identity.web.SchoolReportRequestPayload
 import com.afrithecus.brainbox.api.identity.web.SchoolReviewPayload
 import com.afrithecus.brainbox.api.identity.web.SchoolReviewRequest
@@ -61,7 +62,8 @@ class SchoolDirectoryService(
     fun list(): List<SchoolListPayload> {
         val schools = schoolRepository.findAllByOrderByNameAsc().filter { it.isActive }
         val galleries = galleriesFor(schools)
-        return schools.map { listPayload(it, galleries[it.id].orEmpty()) }
+        val configs = configsFor(schools)
+        return schools.map { listPayload(it, galleries[it.id].orEmpty(), configs[it.id]) }
     }
 
     @Transactional(readOnly = true)
@@ -70,7 +72,8 @@ class SchoolDirectoryService(
         val schools = schoolRepository.findByNameContainingIgnoreCaseOrderByNameAsc(query.trim())
             .filter { it.isActive }
         val galleries = galleriesFor(schools)
-        return schools.map { listPayload(it, galleries[it.id].orEmpty()) }
+        val configs = configsFor(schools)
+        return schools.map { listPayload(it, galleries[it.id].orEmpty(), configs[it.id]) }
     }
 
     @Transactional(readOnly = true)
@@ -82,6 +85,7 @@ class SchoolDirectoryService(
     fun detail(schoolIdRaw: String): SchoolDetailPayload {
         val school = requireSchool(schoolIdRaw)
         val detail = detailRepository.findById(school.id).orElse(null)
+        val config = configRepository.findById(school.id).orElse(null)
         val reviews = reviewRepository.findAllBySchoolIdOrderByCreatedAtDesc(school.id).map {
             SchoolReviewPayload(it.userName, it.rating, it.comment, it.reviewDate.toString())
         }
@@ -92,15 +96,17 @@ class SchoolDirectoryService(
             basicInfo = SchoolBasicInfoPayload(
                 name = school.name,
                 location = school.location ?: school.county ?: "",
-                type = detail?.type ?: "",
+                // Findings round: an unset public detail row falls back to the profile the ICT
+                // admin filled in School Config, instead of showing "information unavailable".
+                type = detail?.type?.takeIf { it.isNotBlank() } ?: config?.schoolType.orEmpty(),
                 gradeLevels = detail?.gradeLevels ?: "",
-                hours = detail?.hours ?: "",
+                hours = detail?.hours?.takeIf { it.isNotBlank() } ?: config?.schoolHours.orEmpty(),
                 imageUrls = imageUrls,
             ),
             contact = SchoolContactPayload(
-                phone = detail?.phone ?: "",
-                email = detail?.email ?: "",
-                website = detail?.website ?: "",
+                phone = detail?.phone?.takeIf { it.isNotBlank() } ?: config?.phone.orEmpty(),
+                email = detail?.email?.takeIf { it.isNotBlank() } ?: config?.email.orEmpty(),
+                website = detail?.website?.takeIf { it.isNotBlank() } ?: config?.website.orEmpty(),
                 socialMedia = detail?.let { parseMap(it.socialMedia) } ?: emptyMap(),
                 admissionContact = detail?.admissionContact ?: "",
                 transportation = detail?.transportation ?: "",
@@ -128,7 +134,8 @@ class SchoolDirectoryService(
                 specialNeedsSupport = detail?.specialNeedsSupport ?: "",
             ),
             extracurriculars = detail?.let { parseList(it.extracurriculars) } ?: emptyList(),
-            facilities = detail?.let { parseList(it.facilities) } ?: emptyList(),
+            facilities = detail?.let { parseList(it.facilities) }.orEmpty()
+                .ifEmpty { config?.let { parseList(it.facilities) }.orEmpty() },
             tuition = detail?.let { parseTuition(it.tuition) },
             parentInvolvement = detail?.let { parseList(it.parentInvolvement) } ?: emptyList(),
             reviews = reviews,
@@ -139,6 +146,7 @@ class SchoolDirectoryService(
                 tourLink = detail?.enrollmentTourLink ?: "",
             ),
             importantDates = detail?.let { parseDates(it.importantDates) } ?: emptyList(),
+            profile = schoolProfile(config),
         )
     }
 
@@ -201,7 +209,11 @@ class SchoolDirectoryService(
 
     // ------------------------------------------------------------ internals
 
-    private fun listPayload(school: SchoolEntity, ownGallery: List<String> = emptyList()): SchoolListPayload {
+    private fun listPayload(
+        school: SchoolEntity,
+        ownGallery: List<String> = emptyList(),
+        config: com.afrithecus.brainbox.api.identity.entity.SchoolConfigEntity? = null,
+    ): SchoolListPayload {
         val logos = parseList(school.logoUrls).ifEmpty { listOfNotNull(school.logoUrl) }
         // FEAT-01: the list now carries the same editorial media the detail payload has.
         // Precedence: the school's own uploaded gallery (>> admin gallery upload) overrides
@@ -221,8 +233,39 @@ class SchoolDirectoryService(
             isFeatured = school.isFeatured,
             featuredTagline = school.featuredTagline?.takeIf { it.isNotBlank() },
             story = school.story?.takeIf { it.isNotBlank() },
+            profile = schoolProfile(config),
         )
     }
+
+    /** School-authored profile fields for the public card/dialog; null when nothing is set. */
+    private fun schoolProfile(
+        config: com.afrithecus.brainbox.api.identity.entity.SchoolConfigEntity?,
+    ): SchoolProfilePayload? {
+        if (config == null) return null
+        val facilities = parseList(config.facilities)
+        val highlights = parseList(config.highlights)
+        val motto = config.motto?.takeIf { it.isNotBlank() }
+        val website = config.website?.takeIf { it.isNotBlank() }
+        val type = config.schoolType?.takeIf { it.isNotBlank() }
+        val hours = config.schoolHours?.takeIf { it.isNotBlank() }
+        val phone = config.phone?.takeIf { it.isNotBlank() }
+        val email = config.email?.takeIf { it.isNotBlank() }
+        val about = config.about?.takeIf { it.isNotBlank() }
+        val hasAnything = motto != null || website != null || type != null || hours != null ||
+            phone != null || email != null || about != null || facilities.isNotEmpty() || highlights.isNotEmpty()
+        if (!hasAnything) return null
+        return SchoolProfilePayload(
+            motto = motto, website = website, type = type, hours = hours,
+            phone = phone, email = email, about = about,
+            facilities = facilities, highlights = highlights,
+        )
+    }
+
+    /** Config rows for a batch of schools in one read (profile/gallery fields). */
+    private fun configsFor(
+        schools: List<SchoolEntity>,
+    ): Map<UUID, com.afrithecus.brainbox.api.identity.entity.SchoolConfigEntity> =
+        configRepository.findAllById(schools.map { it.id }).associateBy { it.schoolId }
 
     /** The school's own landing gallery from its config row (empty when it has none). */
     private fun schoolGallery(schoolId: UUID): List<String> =

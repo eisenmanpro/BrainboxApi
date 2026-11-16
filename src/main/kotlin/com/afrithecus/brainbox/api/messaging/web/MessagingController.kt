@@ -29,6 +29,27 @@ class MessagingController(
     private fun user(current: CurrentUser) =
         userRepository.findById(current.userId).orElseThrow { notFound("User not found") }
 
+    /**
+     * Who the caller may message, with the relationship that justifies each row. Optional
+     * role/grade/class/search filters. Literal paths are declared above the /{userId} route so
+     * Spring can never bind "recipients" as a user id.
+     */
+    @GetMapping("/recipients")
+    fun recipients(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @RequestParam(required = false) role: String?,
+        @RequestParam(required = false) gradeLevel: String?,
+        @RequestParam(required = false) classId: String?,
+        @RequestParam(required = false) q: String?,
+    ): List<MessageRecipientPayload> = service.recipients(user(currentUser), role, gradeLevel, classId, q)
+
+    /** One conversation (oldest first) the caller participates in — the thread view's read. */
+    @GetMapping("/threads/{threadId}")
+    fun thread(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable threadId: String,
+    ): List<MessagePayload> = service.thread(user(currentUser), threadId)
+
     @GetMapping("/{userId}")
     fun list(
         @AuthenticationPrincipal currentUser: CurrentUser,

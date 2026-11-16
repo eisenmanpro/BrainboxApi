@@ -129,6 +129,10 @@ class MessagingWebTests(
 
         check(sent(student).size == 1)
 
+        // A teacher may address learners of their own class only: the class and roster must
+        // exist before the direct send (findings2 recipient filtering).
+        val classId = createClassWithRoster(teacher, listOf(student, student2))
+
         // teacher INDIVIDUAL to a student -> inbox + read receipt
         val individual = TeacherSendMessageRequest(audienceType = "INDIVIDUAL", recipientId = student.user.id, body = "Read chapter 3")
         val sentRaw = mockMvc.perform(
@@ -150,7 +154,6 @@ class MessagingWebTests(
         check(sent(teacher).any { it.body == "Read chapter 3" })
 
         // teacher CLASS fan-out reaches the roster
-        val classId = createClassWithRoster(teacher, listOf(student, student2))
         val fanOut = TeacherSendMessageRequest(audienceType = "CLASS", audienceId = classId, body = "Class announcement")
         mockMvc.perform(
             post("/messages/teacher/send").header("Authorization", auth(teacher.sessionToken!!))

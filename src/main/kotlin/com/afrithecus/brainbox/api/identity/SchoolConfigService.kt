@@ -4,7 +4,9 @@ import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.exams.QuestionCodec
 import com.afrithecus.brainbox.api.identity.entity.SchoolConfigEntity
+import com.afrithecus.brainbox.api.identity.entity.SchoolDetailEntity
 import com.afrithecus.brainbox.api.identity.repository.SchoolConfigRepository
+import com.afrithecus.brainbox.api.identity.repository.SchoolDetailRepository
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
@@ -26,6 +28,7 @@ import java.util.UUID
 class SchoolConfigService(
     private val repository: SchoolConfigRepository,
     private val schoolRepository: SchoolRepository,
+    private val detailRepository: SchoolDetailRepository,
     private val classRepository: TeacherClassRepository,
     private val codec: QuestionCodec,
     private val mapper: ObjectMapper,
@@ -79,8 +82,29 @@ class SchoolConfigService(
         entity.rooms = codec.toJson(cleanRooms(request.rooms))
         request.classes?.let { entity.classes = mapper.writeValueAsString(cleanClasses(it)) }
         request.galleryUrls?.let { entity.galleryUrls = codec.toJson(cleanGalleryUrls(it)) }
+        // Findings round: the public school card/dialog shows the school's own profile data.
+        // NULL means "leave unchanged" (older/Android clients omit these fields entirely), an
+        // explicit blank string clears; otherwise a client that has no input for a field would
+        // wipe the value another admin saved.
+        request.website?.let { entity.website = it.trim().takeIf { v -> v.isNotEmpty() } }
+        request.type?.let { entity.schoolType = it.trim().takeIf { v -> v.isNotEmpty() } }
+        request.hours?.let { entity.schoolHours = it.trim().takeIf { v -> v.isNotEmpty() } }
+        request.about?.let { entity.about = it.trim().takeIf { v -> v.isNotEmpty() } }
+        request.facilities?.let { entity.facilities = codec.toJson(cleanProfileList(it, MAX_FACILITIES, MAX_FACILITY_NAME)) }
+        request.highlights?.let { entity.highlights = codec.toJson(cleanProfileList(it, MAX_HIGHLIGHTS, MAX_HIGHLIGHT_NAME)) }
         entity.updatedAt = clock.instant()
         repository.saveAndFlush(entity)
+        // Renaming the school must rename the canonical school row too: the public landing
+        // list renders schools.name, so a config-only rename made the old row linger (the
+        // "rename duplicates the school" finding).
+        schoolRepository.findById(schoolId).ifPresent { school ->
+            val renamed = request.schoolName.trim()
+            if (renamed.isNotEmpty() && school.name != renamed) {
+                school.name = renamed
+                schoolRepository.save(school)
+            }
+        }
+        syncPublicDetail(schoolId, entity)
         // Claim the uploads this config keeps, then delete the previous logo/stamp
         // objects it just replaced (D16/A23 follow-up: no orphaned branding bytes).
         mediaObjects.claim(entity.logoUrl)
@@ -199,6 +223,34 @@ class SchoolConfigService(
             }
             gallery.forEach { validateGalleryUrl(it) }
         }
+        request.website?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            if (it.length > MAX_WEBSITE) throw invalidArgument("website must be at most " + MAX_WEBSITE + " characters")
+            val parsed = runCatching { java.net.URI(it) }.getOrNull()
+            if (parsed?.scheme?.lowercase() !in setOf("http", "https") || parsed?.host.isNullOrBlank()) {
+                throw invalidArgument("website must be an http(s) URL")
+            }
+        }
+        request.type?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            if (it.length > MAX_TYPE) throw invalidArgument("type must be at most " + MAX_TYPE + " characters")
+        }
+        request.hours?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            if (it.length > MAX_HOURS) throw invalidArgument("hours must be at most " + MAX_HOURS + " characters")
+        }
+        request.about?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            if (it.length > MAX_ABOUT) throw invalidArgument("about must be at most " + MAX_ABOUT + " characters")
+        }
+        request.facilities?.let { values ->
+            if (values.size > MAX_FACILITIES) throw invalidArgument("facilities must have at most " + MAX_FACILITIES + " entries")
+            values.filter { it.isNotBlank() }.forEach {
+                if (it.trim().length > MAX_FACILITY_NAME) throw invalidArgument("facility names must be at most " + MAX_FACILITY_NAME + " characters")
+            }
+        }
+        request.highlights?.let { values ->
+            if (values.size > MAX_HIGHLIGHTS) throw invalidArgument("highlights must have at most " + MAX_HIGHLIGHTS + " entries")
+            values.filter { it.isNotBlank() }.forEach {
+                if (it.trim().length > MAX_HIGHLIGHT_NAME) throw invalidArgument("highlights must be at most " + MAX_HIGHLIGHT_NAME + " characters")
+            }
+        }
         if (request.rooms.size > MAX_ROOMS) throw invalidArgument("rooms must have at most " + MAX_ROOMS + " entries")
         request.rooms.filter { it.isNotBlank() }.forEach {
             if (it.trim().length > MAX_ROOM_NAME) throw invalidArgument("room names must be at most " + MAX_ROOM_NAME + " characters")
@@ -287,6 +339,10 @@ class SchoolConfigService(
     private fun cleanRooms(rooms: List<String>): List<String> =
         rooms.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
 
+    /** Trim, drop blanks, de-duplicate and cap a public-profile list (facilities/highlights). */
+    private fun cleanProfileList(values: List<String>, max: Int, maxLength: Int): List<String> =
+        values.map { it.trim() }.filter { it.isNotEmpty() }.distinct().take(max).map { it.take(maxLength) }
+
     private fun payload(schoolId: UUID, entity: SchoolConfigEntity?): SchoolConfigPayload {
         val fallbackName = schoolRepository.findById(schoolId).orElse(null)?.name.orEmpty()
         return SchoolConfigPayload(
@@ -305,8 +361,42 @@ class SchoolConfigService(
             rooms = codec.parseList(entity?.rooms).orEmpty(),
             classes = parseClasses(entity?.classes),
             galleryUrls = codec.parseList(entity?.galleryUrls).orEmpty(),
+            website = entity?.website,
+            type = entity?.schoolType,
+            hours = entity?.schoolHours,
+            about = entity?.about,
+            facilities = codec.parseList(entity?.facilities).orEmpty(),
+            highlights = codec.parseList(entity?.highlights).orEmpty(),
         )
     }
+
+    /**
+     * The public school directory reads school_details; without this sync an ICT admin's
+     * contact/type/hours/facilities edits never reached the landing dialog ("information
+     * unavailable though the admin configured it"). Fields the config leaves blank keep the
+     * existing detail values, so this can never blank real public data.
+     */
+    private fun syncPublicDetail(schoolId: UUID, config: SchoolConfigEntity) {
+        val existing = detailRepository.findById(schoolId).orElse(null)
+        val detail = existing ?: SchoolDetailEntity().apply { this.schoolId = schoolId }
+        config.phone?.trim()?.takeIf { it.isNotEmpty() }?.let { detail.phone = it }
+        config.email?.trim()?.takeIf { it.isNotEmpty() }?.let { detail.email = it }
+        config.website?.trim()?.takeIf { it.isNotEmpty() }?.let { detail.website = it }
+        config.schoolType?.trim()?.takeIf { it.isNotEmpty() }?.let { detail.type = it }
+        config.schoolHours?.trim()?.takeIf { it.isNotEmpty() }?.let { detail.hours = it }
+        val facilities = codec.parseList(config.facilities).orEmpty()
+        if (facilities.isNotEmpty()) detail.facilities = codec.toJson(facilities)
+        if (existing == null && detail.gradeLevels.isBlank()) {
+            detail.gradeLevels = parseClasses(config.classes).map { it.gradeLevel }.distinct().joinToString(", ")
+        }
+        if (existing == null && detail.phone.isBlank()) detail.phone = config.phone.orEmpty()
+        if (existing == null && detail.email.isBlank()) detail.email = config.email.orEmpty()
+        if (existing != null || detailHasContent(detail)) detailRepository.save(detail)
+    }
+
+    private fun detailHasContent(detail: SchoolDetailEntity): Boolean =
+        detail.phone.isNotBlank() || detail.email.isNotBlank() || detail.website.isNotBlank() ||
+            detail.type.isNotBlank() || detail.hours.isNotBlank() || !detail.facilities.isNullOrBlank()
 
     private companion object {
         const val MIN_NAME = 3
@@ -319,6 +409,14 @@ class SchoolConfigService(
         const val MAX_ROOM_NAME = 120
         const val MAX_CLASSES = 200
         const val MAX_GALLERY = 4
+        const val MAX_WEBSITE = 255
+        const val MAX_TYPE = 64
+        const val MAX_HOURS = 120
+        const val MAX_ABOUT = 2000
+        const val MAX_FACILITIES = 20
+        const val MAX_FACILITY_NAME = 120
+        const val MAX_HIGHLIGHTS = 10
+        const val MAX_HIGHLIGHT_NAME = 120
         const val MAX_CLASS_NAME = 120
         const val MAX_GRADE_NAME = 64
         const val MAX_STREAM_NAME = 64

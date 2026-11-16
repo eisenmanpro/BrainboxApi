@@ -6,7 +6,9 @@ import com.afrithecus.brainbox.api.classchat.web.ClassGroupPayload
 import com.afrithecus.brainbox.api.classchat.web.GradebookContributionPayload
 import com.afrithecus.brainbox.api.classchat.web.GroupTeacherPayload
 import com.afrithecus.brainbox.api.classchat.web.MessageAttachmentPayload
+import com.afrithecus.brainbox.api.classes.entity.ClassMembershipEntity
 import com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity
+import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.homework.entity.HomeworkEntity
 import com.afrithecus.brainbox.api.homework.entity.HomeworkSubmissionEntity
@@ -52,6 +54,7 @@ class ClassChatWebTests(
     @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val userRepository: UserRepository,
     @Autowired private val classRepository: TeacherClassRepository,
+    @Autowired private val membershipRepository: ClassMembershipRepository,
     @Autowired private val homeworkRepository: HomeworkRepository,
     @Autowired private val submissionRepository: HomeworkSubmissionRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
@@ -106,6 +109,13 @@ class ClassChatWebTests(
         })
         val studentA = newUser("0779600001", "chat.student.a@test", Role.STUDENT)
         val studentB = newUser("0779600002", "chat.student.b@test", Role.STUDENT)
+        // Group members are validated against the group's class/grade: both learners are in the class.
+        listOf(studentA, studentB).forEach { student ->
+            membershipRepository.save(ClassMembershipEntity().apply {
+                classId = clazz.id
+                studentId = student.id
+            })
+        }
         return Fixture(teacher, token, clazz, studentA, studentB)
     }
 

@@ -212,6 +212,9 @@ class AdminSchoolService(
             .filter { it.role == Role.TEACHER }
             .filter { it.isActive }
             .filter { it.verificationStatus == AccountStatus.VERIFIED }
+            // Findings round: the picker must offer every eligible class teacher, not just the
+            // current coordinator, so a change/elevation is one pick. The server invariant keeps
+            // coordinators class teachers (plain TEACHER/ICT_ADMIN accounts are not eligible).
             .filter { it.subRole == SubRole.CTEACHER || it.subRole == SubRole.GRADE_COORDINATOR }
             .map { teacher ->
                 CoordinatorCandidatePayload(
@@ -532,6 +535,7 @@ class AdminSchoolService(
         }
         entity.maintenanceMode = request.maintenanceMode
         entity.registrationOpen = request.registrationOpen
+        entity.transitionsEnabled = request.transitionsEnabled
         entity.adminSignInOpen = request.adminSignInOpen
         entity.updatedAt = clock.instant()
         settingsRepository.saveAndFlush(entity)
@@ -542,6 +546,7 @@ class AdminSchoolService(
             actor,
             "Updated system settings (maintenance=" + request.maintenanceMode +
                 ", registration=" + request.registrationOpen +
+                ", transitions=" + request.transitionsEnabled +
                 ", adminSignInOpen=" + request.adminSignInOpen +
                 (if (closedNow) ", signed out " + revoked + " administrator session(s)" else "") + ")",
         )
@@ -667,10 +672,15 @@ class AdminSchoolService(
         if (teacher.verificationStatus != AccountStatus.VERIFIED) {
             throw conflict("Only approved staff can be assigned a grade to coordinate.")
         }
+        // Server invariant (CoordinatorAssignmentWebTests): only active, approved class
+        // teachers coordinate a grade. The findings-round UX still lists ALL of them in the
+        // picker and replaces the holder in one step; it never elevates ordinary staff accounts.
         if (teacher.subRole != SubRole.CTEACHER && teacher.subRole != SubRole.GRADE_COORDINATOR) {
             throw conflict("Only class teachers can coordinate a grade.")
         }
         val coordinators = activeCoordinators(schoolId)
+        // One grade per coordinator: a teacher who already leads another grade must be moved
+        // out of that grade first, so the picker disables that candidate with an explanation.
         if (teacher.subRole == SubRole.GRADE_COORDINATOR) {
             val otherGrade = coordinators.firstOrNull { it.id == teacher.id }
                 ?.gradeLevel?.trim()?.takeIf { it.isNotEmpty() }
@@ -681,6 +691,7 @@ class AdminSchoolService(
         val currentHolder = coordinators.firstOrNull { sameGrade(it.gradeLevel, grade) }
         if (currentHolder?.id == teacher.id) return // already this grade's coordinator: idempotent
         if (currentHolder != null) {
+            // The previous holder returns to their class-teacher duties and keeps their class.
             currentHolder.subRole = SubRole.CTEACHER
             userRepository.saveAndFlush(currentHolder)
         }
@@ -765,6 +776,7 @@ class AdminSchoolService(
         schoolId = schoolId.toString(),
         maintenanceMode = entity?.maintenanceMode ?: false,
         registrationOpen = entity?.registrationOpen ?: true,
+        transitionsEnabled = entity?.transitionsEnabled ?: true,
         adminSignInOpen = entity?.adminSignInOpen ?: true,
         adminOwnerId = (entity?.adminOwnerId ?: ownerId)?.toString(),
         isAdminOwner = actor != null && ownerId != null && actor.id == ownerId,

@@ -23,6 +23,18 @@ class MessageEntity {
     @Column(name = "msg_group", nullable = false, length = 128)
     var msgGroup: String = ""
 
+    /**
+     * The conversation this row belongs to: the first message's [msgGroup]. A reply is saved
+     * under the same root (instead of starting a new thread), so the client can group an inbox
+     * by conversation and open the whole history.
+     */
+    @Column(name = "thread_root_group", length = 128)
+    var threadRootGroup: String? = null
+
+    /** The message this row answers, when it is a reply. */
+    @Column(name = "parent_message_id")
+    var parentMessageId: UUID? = null
+
     @Column(name = "sender_id", nullable = false)
     var senderId: UUID = UUID.randomUUID()
 

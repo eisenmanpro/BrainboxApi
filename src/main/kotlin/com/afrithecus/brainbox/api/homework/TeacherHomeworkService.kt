@@ -11,6 +11,7 @@ import com.afrithecus.brainbox.api.homework.entity.HomeworkEntity
 import com.afrithecus.brainbox.api.homework.entity.HomeworkQuestionEntity
 import com.afrithecus.brainbox.api.homework.entity.HomeworkSubmissionEntity
 import com.afrithecus.brainbox.api.homework.model.GradingMode
+import com.afrithecus.brainbox.api.homework.model.HomeworkKind
 import com.afrithecus.brainbox.api.homework.model.HomeworkScope
 import com.afrithecus.brainbox.api.homework.model.SubmissionStatus
 import com.afrithecus.brainbox.api.homework.model.SubmissionType
@@ -63,26 +64,50 @@ class TeacherHomeworkService(
         val type = parseSubmissionType(request.submissionType)
         val mode = request.gradingMode?.let { parseMode(it) }
         if (mode != null && mode != GradingMode.MANUAL && type != SubmissionType.EXAM_QUESTION_SET) {
-            throw invalidArgument("AUTO grading is only available for EXAM_QUESTION_SET homework (question-set support is a follow-on)")
+            throw invalidArgument("AUTO grading is only available for EXAM_QUESTION_SET homework")
         }
 
         val existing = homeworkRepository.findById(request.id).orElse(null)
         if (existing != null && existing.teacherId != teacher.id) {
             throw conflict("Homework id is already used by another teacher")
         }
-        val entity = existing ?: HomeworkEntity().apply { id = request.id }
-        apply(entity, request, clazz, teacher)
-        if (type == SubmissionType.EXAM_QUESTION_SET && request.questions.isNullOrEmpty()) {
-            throw invalidArgument("EXAM_QUESTION_SET homework needs at least one question")
+        // Older clients (Android before the V27 model, earlier web builds) do not send
+        // kind/specializationReason. Resolve them from the stored row so an edit from
+        // such a client never downgrades a specialized intervention to REGULAR.
+        val kind = request.kind?.let { parseKind(it) } ?: existing?.kind ?: HomeworkKind.REGULAR
+        val targets = request.assignedStudentIds?.filter { it.isNotBlank() }
+            ?: existing?.let { codec.parseList(it.assignedStudentIds) }
+            ?: emptyList()
+        val reason = request.specializationReason?.trim()?.takeIf { it.isNotEmpty() }
+            ?: existing?.specializationReason
+        if (kind == HomeworkKind.SPECIALIZED) {
+            // A specialized intervention is only meaningful when it names the learners it
+            // targets and says why; drafts may be incomplete until the teacher publishes.
+            if (!reason.isNullOrBlank() && reason.length > SPECIALIZED_REASON_MAX) {
+                throw invalidArgument("specializationReason must be at most " + SPECIALIZED_REASON_MAX + " characters")
+            }
+            if (!request.isDraft) {
+                if (targets.isEmpty()) {
+                    throw invalidArgument("SPECIALIZED homework needs at least one targeted learner")
+                }
+                if (reason == null || reason.length < SPECIALIZED_REASON_MIN) {
+                    throw invalidArgument("specializationReason must be at least " + SPECIALIZED_REASON_MIN + " characters for SPECIALIZED homework")
+                }
+            }
         }
-        val wasManualGradeGate = mode == null || mode == GradingMode.MANUAL
-        if (mode != null && mode != GradingMode.MANUAL && type != SubmissionType.EXAM_QUESTION_SET) {
-            throw invalidArgument("AUTO grading is only available for EXAM_QUESTION_SET homework")
+        val entity = existing ?: HomeworkEntity().apply { id = request.id }
+        apply(entity, request, clazz, teacher, kind, targets, reason)
+        // Drafts may be saved before the content is complete; publishing enforces it.
+        if (type == SubmissionType.EXAM_QUESTION_SET && request.questions.isNullOrEmpty() && !request.isDraft) {
+            throw invalidArgument("EXAM_QUESTION_SET homework needs at least one question")
         }
 
         if (entity.submissionType == SubmissionType.CHECKLIST) {
             val items = request.checklistItems?.filter { it.isNotBlank() } ?: emptyList()
-            if (items.isEmpty() || items.size > 20) {
+            if (items.size > 20) {
+                throw invalidArgument("CHECKLIST homework can have at most 20 checklist items")
+            }
+            if (items.isEmpty() && !request.isDraft) {
                 throw invalidArgument("CHECKLIST homework needs 1-20 checklist items")
             }
             entity.checklistItems = codec.toJson(items)
@@ -267,6 +292,9 @@ class TeacherHomeworkService(
         request: HomeworkUpsertRequest,
         clazz: TeacherClassEntity,
         teacher: UserEntity,
+        kind: HomeworkKind,
+        assignedStudentIds: List<String>,
+        specializationReason: String?,
     ) {
         entity.classId = clazz.id
         entity.teacherId = teacher.id
@@ -289,8 +317,11 @@ class TeacherHomeworkService(
         entity.relatedDocumentId = request.relatedDocumentId?.trim()?.takeIf { it.isNotEmpty() }
         entity.cbcStrandTag = request.cbcStrandTag?.trim()?.takeIf { it.isNotEmpty() }
         entity.cbcSubStrandTag = request.cbcSubStrandTag?.trim()?.takeIf { it.isNotEmpty() }
-        entity.assignedStudentIds = codec.toJson(request.assignedStudentIds?.filter { it.isNotBlank() })
-        entity.scope = parseScope(request.scope)
+        entity.assignedStudentIds = codec.toJson(assignedStudentIds)
+        entity.kind = kind
+        entity.specializationReason = if (kind == HomeworkKind.SPECIALIZED) specializationReason else null
+        // A specialized assignment is always class-scoped: it targets named learners.
+        entity.scope = if (kind == HomeworkKind.SPECIALIZED) HomeworkScope.SCHOOL_GRADE_CLASS else parseScope(request.scope)
         entity.isDraft = request.isDraft
         entity.isActive = request.isActive
         entity.updatedAt = clock.instant()
@@ -310,6 +341,10 @@ class TeacherHomeworkService(
     private fun parseMode(raw: String): GradingMode =
         runCatching { GradingMode.valueOf(raw.trim().uppercase()) }.getOrNull()
             ?: throw invalidArgument("gradingMode has an invalid value")
+
+    private fun parseKind(raw: String): HomeworkKind =
+        runCatching { HomeworkKind.valueOf(raw.trim().uppercase()) }.getOrNull()
+            ?: throw invalidArgument("kind has an invalid value")
 
     private fun parseScope(raw: String): HomeworkScope =
         runCatching { HomeworkScope.valueOf(raw.trim().uppercase()) }.getOrNull()
@@ -340,6 +375,8 @@ class TeacherHomeworkService(
         cbcSubStrandTag = homework.cbcSubStrandTag,
         assignedStudentIds = codec.parseList(homework.assignedStudentIds),
         scope = homework.scope.name,
+        kind = homework.kind.name,
+        specializationReason = homework.specializationReason,
         isDraft = homework.isDraft,
         isActive = homework.isActive,
         createdAt = homework.createdAt.toEpochMilli(),
@@ -376,4 +413,9 @@ class TeacherHomeworkService(
         gradedAt = sub.gradedAt?.toEpochMilli(),
         isGraded = sub.status == SubmissionStatus.GRADED,
     )
+
+    private companion object {
+        const val SPECIALIZED_REASON_MIN = 5
+        const val SPECIALIZED_REASON_MAX = 280
+    }
 }

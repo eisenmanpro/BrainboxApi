@@ -71,6 +71,31 @@ class SchoolConfigEntity {
     @Column(name = "gallery_urls", columnDefinition = "text")
     var galleryUrls: String? = null
 
+    /**
+     * Public school-profile fields the landing card/dialog renders (findings round admin
+     * School Config). All optional; public reads fall back to school_details/schools data
+     * when unset, so an empty value never replaces real data with a blank.
+     */
+    @Column(length = 255)
+    var website: String? = null
+
+    @Column(name = "school_type", length = 64)
+    var schoolType: String? = null
+
+    @Column(name = "school_hours", length = 120)
+    var schoolHours: String? = null
+
+    @Column(columnDefinition = "text")
+    var about: String? = null
+
+    /** JSON array of facility names (e.g. ["Library","Science Lab"]). */
+    @Column(columnDefinition = "text")
+    var facilities: String? = null
+
+    /** JSON array of short profile highlights shown on the public card/dialog. */
+    @Column(columnDefinition = "text")
+    var highlights: String? = null
+
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant = Instant.now()
 

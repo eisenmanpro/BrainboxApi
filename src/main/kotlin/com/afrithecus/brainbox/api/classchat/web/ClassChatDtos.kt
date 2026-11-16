@@ -9,13 +9,69 @@ data class ClassGroupPayload(
     val name: String,
     val memberCount: Int,
     val teacherName: String,
-    val classId: String,
+    /** Empty for a GRADE-scoped group: legacy clients read this as a non-null String. */
+    val classId: String = "",
     val description: String? = null,
     val unreadCount: Int = 0,
     val isMuted: Boolean = false,
     val isAnnouncementMode: Boolean = false,
     val lastMessage: String? = null,
     val lastMessageTime: Long? = null,
+    /** CLASS | GRADE. */
+    val scope: String = "CLASS",
+    /** Canonical catalogue spelling; set for GRADE-scoped groups only. */
+    val gradeLevel: String? = null,
+    /** STUDENTS | TEACHERS | CLASS_TEACHERS | ALL. */
+    val audience: String = "STUDENTS",
+    val teacherId: String = "",
+    val isFrozen: Boolean = false,
+    val frozenReason: String? = null,
+    val frozenAt: Long? = null,
+    val isArchived: Boolean = false,
+    val archivedAt: Long? = null,
+    /** Display label the admin set when archiving ("Term 2 2026"). */
+    val termLabel: String? = null,
+    /** True for the creator: they may edit and delete their group. */
+    val isCreator: Boolean = false,
+    /** True when the caller is an explicit member row (creator excluded). */
+    val isMember: Boolean = false,
+    /** True when the caller may join this group now (audience + school + not frozen). */
+    val canJoin: Boolean = false,
+    /** True for the creator only; an ICT admin can moderate but never delete. */
+    val canDelete: Boolean = false,
+    /** True for an ICT admin of the group's school (freeze/archive/list). */
+    val canModerate: Boolean = false,
+)
+
+/** One class a teacher may create a group for. */
+data class GroupClassOptionPayload(
+    val id: String,
+    val name: String,
+    val gradeLevel: String,
+)
+
+/**
+ * What the create-group dialog may offer the caller: the classes they own (plus their
+ * grade's classes when they are a coordinator) and the school's grade catalogue.
+ */
+data class GroupCreateOptionsPayload(
+    val classes: List<GroupClassOptionPayload> = emptyList(),
+    val grades: List<String> = emptyList(),
+    val scopes: List<String> = listOf("CLASS", "GRADE"),
+    val audiences: List<String> = listOf("STUDENTS", "TEACHERS", "CLASS_TEACHERS", "ALL"),
+)
+
+/** Body of the admin freeze/unfreeze action. A freeze requires a reason. */
+data class AdminFreezeGroupRequest(
+    val isFrozen: Boolean,
+    val reason: String? = null,
+)
+
+/** Body of the admin term-archive action (reversible, read-only while archived). */
+data class AdminArchiveGroupRequest(
+    val isArchived: Boolean,
+    val termLabel: String? = null,
+    val reason: String? = null,
 )
 
 data class PollOptionPayload(

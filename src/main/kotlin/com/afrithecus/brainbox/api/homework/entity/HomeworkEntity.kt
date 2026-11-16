@@ -1,6 +1,7 @@
 package com.afrithecus.brainbox.api.homework.entity
 
 import com.afrithecus.brainbox.api.homework.model.GradingMode
+import com.afrithecus.brainbox.api.homework.model.HomeworkKind
 import com.afrithecus.brainbox.api.homework.model.HomeworkScope
 import com.afrithecus.brainbox.api.homework.model.SubmissionType
 import com.afrithecus.brainbox.api.traditional.model.ExamTerm
@@ -88,6 +89,15 @@ class HomeworkEntity {
     /** JSON array string of targeted student ids; empty means whole class roster. */
     @Column(name = "assigned_student_ids", columnDefinition = "text")
     var assignedStudentIds: String? = null
+
+    /** REGULAR broadcast/class homework vs a targeted SPECIALIZED intervention. */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 24)
+    var kind: HomeworkKind = HomeworkKind.REGULAR
+
+    /** Why this assignment is specialized (required for SPECIALIZED, max 280). */
+    @Column(name = "specialization_reason", length = 280)
+    var specializationReason: String? = null
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)

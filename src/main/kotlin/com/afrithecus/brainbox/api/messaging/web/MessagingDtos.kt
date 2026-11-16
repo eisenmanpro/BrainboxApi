@@ -20,6 +20,8 @@ data class SendMessageRequest(
     @field:NotBlank
     val body: String,
     val attachments: List<AttachmentPayload>? = null,
+    /** The message being replied to (a message id), so the reply joins its conversation. */
+    val parentMessageId: String? = null,
 )
 
 data class TeacherSendMessageRequest(
@@ -32,6 +34,8 @@ data class TeacherSendMessageRequest(
     @field:NotBlank
     val body: String,
     val attachments: List<AttachmentPayload>? = null,
+    /** The message being replied to (a message id or conversation id), joins its thread. */
+    val parentMessageId: String? = null,
 )
 
 data class MessagePayload(
@@ -55,6 +59,39 @@ data class MessagePayload(
     val readAt: Long? = null,
     val intendedForParent: Boolean,
     val createdAt: Long,
+    /** One send and its fan-out copies (kept for compatibility). */
+    val msgGroup: String? = null,
+    /** The conversation this row belongs to; the same value for every message in a thread. */
+    val threadId: String = "",
+    /** The message this row replies to, when it is a reply. */
+    val parentMessageId: String? = null,
+    /**
+     * Delivery state for the **row's sender**: SENT (accepted), DELIVERED (recipient has it)
+     * or READ (recipient opened it). A received row is DELIVERED until read, then READ.
+     * Clients render this as the receipt under an outgoing message — it replaces the old
+     * client-side "not submitted" derivation.
+     */
+    val status: String = "SENT",
+)
+
+/**
+ * One person the caller may message, with the relationship that justifies it.
+ *
+ * [relationship] is the human-readable reason the directory offers the row ("Your class",
+ * "Teacher", "School admin", "Your grade", ...). The server computes eligibility; the client
+ * only groups/filters this list, so it can never widen who it is allowed to address.
+ */
+data class MessageRecipientPayload(
+    val id: String,
+    val name: String,
+    val role: String,
+    val subRole: String? = null,
+    val gradeLevel: String? = null,
+    val classIds: List<String> = emptyList(),
+    val classNames: List<String> = emptyList(),
+    val relationship: String = "",
+    /** Learner classes only: the guardian rows share the learner account (F9/N6). */
+    val isGuardianAccount: Boolean = false,
 )
 
 data class SchoolMemberPayload(

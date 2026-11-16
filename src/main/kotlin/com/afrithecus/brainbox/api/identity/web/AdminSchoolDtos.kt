@@ -91,6 +91,8 @@ data class SystemSettingsPayload(
     val schoolId: String,
     val maintenanceMode: Boolean = false,
     val registrationOpen: Boolean = true,
+    /** Learner grade/stream transitions: the coordinator's operational switch (already stored). */
+    val transitionsEnabled: Boolean = true,
     /** N4: may the school's administrators sign in? Open by default. */
     val adminSignInOpen: Boolean = true,
     /** N4: the pinned first administrator of the school, when known. */

@@ -34,14 +34,27 @@ class ClassChatController(private val service: ClassChatService) {
         @RequestParam teacherId: String,
     ): List<ClassGroupPayload> = service.groups(current, teacherId)
 
+    /** Classes and grades the create dialog may offer (owned classes + coordinator grade). */
+    @GetMapping("/create-options")
+    fun createOptions(@AuthenticationPrincipal current: CurrentUser): GroupCreateOptionsPayload =
+        service.createOptions(current)
+
+    /**
+     * Creates a CLASS group (classId) or a GRADE group (scope=GRADE + gradeLevel). The creator
+     * picks the audience (STUDENTS / TEACHERS / CLASS_TEACHERS / ALL); omitted fields keep the
+     * legacy behaviour: a class group with a students-only audience.
+     */
     @PostMapping
     fun create(
         @AuthenticationPrincipal current: CurrentUser,
         @RequestParam teacherId: String,
         @RequestParam name: String,
-        @RequestParam classId: String,
+        @RequestParam(required = false) classId: String?,
+        @RequestParam(required = false) scope: String?,
+        @RequestParam(required = false) gradeLevel: String?,
+        @RequestParam(required = false) audience: String?,
         @RequestBody(required = false) memberIds: List<String>?,
-    ): ClassGroupPayload = service.create(current, teacherId, name, classId, memberIds.orEmpty())
+    ): ClassGroupPayload = service.create(current, teacherId, name, classId, scope, gradeLevel, audience, memberIds.orEmpty())
 
     @PutMapping("/{groupId}")
     fun update(
@@ -50,8 +63,25 @@ class ClassChatController(private val service: ClassChatService) {
         @RequestParam(required = false) name: String?,
         @RequestParam(required = false) description: String?,
         @RequestParam(required = false) isAnnouncementMode: Boolean?,
+        @RequestParam(required = false) audience: String?,
         @RequestBody(required = false) memberIds: List<String>?,
-    ): ClassGroupPayload = service.update(current, groupId, name, description, isAnnouncementMode, memberIds)
+    ): ClassGroupPayload = service.update(current, groupId, name, description, isAnnouncementMode, audience, memberIds)
+
+    /** Joins a group the audience opens to the caller (an ICT admin may always join to moderate). */
+    @PostMapping("/{groupId}/join")
+    fun join(
+        @AuthenticationPrincipal current: CurrentUser,
+        @PathVariable groupId: String,
+    ): ClassGroupPayload = service.join(current, groupId)
+
+    @DeleteMapping("/{groupId}/join")
+    fun leave(
+        @AuthenticationPrincipal current: CurrentUser,
+        @PathVariable groupId: String,
+    ): ResponseEntity<Void> {
+        service.leave(current, groupId)
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build()
+    }
 
     @DeleteMapping("/{groupId}")
     fun delete(
