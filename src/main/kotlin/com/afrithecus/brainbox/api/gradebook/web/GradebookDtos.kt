@@ -38,6 +38,27 @@ data class GradebookEntryPayload(
     val gradedAt: Long,
 )
 
+/**
+ * One server-graded exam submission for a class (GB-04).
+ *
+ * The web gradebook merges these as `exam_<id>` rows, exactly like Android merges its
+ * Room rows; [id] is the submission id, [assessmentId] is the exam the row aggregates,
+ * and [term] lets the screen's term filter cover exam rows too.
+ */
+data class ExamGradebookEntryPayload(
+    val id: String,
+    val examId: String,
+    val examTitle: String,
+    val subject: String,
+    val studentId: String,
+    val studentName: String,
+    val rawScore: Int,
+    val maxScore: Int,
+    val percentage: Int,
+    val submittedAt: Long,
+    val term: String? = null,
+)
+
 /** Learner/parent published grade (models/PublishedGrade.kt). */
 data class PublishedGradePayload(
     val id: String,

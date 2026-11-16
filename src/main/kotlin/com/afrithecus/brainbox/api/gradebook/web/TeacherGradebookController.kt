@@ -29,6 +29,13 @@ class TeacherGradebookController(
         @PathVariable classId: String,
     ): List<GradebookEntryPayload> = service.gradebook(currentUser, classId)
 
+    /** Server-graded exam submissions for a class (GB-04). */
+    @GetMapping("/classes/{classId}/exam-submissions")
+    fun examSubmissions(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable classId: String,
+    ): List<ExamGradebookEntryPayload> = service.examSubmissions(currentUser, classId)
+
     @PostMapping("/gradebook")
     fun submitGrade(
         @AuthenticationPrincipal currentUser: CurrentUser,

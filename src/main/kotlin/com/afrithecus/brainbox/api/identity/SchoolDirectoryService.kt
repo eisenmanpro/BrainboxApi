@@ -193,6 +193,10 @@ class SchoolDirectoryService(
 
     private fun listPayload(school: SchoolEntity): SchoolListPayload {
         val logos = parseList(school.logoUrls).ifEmpty { listOfNotNull(school.logoUrl) }
+        // FEAT-01: the list now carries the same editorial media the detail payload has.
+        // A school without a gallery keeps the legacy logo fallback so existing cards
+        // never lose their single image; the gallery is capped at the four the UI renders.
+        val gallery = parseList(school.imageUrls).ifEmpty { logos }.take(4)
         return SchoolListPayload(
             id = school.id.toString(),
             name = school.name,
@@ -202,6 +206,10 @@ class SchoolDirectoryService(
             placementRate = school.placementRate,
             rank = school.schoolRank,
             location = school.location ?: school.county ?: "",
+            imageUrls = gallery,
+            isFeatured = school.isFeatured,
+            featuredTagline = school.featuredTagline?.takeIf { it.isNotBlank() },
+            story = school.story?.takeIf { it.isNotBlank() },
         )
     }
 

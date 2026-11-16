@@ -26,6 +26,25 @@ class SchoolEntity : BaseEntity() {
     @Column(name = "logo_urls", columnDefinition = "text")
     var logoUrls: String? = null
 
+    /**
+     * JSON array string of up to four gallery images for the public list card and
+     * spotlight. Additive (FEAT-01); clients fall back to [logoUrls] when absent.
+     */
+    @Column(name = "image_urls", columnDefinition = "text")
+    var imageUrls: String? = null
+
+    /** Moderator-set editorial flag (FEAT-06). Never writable by a school admin. */
+    @Column(name = "is_featured", nullable = false)
+    var isFeatured: Boolean = false
+
+    /** School-authored one-line spotlight copy; null when the school has not written one. */
+    @Column(name = "featured_tagline", length = 255)
+    var featuredTagline: String? = null
+
+    /** School-authored story shown in the spotlight; null when absent, never invented. */
+    @Column(columnDefinition = "text")
+    var story: String? = null
+
     @Column(nullable = false)
     var rating: Double = 0.0
 

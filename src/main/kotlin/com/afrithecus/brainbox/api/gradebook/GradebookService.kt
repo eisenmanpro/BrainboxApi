@@ -11,6 +11,9 @@ import com.afrithecus.brainbox.api.gradebook.entity.GradebookEntryEntity
 import com.afrithecus.brainbox.api.gradebook.model.GradebookAssessmentType
 import com.afrithecus.brainbox.api.gradebook.repository.GradebookAssessmentRepository
 import com.afrithecus.brainbox.api.gradebook.repository.GradebookEntryRepository
+import com.afrithecus.brainbox.api.exams.repository.ExamRepository
+import com.afrithecus.brainbox.api.exams.repository.ExamSubmissionRepository
+import com.afrithecus.brainbox.api.gradebook.web.ExamGradebookEntryPayload
 import com.afrithecus.brainbox.api.gradebook.web.GradebookAssessmentPayload
 import com.afrithecus.brainbox.api.gradebook.web.GradebookEntryPayload
 import com.afrithecus.brainbox.api.gradebook.web.PublishedGradePayload
@@ -37,6 +40,8 @@ import java.util.UUID
 class GradebookService(
     private val assessmentRepository: GradebookAssessmentRepository,
     private val entryRepository: GradebookEntryRepository,
+    private val examRepository: ExamRepository,
+    private val examSubmissionRepository: ExamSubmissionRepository,
     private val classRepository: TeacherClassRepository,
     private val gradeAuthority: GradeAuthority,
     private val userRepository: UserRepository,
@@ -116,6 +121,38 @@ class GradebookService(
     fun gradebook(current: CurrentUser, classIdRaw: String): List<GradebookEntryPayload> {
         val clazz = classForWrite(current, classIdRaw)
         return entryRepository.findAllByClassId(clazz.id).map(::entryPayload)
+    }
+
+    /**
+     * Server-graded exam rows for one class (GB-04). The web's gradebook merges these
+     * with manual and homework rows; Android already has the same rows locally.
+     */
+    @Transactional(readOnly = true)
+    fun examSubmissions(current: CurrentUser, classIdRaw: String): List<ExamGradebookEntryPayload> {
+        val clazz = classForWrite(current, classIdRaw)
+        val exams = examRepository.findAllByClassId(clazz.id)
+        if (exams.isEmpty()) return emptyList()
+        val byId = exams.associateBy { it.id }
+        val submissions = examSubmissionRepository.findAllByExamIdIn(byId.keys)
+        if (submissions.isEmpty()) return emptyList()
+        val names = userRepository.findAllById(submissions.map { it.userId }.distinct())
+            .associate { it.id to it.name }
+        return submissions.mapNotNull { submission ->
+            val exam = byId[submission.examId] ?: return@mapNotNull null
+            ExamGradebookEntryPayload(
+                id = submission.id.toString(),
+                examId = exam.id.toString(),
+                examTitle = exam.title,
+                subject = exam.subject,
+                studentId = submission.userId.toString(),
+                studentName = names[submission.userId] ?: "",
+                rawScore = submission.score,
+                maxScore = submission.totalPoints,
+                percentage = submission.percentage,
+                submittedAt = submission.submittedAt.toEpochMilli(),
+                term = exam.term,
+            )
+        }.sortedByDescending { it.submittedAt }
     }
 
     @Transactional

@@ -75,6 +75,8 @@ class CbcProjectService(
         gradeBand: String?,
         subject: String?,
         cbcStrand: String?,
+        country: String?,
+        county: String?,
         schoolId: String?,
         statusRaw: String,
         sort: String,
@@ -101,6 +103,8 @@ class CbcProjectService(
             gradeBand = gradeBand,
             subject = subject,
             cbcStrand = cbcStrand,
+            country = country,
+            county = county,
             search = search,
             sort = sort,
             pageRaw = pageRaw,
@@ -195,6 +199,12 @@ class CbcProjectService(
             schoolId = user.schoolId
             schoolName = school?.name ?: ""
             schoolLogoUrl = school?.logoUrl
+            // PRJ-05: an omitted country defaults to Kenya only because the platform's
+            // schools are Kenyan today; an explicit value always wins. County comes from
+            // the school's address when the publisher did not type one.
+            country = request.country?.trim()?.takeIf { it.isNotEmpty() }
+                ?: school?.let { "Kenya" }
+            county = request.county?.trim()?.takeIf { it.isNotEmpty() } ?: school?.county
             title = request.title.trim()
             description = request.description.trim()
             subject = request.subject.trim()
@@ -247,6 +257,9 @@ class CbcProjectService(
         project.thumbnailUrl = media.firstOrNull { isImage(it) }
         project.rubricScores = mapper.writeValueAsString(request.rubricScores)
         project.tags = mapper.writeValueAsString(request.tags)
+        // PRJ-05: null on an edit keeps the stored region (an old client cannot erase it).
+        request.country?.trim()?.takeIf { it.isNotEmpty() }?.let { project.country = it }
+        request.county?.trim()?.takeIf { it.isNotEmpty() }?.let { project.county = it }
         if (isStaff(current)) {
             val creditedIds = request.studentIds.map { parseUuid(it, "student id") }.distinct()
             if (creditedIds.isEmpty()) throw invalidArgument("A staff upload must credit at least one learner")
@@ -325,6 +338,8 @@ class CbcProjectService(
         gradeBand: String?,
         subject: String?,
         cbcStrand: String?,
+        country: String?,
+        county: String?,
         search: String?,
         sort: String,
         pageRaw: Int,
@@ -339,6 +354,8 @@ class CbcProjectService(
             gradeBand = gradeBand,
             subject = subject,
             cbcStrand = cbcStrand,
+            country = country,
+            county = county,
             search = search,
             sort = sort,
             pageRaw = pageRaw,
@@ -454,6 +471,8 @@ class CbcProjectService(
         gradeBand: String?,
         subject: String?,
         cbcStrand: String?,
+        country: String?,
+        county: String?,
         search: String?,
         sort: String,
         pageRaw: Int,
@@ -467,6 +486,8 @@ class CbcProjectService(
             .filter { gradeBand.isNullOrBlank() || it.gradeBand.equals(gradeBand, ignoreCase = true) }
             .filter { subject.isNullOrBlank() || it.subject.equals(subject, ignoreCase = true) }
             .filter { cbcStrand.isNullOrBlank() || it.cbcStrand.equals(cbcStrand, ignoreCase = true) }
+            .filter { country.isNullOrBlank() || it.country.equals(country, ignoreCase = true) }
+            .filter { county.isNullOrBlank() || it.county.equals(county, ignoreCase = true) }
             .filter { school == null || it.schoolId == school }
             .filter {
                 search.isNullOrBlank() || it.title.contains(search, ignoreCase = true) ||
@@ -588,6 +609,8 @@ class CbcProjectService(
             schoolId = project.schoolId?.toString() ?: "",
             schoolName = project.schoolName,
             schoolLogoUrl = project.schoolLogoUrl,
+            country = project.country?.takeIf { it.isNotBlank() },
+            county = project.county?.takeIf { it.isNotBlank() },
             mediaUrls = media,
             mediaTypes = media.map { if (isImage(it)) "IMAGE" else "VIDEO" },
             thumbnailUrl = project.thumbnailUrl,

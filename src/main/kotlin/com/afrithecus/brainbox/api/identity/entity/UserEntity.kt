@@ -136,4 +136,13 @@ class UserEntity : BaseEntity() {
      */
     @Column(name = "provisioned_class_id")
     var provisionedClassId: UUID? = null
+
+    /**
+     * Client-generated idempotency key for a roster-only provisioning write that
+     * may be queued offline (RO-09). Unique when present, so a replay after a lost
+     * response matches the learner the server already created instead of creating
+     * a duplicate. Null for online-first clients and for every non-provisioned row.
+     */
+    @Column(name = "provisioning_client_id", length = 64)
+    var provisioningClientId: String? = null
 }

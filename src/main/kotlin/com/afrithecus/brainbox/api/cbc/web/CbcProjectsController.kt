@@ -35,13 +35,15 @@ class CbcProjectsController(
         @RequestParam(required = false) gradeBand: String?,
         @RequestParam(required = false) subject: String?,
         @RequestParam(required = false) cbcStrand: String?,
+        @RequestParam(required = false) country: String?,
+        @RequestParam(required = false) county: String?,
         @RequestParam(required = false) schoolId: String?,
         @RequestParam(defaultValue = "APPROVED") status: String,
         @RequestParam(defaultValue = "recent") sort: String,
         @RequestParam(defaultValue = "1") page: Int,
         @RequestParam(defaultValue = "20") limit: Int,
         @RequestParam(required = false) search: String?,
-    ): ProjectListResponsePayload = service.list(current, gradeBand, subject, cbcStrand, schoolId, status, sort, page, limit, search)
+    ): ProjectListResponsePayload = service.list(current, gradeBand, subject, cbcStrand, country, county, schoolId, status, sort, page, limit, search)
 
     @GetMapping("/featured")
     fun featured(

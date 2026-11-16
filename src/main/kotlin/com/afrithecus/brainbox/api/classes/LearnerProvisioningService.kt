@@ -107,10 +107,21 @@ class LearnerProvisioningService(
     fun enableAppAccess(actor: UserEntity, studentIdRaw: String, request: EnableAppAccessRequest): EnableAppAccessResult {
         val student = learner(parseUuid(studentIdRaw, "studentId"))
         requireManagesLearner(actor, student)
+        val phone = request.phoneNumber.trim()
         if (student.accountKind != AccountKind.ROSTER_ONLY) {
+            // RO-09: a queued write replayed after the server had already applied it must
+            // acknowledge instead of failing. The same phone is the proof this is the same
+            // upgrade; a different phone is a genuine second request and stays an error.
+            if (student.accountKind == AccountKind.FULL && student.phoneNumber == phone) {
+                return EnableAppAccessResult(
+                    userId = student.id.toString(),
+                    phoneNumber = phone,
+                    accountKind = AccountKind.FULL.name,
+                    temporaryPassword = null,
+                )
+            }
             throw invalidArgument("This learner already has app access")
         }
-        val phone = request.phoneNumber.trim()
         if (userRepository.existsByPhoneNumber(phone)) {
             throw conflict("An account with this phone number already exists")
         }
@@ -146,6 +157,22 @@ class LearnerProvisioningService(
         val schoolId = clazz.schoolId
             ?: throw ApiException(ApiErrorCode.FORBIDDEN, "A class must belong to a school to provision learners")
         val suppliedAdmission = request.admissionNumber?.trim()?.takeIf { it.isNotEmpty() }
+        val clientId = request.clientId?.trim()?.takeIf { it.isNotEmpty() }
+
+        // RO-09: a queued offline write replays with its client id. The id is the
+        // strongest identity the request has (the server minted the admission number),
+        // so it is checked before the online-path name/admission heuristics.
+        if (clientId != null) {
+            val existing = userRepository.findByProvisioningClientId(clientId)
+            if (existing != null) {
+                if (existing.role != Role.STUDENT) throw conflict("That identity belongs to a non-student account")
+                requireSameSchool(existing, schoolId)
+                if (existing.provisionedClassId != null && existing.provisionedClassId != clazz.id) {
+                    throw conflict("This provisioning request already belongs to another class")
+                }
+                return toPayload(existing, clazz, created = false) to false
+            }
+        }
 
         // Idempotency: an explicit admission number matches globally; otherwise an
         // identical name already provisioned into this class is the same learner.
@@ -178,6 +205,7 @@ class LearnerProvisioningService(
                 gradeLevel = clazz.gradeLevel
                 studentAdmissionNumber = suppliedAdmission ?: generateAdmissionNumber()
                 accountKind = AccountKind.ROSTER_ONLY
+                provisioningClientId = clientId
                 provisionedBy = actor.id
                 provisionedAt = clock.instant()
                 this.guardianName = guardianName
@@ -188,6 +216,16 @@ class LearnerProvisioningService(
             }
             userRepository.save(student)
             created = true
+        }
+
+        // Attach the replay key to a learner matched by name/admission too, so a later
+        // queued replay of this same request converges instead of creating a second row.
+        if (clientId != null) {
+            if (student.provisioningClientId == null) {
+                student.provisioningClientId = clientId
+            } else if (student.provisioningClientId != clientId) {
+                throw conflict("This learner was already provisioned under a different request id")
+            }
         }
 
         // Deliberately not a class membership: membership is what feeds attendance,

@@ -96,4 +96,12 @@ class CbcProjectEntity : BaseEntity() {
     /** JSON array string of tags. */
     @Column(columnDefinition = "text")
     var tags: String? = null
+
+    /** PRJ-05: country for the pan-African browse/filter ("Kenya", "Uganda", ...). */
+    @Column(length = 64)
+    var country: String? = null
+
+    /** PRJ-05: county/region, filled from the school when the publisher leaves it blank. */
+    @Column(length = 128)
+    var county: String? = null
 }

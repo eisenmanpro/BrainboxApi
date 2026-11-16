@@ -16,6 +16,9 @@ interface ExamRepository : JpaRepository<ExamEntity, UUID> {
 
     fun findAllByCreatedByOrderByCreatedAtDesc(createdBy: UUID): List<ExamEntity>
 
+    /** Exams authored for one class (GB-04's class-scoped exam-submission read). */
+    fun findAllByClassId(classId: UUID): List<ExamEntity>
+
     /** Personal practice papers belong to exactly one learner (§B7). */
     fun findAllByOwnerUserIdAndScopeOrderByCreatedAtDesc(
         ownerUserId: UUID,

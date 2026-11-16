@@ -105,6 +105,9 @@ interface UserRepository : JpaRepository<UserEntity, UUID> {
 
     fun findByStudentAdmissionNumber(admissionNumber: String): UserEntity?
 
+    /** RO-09 replay key: the client id a queued provisioning write carried. */
+    fun findByProvisioningClientId(clientId: String): UserEntity?
+
     fun existsByPhoneNumber(phoneNumber: String): Boolean
 
     fun existsByEmail(email: String): Boolean

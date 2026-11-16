@@ -29,11 +29,13 @@ class CbcPublicController(private val service: CbcProjectService) {
         @RequestParam(required = false) gradeBand: String?,
         @RequestParam(required = false) subject: String?,
         @RequestParam(required = false) cbcStrand: String?,
+        @RequestParam(required = false) country: String?,
+        @RequestParam(required = false) county: String?,
         @RequestParam(required = false) search: String?,
         @RequestParam(defaultValue = "recent") sort: String,
         @RequestParam(defaultValue = "1") page: Int,
         @RequestParam(defaultValue = "20") limit: Int,
-    ): ProjectListResponsePayload = service.listPublic(guestId, gradeBand, subject, cbcStrand, search, sort, page, limit)
+    ): ProjectListResponsePayload = service.listPublic(guestId, gradeBand, subject, cbcStrand, country, county, search, sort, page, limit)
 
     @GetMapping("/featured")
     fun featured(

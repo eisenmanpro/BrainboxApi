@@ -17,6 +17,17 @@ data class SchoolListPayload(
     val rank: Int,
     val location: String,
     val isSaved: Boolean = false,
+    /**
+     * Up to four gallery images for the list card/spotlight, falling back to
+     * [logoUrls] when the school has no gallery. Additive: older clients ignore it.
+     */
+    val imageUrls: List<String> = emptyList(),
+    /** Moderator-set featured flag; only ever true when an operator set it (FEAT-06). */
+    val isFeatured: Boolean = false,
+    /** School-authored spotlight tagline, else null (never fabricated by the server). */
+    val featuredTagline: String? = null,
+    /** School-authored story, else null. */
+    val story: String? = null,
 )
 
 data class SchoolBasicInfoPayload(

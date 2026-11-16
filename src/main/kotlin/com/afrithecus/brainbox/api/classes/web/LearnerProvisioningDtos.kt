@@ -25,6 +25,13 @@ data class ProvisionLearnerRequest(
     val guardianName: String? = null,
     @field:Size(max = 32)
     val guardianPhone: String? = null,
+    /**
+     * Client-generated idempotency key (RO-09). A queued offline write replays with
+     * the same key and the server matches the learner it already created instead of
+     * provisioning a duplicate. Optional so online-first callers stay unchanged.
+     */
+    @field:Size(max = 64)
+    val clientId: String? = null,
 )
 
 /** Paste/import a whole class. Re-running the same list is idempotent. */
@@ -72,6 +79,12 @@ data class EnableAppAccessRequest(
     val phoneNumber: String,
     @field:Size(min = 8, max = 128)
     val password: String? = null,
+    /**
+     * RO-09 replay key. A replay of a write whose response was lost sees the learner
+     * already upgraded and the same phone, so it returns success instead of a 400.
+     */
+    @field:Size(max = 64)
+    val clientId: String? = null,
 )
 
 data class EnableAppAccessResult(

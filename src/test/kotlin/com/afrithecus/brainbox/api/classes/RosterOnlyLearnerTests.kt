@@ -412,6 +412,70 @@ class RosterOnlyLearnerTests(
         check(analyticsBlocked.code == ApiErrorCode.FORBIDDEN)
     }
 
+    @Test
+    fun `a queued provisioning replay with the same client id never duplicates`() {
+        val owner = user(Role.TEACHER, "Replay Owner", "0700000901", schoolId)
+        val clazz = clazz(owner, "Grade 4", "4R", schoolId)
+        val ownerToken = token(owner)
+        val request = ProvisionLearnerRequest(name = "Replay Learner", clientId = "prov-replay-1")
+
+        val first = read(
+            mockMvc.perform(
+                post("/teacher/classes/" + clazz.id + "/learners")
+                    .header("Authorization", auth(ownerToken))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            ProvisionedLearnerPayload::class.java,
+        )
+        // RO-09: the queued write replays after the response was lost. The client id is
+        // the identity, so the server must return the same learner instead of a duplicate.
+        val replayed = read(
+            mockMvc.perform(
+                post("/teacher/classes/" + clazz.id + "/learners")
+                    .header("Authorization", auth(ownerToken))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            ProvisionedLearnerPayload::class.java,
+        )
+        check(first.created)
+        check(!replayed.created)
+        check(replayed.id == first.id)
+        check(userRepository.findAllByProvisionedClassIdOrderByNameAsc(clazz.id).size == 1)
+    }
+
+    @Test
+    fun `a replayed enable-app-access with the same phone acknowledges instead of failing`() {
+        val owner = user(Role.TEACHER, "Upgrade Owner", "0700000902", schoolId)
+        val clazz = clazz(owner, "Grade 4", "4U", schoolId)
+        val ownerToken = token(owner)
+        val learner = provision(clazz.id, ownerToken, "Upgrade Learner", "BB-T-0902")
+        val body = """{"phoneNumber":"+254700000902","password":"password123"}"""
+
+        val first = read(
+            mockMvc.perform(
+                post("/teacher/classes/learners/" + learner.id + "/enable-app-access")
+                    .header("Authorization", auth(ownerToken))
+                    .contentType(MediaType.APPLICATION_JSON).content(body)
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            EnableAppAccessResult::class.java,
+        )
+        // A queued replay after the response was lost must be a success, not "already has
+        // app access"; no new password is issued.
+        val replayed = read(
+            mockMvc.perform(
+                post("/teacher/classes/learners/" + learner.id + "/enable-app-access")
+                    .header("Authorization", auth(ownerToken))
+                    .contentType(MediaType.APPLICATION_JSON).content(body)
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            EnableAppAccessResult::class.java,
+        )
+        check(first.accountKind == AccountKind.FULL.name)
+        check(replayed.accountKind == AccountKind.FULL.name)
+        check(replayed.temporaryPassword == null)
+    }
+
     // ------------------------------------------------------------- fixtures
 
     private fun school(name: String): UUID = schoolRepository.save(

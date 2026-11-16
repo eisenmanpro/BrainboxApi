@@ -20,6 +20,9 @@ data class CbcProjectPayload(
     val schoolId: String,
     val schoolName: String,
     val schoolLogoUrl: String? = null,
+    /** PRJ-05: country/region shown on the public card; null when not provided. */
+    val country: String? = null,
+    val county: String? = null,
     val mediaUrls: List<String> = emptyList(),
     val mediaTypes: List<String> = emptyList(),
     val thumbnailUrl: String? = null,
@@ -97,6 +100,9 @@ data class SubmitCbcProjectRequest(
     val mediaUrls: List<String> = emptyList(),
     val rubricScores: Map<String, Int> = emptyMap(),
     val tags: List<String> = emptyList(),
+    /** PRJ-05: optional region; the server fills the school's county when omitted. */
+    @field:Size(max = 64) val country: String? = null,
+    @field:Size(max = 128) val county: String? = null,
     /** Staff only: learners credited for this submission (one or more for group work). */
     val studentIds: List<String> = emptyList(),
     /** Staff only: subset of [studentIds] whose names the publisher consented to publish. */
@@ -114,6 +120,9 @@ data class UpdateCbcProjectRequest(
     val mediaUrls: List<String> = emptyList(),
     val rubricScores: Map<String, Int> = emptyMap(),
     val tags: List<String> = emptyList(),
+    /** PRJ-05: null keeps the stored region; a value replaces it. */
+    @field:Size(max = 64) val country: String? = null,
+    @field:Size(max = 128) val county: String? = null,
     val studentIds: List<String> = emptyList(),
     val showLearnerNames: List<String> = emptyList(),
 )
