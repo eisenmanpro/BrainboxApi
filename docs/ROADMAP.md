@@ -12,7 +12,7 @@ b (teacher/admin web, later phase)
 
 ## 1. Mission
 
-BrainBox is an ed-tech platform for Kenyan secondary schools (students, teachers,
+BrainBox is an ed-tech platform for Kenyan schools (students, teachers,
 parents, admins). The Android app is feature-complete and offline-first; this
 repository is the server that becomes the **single source of truth**. The backend
 must implement the REST contracts in the BrainBox docs, enforce every invariant the
