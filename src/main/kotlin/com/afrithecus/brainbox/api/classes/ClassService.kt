@@ -36,6 +36,7 @@ import kotlin.math.roundToInt
 class ClassService(
     private val classRepository: TeacherClassRepository,
     private val membershipRepository: ClassMembershipRepository,
+    private val learnerCounts: ClassLearnerCountService,
     private val userRepository: UserRepository,
     private val gradebookEntryRepository: GradebookEntryRepository,
     private val achievementsService: AchievementsService,
@@ -157,7 +158,8 @@ class ClassService(
         name = clazz.name,
         grade = clazz.gradeLevel,
         subject = clazz.subject,
-        studentCount = membershipRepository.countByClassId(clazz.id).toInt(),
+        // Memberships + roster-only learners: the count the roster screen already shows.
+        studentCount = learnerCounts.count(clazz.id),
         stream = clazz.stream,
     )
 

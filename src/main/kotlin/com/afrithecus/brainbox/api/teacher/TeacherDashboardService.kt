@@ -4,7 +4,6 @@ import com.afrithecus.brainbox.api.announcement.repository.TeacherAnnouncementRe
 import com.afrithecus.brainbox.api.classchat.repository.ClassGroupMessageRepository
 import com.afrithecus.brainbox.api.classchat.repository.ClassGroupReadRepository
 import com.afrithecus.brainbox.api.classchat.repository.ClassGroupRepository
-import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.cbcratings.CbcAnalyticsService
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
@@ -59,7 +58,7 @@ class TeacherDashboardService(
     private val userRepository: UserRepository,
     private val classRepository: TeacherClassRepository,
     private val gradeAuthority: GradeAuthority,
-    private val membershipRepository: ClassMembershipRepository,
+    private val learnerCounts: com.afrithecus.brainbox.api.classes.ClassLearnerCountService,
     private val homeworkRepository: HomeworkRepository,
     private val submissionRepository: HomeworkSubmissionRepository,
     private val timetableRepository: TimetableEntryRepository,
@@ -205,7 +204,7 @@ class TeacherDashboardService(
             teacherId = teacher.id.toString(),
             teacherName = teacher.name,
             schoolId = clazz.schoolId?.toString() ?: "",
-            studentCount = membershipRepository.countByClassId(clazz.id).toInt(),
+            studentCount = learnerCounts.count(clazz.id),
             createdAt = clazz.createdAt.toEpochMilli(),
             isActive = clazz.isActive,
         )

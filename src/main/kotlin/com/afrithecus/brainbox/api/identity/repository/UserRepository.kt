@@ -1,6 +1,7 @@
 package com.afrithecus.brainbox.api.identity.repository
 
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
+import com.afrithecus.brainbox.api.identity.model.AccountKind
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubRole
 import jakarta.persistence.LockModeType
@@ -95,6 +96,20 @@ interface UserRepository : JpaRepository<UserEntity, UUID> {
 
     /** Provisioned (roster-only) learners for one class, in name order. */
     fun findAllByProvisionedClassIdOrderByNameAsc(provisionedClassId: UUID): List<UserEntity>
+
+    /**
+     * Roster-only learners provisioned into a class: they carry `provisioned_class_id` and
+     * deliberately have no class-membership row. Only [AccountKind.ROSTER_ONLY] rows count —
+     * a learner upgraded to a full account keeps the stale id but belongs to their real
+     * memberships (see AdminLearnerService.classesOf), so counting it here would double-count.
+     */
+    fun countByProvisionedClassIdAndAccountKind(provisionedClassId: UUID, accountKind: AccountKind): Long
+
+    /** Batch form of [countByProvisionedClassIdAndAccountKind] for class lists. */
+    fun findAllByProvisionedClassIdInAndAccountKind(
+        provisionedClassId: Collection<UUID>,
+        accountKind: AccountKind,
+    ): List<UserEntity>
 
     fun findByPhoneNumber(phoneNumber: String): UserEntity?
 

@@ -1,6 +1,5 @@
 package com.afrithecus.brainbox.api.teacher
 
-import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
@@ -36,7 +35,7 @@ class TeacherSettingsService(
     private val schoolRepository: SchoolRepository,
     private val teacherCodeRepository: TeacherCodeRepository,
     private val classRepository: TeacherClassRepository,
-    private val membershipRepository: ClassMembershipRepository,
+    private val learnerCounts: com.afrithecus.brainbox.api.classes.ClassLearnerCountService,
     private val codec: QuestionCodec,
     private val mapper: ObjectMapper,
 ) {
@@ -175,7 +174,7 @@ class TeacherSettingsService(
         val code = teacherCodeRepository.findByTeacherUserIdAndActiveTrue(teacher.id)?.code
         val school = teacher.schoolId?.let { schoolRepository.findById(it).orElse(null) }
         val classes = classRepository.findAllByTeacherUserIdAndIsActiveTrueOrderByNameAsc(teacher.id)
-        val studentCount = classes.sumOf { membershipRepository.countByClassId(it.id).toInt() }
+        val studentCount = classes.sumOf { learnerCounts.count(it.id) }
         val subjects = codec.parseList(settings?.subjectsTaught).orEmpty()
             .ifEmpty { classes.map { it.subject }.distinct() }
         // N3: an approved class assignment is explicit and wins over the derived

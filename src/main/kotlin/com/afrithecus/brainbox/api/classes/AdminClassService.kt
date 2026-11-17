@@ -1,7 +1,6 @@
 package com.afrithecus.brainbox.api.classes
 
 import com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity
-import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.classes.web.AdminClassPayload
 import com.afrithecus.brainbox.api.classes.web.AssignClassTeacherRequest
@@ -35,7 +34,7 @@ import java.util.UUID
 @Service
 class AdminClassService(
     private val classRepository: TeacherClassRepository,
-    private val membershipRepository: ClassMembershipRepository,
+    private val learnerCounts: ClassLearnerCountService,
     private val userRepository: UserRepository,
     private val schoolConfigService: SchoolConfigService,
     private val access: AdminSchoolAccess,
@@ -51,7 +50,8 @@ class AdminClassService(
         val classes = classRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
         val teacherIds = classes.mapNotNull { it.teacherUserId }.distinct()
         val teachers = if (teacherIds.isEmpty()) emptyMap() else userRepository.findAllById(teacherIds).associateBy { it.id }
-        return classes.map { payload(it, teachers[it.teacherUserId]) }
+        val counts = learnerCounts.counts(classes.map { it.id })
+        return classes.map { payload(it, teachers[it.teacherUserId], counts[it.id] ?: 0) }
     }
 
     @Transactional
@@ -77,7 +77,7 @@ class AdminClassService(
         })
         schoolConfigService.syncClassCatalogue(schoolId)
         auditLogService.record(schoolId, actor, "Created class " + name + " (" + grade + ")")
-        return payload(entity, teacher)
+        return payload(entity, teacher, 0)
     }
 
     @Transactional
@@ -102,7 +102,7 @@ class AdminClassService(
         )
         auditLogService.record(schoolId, actor, "Updated class " + entity.name)
         val teacher = userRepository.findById(entity.teacherUserId).orElse(null)
-        return payload(entity, teacher)
+        return payload(entity, teacher, learnerCounts.count(entity.id))
     }
 
     /** Reassign the class teacher; the previous teacher keeps their account but not the class. */
@@ -116,7 +116,7 @@ class AdminClassService(
         classRepository.saveAndFlush(entity)
         schoolConfigService.syncClassCatalogue(schoolId)
         auditLogService.record(schoolId, actor, "Assigned " + teacher.name + " to class " + entity.name)
-        return payload(entity, teacher)
+        return payload(entity, teacher, learnerCounts.count(entity.id))
     }
 
     /** Deletes an empty class. A class with learners is a 409 (move them first). */
@@ -125,7 +125,8 @@ class AdminClassService(
         val schoolId = schoolId(schoolIdRaw)
         val actor = access.require(current, schoolId)
         val entity = ownClass(schoolId, classIdRaw)
-        val learners = membershipRepository.countByClassId(entity.id)
+        // Roster-only learners are learners too: deleting their class would orphan them.
+        val learners = learnerCounts.count(entity.id)
         if (learners > 0) {
             throw conflict("This class still has " + learners + " learner(s). Move them to another class before deleting it.")
         }
@@ -181,7 +182,7 @@ class AdminClassService(
         return teacher
     }
 
-    private fun payload(entity: TeacherClassEntity, teacher: UserEntity?) = AdminClassPayload(
+    private fun payload(entity: TeacherClassEntity, teacher: UserEntity?, learners: Int) = AdminClassPayload(
         id = entity.id.toString(),
         name = entity.name,
         gradeLevel = entity.gradeLevel,
@@ -189,7 +190,7 @@ class AdminClassService(
         teacherUserId = teacher?.id?.toString(),
         teacherName = teacher?.name,
         subject = entity.subject,
-        studentCount = membershipRepository.countByClassId(entity.id).toInt(),
+        studentCount = learners,
         isActive = entity.isActive,
     )
 

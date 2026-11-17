@@ -8,9 +8,11 @@ import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.classes.web.AdminClassPayload
 import com.afrithecus.brainbox.api.classes.web.AssignClassTeacherRequest
 import com.afrithecus.brainbox.api.classes.web.CreateAdminClassRequest
+import com.afrithecus.brainbox.api.classes.web.TeacherClassPayload
 import com.afrithecus.brainbox.api.classes.web.UpdateAdminClassRequest
 import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
+import com.afrithecus.brainbox.api.identity.model.AccountKind
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
@@ -147,6 +149,57 @@ class AdminClassWebTests(
                 studentId = user(Role.STUDENT, "Class Learner", "0722200004").id
             })
         }
+        mockMvc.perform(delete(base() + "/classes/" + created.id).header("Authorization", "Bearer " + t))
+            .andExpect(status().isConflict)
+    }
+
+    @Test
+    fun `class counts include roster-only learners`() {
+        val t = token(admin)
+        val created = objectMapper.readValue(
+            mockMvc.perform(
+                post(base() + "/classes").header("Authorization", "Bearer " + t)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(CreateAdminClassRequest("Gold", "Grade 6", teacherUserId = teacherA.id.toString()))),
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            AdminClassPayload::class.java,
+        )
+        val classId = UUID.fromString(created.id)
+        // Roster-only learners carry provisioned_class_id and deliberately no membership row:
+        // the exact population the class teacher's roster and the admin Learners tab show.
+        listOf("Roster One" to "0722200101", "Roster Two" to "0722200102").forEach { (name, phone) ->
+            userRepository.save(UserEntity().apply {
+                this.name = name
+                phoneNumber = phone
+                this.role = Role.STUDENT
+                schoolId = school.id
+                gradeLevel = "Grade 6"
+                accountKind = AccountKind.ROSTER_ONLY
+                provisionedClassId = classId
+                provisionedBy = teacherA.id
+                isActive = true
+            })
+        }
+
+        // The admin School Config class list ("Classes & grades") shows them...
+        val listed = objectMapper.readValue(
+            mockMvc.perform(get(base() + "/classes").header("Authorization", "Bearer " + t))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<AdminClassPayload>::class.java,
+        ).single { it.id == created.id }
+        check(listed.studentCount == 2) { "admin class count=" + listed.studentCount }
+
+        // ...and so does the teacher's own class list (web and Android read this payload).
+        val teacherClasses = objectMapper.readValue(
+            mockMvc.perform(get("/teacher/classes").header("Authorization", "Bearer " + token(teacherA)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<TeacherClassPayload>::class.java,
+        )
+        check(teacherClasses.single { it.classId == created.id }.studentCount == 2) {
+            "teacher class count=" + teacherClasses.single { it.classId == created.id }.studentCount
+        }
+
+        // A class is not "empty" just because its learners are roster-only.
         mockMvc.perform(delete(base() + "/classes/" + created.id).header("Authorization", "Bearer " + t))
             .andExpect(status().isConflict)
     }
