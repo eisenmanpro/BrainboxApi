@@ -412,7 +412,10 @@ class MessagingService(
                 type = NotificationType.MESSAGE,
                 urgency = NotificationUrgency.NORMAL,
                 priority = NotificationPriority.NORMAL,
-                actionRoute = "message-thread/" + threadId,
+                // Android registers the route as message_thread/{threadId}; the web app
+                // normalises this to its own hyphenated route. Emitting the web spelling
+                // here made the Android notification action an unregistered route.
+                actionRoute = "message_thread/" + threadId,
                 actionLabel = "Open conversation",
                 metadata = mapOf(
                     "threadId" to threadId,

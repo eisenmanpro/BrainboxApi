@@ -182,7 +182,8 @@ class MessagingContractWebTests(
         val messageNotification = adminNotifications.firstOrNull { it.type == "MESSAGE" }
         check(messageNotification != null) { "no MESSAGE notification for the received message" }
         check(messageNotification!!.title.contains("Notifying Teacher")) { "title=" + messageNotification.title }
-        check(messageNotification.actionRoute!!.startsWith("message-thread/")) { "route=" + messageNotification.actionRoute }
+        // Android's registered route is message_thread/{threadId}; the web normalises it.
+        check(messageNotification.actionRoute!!.startsWith("message_thread/")) { "route=" + messageNotification.actionRoute }
 
         // A learner outside the teacher's classes is refused with actionable copy.
         val refused = mockMvc.perform(
