@@ -90,6 +90,28 @@ class MessagingController(
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build()
     }
 
+    /** Archive/restore the caller's own copy (server-persisted; survives reinstall and devices). */
+    @PostMapping("/{messageId}/archive")
+    fun archive(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable messageId: String,
+        @RequestBody body: MessageArchiveRequest,
+    ): ResponseEntity<Void> {
+        service.setArchived(user(currentUser), messageId, body.archived)
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build()
+    }
+
+    /** Flag/unflag the caller's own copy. */
+    @PostMapping("/{messageId}/flag")
+    fun flag(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable messageId: String,
+        @RequestBody body: MessageFlagRequest,
+    ): ResponseEntity<Void> {
+        service.setFlagged(user(currentUser), messageId, body.flagged)
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build()
+    }
+
     private fun requireSelf(current: CurrentUser, userId: String): java.util.UUID {
         if (userId != current.userId.toString()) {
             throw ApiException(ApiErrorCode.FORBIDDEN, "Cannot read another user's messages")

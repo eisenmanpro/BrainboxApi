@@ -72,7 +72,16 @@ data class MessagePayload(
      * client-side "not submitted" derivation.
      */
     val status: String = "SENT",
+    /** This copy's archive/flag state (per account; the sender and recipient each own a copy). */
+    val isArchived: Boolean = false,
+    val isFlagged: Boolean = false,
 )
+
+/** Archive state for one message copy the caller owns. */
+data class MessageArchiveRequest(val archived: Boolean = true)
+
+/** Flag state for one message copy the caller owns. */
+data class MessageFlagRequest(val flagged: Boolean = true)
 
 /**
  * One person the caller may message, with the relationship that justifies it.

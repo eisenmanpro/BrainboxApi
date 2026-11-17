@@ -8,6 +8,8 @@ import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.messaging.web.MessagePayload
+import com.afrithecus.brainbox.api.messaging.web.MessageArchiveRequest
+import com.afrithecus.brainbox.api.messaging.web.MessageFlagRequest
 import com.afrithecus.brainbox.api.messaging.web.MessageRecipientPayload
 import com.afrithecus.brainbox.api.messaging.web.SendMessageRequest
 import com.afrithecus.brainbox.api.messaging.web.TeacherSendMessageRequest
@@ -249,5 +251,56 @@ class MessagingContractWebTests(
             post("/messages/" + learnerInboxCopy.id + "/read").header("Authorization", auth(learner.sessionToken!!)),
         ).andExpect(status().isNoContent)
         check(sent(teacher.auth).first { it.id == first.id }.status == "READ")
+    }
+
+    @Test
+    fun `archive and flag persist per copy and cannot touch another account's copy`() {
+        val host = signupStudent("0711400001", "Msg State High")
+        val schoolId = UUID.fromString(host.user.schoolId!!)
+        val teacher = newStaff(schoolId, "0711400002", "State Teacher")
+        val learner = signupStudent("0711400003", "Msg State High")
+        val learnerEntity = userRepository.findById(UUID.fromString(learner.user.id)).orElseThrow()
+        val classId = createClass(teacher.auth, "Staters", "Grade 4")
+        addStudents(teacher.auth, classId, listOf(Ctx(learner, learnerEntity)))
+
+        mockMvc.perform(
+            post("/messages/teacher/send").header("Authorization", auth(teacher.auth.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(TeacherSendMessageRequest(audienceType = "INDIVIDUAL", recipientId = learner.user.id, subject = "State", body = "Archive me."))),
+        ).andExpect(status().isOk)
+
+        val teacherCopy = sent(teacher.auth).first { it.subject == "State" }
+        val learnerCopy = inbox(learner).first { it.subject == "State" }
+        check(teacherCopy.id != learnerCopy.id) { "the send and inbox rows must be distinct copies" }
+
+        fun archive(viewer: AuthResponse, id: String, archived: Boolean, expected: Int) {
+            mockMvc.perform(
+                post("/messages/$id/archive").header("Authorization", auth(viewer.sessionToken!!))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(MessageArchiveRequest(archived))),
+            ).andExpect(status().`is`(expected))
+        }
+        fun flag(viewer: AuthResponse, id: String, flagged: Boolean) {
+            mockMvc.perform(
+                post("/messages/$id/flag").header("Authorization", auth(viewer.sessionToken!!))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(MessageFlagRequest(flagged))),
+            ).andExpect(status().isNoContent)
+        }
+
+        archive(teacher.auth, teacherCopy.id, true, 204)
+        check(sent(teacher.auth).first { it.id == teacherCopy.id }.isArchived)
+        // The learner's inbox copy is untouched by the sender's archive.
+        check(!inbox(learner).first { it.id == learnerCopy.id }.isArchived)
+
+        // A caller can never move another account's copy.
+        archive(learner, teacherCopy.id, true, 403)
+
+        flag(learner, learnerCopy.id, true)
+        check(inbox(learner).first { it.id == learnerCopy.id }.isFlagged)
+        check(!sent(teacher.auth).first { it.id == teacherCopy.id }.isFlagged)
+
+        archive(teacher.auth, teacherCopy.id, false, 204)
+        check(!sent(teacher.auth).first { it.id == teacherCopy.id }.isArchived)
     }
 }

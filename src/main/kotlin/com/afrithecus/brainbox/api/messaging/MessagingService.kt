@@ -202,6 +202,41 @@ class MessagingService(
         }
     }
 
+    /** Archive or restore one copy the caller owns (sender's SENT copy or recipient's INBOX copy). */
+    @Transactional
+    fun setArchived(user: UserEntity, messageIdRaw: String, archived: Boolean) {
+        val message = ownCopy(user, messageIdRaw)
+        if (message.isArchived != archived) {
+            message.isArchived = archived
+            messageRepository.save(message)
+        }
+    }
+
+    /** Flag or unflag one copy the caller owns. */
+    @Transactional
+    fun setFlagged(user: UserEntity, messageIdRaw: String, flagged: Boolean) {
+        val message = ownCopy(user, messageIdRaw)
+        if (message.isFlagged != flagged) {
+            message.isFlagged = flagged
+            messageRepository.save(message)
+        }
+    }
+
+    /**
+     * A message has two rows: the sender's SENT copy and the recipient's INBOX copy. State
+     * endpoints may only touch a row the caller actually owns, so archiving a conversation on
+     * one side can never hide it for the other participant.
+     */
+    private fun ownCopy(user: UserEntity, messageIdRaw: String): MessageEntity {
+        val id = runCatching { UUID.fromString(messageIdRaw) }.getOrNull()
+            ?: throw invalidArgument("message id is not a valid identifier")
+        val message = messageRepository.findById(id).orElse(null) ?: throw notFound("Message not found")
+        if (message.senderId != user.id && message.recipientId != user.id) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "Not your message")
+        }
+        return message
+    }
+
     // ------------------------------------------------- recipient directory
 
     @Transactional(readOnly = true)
@@ -561,5 +596,7 @@ class MessagingService(
         threadId = row.threadRootGroup ?: row.msgGroup,
         parentMessageId = row.parentMessageId?.toString(),
         status = status,
+        isArchived = row.isArchived,
+        isFlagged = row.isFlagged,
     )
 }

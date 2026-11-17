@@ -64,6 +64,13 @@ class MessageEntity {
     @Column(name = "intended_for_parent", nullable = false)
     var intendedForParent: Boolean = false
 
+    /** Per-copy archive/flag state, owned by the account this copy belongs to. */
+    @Column(name = "is_archived", nullable = false)
+    var isArchived: Boolean = false
+
+    @Column(name = "is_flagged", nullable = false)
+    var isFlagged: Boolean = false
+
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant = Instant.now()
 }
