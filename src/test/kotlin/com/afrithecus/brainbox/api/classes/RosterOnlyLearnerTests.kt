@@ -284,6 +284,9 @@ class RosterOnlyLearnerTests(
         check(stored.id.toString() == learner.id) { "the record is kept, not replaced" }
         check(stored.accountKind == AccountKind.FULL)
         check(stored.phoneNumber == "0712345678")
+        check(classMembershipRepository.findByClassIdAndStudentId(clazz.id, stored.id) != null) {
+            "an upgraded learner must join the class they were provisioned into"
+        }
 
         mockMvc.perform(
             post("/auth/login").contentType(MediaType.APPLICATION_JSON)

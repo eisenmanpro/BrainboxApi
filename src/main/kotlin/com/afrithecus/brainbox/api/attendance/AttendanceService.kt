@@ -22,6 +22,7 @@ import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.exams.repository.ExamSubmissionRepository
 import com.afrithecus.brainbox.api.live.repository.LiveAttendanceRepository
+import com.afrithecus.brainbox.api.live.repository.LiveClassRepository
 import com.afrithecus.brainbox.api.mastery.MasteryService
 import com.afrithecus.brainbox.api.media.MediaService
 import com.afrithecus.brainbox.api.common.error.ApiErrorCode
@@ -68,6 +69,7 @@ class AttendanceService(
     private val classRepository: TeacherClassRepository,
     private val membershipRepository: ClassMembershipRepository,
     private val liveAttendanceRepository: LiveAttendanceRepository,
+    private val liveClassRepository: LiveClassRepository,
     private val examSubmissionRepository: ExamSubmissionRepository,
     private val masteryService: MasteryService,
     private val pdfService: AttendancePdfService,
@@ -99,15 +101,21 @@ class AttendanceService(
         val user = user(current)
         if (records.isEmpty()) return emptyList()
         val persisted = mutableListOf<AttendanceRecordEntity>()
-        for ((classIdRaw, classRecords) in records.groupBy { it.classId }) {
-            val clazz = classRepository.findById(parseUuid(classIdRaw, "classId")).orElse(null)
+        val today = LocalDate.now(zone)
+        // Group by class AND day: a batch carrying two dates for one class used to
+        // silently write every row to the first date.
+        for ((key, classRecords) in records.groupBy { it.classId to dayOf(it.date) }) {
+            val clazz = classRepository.findById(parseUuid(key.first, "classId")).orElse(null)
                 ?: throw notFound("Class not found")
             requireWriter(user, clazz)
-            val day = dayOf(classRecords.first().date)
+            val day = key.second
+            if (day.isAfter(today)) throw invalidArgument("Attendance cannot be filed for a future date")
+            val roster = membershipRepository.findAllByClassId(clazz.id).map { it.studentId }.toSet()
             val existing = recordRepository.findAllByClassIdAndAttendanceDate(clazz.id, day).associateBy { it.studentId }
             val payloadIds = classRecords.map { parseUuid(it.studentId, "studentId") }.toSet()
             for (record in classRecords) {
                 val studentId = parseUuid(record.studentId, "studentId")
+                if (studentId !in roster) throw invalidArgument("A learner in this register is not enrolled in the class")
                 // A provisioned learner is not part of the attendance feature.
                 userRepository.findById(studentId).orElse(null)?.let { LearnerAccess.requireFull(it, "attendance") }
                 val isNew = existing[studentId] == null
@@ -125,7 +133,6 @@ class AttendanceService(
                 }
             }
             // Defensive mark-by-exception: anyone absent from the full register is ABSENT.
-            val roster = membershipRepository.findAllByClassId(clazz.id).map { it.studentId }
             for (missing in roster.filter { it !in payloadIds }) {
                 val row = existing[missing] ?: AttendanceRecordEntity().apply {
                     classId = clazz.id
@@ -157,15 +164,20 @@ class AttendanceService(
     fun analytics(current: CurrentUser, classIdRaw: String, startMillis: Long, endMillis: Long): AttendanceAnalyticsPayload {
         val clazz = readableClass(user(current), classIdRaw)
         val from = dayOf(minOf(startMillis, endMillis))
-        val to = dayOf(maxOf(startMillis, endMillis))
+        val to = minOf(dayOf(maxOf(startMillis, endMillis)), LocalDate.now(zone))
         val records = recordRepository.findAllByClassIdAndAttendanceDateBetween(clazz.id, from, to)
         val roster = rosterIds(clazz, records)
-        val byDay = records.groupBy { it.attendanceDate }.toSortedMap()
+        val byDay = records.groupBy { it.attendanceDate }
 
-        val dailyRates = byDay.mapNotNull { (day, dayRecords) ->
-            val rate = attendanceRate(dayRecords, roster.size) ?: return@mapNotNull null
-            day to rate
-        }
+        // Every day in the range participates: a day with no rows is a day nobody
+        // attended, not a day that disappears from the average.
+        val dailyRates = generateSequence(from) { it.plusDays(1) }
+            .takeWhile { !it.isAfter(to) }
+            .mapNotNull { day ->
+                val rate = attendanceRate(byDay[day].orEmpty(), roster.size) ?: return@mapNotNull null
+                day to rate
+            }
+            .toList()
         val trend = dailyRates.map { (day, rate) -> AttendanceTrendPointPayload(millisOf(day), rate) }
         val average = if (dailyRates.isEmpty()) 0.0 else dailyRates.map { it.second }.average()
         val weekly = dailyRates.groupBy { it.first.dayOfWeek.value }
@@ -208,10 +220,15 @@ class AttendanceService(
         }.sortedBy { it.attendancePercentage }.take(20)
     }
 
-    /** (present + late) / counted, or null when the day has no countable records. */
+    /**
+     * (present + late) / (roster − excused). Missing rows count as absent, so a
+     * partial register can no longer display 100% attendance.
+     */
     private fun attendanceRate(dayRecords: List<AttendanceRecordEntity>, rosterSize: Int): Double? {
-        val counted = dayRecords.count { it.status != AttendanceStatus.EXCUSED }
-        if (counted == 0) return null
+        if (rosterSize <= 0) return null
+        val excused = dayRecords.count { it.status == AttendanceStatus.EXCUSED }
+        val counted = rosterSize - excused
+        if (counted <= 0) return null
         val attended = dayRecords.count { it.status == AttendanceStatus.PRESENT || it.status == AttendanceStatus.LATE }
         return round2(attended * 100.0 / counted)
     }
@@ -230,7 +247,7 @@ class AttendanceService(
     fun exportPdf(current: CurrentUser, classIdRaw: String, startMillis: Long, endMillis: Long): PdfResultPayload {
         val clazz = readableClass(user(current), classIdRaw)
         val from = dayOf(minOf(startMillis, endMillis))
-        val to = dayOf(maxOf(startMillis, endMillis))
+        val to = minOf(dayOf(maxOf(startMillis, endMillis)), LocalDate.now(zone))
         val records = recordRepository.findAllByClassIdAndAttendanceDateBetween(clazz.id, from, to)
         val students = userRepository.findAllById(rosterIds(clazz, records)).associateBy { it.id }
         val rows = students.values.sortedBy { it.name.lowercase() }.map { student ->
@@ -370,6 +387,10 @@ class AttendanceService(
             ?: throw notFound("Class not found")
         requireWriter(user, clazz)
         val liveClassId = parseUuid(liveClassIdRaw, "liveClassId")
+        val liveClass = liveClassRepository.findById(liveClassId).orElse(null)
+            ?: throw notFound("Live class not found")
+        if (liveClass.schoolClassId != clazz.id) throw invalidArgument("That live class belongs to another class")
+        if (liveClass.teacherId != user.id) throw ApiException(ApiErrorCode.FORBIDDEN, "Only the session host can auto-mark this class")
         val day = dayOf(dateMillis)
         val attended = liveAttendanceRepository.findAllByClassId(liveClassId)
             .filter { countsAsAttended(it) }
@@ -415,7 +436,7 @@ class AttendanceService(
     fun performance(current: CurrentUser, classIdRaw: String, startMillis: Long, endMillis: Long): AttendancePerformanceAnalyticsPayload {
         val clazz = readableClass(user(current), classIdRaw)
         val from = dayOf(minOf(startMillis, endMillis))
-        val to = dayOf(maxOf(startMillis, endMillis))
+        val to = minOf(dayOf(maxOf(startMillis, endMillis)), LocalDate.now(zone))
         val records = recordRepository.findAllByClassIdAndAttendanceDateBetween(clazz.id, from, to)
         val roster = rosterIds(clazz, records).toMutableSet()
         val unknown = records.map { it.studentId }.filter { it !in roster }

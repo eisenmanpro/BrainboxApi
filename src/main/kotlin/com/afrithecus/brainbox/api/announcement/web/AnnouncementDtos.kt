@@ -18,6 +18,8 @@ data class TeacherAnnouncementPayload(
     val sentAt: Long = 0,
     val viewCount: Int = 0,
     val acknowledgementCount: Int = 0,
+    /** Everyone this announcement targets; the denominator for views/ack rates. */
+    val recipientCount: Int = 0,
     val scheduledAt: Long? = null,
     val expiresAt: Long? = null,
 )
@@ -33,6 +35,7 @@ data class AnnouncementAnalyticsPayload(
     val announcementId: String,
     val views: Int,
     val acknowledgements: Int,
+    val recipientCount: Int = 0,
     val studentStatus: List<StudentAcknowledgementStatusPayload> = emptyList(),
     val isStale: Boolean = false,
 )

@@ -417,6 +417,7 @@ class AttendanceWebTests(
         live.teacherId = teacher.id
         live.teacherName = teacher.name
         live.schoolId = schoolId
+        live.schoolClassId = clazz.id
         live.title = "Live Maths"
         live.subject = "Mathematics"
         live.description = ""

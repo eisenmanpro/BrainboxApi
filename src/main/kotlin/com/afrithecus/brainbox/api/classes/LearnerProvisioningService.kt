@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.classes
 
+import com.afrithecus.brainbox.api.classes.entity.ClassMembershipEntity
 import com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity
 import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
@@ -113,6 +114,7 @@ class LearnerProvisioningService(
             // acknowledge instead of failing. The same phone is the proof this is the same
             // upgrade; a different phone is a genuine second request and stays an error.
             if (student.accountKind == AccountKind.FULL && student.phoneNumber == phone) {
+                ensureMembership(student)
                 return EnableAppAccessResult(
                     userId = student.id.toString(),
                     phoneNumber = phone,
@@ -137,6 +139,10 @@ class LearnerProvisioningService(
         student.isVerified = true
         student.verificationStatus = AccountStatus.VERIFIED
         userRepository.save(student)
+        // Upgrading a provisioned learner to a real account joins them to the class
+        // they were provisioned into. Roster-only rows deliberately have no
+        // membership; once they can sign in, attendance/homework/CBC must see them.
+        ensureMembership(student)
         return EnableAppAccessResult(
             userId = student.id.toString(),
             phoneNumber = phone,
@@ -146,6 +152,18 @@ class LearnerProvisioningService(
     }
 
     // ------------------------------------------------------------ internals
+
+    /** Add the upgraded learner to their provisioned class exactly once. */
+    private fun ensureMembership(student: UserEntity) {
+        val classId = student.provisionedClassId ?: return
+        if (membershipRepository.findByClassIdAndStudentId(classId, student.id) == null) {
+            membershipRepository.save(ClassMembershipEntity().apply {
+                this.classId = classId
+                studentId = student.id
+                joinedAt = clock.instant()
+            })
+        }
+    }
 
     private fun provisionInto(
         actor: UserEntity,

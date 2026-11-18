@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.announcement
 
+import com.afrithecus.brainbox.api.announcement.entity.AnnouncementViewEntity
 import com.afrithecus.brainbox.api.announcement.entity.TeacherAnnouncementEntity
 import com.afrithecus.brainbox.api.announcement.repository.AnnouncementViewRepository
 import com.afrithecus.brainbox.api.announcement.repository.TeacherAnnouncementRepository
@@ -93,6 +94,16 @@ class AnnouncementService(
             .map(::payload)
     }
 
+    /** Teacher-authored announcements at one school, for the admin moderation view. */
+    @Transactional(readOnly = true)
+    fun staffAtSchool(schoolIdRaw: String): List<TeacherAnnouncementPayload> {
+        val schoolId = runCatching { UUID.fromString(schoolIdRaw) }.getOrNull()
+            ?: throw invalidArgument("schoolId is not a valid identifier")
+        return announcementRepository.findAllBySchoolIdAndDeliveredAtIsNotNullOrderBySentAtDesc(schoolId)
+            .filter { it.sourceSchoolAnnouncementId == null }
+            .map(::payload)
+    }
+
     /** Idempotent upsert keyed on the client-supplied id. */
     @Transactional
     fun create(teacher: UserEntity, request: TeacherAnnouncementPayload): TeacherAnnouncementPayload {
@@ -131,23 +142,80 @@ class AnnouncementService(
     @Transactional(readOnly = true)
     fun analytics(teacher: UserEntity, announcementId: String): AnnouncementAnalyticsPayload {
         val entity = ownEntity(teacher, announcementId) ?: throw notFound("Announcement not found")
-        val views = viewRepository.findAllByAnnouncementId(entity.id)
-        val students = userRepository.findAllById(views.map { it.studentId }).associateBy { it.id }
-        val statuses = views.mapNotNull { view ->
-            val student = students[view.studentId] ?: return@mapNotNull null
+        val views = viewRepository.findAllByAnnouncementId(entity.id).associateBy { it.studentId }
+        val recipients = recipients(entity).filter { it.role == Role.STUDENT }.distinctBy { it.id }
+        // The table lists every targeted learner, not only those who already
+        // opened the announcement, so "pending" is meaningful and the rate has a
+        // real denominator.
+        val statuses = recipients.map { student ->
+            val view = views[student.id]
             StudentAcknowledgementStatusPayload(
-                studentId = view.studentId.toString(),
+                studentId = student.id.toString(),
                 studentName = student.name,
-                viewedAt = view.viewedAt?.toEpochMilli(),
-                acknowledgedAt = view.acknowledgedAt?.toEpochMilli(),
+                viewedAt = view?.viewedAt?.toEpochMilli(),
+                acknowledgedAt = view?.acknowledgedAt?.toEpochMilli(),
             )
         }
         return AnnouncementAnalyticsPayload(
             announcementId = entity.id.toString(),
             views = statuses.count { it.viewedAt != null },
             acknowledgements = statuses.count { it.acknowledgedAt != null },
+            recipientCount = statuses.size,
             studentStatus = statuses,
         )
+    }
+
+    /** Record that a learner (or guardian account) opened a delivered announcement. */
+    @Transactional
+    fun markViewed(user: UserEntity, announcementId: String): AnnouncementAnalyticsPayload {
+        val entity = requireDeliveredFor(user, announcementId)
+        val view = viewRepository.findByAnnouncementIdAndStudentId(entity.id, user.id)
+            ?: AnnouncementViewEntity().apply {
+                this.announcementId = entity.id
+                studentId = user.id
+            }
+        if (view.viewedAt == null) view.viewedAt = clock.instant()
+        viewRepository.save(view)
+        val total = viewRepository.findAllByAnnouncementId(entity.id)
+        return AnnouncementAnalyticsPayload(
+            announcementId = entity.id.toString(),
+            views = total.count { it.viewedAt != null },
+            acknowledgements = total.count { it.acknowledgedAt != null },
+            recipientCount = recipients(entity).size,
+        )
+    }
+
+    /** Record an explicit acknowledgement (a stronger signal than a view). */
+    @Transactional
+    fun acknowledge(user: UserEntity, announcementId: String): AnnouncementAnalyticsPayload {
+        val entity = requireDeliveredFor(user, announcementId)
+        val view = viewRepository.findByAnnouncementIdAndStudentId(entity.id, user.id)
+            ?: AnnouncementViewEntity().apply {
+                this.announcementId = entity.id
+                studentId = user.id
+            }
+        val now = clock.instant()
+        if (view.viewedAt == null) view.viewedAt = now
+        view.acknowledgedAt = now
+        viewRepository.save(view)
+        val total = viewRepository.findAllByAnnouncementId(entity.id)
+        return AnnouncementAnalyticsPayload(
+            announcementId = entity.id.toString(),
+            views = total.count { it.viewedAt != null },
+            acknowledgements = total.count { it.acknowledgedAt != null },
+            recipientCount = recipients(entity).size,
+        )
+    }
+
+    private fun requireDeliveredFor(user: UserEntity, announcementId: String): TeacherAnnouncementEntity {
+        if (user.role != Role.STUDENT && user.role != Role.PARENT) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "Only learners can acknowledge announcements")
+        }
+        val entity = announcementRepository.findByClientId(announcementId)
+            ?: throw notFound("Announcement not found")
+        if (user.schoolId == null || entity.schoolId != user.schoolId) throw notFound("Announcement not found")
+        if (entity.deliveredAt == null || hidden(entity, clock.instant())) throw notFound("Announcement not found")
+        return entity
     }
 
     /** Delivers announcements whose scheduled instant has arrived (Phase 6 scheduler). */
@@ -339,6 +407,7 @@ class AnnouncementService(
         sentAt = entity.sentAt.toEpochMilli(),
         viewCount = viewRepository.findAllByAnnouncementId(entity.id).count { it.viewedAt != null },
         acknowledgementCount = viewRepository.findAllByAnnouncementId(entity.id).count { it.acknowledgedAt != null },
+        recipientCount = recipients(entity).size,
         scheduledAt = entity.scheduledAt?.toEpochMilli(),
         expiresAt = entity.expiresAt?.toEpochMilli(),
     )

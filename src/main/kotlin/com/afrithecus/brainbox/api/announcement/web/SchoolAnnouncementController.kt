@@ -1,5 +1,6 @@
 package com.afrithecus.brainbox.api.announcement.web
 
+import com.afrithecus.brainbox.api.announcement.AnnouncementService
 import com.afrithecus.brainbox.api.announcement.SchoolAnnouncementService
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController
 @PreAuthorize("hasAnyRole('ADMIN','ICT_ADMIN')")
 class SchoolAnnouncementController(
     private val service: SchoolAnnouncementService,
+    private val teacherAnnouncements: AnnouncementService,
     private val userRepository: UserRepository,
     private val access: AdminSchoolAccess,
 ) {
@@ -43,6 +45,16 @@ class SchoolAnnouncementController(
     ): List<SchoolAnnouncementPayload> {
         admin(currentUser, schoolId)
         return service.list(schoolId)
+    }
+
+    /** Read-only moderation feed of what teachers at this school published. */
+    @GetMapping("/{schoolId}/staff-announcements")
+    fun staffAnnouncements(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable schoolId: String,
+    ): List<TeacherAnnouncementPayload> {
+        admin(currentUser, schoolId)
+        return teacherAnnouncements.staffAtSchool(schoolId)
     }
 
     @GetMapping("/{schoolId}/announcements/analytics")
