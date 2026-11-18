@@ -107,6 +107,7 @@ class ClassChatService(
         val schoolId = viewer.schoolId
             ?: return groupRepository.findAllByTeacherIdOrderByUpdatedAtDesc(current.userId)
                 .map { groupPayload(it, viewer) }
+        ensureSchoolGroups(schoolId)
         return groupRepository.findAllBySchoolIdOrderByUpdatedAtDesc(schoolId)
             .filter { teacherCanSee(viewer, it) }
             .map { groupPayload(it, viewer) }
@@ -185,6 +186,7 @@ class ClassChatService(
     ): ClassGroupPayload {
         val actor = user(current.userId)
         val group = creatorGroup(actor, groupIdRaw)
+        if (group.isSystem) throw ApiException(ApiErrorCode.FORBIDDEN, "Brainbox maintains this school group")
         requireWritable(group)
         nameRaw?.let {
             val name = it.trim()
@@ -204,6 +206,7 @@ class ClassChatService(
     fun delete(current: CurrentUser, groupIdRaw: String) {
         val actor = user(current.userId)
         val group = groupById(groupIdRaw)
+        if (group.isSystem) throw ApiException(ApiErrorCode.FORBIDDEN, "Brainbox maintains this school group")
         // An ICT admin moderates by freezing; deletion stays the creator's decision only.
         if (group.teacherId != actor.id) {
             throw ApiException(ApiErrorCode.FORBIDDEN, "Only the group's creator can delete it")
@@ -440,6 +443,7 @@ class ClassChatService(
     @Transactional(readOnly = true)
     fun groupsForStudent(current: CurrentUser): List<ClassGroupPayload> {
         val viewer = user(current.userId)
+        viewer.schoolId?.let { ensureSchoolGroups(it) }
         return studentGroups(current.userId).map { groupPayload(it, viewer) }
     }
 
@@ -454,6 +458,7 @@ class ClassChatService(
     fun adminGroups(current: CurrentUser, schoolIdRaw: String): List<ClassGroupPayload> {
         val schoolId = requireSchoolId(schoolIdRaw)
         val actor = adminAccess.require(current, schoolId)
+        ensureSchoolGroups(schoolId)
         return groupRepository.findAllBySchoolIdOrderByUpdatedAtDesc(schoolId)
             .map { groupPayload(it, actor) }
     }
@@ -684,7 +689,13 @@ class ClassChatService(
         return ClassGroupPayload(
             id = group.id.toString(),
             name = group.name,
-            memberCount = memberRepository.countByGroupId(group.id).toInt(),
+            memberCount = if (group.isSystem) {
+                userRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(group.schoolId!!).count {
+                    if (group.audience == AUDIENCE_TEACHERS) it.role == Role.TEACHER else it.role != Role.TEACHER
+                }
+            } else {
+                memberRepository.countByGroupId(group.id).toInt()
+            },
             teacherName = group.teacherName,
             classId = group.classId?.toString() ?: "",
             description = group.description,
@@ -706,8 +717,11 @@ class ClassChatService(
             isCreator = group.teacherId == viewer.id,
             isMember = member,
             canJoin = canJoin,
-            canDelete = group.teacherId == viewer.id,
+            canDelete = group.teacherId == viewer.id && !group.isSystem,
             canModerate = moderator,
+            isSystem = group.isSystem,
+            systemNote = if (group.isSystem) group.description else null,
+            messageCount = messageRepository.countByGroupId(group.id).toInt(),
         )
     }
 
@@ -834,6 +848,8 @@ class ClassChatService(
                 (group.audience == AUDIENCE_STUDENTS || group.audience == AUDIENCE_ALL) &&
                     sameGrade(gradeOfStudent(student.id), group.gradeLevel)
             }
+            SCOPE_SCHOOL -> (group.audience == AUDIENCE_STUDENTS || group.audience == AUDIENCE_ALL) &&
+                group.schoolId != null && group.schoolId == student.schoolId
             else -> false
         }
     }
@@ -847,7 +863,8 @@ class ClassChatService(
             Role.PARENT -> userRepository.findByParentUserId(viewer.id).any { studentCanSee(it, group) }
             else -> group.teacherId == viewer.id ||
                 isModerator(viewer, group) ||
-                memberRepository.findByGroupIdAndMemberId(group.id, viewer.id) != null
+                memberRepository.findByGroupIdAndMemberId(group.id, viewer.id) != null ||
+                (group.scope == SCOPE_SCHOOL && teacherCanSee(viewer, group))
         }
         if (!allowed) throw ApiException(ApiErrorCode.FORBIDDEN, "Not a member of this group")
         return group
@@ -869,6 +886,9 @@ class ClassChatService(
         if (viewer.role != Role.TEACHER) return false
         if (group.isArchived) return false
         if (group.schoolId == null || viewer.schoolId != group.schoolId) return false
+        if (group.scope == SCOPE_SCHOOL) {
+            return group.audience == AUDIENCE_TEACHERS || group.audience == AUDIENCE_ALL
+        }
         return staffAudienceAllows(viewer, group.audience)
     }
 
@@ -916,6 +936,37 @@ class ClassChatService(
                 ApiErrorCode.FORBIDDEN,
                 if (label.isEmpty()) "This group is archived and read-only" else "This group is archived (" + label + ") and read-only",
             )
+        }
+    }
+
+    /**
+     * Brainbox keeps two school-wide groups per school: a community for learners
+     * and guardians, and a staff room for every teacher. They are created lazily
+     * the first time someone lists groups (school registration may have no staff
+     * yet), and access is by school membership so transfers need no cleanup.
+     */
+    private fun ensureSchoolGroups(schoolId: UUID) {
+        val school = schoolRepository.findById(schoolId).orElse(null) ?: return
+        val staff = userRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
+        val owner = staff.firstOrNull { it.role == Role.TEACHER && it.subRole == SubRole.ICT_ADMIN }
+            ?: staff.firstOrNull { it.role == Role.TEACHER }
+            ?: return
+        val specs = listOf(
+            Triple(AUDIENCE_ALL, school.name + " Community", "This is " + school.name + " community for all parents, guardians and learners. Please follow the school code of conduct."),
+            Triple(AUDIENCE_TEACHERS, school.name + " Staff Community", "This is " + school.name + " staff community for all teachers. Please follow the school code of conduct."),
+        )
+        for ((audience, name, note) in specs) {
+            if (groupRepository.findFirstBySchoolIdAndScopeAndAudience(schoolId, SCOPE_SCHOOL, audience) != null) continue
+            groupRepository.save(ClassGroupEntity().apply {
+                this.scope = SCOPE_SCHOOL
+                this.audience = audience
+                this.schoolId = schoolId
+                this.teacherId = owner.id
+                teacherName = owner.name
+                this.name = name
+                description = note
+                isSystem = true
+            })
         }
     }
 
@@ -1059,6 +1110,7 @@ class ClassChatService(
     private companion object {
         const val SCOPE_CLASS = "CLASS"
         const val SCOPE_GRADE = "GRADE"
+        const val SCOPE_SCHOOL = "SCHOOL"
         const val AUDIENCE_STUDENTS = "STUDENTS"
         const val AUDIENCE_TEACHERS = "TEACHERS"
         const val AUDIENCE_CLASS_TEACHERS = "CLASS_TEACHERS"

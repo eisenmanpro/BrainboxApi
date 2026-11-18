@@ -11,6 +11,8 @@ interface ClassGroupMessageRepository : JpaRepository<ClassGroupMessageEntity, U
 
     fun countByGroupIdAndCreatedAtAfterAndSenderIdNot(groupId: UUID, after: Instant, senderId: UUID): Long
 
+    fun countByGroupId(groupId: UUID): Long
+
     fun findFirstByGroupIdOrderByCreatedAtDesc(groupId: UUID): ClassGroupMessageEntity?
 
     fun findByGroupIdAndClientMessageId(groupId: UUID, clientMessageId: String): ClassGroupMessageEntity?

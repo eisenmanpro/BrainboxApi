@@ -66,6 +66,10 @@ class ClassGroupEntity : BaseEntity() {
     @Column(name = "frozen_at")
     var frozenAt: Instant? = null
 
+    /** True for the two school-wide groups Brainbox maintains automatically. */
+    @Column(name = "is_system", nullable = false)
+    var isSystem: Boolean = false
+
     @Column(name = "is_archived", nullable = false)
     var isArchived: Boolean = false
 

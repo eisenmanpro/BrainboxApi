@@ -13,6 +13,12 @@ interface ClassGroupRepository : JpaRepository<ClassGroupEntity, UUID> {
     /** Every group of a school, newest activity first (admin moderation list). */
     fun findAllBySchoolIdOrderByUpdatedAtDesc(schoolId: UUID): List<ClassGroupEntity>
 
+    fun findFirstBySchoolIdAndScopeAndAudience(
+        schoolId: UUID,
+        scope: String,
+        audience: String,
+    ): ClassGroupEntity?
+
     /** Grade-scoped groups of one school, newest activity first. */
     fun findAllBySchoolIdAndScopeAndGradeLevelOrderByUpdatedAtDesc(
         schoolId: UUID,

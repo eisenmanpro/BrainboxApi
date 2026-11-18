@@ -291,7 +291,7 @@ class ClassGroupModerationWebTests(
         mockMvc.perform(
             get("/teacher/class-groups/" + group.id + "/messages").header("Authorization", auth(otherToken))
         ).andExpect(status().isForbidden)
-        check(groups(token(ownerTeacher), ownerTeacher).single().id == group.id)
+        check(groups(token(ownerTeacher), ownerTeacher).any { it.id == group.id })
     }
 
     @Test

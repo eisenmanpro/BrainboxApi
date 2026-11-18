@@ -1,6 +1,7 @@
 package com.afrithecus.brainbox.api.identity
 
 import com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity
+import com.afrithecus.brainbox.api.common.domain.GradeNormalizer
 import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
@@ -108,5 +109,9 @@ class GradeAuthority(
             .mapNotNull { normalize(it.gradeLevel) }
             .toSet()
 
-    private fun normalize(value: String?): String? = value?.trim()?.takeIf { it.isNotEmpty() }
+    private fun normalize(value: String?): String? {
+        val raw = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val key = GradeNormalizer.canonicalKey(raw) ?: return raw
+        return "Grade " + key
+    }
 }

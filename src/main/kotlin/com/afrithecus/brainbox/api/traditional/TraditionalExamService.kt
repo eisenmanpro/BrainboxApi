@@ -7,6 +7,7 @@ import com.afrithecus.brainbox.api.common.error.ApiErrorCode
 import com.afrithecus.brainbox.api.common.error.ApiException
 import com.afrithecus.brainbox.api.common.error.conflict
 import com.afrithecus.brainbox.api.common.error.invalidArgument
+import com.afrithecus.brainbox.api.common.domain.GradeNormalizer
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.identity.GradeAuthority
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
@@ -149,7 +150,8 @@ class TraditionalExamService(
     fun createExam(current: CurrentUser, request: CreateTraditionalExamRequest): TraditionalExamDto {
         // A capture session is a coordinator's scheduling decision, for their own grade.
         // Class teachers receive it and enter marks; they do not create sessions.
-        requireCoordinatorForGrade(current, request.gradeLevel)
+        val canonicalGradeLevel = canonicalGrade(request.gradeLevel)
+        requireCoordinatorForGrade(current, canonicalGradeLevel)
         validateSubjects(request.subjects)
         val user = user(current)
         // D18/decision 20: the bands are decided with the capture session. An explicit list is
@@ -157,7 +159,7 @@ class TraditionalExamService(
         // config (else the platform defaults) is resolved. Either way the resolved list is
         // snapshotted on the exam so a later grade-setting change cannot re-band this exam.
         val grading = gradingConfigService.resolveSessionConfig(
-            gradeLevel = request.gradeLevel.trim(),
+            gradeLevel = canonicalGradeLevel,
             schoolId = user.schoolId,
             requested = request.grading,
         )
@@ -180,7 +182,7 @@ class TraditionalExamService(
         val exam = TraditionalExamEntity().apply {
             title = request.title.trim()
             term = request.term
-            gradeLevel = request.gradeLevel.trim()
+            gradeLevel = canonicalGradeLevel
             year = request.year
             status = TraditionalExamStatus.PENDING
             maxScore = request.maxScore
@@ -244,16 +246,17 @@ class TraditionalExamService(
         // writer may trigger the idempotent mirror.
         requireStaffWriter(current)
         require(grade.isNotBlank()) { "grade is required" }
+        val canonicalGrade = canonicalGrade(grade)
         val user = user(current)
         // The mirrored sessions are capture sessions too: snapshot the resolved bands (D18).
-        val grading = gradingConfigService.resolveSessionConfig(grade, user.schoolId, null)
+        val grading = gradingConfigService.resolveSessionConfig(canonicalGrade, user.schoolId, null)
         // The idempotent mirror is staff-wide, but a coordinator only mirrors their own grade.
-        if (gradeAuthority.isCoordinator(user) && !gradeAuthority.overseesGrade(user, grade)) {
+        if (gradeAuthority.isCoordinator(user) && !gradeAuthority.overseesGrade(user, canonicalGrade)) {
             throw ApiException(ApiErrorCode.FORBIDDEN, "You can only generate exams for your grade")
         }
         validateSubjects(subjects)
         val termNumber = term.ordinal + 1
-        val sanitizedGrade = grade.filter { it.isLetterOrDigit() }
+        val sanitizedGrade = canonicalGrade.filter { it.isLetterOrDigit() }
         val sessions = listOf(
             "OPENER" to "Opener Term",
             "MID" to "Mid Term",
@@ -448,9 +451,9 @@ class TraditionalExamService(
         request: ValidateAccessRequest?,
     ): ValidateAccessResponse {
         requireStaffReader(current)
-        exam(current, examIdRaw)
+        val exam = exam(current, examIdRaw)
         val target = request?.grade?.takeIf { it.isNotBlank() }
-        if (isOwnClass(current, target)) {
+        if (isOwnClass(current, target, exam.gradeLevel)) {
             return ValidateAccessResponse(
                 allowed = false,
                 unverified = false,
@@ -557,7 +560,7 @@ class TraditionalExamService(
         requireStaffWriter(current)
         val exam = exam(current, examIdRaw)
         val target = grade?.takeIf { it.isNotBlank() } ?: exam.gradeLevel
-        if (isOwnClass(current, target)) {
+        if (isOwnClass(current, target, exam.gradeLevel)) {
             throw ApiException(ApiErrorCode.FORBIDDEN, "A class teacher cannot capture marks for their own class")
         }
         return studentsInScope(exam, target).map(::studentDto)
@@ -600,7 +603,7 @@ class TraditionalExamService(
                 gradeLevel = cls.gradeLevel,
                 teacherId = cls.teacherUserId.toString(),
                 teacherName = teachers[cls.teacherUserId]?.name,
-                allowed = !isOwnClass(current, cls.name),
+                allowed = !isOwnClass(current, cls.name, exam.gradeLevel),
             )
         }.sortedByDescending { it.allowed }
     }
@@ -700,7 +703,7 @@ class TraditionalExamService(
                     throw invalidArgument("The learner is not a member of that class")
                 }
             }
-            if (ownClasses.isNotEmpty()) {
+            if (ownClasses.isNotEmpty() && !coordinatorOperator) {
                 val student = userRepository.findById(studentId).orElse(null)
                 if (student != null && ownClasses.any { it.equals(classTagOf(student, exam), ignoreCase = true) }) {
                     throw ApiException(ApiErrorCode.FORBIDDEN, "A class teacher cannot capture marks for their own class")
@@ -1070,7 +1073,12 @@ class TraditionalExamService(
     fun editRequests(current: CurrentUser, examIdRaw: String): List<EditRequestDto> {
         requireStaffReader(current)
         val exam = exam(current, examIdRaw)
-        return editRequestRepository.findAllByExamIdOrderByCreatedAtDesc(exam.id).map { editRequestDto(it, publicExamId(exam)) }
+        val actor = user(current)
+        val canSeeAll = gradeAuthority.isSchoolWide(actor) ||
+            (gradeAuthority.isCoordinator(actor) && gradeAuthority.overseesGrade(actor, exam.gradeLevel))
+        val rows = editRequestRepository.findAllByExamIdOrderByCreatedAtDesc(exam.id)
+            .filter { canSeeAll || it.requesterId == actor.id }
+        return rows.map { editRequestDto(it, publicExamId(exam)) }
     }
 
     /**
@@ -1164,13 +1172,6 @@ class TraditionalExamService(
         // A grade coordinator edits their grade's marks directly — an edit *request* is the
         // class teacher's path (F7). School-wide staff keep direct edit too; they should not
         // enter the class-teacher request queue either.
-        val requester = user(current)
-        if (gradeAuthority.isCoordinator(requester)) {
-            throw ApiException(
-                ApiErrorCode.FORBIDDEN,
-                "Coordinators edit their grade's marks directly; score edit requests are for class teachers",
-            )
-        }
         val exam = exam(current, examIdRaw)
         // The client generates the request id locally and later approves/denies by it
         // (the response is best-effort); adopt it so those calls resolve, and replay
@@ -1312,8 +1313,9 @@ class TraditionalExamService(
     // ---------------------------------------------------------------- grade config
 
     @Transactional(readOnly = true)
-    fun gradeSubjectConfig(current: CurrentUser, gradeLevel: String, schoolIdRaw: String?): List<SubjectConfigDto>? {
+    fun gradeSubjectConfig(current: CurrentUser, gradeLevelRaw: String, schoolIdRaw: String?): List<SubjectConfigDto>? {
         requireStaffReader(current)
+        val gradeLevel = canonicalGrade(gradeLevelRaw)
         val schoolId = schoolId(current, schoolIdRaw)
         val rows = if (schoolId != null) {
             subjectConfigRepository.findAllBySchoolIdAndGradeLevelOrderByOrderIndexAsc(schoolId, gradeLevel)
@@ -1328,7 +1330,8 @@ class TraditionalExamService(
     }
 
     @Transactional
-    fun saveGradeSubjectConfig(current: CurrentUser, gradeLevel: String, schoolIdRaw: String?, subjects: List<SubjectConfigDto>) {
+    fun saveGradeSubjectConfig(current: CurrentUser, gradeLevelRaw: String, schoolIdRaw: String?, subjects: List<SubjectConfigDto>) {
+        val gradeLevel = canonicalGrade(gradeLevelRaw)
         requireCoordinatorForGrade(current, gradeLevel)
         validateSubjects(subjects)
         val schoolId = schoolId(current, schoolIdRaw)
@@ -1349,13 +1352,14 @@ class TraditionalExamService(
     }
 
     @Transactional(readOnly = true)
-    fun gradingConfig(current: CurrentUser, gradeLevel: String, schoolIdRaw: String?): GradingConfigDto {
+    fun gradingConfig(current: CurrentUser, gradeLevelRaw: String, schoolIdRaw: String?): GradingConfigDto {
         requireStaffReader(current)
-        return gradingFor(gradeLevel, schoolId(current, schoolIdRaw))
+        return gradingFor(canonicalGrade(gradeLevelRaw), schoolId(current, schoolIdRaw))
     }
 
     @Transactional
-    fun saveGradingConfig(current: CurrentUser, gradeLevel: String, schoolIdRaw: String?, config: GradingConfigDto) {
+    fun saveGradingConfig(current: CurrentUser, gradeLevelRaw: String, schoolIdRaw: String?, config: GradingConfigDto) {
+        val gradeLevel = canonicalGrade(gradeLevelRaw)
         requireCoordinatorForGrade(current, gradeLevel)
         // Same validation/normalisation as a session band edit (D18): 0..100, strictly
         // descending unique thresholds, unique labels. This config is only the prefill /
@@ -2047,8 +2051,12 @@ class TraditionalExamService(
     // ---------------------------------------------------------------- auth helpers
 
     /** True when [target] is the caller's own class; the owner rule forbids capturing it. */
-    private fun isOwnClass(current: CurrentUser, target: String?): Boolean {
+    private fun isOwnClass(current: CurrentUser, target: String?, examGrade: String? = null): Boolean {
         if (current.role != Role.TEACHER || target.isNullOrBlank()) return false
+        // A coordinator capturing their own grade is exercising grade authority, not
+        // entering their class as its class teacher.
+        val actor = user(current)
+        if (gradeAuthority.isCoordinator(actor) && gradeAuthority.overseesGrade(actor, examGrade)) return false
         return ownClassTags(current.userId).any { it.equals(target, ignoreCase = true) }
     }
 
@@ -2277,9 +2285,19 @@ class TraditionalExamService(
         }
     }
 
+    private fun canonicalGrade(raw: String?): String {
+        val key = GradeNormalizer.canonicalKey(raw)
+        return if (key != null) "Grade " + key else (raw ?: "").trim()
+    }
+
     private fun schoolId(current: CurrentUser, raw: String?): UUID? {
-        raw?.takeIf { it.isNotBlank() }?.let { return parseUuidOrNull(it) }
-        return user(current).schoolId
+        val actor = user(current)
+        val requested = raw?.takeIf { it.isNotBlank() }?.let { parseUuidOrNull(it) }
+        if (requested == null) return actor.schoolId
+        if (actor.role != Role.ADMIN && requested != actor.schoolId) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "You can only configure your own school")
+        }
+        return requested
     }
 
     // ---------------------------------------------------------------- json helpers

@@ -41,6 +41,12 @@ data class ClassGroupPayload(
     val canDelete: Boolean = false,
     /** True for an ICT admin of the group's school (freeze/archive/list). */
     val canModerate: Boolean = false,
+    /** True for the two school-wide community groups Brainbox maintains. */
+    val isSystem: Boolean = false,
+    /** Explains a system group at the top of its thread ("This is ... community..."). */
+    val systemNote: String? = null,
+    /** Total messages in the thread (badge on the group card). */
+    val messageCount: Int = 0,
 )
 
 /** One class a teacher may create a group for. */
