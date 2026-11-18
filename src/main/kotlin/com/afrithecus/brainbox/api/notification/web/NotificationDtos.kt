@@ -48,6 +48,8 @@ data class NewsItemPayload(
     val publishedAt: Long? = null,
     val status: String = "PUBLISHED",
     val tags: List<String> = emptyList(),
+    val schoolId: String? = null,
+    val authorMasked: Boolean = false,
 )
 
 data class CreateNewsRequest(
@@ -59,6 +61,7 @@ data class CreateNewsRequest(
     val publishedAt: Long? = null,
     val status: String = "PUBLISHED",
     val tags: List<String> = emptyList(),
+    val maskAuthor: Boolean = false,
 )
 
 /** News engagement payloads (docs/ongoing/api_news_changes.md). */

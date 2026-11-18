@@ -9,6 +9,7 @@ import com.afrithecus.brainbox.api.identity.entity.SchoolJoinRequestEntity
 import com.afrithecus.brainbox.api.identity.entity.SchoolReportEntity
 import com.afrithecus.brainbox.api.identity.entity.SchoolReviewEntity
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
+import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.SchoolDetailRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolJoinRequestRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolReportRepository
@@ -89,9 +90,21 @@ class SchoolDirectoryService(
         val reviews = reviewRepository.findAllBySchoolIdOrderByCreatedAtDesc(school.id).map {
             SchoolReviewPayload(it.userName, it.rating, it.comment, it.reviewDate.toString())
         }
-        // The school's own uploaded gallery wins over the platform editorial images; a
-        // school with no gallery of its own keeps the editorial set unchanged.
-        val imageUrls = schoolGallery(school.id).ifEmpty { detail?.let { parseList(it.imageUrls) } ?: emptyList() }
+        // Gallery precedence matches the list: school-owned gallery, then the
+        // platform editorial set, then the school's logos. The detail dialog used
+        // to lose an editorial-only school's photos entirely.
+        val logos = parseList(school.logoUrls).ifEmpty { listOfNotNull(school.logoUrl) }
+        val imageUrls = schoolGallery(school.id)
+            .ifEmpty { parseList(school.imageUrls) }
+            .ifEmpty { detail?.let { parseList(it.imageUrls) } ?: emptyList() }
+            .ifEmpty { logos }
+            .take(4)
+        // Live headcounts. These were stored on school_details but nothing ever
+        // wrote them, so every public profile invented "0 teachers / 0 learners".
+        val teacherCount = userRepository
+            .countBySchoolIdAndRoleAndIsActiveTrue(school.id, Role.TEACHER).toInt()
+        val learnerCount = userRepository
+            .countBySchoolIdAndRoleAndIsActiveTrue(school.id, Role.STUDENT).toInt()
         return SchoolDetailPayload(
             basicInfo = SchoolBasicInfoPayload(
                 name = school.name,
@@ -121,13 +134,13 @@ class SchoolDirectoryService(
                 collegeAcceptance = detail?.collegeAcceptance ?: "",
             ),
             faculty = SchoolFacultyPayload(
-                count = detail?.facultyCount ?: 0,
+                count = teacherCount.takeIf { it > 0 } ?: (detail?.facultyCount ?: 0),
                 advancedDegreesPercentage = detail?.advancedDegreesPercentage ?: 0,
                 averageExperience = detail?.averageExperience ?: 0,
                 supportStaff = detail?.let { parseList(it.supportStaff) } ?: emptyList(),
             ),
             studentBody = SchoolStudentBodyPayload(
-                totalEnrollment = detail?.totalEnrollment ?: 0,
+                totalEnrollment = learnerCount.takeIf { it > 0 } ?: (detail?.totalEnrollment ?: 0),
                 genderBreakdown = detail?.genderBreakdown ?: "",
                 diversityStats = detail?.diversityStats ?: "",
                 ellPopulation = detail?.ellPopulation ?: "",
@@ -147,6 +160,13 @@ class SchoolDirectoryService(
             ),
             importantDates = detail?.let { parseDates(it.importantDates) } ?: emptyList(),
             profile = schoolProfile(config),
+            rating = school.rating.toFloat(),
+            reviewCount = school.reviewsCount,
+            placementRate = school.placementRate,
+            rank = school.schoolRank,
+            isFeatured = school.isFeatured,
+            featuredTagline = school.featuredTagline?.takeIf { it.isNotBlank() },
+            story = school.story?.takeIf { it.isNotBlank() },
         )
     }
 

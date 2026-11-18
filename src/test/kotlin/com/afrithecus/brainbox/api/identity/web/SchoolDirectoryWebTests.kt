@@ -56,6 +56,9 @@ class SchoolDirectoryWebTests(
             reviewsCount = 2
             placementRate = 95
             schoolRank = 1
+            isFeatured = true
+            featuredTagline = "A tradition of excellence"
+            story = "Founded to serve the community."
         })
         detailRepository.save(SchoolDetailEntity().apply {
             schoolId = school.id
@@ -117,6 +120,13 @@ class SchoolDirectoryWebTests(
         )
         check(detail.basicInfo.name == "Alliance High School")
         check(detail.basicInfo.type == "Public")
+        // Detail used to drop the editorial/rating fields the list already had.
+        check(detail.rating == 4.5f)
+        check(detail.reviewCount == 2)
+        check(detail.placementRate == 95)
+        check(detail.isFeatured)
+        check(detail.featuredTagline == "A tradition of excellence")
+        check(detail.story == "Founded to serve the community.")
         check(detail.contact.socialMedia["Twitter"] == "@All")
         check(detail.academics.programs.contains("STEM"))
         check(detail.faculty.count == 60)

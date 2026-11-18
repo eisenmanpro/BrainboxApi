@@ -120,6 +120,19 @@ data class SchoolDetailPayload(
     val importantDates: List<ImportantDatePayload>,
     /** School-authored profile (admin School Config); null when the school has not filled it. */
     val profile: SchoolProfilePayload? = null,
+    /**
+     * Editorial + rating fields that already exist on the list payload. The
+     * detail dialog used to lose them because this DTO omitted them, so the
+     * rating, transition rate, featured badge, tagline and story all read as
+     * unavailable even when the server had them.
+     */
+    val rating: Float = 0f,
+    val reviewCount: Int = 0,
+    val placementRate: Int = 0,
+    val rank: Int = 0,
+    val isFeatured: Boolean = false,
+    val featuredTagline: String? = null,
+    val story: String? = null,
 )
 
 /** Generic acknowledgement for join-request and report submissions. */

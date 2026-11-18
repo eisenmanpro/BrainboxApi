@@ -70,6 +70,9 @@ interface UserRepository : JpaRepository<UserEntity, UUID> {
 
     fun countBySchoolIdAndRole(schoolId: UUID, role: Role): Long
 
+    /** Live headcount for the public school profile (active accounts only). */
+    fun countBySchoolIdAndRoleAndIsActiveTrue(schoolId: UUID, role: Role): Long
+
     /** Whether the school already has an active account in a given sub-role (e.g. its ICT admin). */
     fun existsBySchoolIdAndSubRoleAndIsActiveTrue(schoolId: UUID, subRole: SubRole): Boolean
 

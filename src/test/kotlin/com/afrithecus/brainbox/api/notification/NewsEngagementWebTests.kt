@@ -1,8 +1,10 @@
 package com.afrithecus.brainbox.api.notification
 
 import com.afrithecus.brainbox.api.auth.web.AuthResponse
+import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
+import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.notification.web.CreateNewsRequest
 import com.afrithecus.brainbox.api.notification.web.NewsCommentPayload
@@ -24,6 +26,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
+import java.util.UUID
 
 /**
  * News engagement (docs/ongoing/api_news_changes.md): public reads, authenticated
@@ -37,6 +40,7 @@ class NewsEngagementWebTests(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val userRepository: UserRepository,
+    @Autowired private val schoolRepository: SchoolRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
 ) {
 
@@ -252,6 +256,55 @@ class NewsEngagementWebTests(
             Array<NewsItemPayload>::class.java,
         )
         check(ownFeed.first { it.id == article.id }.authorId != null)
+    }
+
+    @Test
+    fun `masked bylines hide the teacher name from public readers but keep school scope`() {
+        val school = schoolRepository.save(SchoolEntity().apply {
+            name = "Masked Byline Academy"
+            isActive = true
+        })
+        val schoolId = school.id
+        val teacher = newUser("0779300029", "news.masked@test", Role.TEACHER, "Teacher Mwangi").apply {
+            this.schoolId = schoolId
+        }
+        userRepository.save(teacher)
+        newUser("0779300031", "news.mask.admin@test", Role.ADMIN, "Platform Moderator")
+        val teacherToken = login("news.masked@test")
+        val adminToken = login("news.mask.admin@test")
+
+        val article = objectMapper.readValue(
+            mockMvc.perform(
+                post("/news").header("Authorization", auth(teacherToken))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(CreateNewsRequest(
+                        title = "A quiet act of kindness",
+                        content = "<p>Story body</p>",
+                        category = "News",
+                        maskAuthor = true,
+                    )))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            NewsItemPayload::class.java,
+        )
+        check(article.authorMasked)
+        check(article.author == "Teacher Mwangi") // the author still sees their own name
+        check(article.schoolId == schoolId.toString())
+
+        val publicCopy = objectMapper.readValue(
+            mockMvc.perform(get("/news")).andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<NewsItemPayload>::class.java,
+        ).first { it.id == article.id }
+        check(publicCopy.authorMasked)
+        check(publicCopy.author == "Community contributor")
+        check(publicCopy.schoolId == schoolId.toString())
+
+        // A platform moderator can still attribute the article for moderation.
+        val adminCopy = objectMapper.readValue(
+            mockMvc.perform(get("/news").header("Authorization", auth(adminToken)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<NewsItemPayload>::class.java,
+        ).first { it.id == article.id }
+        check(adminCopy.author == "Teacher Mwangi")
     }
 
     @Test

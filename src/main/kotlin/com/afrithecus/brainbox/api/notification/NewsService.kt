@@ -165,7 +165,8 @@ class NewsService(
     }
 
     @Transactional(readOnly = true)
-    fun listAllForStaff(): List<NewsItemPayload> = repository.findAllByOrderByCreatedAtDesc().map { payload(it, null) }
+    fun listAllForStaff(): List<NewsItemPayload> =
+        repository.findAllByOrderByCreatedAtDesc().map { payload(it, null, null, revealMaskedAuthor = true) }
 
     /**
      * The signed-in author's own articles, all statuses, newest first — the teacher news
@@ -205,6 +206,8 @@ class NewsService(
                 displayName(current)
             }
             authorId = current.userId
+            schoolId = userRepository.findById(current.userId).orElse(null)?.schoolId
+            authorMasked = request.maskAuthor
             this.publishedAt = publishedAt
             this.status = status
             tags = mapper.writeValueAsString(request.tags)
@@ -222,6 +225,7 @@ class NewsService(
         article.content = request.content
         article.imageUrl = normalizeImageUrl(request.imageUrl)
         article.category = request.category.trim().ifBlank { "News" }
+        article.authorMasked = request.maskAuthor
         if (isPlatformAdmin) {
             request.author?.trim()?.takeIf { it.isNotEmpty() }?.let { article.author = it }
             request.publishedAt?.let { article.publishedAt = Instant.ofEpochMilli(it) }
@@ -257,8 +261,11 @@ class NewsService(
         row: NewsItemEntity,
         myVote: String?,
         current: CurrentUser? = null,
+        revealMaskedAuthor: Boolean = false,
     ): NewsItemPayload {
         val published = row.publishedAt ?: row.createdAt
+        val viewerMaySeeByline = revealMaskedAuthor ||
+            (current != null && (current.role == Role.ADMIN || current.userId == row.authorId))
         return NewsItemPayload(
             id = row.id.toString(),
             title = row.title,
@@ -271,7 +278,7 @@ class NewsService(
             userLiked = myVote == "UPVOTE",
             userDisliked = myVote == "DOWNVOTE",
             commentCount = row.commentCount,
-            author = row.author,
+            author = if (row.authorMasked && !viewerMaySeeByline) MASKED_AUTHOR else row.author,
             authorId = if (current != null && (current.role == Role.ADMIN || current.userId == row.authorId)) {
                 row.authorId?.toString()
             } else {
@@ -280,6 +287,8 @@ class NewsService(
             publishedAt = row.publishedAt?.toEpochMilli(),
             status = row.status.name,
             tags = parseList(row.tags),
+            schoolId = row.schoolId?.toString(),
+            authorMasked = row.authorMasked,
         )
     }
 
@@ -395,6 +404,7 @@ class NewsService(
 
     private companion object {
         const val DEFAULT_AUTHOR = "BrainBox Editorial"
+        const val MASKED_AUTHOR = "Community contributor"
         const val DEFAULT_TEACHER_AUTHOR = "BrainBox Teacher"
         val REPORT_REASONS = setOf(
             "Spam or misleading",

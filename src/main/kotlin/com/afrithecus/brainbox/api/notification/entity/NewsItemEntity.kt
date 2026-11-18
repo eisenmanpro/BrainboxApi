@@ -34,6 +34,14 @@ class NewsItemEntity : BaseEntity() {
     @Column(name = "author_id")
     var authorId: UUID? = null
 
+    /** Author's school at publication time; null for platform editorial rows. */
+    @Column(name = "school_id")
+    var schoolId: UUID? = null
+
+    /** When true, public readers see a community byline instead of the author's name. */
+    @Column(name = "author_masked", nullable = false)
+    var authorMasked: Boolean = false
+
     @Column(name = "published_at")
     var publishedAt: Instant? = null
 
