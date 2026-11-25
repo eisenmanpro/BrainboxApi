@@ -208,29 +208,44 @@ class AdminSchoolService(
         val schoolId = requireSchoolId(schoolIdRaw)
         access.require(current, schoolId)
         val classes = classRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
-        return userRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
+        val teachers = userRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
             .filter { it.role == Role.TEACHER }
             .filter { it.isActive }
             .filter { it.verificationStatus == AccountStatus.VERIFIED }
-            // Findings round: the picker must offer every eligible class teacher, not just the
-            // current coordinator, so a change/elevation is one pick. The server invariant keeps
-            // coordinators class teachers (plain TEACHER/ICT_ADMIN accounts are not eligible).
-            .filter { it.subRole == SubRole.CTEACHER || it.subRole == SubRole.GRADE_COORDINATOR }
-            .map { teacher ->
-                CoordinatorCandidatePayload(
-                    userId = teacher.id.toString(),
-                    name = teacher.name,
-                    phoneNumber = teacher.phoneNumber,
-                    gradeLevel = if (teacher.subRole == SubRole.GRADE_COORDINATOR) {
-                        teacher.gradeLevel?.trim()?.takeIf { it.isNotEmpty() }
-                    } else {
-                        null
-                    },
-                    classTeacherOf = classes.firstOrNull { it.teacherUserId == teacher.id }?.name,
-                    subRole = teacher.subRole?.name,
-                )
-            }
-            .sortedBy { it.name.lowercase() }
+            // ICT admins run the console; they are not candidates for a grade chair.
+            .filter { it.subRole != SubRole.ICT_ADMIN }
+        val settings = teacherSettingsRepository.findAllByTeacherIdIn(teachers.map { it.id })
+            .associateBy { it.teacherId }
+        return teachers.mapNotNull { teacher ->
+            val ownedClasses = classes.filter { it.teacherUserId == teacher.id }
+            val settingsRow = settings[teacher.id]
+            val approvedGrades = questionCodec.parseList(settingsRow?.gradesTaught).orEmpty()
+            val approvedSubjects = questionCodec.parseList(settingsRow?.subjectsTaught).orEmpty()
+            val gradeLevels = (ownedClasses.map { it.gradeLevel } + approvedGrades)
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .distinct()
+            // Findings: a grade's coordinator may be a class teacher OR a normal teacher who
+            // teaches at least one subject in that grade. Someone with neither never appears.
+            val isClassTeacher = ownedClasses.isNotEmpty()
+            val teachesSubject = approvedSubjects.isNotEmpty()
+            if (!isClassTeacher && !teachesSubject) return@mapNotNull null
+            CoordinatorCandidatePayload(
+                userId = teacher.id.toString(),
+                name = teacher.name,
+                phoneNumber = teacher.phoneNumber,
+                gradeLevel = if (teacher.subRole == SubRole.GRADE_COORDINATOR) {
+                    teacher.gradeLevel?.trim()?.takeIf { it.isNotEmpty() }
+                } else {
+                    null
+                },
+                classTeacherOf = ownedClasses.firstOrNull()?.name,
+                gradeLevels = gradeLevels,
+                subjects = approvedSubjects.ifEmpty { ownedClasses.map { it.subject }.filter { it.isNotBlank() }.distinct() },
+                isClassTeacher = isClassTeacher,
+                subRole = teacher.subRole?.name,
+            )
+        }.sortedBy { it.name.lowercase() }
     }
 
     /**
@@ -672,11 +687,11 @@ class AdminSchoolService(
         if (teacher.verificationStatus != AccountStatus.VERIFIED) {
             throw conflict("Only approved staff can be assigned a grade to coordinate.")
         }
-        // Server invariant (CoordinatorAssignmentWebTests): only active, approved class
-        // teachers coordinate a grade. The findings-round UX still lists ALL of them in the
-        // picker and replaces the holder in one step; it never elevates ordinary staff accounts.
-        if (teacher.subRole != SubRole.CTEACHER && teacher.subRole != SubRole.GRADE_COORDINATOR) {
-            throw conflict("Only class teachers can coordinate a grade.")
+        // Only active, approved teaching staff coordinate a grade. An ICT admin runs the
+        // console and is never a grade chair; a normal teacher qualifies through the
+        // subject/grade catalogue checked below.
+        if (teacher.subRole == SubRole.ICT_ADMIN) {
+            throw conflict("Only class teachers, or subject teachers who teach in the grade, can coordinate a grade.")
         }
         val coordinators = activeCoordinators(schoolId)
         // One grade per coordinator: a teacher who already leads another grade must be moved
@@ -687,6 +702,19 @@ class AdminSchoolService(
             if (otherGrade != null && !sameGrade(otherGrade, grade)) {
                 throw conflict("This teacher already coordinates " + otherGrade + ". Move that assignment first.")
             }
+        }
+        // A coordinator must teach in the grade they will lead: through an owned class or
+        // through the approved subjects/grades catalogue. The picker offers exactly these,
+        // and the server re-checks so an offline/hand-crafted request cannot elevate an
+        // unrelated teacher.
+        val ownedClasses = classRepository.findAllByTeacherUserIdAndIsActiveTrueOrderByNameAsc(teacher.id)
+        val settings = teacherSettingsRepository.findByTeacherId(teacher.id)
+        val approvedGrades = questionCodec.parseList(settings?.gradesTaught).orEmpty()
+        val approvedSubjects = questionCodec.parseList(settings?.subjectsTaught).orEmpty()
+        val ownsClassInGrade = ownedClasses.any { sameGrade(it.gradeLevel, grade) }
+        val teachesSubjectInGrade = approvedSubjects.isNotEmpty() && approvedGrades.any { sameGrade(it, grade) }
+        if (!ownsClassInGrade && !teachesSubjectInGrade) {
+            throw conflict("Only class teachers, or subject teachers who teach in " + grade + ", can coordinate that grade.")
         }
         val currentHolder = coordinators.firstOrNull { sameGrade(it.gradeLevel, grade) }
         if (currentHolder?.id == teacher.id) return // already this grade's coordinator: idempotent

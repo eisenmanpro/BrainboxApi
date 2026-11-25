@@ -102,6 +102,13 @@ class LiveSignalingHandler(
 
     fun connectionCount(classId: UUID): Int = sessions[classId]?.size ?: 0
 
+    /**
+     * User ids currently connected to a class channel. The host participant panel merges
+     * this real presence with persisted roster rows instead of inventing attendees.
+     */
+    fun presentUserIds(classId: UUID): Set<UUID> =
+        sessions[classId]?.mapNotNull { it.attributes[USER_ID] as? UUID }?.toSet() ?: emptySet()
+
     private fun broadcast(classId: UUID, payload: Any, except: WebSocketSession? = null) {
         val text = mapper.writeValueAsString(payload)
         sessions[classId]?.toList()?.forEach { target ->

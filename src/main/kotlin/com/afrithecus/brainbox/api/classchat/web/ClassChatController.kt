@@ -25,7 +25,7 @@ import org.springframework.web.multipart.MultipartFile
  */
 @RestController
 @RequestMapping("/teacher/class-groups")
-@PreAuthorize("hasAnyRole('TEACHER','CTEACHER','GRADE_COORDINATOR','ICT_ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN','TEACHER','CTEACHER','GRADE_COORDINATOR','ICT_ADMIN')")
 class ClassChatController(private val service: ClassChatService) {
 
     @GetMapping

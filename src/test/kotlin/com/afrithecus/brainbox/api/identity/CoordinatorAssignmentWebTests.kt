@@ -14,6 +14,8 @@ import com.afrithecus.brainbox.api.identity.web.AuditLogEntryPayload
 import com.afrithecus.brainbox.api.identity.web.CoordinatorAssignmentPayload
 import com.afrithecus.brainbox.api.identity.web.CoordinatorCandidatePayload
 import com.afrithecus.brainbox.api.identity.web.GradeConfigSummaryPayload
+import com.afrithecus.brainbox.api.teacher.entity.TeacherSettingsEntity
+import com.afrithecus.brainbox.api.teacher.repository.TeacherSettingsRepository
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -46,6 +48,7 @@ class CoordinatorAssignmentWebTests(
     @Autowired private val userRepository: UserRepository,
     @Autowired private val schoolRepository: SchoolRepository,
     @Autowired private val classRepository: TeacherClassRepository,
+    @Autowired private val teacherSettingsRepository: TeacherSettingsRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
 ) {
 
@@ -171,6 +174,16 @@ class CoordinatorAssignmentWebTests(
         clazz(classTeacher9, "Grade 9", "Grade 9 North")
     }
 
+    private fun subjectTeacher(name: String, phone: String, grade: String): UserEntity {
+        val teacher = user(Role.TEACHER, name, phone, school.id, null, grade)
+        teacherSettingsRepository.save(TeacherSettingsEntity().apply {
+            teacherId = teacher.id
+            gradesTaught = "[\"" + grade + "\"]"
+            subjectsTaught = "[\"Mathematics\"]"
+        })
+        return teacher
+    }
+
     @Test
     fun `candidates are the active approved class teachers of the school`() {
         val t = token(ictAdmin)
@@ -189,6 +202,31 @@ class CoordinatorAssignmentWebTests(
         check(four.phoneNumber == "0755600004")
         val five = rows.first { it.userId == coordinator5.id.toString() }
         check(five.gradeLevel == "Grade 5" && five.classTeacherOf == "Grade 5 West" && five.subRole == "GRADE_COORDINATOR")
+        check(four.isClassTeacher && four.gradeLevels.contains("Grade 4") && four.subjects.isNotEmpty())
+    }
+
+    @Test
+    fun `a normal teacher who teaches a subject in the grade is a candidate and may coordinate it`() {
+        val mathematics = subjectTeacher("Mathematics Teacher", "0755600020", "Grade 4")
+        val t = token(ictAdmin)
+        val rows = candidates(t)
+        val row = rows.first { it.userId == mathematics.id.toString() }
+        check(!row.isClassTeacher && row.gradeLevels.contains("Grade 4")) { "candidate: " + row }
+        check(row.subjects.contains("Mathematics")) { "a normal teacher is listed with their subject" }
+        check(row.classTeacherOf == null)
+        val result = assign(t, "Grade 4", mathematics.id.toString())
+        check(result.coordinatorId == mathematics.id.toString()) { "normal teacher should be able to coordinate their grade" }
+        val reloaded = userRepository.findById(mathematics.id).orElseThrow()
+        check(reloaded.subRole == SubRole.GRADE_COORDINATOR && reloaded.gradeLevel == "Grade 4")
+    }
+
+    @Test
+    fun `a teacher who teaches only another grade cannot coordinate this one`() {
+        val otherGradeTeacher = subjectTeacher("Other Grade Teacher", "0755600021", "Grade 9")
+        val t = token(ictAdmin)
+        val response = assignResponse(t, "Grade 4", "{\"teacherId\":\"" + otherGradeTeacher.id + "\"}")
+        check(response.status == 409) { "expected 409, got " + response.status }
+        check(response.contentAsString.contains("teach in Grade 4")) { response.contentAsString }
     }
 
     @Test

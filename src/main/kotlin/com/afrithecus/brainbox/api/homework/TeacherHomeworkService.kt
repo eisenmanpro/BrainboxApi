@@ -29,6 +29,9 @@ import com.afrithecus.brainbox.api.homework.web.SubmissionPayload
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
+import com.afrithecus.brainbox.api.notification.NotificationService
+import com.afrithecus.brainbox.api.notification.model.NotificationType
+import com.afrithecus.brainbox.api.notification.model.NotificationUrgency
 import com.afrithecus.brainbox.api.traditional.model.ExamTerm
 import com.afrithecus.brainbox.api.exams.QuestionCodec
 import com.afrithecus.brainbox.api.exams.model.QuestionType
@@ -54,6 +57,7 @@ class TeacherHomeworkService(
     private val userRepository: UserRepository,
     private val codec: QuestionCodec,
     private val mapper: ObjectMapper,
+    private val notifications: NotificationService,
     private val clock: Clock,
 ) {
 
@@ -141,8 +145,12 @@ class TeacherHomeworkService(
 
 
     @Transactional(readOnly = true)
-    fun list(teacher: UserEntity): List<HomeworkPayload> =
-        homeworkRepository.findAllByTeacherIdAndIsActiveTrueOrderByDueDateAsc(teacher.id).map(::toPayload)
+    fun list(teacher: UserEntity, includeArchived: Boolean = false): List<HomeworkPayload> =
+        if (includeArchived) {
+            homeworkRepository.findAllByTeacherIdOrderByDueDateAsc(teacher.id).map(::toPayload)
+        } else {
+            homeworkRepository.findAllByTeacherIdAndIsActiveTrueOrderByDueDateAsc(teacher.id).map(::toPayload)
+        }
 
     @Transactional(readOnly = true)
     fun get(teacher: UserEntity, homeworkId: String): HomeworkPayload =
@@ -247,10 +255,42 @@ class TeacherHomeworkService(
                 homeworkId = homework.id,
                 total = subs.size,
                 graded = graded.size,
-                pending = subs.count { it.status != SubmissionStatus.GRADED },
+                // RETURNED work is back with the learner, not waiting on the teacher.
+                pending = subs.count { it.status == SubmissionStatus.PENDING },
                 avg = if (graded.isEmpty()) null else graded.mapNotNull { it.grade }.let { g -> if (g.isEmpty()) null else g.average().toInt() },
             )
         }
+
+    /**
+     * One reminder to a learner who has not submitted. Only the homework's own
+     * teacher may send it, and only while the homework is still open.
+     */
+    @Transactional
+    fun remind(teacher: UserEntity, homeworkId: String, studentIdRaw: String) {
+        val homework = ownHomework(teacher, homeworkId)
+        if (!homework.isActive || homework.isDraft) throw conflict("Only published homework can be reminded")
+        val studentId = runCatching { UUID.fromString(studentIdRaw) }.getOrNull()
+            ?: throw invalidArgument("studentId is not a valid identifier")
+        val student = userRepository.findById(studentId).orElse(null) ?: throw notFound("Student not found")
+        val targeted = codec.parseList(homework.assignedStudentIds) ?: emptyList()
+        if (targeted.isNotEmpty() && studentIdRaw !in targeted) {
+            throw invalidArgument("This homework is not assigned to that learner")
+        }
+        val existing = submissionRepository.findByHomeworkIdAndStudentId(homework.id, studentId)
+        if (existing != null) throw conflict("That learner has already submitted")
+        notifications.notifyUser(
+            userId = student.id,
+            title = "Homework reminder",
+            message = "Reminder: \"" + homework.title + "\" is due " +
+                LocalDate.ofInstant(homework.dueDate, clock.zone) +
+                ". Submit it in Brainbox when you are ready.",
+            type = NotificationType.HOMEWORK,
+            urgency = NotificationUrgency.HIGH,
+            actionRoute = "homework/" + homework.id,
+            actionLabel = "Open homework",
+            metadata = mapOf("kind" to "homework_reminder", "homeworkId" to homework.id),
+        )
+    }
 
     // ------------------------------------------------------------ internals
 

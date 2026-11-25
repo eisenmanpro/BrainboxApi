@@ -28,18 +28,12 @@ class ClassChatSocketHandler(private val mapper: ObjectMapper) : TextWebSocketHa
     }
 
     override fun handleTextMessage(session: WebSocketSession, message: TextMessage) {
-        val groupId = session.attributes[GROUP_ID] as? UUID ?: return
         val node = runCatching { mapper.readTree(message.payload) }.getOrNull() ?: return
-        val type = node.get("type")?.asString()
-        when (type) {
+        when (node.get("type")?.asString()) {
             "heartbeat", "ping" -> sendRaw(session, mapOf("type" to "heartbeat_ack"))
-            "message", "chat_message", "new_message" -> {
-                val body = node.get("message") ?: node
-                broadcast(groupId, mapOf("type" to "message", "message" to body), except = session)
-            }
-            null, "" -> if (node.get("id") != null && node.get("groupId") != null) {
-                broadcast(groupId, node, except = session)
-            }
+            // Messages are written over HTTP (POST .../messages) and fanned out by the
+            // service through broadcastMessage. Relaying a socket-supplied frame would let
+            // a client forge a message for every participant without persistence.
             else -> Unit
         }
     }

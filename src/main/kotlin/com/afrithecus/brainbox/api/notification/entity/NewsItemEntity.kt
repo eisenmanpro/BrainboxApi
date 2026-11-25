@@ -24,6 +24,10 @@ class NewsItemEntity : BaseEntity() {
     @Column(name = "image_url", length = 512)
     var imageUrl: String? = null
 
+    /** Optional photographer/source credit shown with the image; blank when none. */
+    @Column(name = "image_credit", length = 200)
+    var imageCredit: String? = null
+
     @Column(nullable = false, length = 64)
     var category: String = "General"
 

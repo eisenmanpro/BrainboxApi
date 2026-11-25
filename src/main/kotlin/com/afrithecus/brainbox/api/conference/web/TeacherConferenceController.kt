@@ -83,4 +83,31 @@ class TeacherConferenceController(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @PathVariable slotId: String,
     ): String = service.meetLink(teacher(currentUser), slotId)
+
+    // -------------------------------------------------- meeting discussion
+
+    /** The slot's persisted meeting-discussion thread, oldest first. */
+    @GetMapping("/slot/{slotId}/discussion")
+    fun discussion(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable slotId: String,
+    ): List<ConferenceDiscussionPayload> = service.discussionsForSlot(teacher(currentUser), slotId)
+
+    /** Post a discussion message; `id` is a stable client id so an offline replay upserts. */
+    @PostMapping("/slot/{slotId}/discussion")
+    fun postDiscussion(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable slotId: String,
+        @RequestBody message: ConferenceDiscussionPayload,
+    ): ConferenceDiscussionPayload = service.postDiscussion(teacher(currentUser), slotId, message)
+
+    @DeleteMapping("/slot/{slotId}/discussion/{discussionId}")
+    fun deleteDiscussion(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable slotId: String,
+        @PathVariable discussionId: String,
+    ): ResponseEntity<Void> {
+        service.deleteDiscussion(teacher(currentUser), slotId, discussionId)
+        return ResponseEntity.noContent().build()
+    }
 }

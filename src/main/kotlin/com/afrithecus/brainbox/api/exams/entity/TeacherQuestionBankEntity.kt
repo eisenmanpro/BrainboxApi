@@ -59,4 +59,14 @@ class TeacherQuestionBankEntity : BaseEntity() {
 
     @Column(name = "grade_level")
     var gradeLevel: Int? = null
+
+    /** Provenance of a question saved from a paper (or re-saved from another bank entry). */
+    @Column(name = "source_kind", length = 32)
+    var sourceKind: String? = null
+
+    @Column(name = "source_ref", length = 160)
+    var sourceRef: String? = null
+
+    @Column(name = "source_label", length = 255)
+    var sourceLabel: String? = null
 }

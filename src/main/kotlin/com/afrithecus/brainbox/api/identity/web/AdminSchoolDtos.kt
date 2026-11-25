@@ -65,6 +65,12 @@ data class CoordinatorCandidatePayload(
     val gradeLevel: String? = null,
     /** The class they lead, when they lead one. */
     val classTeacherOf: String? = null,
+    /** Every grade they currently teach (owned class or approved grades taught). */
+    val gradeLevels: List<String> = emptyList(),
+    /** Subjects the teacher is approved to teach; a normal teacher qualifies through these. */
+    val subjects: List<String> = emptyList(),
+    /** True when they own at least one class in the school. */
+    val isClassTeacher: Boolean = false,
     val subRole: String? = null,
 )
 

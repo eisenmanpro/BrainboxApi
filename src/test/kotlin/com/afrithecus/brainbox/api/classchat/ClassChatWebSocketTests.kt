@@ -169,6 +169,89 @@ class ClassChatWebSocketTests(
     }
 
     @Test
+    fun `handshake accepts the browser query-param token and refuses a mismatched userId`() {
+        val teacher = user(Role.TEACHER, "Token Teacher", "0755110012")
+        val clazz = classRepository.save(TeacherClassEntity().apply {
+            teacherUserId = teacher.id
+            name = "Grade 4 Token"
+            gradeLevel = "Grade 4"
+            subject = "Mathematics"
+            isActive = true
+        })
+        val group = groupRepository.save(ClassGroupEntity().apply {
+            classId = clazz.id
+            teacherId = teacher.id
+            teacherName = teacher.name
+            name = "Grade 4 Token Chat"
+        })
+        val token = jwtTokenService.issueAccessToken(teacher.id, Role.TEACHER)
+        // A browser cannot set headers on the handshake; token + matching userId in the URL works.
+        val accepted = runCatching {
+            HttpClient.newHttpClient().newWebSocketBuilder()
+                .buildAsync(
+                    URI.create("ws://localhost:" + port + "/ws/teacher/class-chat/" + group.id +
+                        "?token=" + token + "&userId=" + teacher.id),
+                    WsClient(LinkedBlockingQueue()),
+                )
+                .join()
+        }
+        check(accepted.isSuccess) { "query-token socket was rejected" }
+        runCatching { accepted.getOrNull()?.abort() }
+
+        // A caller cannot spoof another user's id alongside a valid token.
+        val spoofed = runCatching {
+            HttpClient.newHttpClient().newWebSocketBuilder()
+                .buildAsync(
+                    URI.create("ws://localhost:" + port + "/ws/teacher/class-chat/" + group.id +
+                        "?token=" + token + "&userId=" + java.util.UUID.randomUUID()),
+                    WsClient(LinkedBlockingQueue()),
+                )
+                .join()
+        }
+        check(spoofed.isFailure) { "mismatched userId was accepted" }
+    }
+
+    @Test
+    fun `socket frames cannot forge a message for other participants`() {
+        val teacher = user(Role.TEACHER, "Frame Teacher", "0755110013")
+        val student = user(Role.STUDENT, "Frame Learner", "0755110014")
+        val clazz = classRepository.save(TeacherClassEntity().apply {
+            teacherUserId = teacher.id
+            name = "Grade 4 Frames"
+            gradeLevel = "Grade 4"
+            subject = "Mathematics"
+            isActive = true
+        })
+        val group = groupRepository.save(ClassGroupEntity().apply {
+            classId = clazz.id
+            teacherId = teacher.id
+            teacherName = teacher.name
+            name = "Grade 4 Frames Chat"
+        })
+        memberRepository.save(ClassGroupMemberEntity().apply {
+            groupId = group.id
+            memberId = student.id
+            memberName = student.name
+            memberRole = "STUDENT"
+        })
+        val teacherToken = jwtTokenService.issueAccessToken(teacher.id, Role.TEACHER)
+        val studentToken = jwtTokenService.issueAccessToken(student.id, Role.STUDENT)
+        val (teacherWs, _) = connect("/ws/teacher/class-chat/" + group.id, teacherToken)
+        val (studentWs, studentQueue) = connect("/ws/student/class-chat/" + group.id, studentToken)
+        try {
+            teacherWs.sendText(
+                objectMapper.writeValueAsString(mapOf("type" to "message", "message" to mapOf("id" to "forged", "text" to "spoof"))),
+                true,
+            )
+            // Only the HTTP write path may fan out a message; a socket frame is ignored.
+            check(studentQueue.poll(1500, TimeUnit.MILLISECONDS) == null) { "a socket-supplied message was relayed" }
+        } finally {
+            runCatching { teacherWs.abort() }
+            runCatching { studentWs.abort() }
+        }
+    }
+
+    @Test
     fun `class group poll create is idempotent per client poll id`() {
         val teacher = user(Role.TEACHER, "Poll Teacher", "0755110021")
         val clazz = classRepository.save(TeacherClassEntity().apply {

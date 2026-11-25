@@ -180,7 +180,7 @@ class TraditionalExamScopeWebTests(
     }
 
     @Test
-    fun `a plain class-owning teacher can request an edit while a coordinator cannot`() {
+    fun `a plain class-owning teacher can request an edit and both queues see it`() {
         // A stored mark the teacher is asking to correct (oldScore must match it).
         markRepository.save(TraditionalMarkEntity().apply {
             examId = exam.id
@@ -222,14 +222,6 @@ class TraditionalExamScopeWebTests(
         }
         check(queue(teacherToken).any { it.id == created.id })
         check(queue(token(coordinator)).any { it.id == created.id })
-
-        // Coordinators edit directly: their request is refused.
-        mockMvc.perform(
-            post("/traditional/exams/" + exam.id + "/edit-requests")
-                .header("Authorization", "Bearer " + token(coordinator))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(body)),
-        ).andExpect(status().isForbidden)
     }
 
     @Test
@@ -251,4 +243,116 @@ class TraditionalExamScopeWebTests(
         check(response.contains("between 0 and 100")) { "message=" + response }
         check(response.contains("120")) { "message=" + response }
     }
+
+    @Test
+    fun `an ordinary class teacher is locked to one class per capture session`() {
+        val teacherToken = token(classTeacher)
+        val lion = MarkEntryDto(otherLearner.id.toString(), "MAT", 55, classId = otherClass.id.toString())
+        mockMvc.perform(
+            post("/traditional/exams/" + exam.id + "/marks")
+                .header("Authorization", "Bearer " + teacherToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(lion))),
+        ).andExpect(status().isOk)
+
+        // The lock is surfaced so the client can restore it after a refresh.
+        val classesJson = mockMvc.perform(
+            get("/traditional/exams/" + exam.id + "/capture-classes")
+                .header("Authorization", "Bearer " + teacherToken),
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val classes = objectMapper.readTree(classesJson)
+        check(classes.any { it.get("lockedClassName")?.asString() == "Lion" }) { "classes=" + classesJson }
+
+        // A third class in the same grade is refused while the session is locked to Lion.
+        val otherOwner = teacher("Other Class Owner", "0755500013", null, "Grade 5")
+        val tiger = classRepository.save(TeacherClassEntity().apply {
+            teacherUserId = otherOwner.id; schoolId = school.id; name = "Tiger"; gradeLevel = "Grade 5"; subject = "Mathematics"; isActive = true
+        })
+        val tigerLearner = learner("Tiger Learner", "0755500012", "Grade 5", tiger.id)
+        val switched = MarkEntryDto(tigerLearner.id.toString(), "MAT", 60, classId = tiger.id.toString())
+        val refused = mockMvc.perform(
+            post("/traditional/exams/" + exam.id + "/marks")
+                .header("Authorization", "Bearer " + teacherToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(switched))),
+        ).andExpect(status().isConflict).andReturn().response.contentAsString
+        check(refused.contains("locked")) { "message=" + refused }
+
+        // A coordinator also captures another class, never their own (Lion is theirs).
+        val coordinatorToken = token(coordinator)
+        mockMvc.perform(
+            post("/traditional/exams/" + exam.id + "/marks")
+                .header("Authorization", "Bearer " + coordinatorToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(lion))),
+        ).andExpect(status().isForbidden)
+        mockMvc.perform(
+            post("/traditional/exams/" + exam.id + "/marks")
+                .header("Authorization", "Bearer " + coordinatorToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(switched))),
+        ).andExpect(status().isOk)
+    }
+
+    @Test
+    fun `class binding prevents two teachers sharing a class and skips the caller's own class`() {
+        val otherOwner = teacher("Bind Owner", "0755500014", null, "Grade 5")
+        exam.status = TraditionalExamStatus.IN_PROGRESS
+        examRepository.save(exam)
+        val tiger = classRepository.save(TeacherClassEntity().apply {
+            teacherUserId = otherOwner.id; schoolId = school.id; name = "Tiger"; gradeLevel = "Grade 5"; subject = "Mathematics"; isActive = true
+        })
+        val coordinatorToken = token(coordinator)
+        // Coordinators cannot bind their own class (Lion).
+        mockMvc.perform(
+            post("/traditional/exams/" + exam.id + "/capture-class")
+                .header("Authorization", "Bearer " + coordinatorToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"classId\":\"" + otherClass.id + "\"}"),
+        ).andExpect(status().isForbidden)
+
+        // They can bind another class; the second teacher then sees the conflict with a name.
+        mockMvc.perform(
+            post("/traditional/exams/" + exam.id + "/capture-class")
+                .header("Authorization", "Bearer " + coordinatorToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"classId\":\"" + tiger.id + "\"}"),
+        ).andExpect(status().isOk)
+        val conflict = mockMvc.perform(
+            post("/traditional/exams/" + exam.id + "/capture-class")
+                .header("Authorization", "Bearer " + token(classTeacher))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"classId\":\"" + tiger.id + "\"}"),
+        ).andExpect(status().isConflict).andReturn().response.contentAsString
+        check(conflict.contains("Grade 5 Coordinator")) { "conflict must name the holder: " + conflict }
+
+        // The captured class list hides the class held by the coordinator.
+        val classes = objectMapper.readTree(
+            mockMvc.perform(
+                get("/traditional/exams/" + exam.id + "/capture-classes")
+                    .header("Authorization", "Bearer " + token(classTeacher)),
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+        )
+        check(classes.none { it.get("name")?.asString() == "Tiger" && it.get("allowed")?.asBoolean() == true }) { "taken class still selectable: " + classes }
+    }
+
+
+    @Test
+    fun `a coordinator correction after finalization reopens the session`() {
+        exam.status = TraditionalExamStatus.FINALIZED
+        exam.finalizedAt = java.time.Instant.now()
+        exam.finalizedBy = coordinator.id
+        examRepository.save(exam)
+        val corrected = MarkEntryDto(otherLearner.id.toString(), "MAT", 88, classId = otherClass.id.toString())
+        mockMvc.perform(
+            post("/traditional/exams/" + exam.id + "/marks")
+                .header("Authorization", "Bearer " + token(coordinator))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(listOf(corrected))),
+        ).andExpect(status().isOk)
+        val reloaded = examRepository.findById(exam.id).orElseThrow()
+        check(reloaded.status == TraditionalExamStatus.IN_PROGRESS) { "coordinator edit must reopen capture, got " + reloaded.status }
+        check(reloaded.finalizedAt == null && reloaded.finalizedBy == null) { "old finalization must not survive the correction" }
+    }
+
 }

@@ -795,7 +795,7 @@ class TraditionalExamWebTests(
                 .andExpect(status().isOk).andReturn().response.contentAsString,
             Array<TraditionalClassDto>::class.java,
         )
-        check(classes.first { it.name == "Grade 3A" }.allowed.not())
+        check(classes.none { it.name == "Grade 3A" }) { "the caller's own class must not be offered for capture: " + classes.map { it.name } }
         check(classes.first { it.name == "Grade 3B" }.allowed)
         mockMvc.perform(
             get("/traditional/exams/${exam.examId}/students").param("grade", "Grade 3A")

@@ -12,11 +12,14 @@ import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.web.SchoolClassPayload
 import com.afrithecus.brainbox.api.identity.web.SchoolConfigPayload
+import com.afrithecus.brainbox.api.identity.web.TermDatePayload
 import com.afrithecus.brainbox.api.media.MediaObjectService
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
 import java.time.Clock
+import java.time.LocalDate
+import java.time.format.DateTimeParseException
 import java.util.UUID
 
 /**
@@ -78,6 +81,7 @@ class SchoolConfigService(
         entity.email = request.email?.trim()?.takeIf { it.isNotEmpty() }
         entity.watermarkText = request.watermarkText?.trim()?.takeIf { it.isNotEmpty() }
         entity.academicCalendar = codec.toJson(request.academicCalendar.filter { it.isNotBlank() })
+        request.termDates?.let { entity.termDates = mapper.writeValueAsString(cleanTermDates(it)) }
         entity.cbcStrands = codec.toJson(request.cbcStrands.filter { it.isNotBlank() })
         entity.rooms = codec.toJson(cleanRooms(request.rooms))
         request.classes?.let { entity.classes = mapper.writeValueAsString(cleanClasses(it)) }
@@ -217,6 +221,21 @@ class SchoolConfigService(
         if (request.academicCalendar.size > MAX_CALENDAR_TERMS) {
             throw invalidArgument("academicCalendar must have at most " + MAX_CALENDAR_TERMS + " entries")
         }
+        request.termDates?.let { terms ->
+            if (terms.size > MAX_CALENDAR_TERMS) {
+                throw invalidArgument("termDates must have at most " + MAX_CALENDAR_TERMS + " entries")
+            }
+            val names = mutableSetOf<String>()
+            terms.forEach { term ->
+                val name = term.name.trim()
+                if (name.isEmpty()) throw invalidArgument("Every term needs a name")
+                if (name.length > MAX_TERM_NAME) throw invalidArgument("Term names must be at most " + MAX_TERM_NAME + " characters")
+                if (!names.add(name.lowercase())) throw invalidArgument("Term names must be unique")
+                val start = parseTermDate(term.start)
+                val end = parseTermDate(term.end)
+                if (start.isAfter(end)) throw invalidArgument("Term " + name + " starts after it ends")
+            }
+        }
         request.galleryUrls?.let { gallery ->
             if (gallery.size > MAX_GALLERY) {
                 throw invalidArgument("galleryUrls must have at most " + MAX_GALLERY + " entries")
@@ -335,6 +354,29 @@ class SchoolConfigService(
     private fun cleanGalleryUrls(urls: List<String>): List<String> =
         urls.map { it.trim() }.filter { it.isNotEmpty() }.distinct().take(MAX_GALLERY)
 
+    private fun parseTermDate(raw: String): LocalDate =
+        try {
+            LocalDate.parse(raw.trim())
+        } catch (failure: DateTimeParseException) {
+            throw invalidArgument("Term dates must use yyyy-MM-dd")
+        }
+
+    private fun cleanTermDates(terms: List<TermDatePayload>): List<TermDatePayload> =
+        terms.map { term ->
+            TermDatePayload(
+                name = term.name.trim(),
+                start = parseTermDate(term.start).toString(),
+                end = parseTermDate(term.end).toString(),
+            )
+        }
+
+    private fun parseTermDates(raw: String?): List<TermDatePayload> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return runCatching {
+            mapper.readValue(raw, Array<TermDatePayload>::class.java).toList()
+        }.getOrElse { emptyList() }
+    }
+
     /** Trim, drop blanks and de-duplicate while preserving the caller's order. */
     private fun cleanRooms(rooms: List<String>): List<String> =
         rooms.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
@@ -357,6 +399,7 @@ class SchoolConfigService(
             email = entity?.email,
             watermarkText = entity?.watermarkText,
             academicCalendar = codec.parseList(entity?.academicCalendar).orEmpty(),
+            termDates = parseTermDates(entity?.termDates),
             cbcStrands = codec.parseList(entity?.cbcStrands).orEmpty(),
             rooms = codec.parseList(entity?.rooms).orEmpty(),
             classes = parseClasses(entity?.classes),
@@ -405,6 +448,7 @@ class SchoolConfigService(
         const val MAX_WATERMARK = 120
         const val MAX_IMAGE_URL = 2048
         const val MAX_CALENDAR_TERMS = 12
+        const val MAX_TERM_NAME = 80
         const val MAX_ROOMS = 100
         const val MAX_ROOM_NAME = 120
         const val MAX_CLASSES = 200

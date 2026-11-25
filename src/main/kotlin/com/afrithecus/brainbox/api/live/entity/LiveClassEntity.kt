@@ -47,6 +47,21 @@ class LiveClassEntity : BaseEntity() {
     @Column(name = "scheduled_end", nullable = false)
     var scheduledEnd: Instant = Instant.now()
 
+    /** Set by the first successful start; survives a host page refresh. */
+    @Column(name = "started_at")
+    var startedAt: Instant? = null
+
+    /** Set by end; a COMPLETED class can never be started again. */
+    @Column(name = "ended_at")
+    var endedAt: Instant? = null
+
+    /**
+     * Last host heartbeat while LIVE. A stalled value (host tab closed, network gone)
+     * is what lets the stale-session sweeper close a broadcast nobody is hosting.
+     */
+    @Column(name = "last_host_seen_at")
+    var lastHostSeenAt: Instant? = null
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     var status: LiveClassStatus = LiveClassStatus.SCHEDULED
@@ -56,6 +71,10 @@ class LiveClassEntity : BaseEntity() {
 
     @Column(name = "recording_url", length = 512)
     var recordingUrl: String? = null
+
+    /** Real length of the uploaded recording; null for a session with no upload. */
+    @Column(name = "recording_duration_seconds")
+    var recordingDurationSeconds: Int? = null
 
     @Column(name = "max_participants", nullable = false)
     var maxParticipants: Int = 100

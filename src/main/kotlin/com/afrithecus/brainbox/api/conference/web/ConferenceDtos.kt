@@ -55,3 +55,19 @@ data class ConferenceBookingPayload(
      */
     val linkedLiveClassId: String? = null,
 )
+
+/**
+ * A persisted message in a slot's meeting discussion (audit 3).
+ *
+ * `id` is the client id: the same value is echoed back and used as the delete
+ * key, so an offline replay upserts instead of duplicating per (slot, id).
+ */
+data class ConferenceDiscussionPayload(
+    val id: String = "",
+    val slotId: String = "",
+    val authorId: String = "",
+    val authorName: String = "",
+    val authorRole: String = "",
+    val body: String = "",
+    val createdAt: Long = 0,
+)

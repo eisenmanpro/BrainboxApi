@@ -15,6 +15,8 @@ data class AdminClassPayload(
     /** The class teacher's account id, null when the class is unassigned. */
     val teacherUserId: String? = null,
     val teacherName: String? = null,
+    /** False when the owner account is missing or deactivated, i.e. the class needs a teacher. */
+    val teacherActive: Boolean = false,
     /** Free-text subject the class is taught under (teacher_classes.subject). */
     val subject: String = "General",
     val studentCount: Int = 0,

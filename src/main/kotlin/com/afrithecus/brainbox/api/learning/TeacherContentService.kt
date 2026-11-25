@@ -29,6 +29,8 @@ import com.afrithecus.brainbox.api.media.MediaService
 import org.springframework.web.multipart.MultipartFile
 import com.afrithecus.brainbox.api.learning.web.ContentAnalyticsPayload
 import com.afrithecus.brainbox.api.learning.web.MaterialUpdateRequest
+import com.afrithecus.brainbox.api.learning.web.PublicMaterialPayload
+import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.learning.web.StudentEngagementPayload
 import com.afrithecus.brainbox.api.learning.web.TeacherContentDraftPayload
 import com.afrithecus.brainbox.api.learning.web.TeacherContentPayload
@@ -58,6 +60,7 @@ class TeacherContentService(
     private val userRepository: UserRepository,
     private val codec: QuestionCodec,
     private val provenanceService: ContentProvenanceService,
+    private val schoolRepository: SchoolRepository,
     private val clock: Clock,
 ) {
 
@@ -79,6 +82,65 @@ class TeacherContentService(
             .filter { filter == null || (it.contentTypeLabel ?: it.contentType.name) == filter }
             .sortedWith(compareBy({ it.postId }, { it.orderIndex }))
             .map(::contentPayload)
+    }
+
+    /**
+     * Other schools' shared materials (findings: public content). Only GLOBAL, published
+     * posts are listed; the caller's own school and content are excluded because the
+     * browse tab sits beside their own materials. The metadata is included so a "Use"
+     * copy keeps quiz answers and auto-marking working exactly like the original.
+     */
+    @Transactional(readOnly = true)
+    fun publicMaterials(
+        teacher: UserEntity,
+        type: String?,
+        subject: String?,
+        gradeLevel: String?,
+        query: String?,
+    ): List<PublicMaterialPayload> {
+        requireTeacher(teacher)
+        val wantedType = type?.takeIf { it.isNotBlank() }?.let { materialType(it) }
+        val wantedSubject = subject?.trim()?.takeIf { it.isNotEmpty() }
+        val wantedGrade = gradeLevel?.trim()?.takeIf { it.isNotEmpty() }
+        val needle = query?.trim()?.takeIf { it.isNotEmpty() }
+        val posts = postRepository.findAllByIsPublishedTrue()
+            .filter { it.scope == LearningScope.GLOBAL && it.status == PUBLISHED }
+            .filter { it.createdBy != teacher.id }
+            .filter { teacher.schoolId == null || it.schoolId == null || it.schoolId != teacher.schoolId }
+            .filter { wantedSubject == null || it.subject.contains(wantedSubject, ignoreCase = true) }
+            .filter { wantedGrade == null || (it.gradeLevel ?: "").contains(wantedGrade, ignoreCase = true) }
+            .filter { needle == null || it.title.contains(needle, ignoreCase = true) ||
+                (it.description ?: "").contains(needle, ignoreCase = true) ||
+                (it.topic ?: "").contains(needle, ignoreCase = true) ||
+                it.subject.contains(needle, ignoreCase = true) }
+        if (posts.isEmpty()) return emptyList()
+        val postById = posts.associateBy { it.id }
+        val blocks = contentRepository.findAllByPostIdIn(posts.map { it.id })
+            .filter { wantedType == null || (it.contentTypeLabel ?: it.contentType.name) == wantedType }
+        val authorNames = userRepository.findAllById(posts.map { it.createdBy }.distinct()).associate { it.id to it.name }
+        val schoolNames = schoolRepository.findAllById(posts.mapNotNull { it.schoolId }.distinct()).associate { it.id to it.name }
+        return blocks.mapNotNull { block ->
+            val post = postById[block.postId] ?: return@mapNotNull null
+            PublicMaterialPayload(
+                materialId = block.id.toString(),
+                postId = post.id.toString(),
+                type = block.contentTypeLabel ?: block.contentType.name,
+                title = block.title?.takeIf { it.isNotBlank() } ?: post.title,
+                description = post.description.orEmpty(),
+                content = block.content.orEmpty(),
+                subject = post.subject,
+                gradeLevel = post.gradeLevel.orEmpty(),
+                topic = post.topic.orEmpty(),
+                cbcStrand = post.cbcStrand,
+                cbcSubStrand = post.cbcSubStrand,
+                durationMinutes = block.durationMinutes,
+                thumbnailUrl = block.thumbnailUrl ?: post.imageUrl,
+                metadata = block.metadata,
+                schoolName = post.schoolId?.let { schoolNames[it] }.orEmpty(),
+                authorName = authorNames[post.createdBy].orEmpty(),
+                createdAt = post.createdAt.toEpochMilli(),
+            )
+        }.sortedByDescending { it.createdAt }
     }
 
     /** Upserts a post by its client id (a UUID); a replayed create converges. */

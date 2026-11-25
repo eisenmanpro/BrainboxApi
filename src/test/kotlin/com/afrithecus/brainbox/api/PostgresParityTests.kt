@@ -75,7 +75,7 @@ class PostgresParityTests(
                     "teacher_feedback_templates", "teacher_feedback",
                     "learning_contracts", "learning_contract_commitments", "contract_templates",
                     "teacher_settings", "cbc_strands", "cbc_ratings",
-                    "conference_slots", "conference_bookings",
+                    "conference_slots", "conference_bookings", "conference_discussions",
                     "school_configs", "report_jobs", "report_schedules", "report_downloads",
                     "school_registration_requests",
                     "school_system_settings", "audit_logs", "school_backups",

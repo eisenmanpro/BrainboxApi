@@ -68,6 +68,12 @@ data class QuestionPayload(
     val matchingRight: List<String>? = null,
     val topic: String? = null,
     val subtopic: String? = null,
+    /** Where the question came from: AUTHORED (default), BANK or PAPER. */
+    val sourceKind: String? = null,
+    /** Stable reference of that source (bank client id, or the paper/exam id or code). */
+    val sourceRef: String? = null,
+    /** Human label shown next to the question (paper title, "Question bank"). */
+    val sourceLabel: String? = null,
 )
 
 /** Hub card (doc 02 §2.2). */

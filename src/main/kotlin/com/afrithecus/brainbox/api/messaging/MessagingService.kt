@@ -56,9 +56,15 @@ class MessagingService(
     private val classRepository: TeacherClassRepository,
     private val membershipRepository: ClassMembershipRepository,
     private val notificationService: NotificationService,
+    private val schoolRepository: com.afrithecus.brainbox.api.identity.repository.SchoolRepository,
     private val mapper: ObjectMapper,
     private val clock: Clock,
 ) {
+    private companion object {
+        val MESSAGE_CATEGORIES = setOf("GENERAL", "ACADEMIC", "ADMIN", "SUPPORT", "COUNSELING")
+        const val SCOPE_OTHER_SCHOOL_ADMINS = "OTHER_SCHOOL_ADMINS"
+    }
+
 
     private data class EligibilityScope(
         val schoolWide: Boolean,
@@ -78,8 +84,9 @@ class MessagingService(
         val msgGroup = clientMessageId ?: generateMessageId(sender.id)
         replay(msgGroup, sender.id)?.let { return it }
         val threadId = resolveThreadId(msgGroup, request.parentMessageId)
-        val sent = saveRow(msgGroup, sender.id, recipient.id, request.subject, request.body, request.attachments, Folder.sent, threadId, request.parentMessageId)
-        saveRow(msgGroup, sender.id, recipient.id, request.subject, request.body, request.attachments, Folder.inbox, threadId, request.parentMessageId)
+        val category = normalizeCategory(request.category)
+        val sent = saveRow(msgGroup, sender.id, recipient.id, request.subject, request.body, request.attachments, Folder.sent, threadId, request.parentMessageId, category = category, priority = request.priority)
+        saveRow(msgGroup, sender.id, recipient.id, request.subject, request.body, request.attachments, Folder.inbox, threadId, request.parentMessageId, category = category, priority = request.priority)
         notifyRecipients(sender, listOf(recipient), threadId, sent.id, request.subject, request.body)
         return toPayload(sent, sender, recipient, statusOf(sent, emptyMap()))
     }
@@ -93,31 +100,33 @@ class MessagingService(
         val msgGroup = clientMessageId ?: generateMessageId(teacher.id)
         replay(msgGroup, teacher.id)?.let { return it }
         val threadId = resolveThreadId(msgGroup, request.parentMessageId)
+        val category = normalizeCategory(request.category)
+        val priority = request.priority
 
         when (audience) {
             AudienceType.INDIVIDUAL -> {
                 val recipient = request.recipientId?.let { resolveUser(it, "recipientId") }
                     ?: throw invalidArgument("recipientId is required for INDIVIDUAL")
                 assertCanMessage(teacher, recipient)
-                val sent = saveRow(msgGroup, teacher.id, recipient.id, request.subject, request.body, request.attachments, Folder.sent, threadId, request.parentMessageId)
-                saveRow(msgGroup, teacher.id, recipient.id, request.subject, request.body, request.attachments, Folder.inbox, threadId, request.parentMessageId)
+                val sent = saveRow(msgGroup, teacher.id, recipient.id, request.subject, request.body, request.attachments, Folder.sent, threadId, request.parentMessageId, category = category, priority = priority)
+                saveRow(msgGroup, teacher.id, recipient.id, request.subject, request.body, request.attachments, Folder.inbox, threadId, request.parentMessageId, category = category, priority = priority)
                 notifyRecipients(teacher, listOf(recipient), threadId, sent.id, request.subject, request.body)
                 return toPayload(sent, teacher, recipient, statusOf(sent, emptyMap()))
             }
             AudienceType.CLASS -> {
                 val students = rosterOfOwnedClass(teacher, request.audienceId)
-                val sent = saveRow(msgGroup, teacher.id, null, request.subject, request.body, request.attachments, Folder.sent, threadId, request.parentMessageId)
+                val sent = saveRow(msgGroup, teacher.id, null, request.subject, request.body, request.attachments, Folder.sent, threadId, request.parentMessageId, category = category, priority = priority)
                 students.forEach { student ->
-                    saveRow(msgGroup, teacher.id, student.id, request.subject, request.body, request.attachments, Folder.inbox, threadId, request.parentMessageId)
+                    saveRow(msgGroup, teacher.id, student.id, request.subject, request.body, request.attachments, Folder.inbox, threadId, request.parentMessageId, category = category, priority = priority)
                 }
                 notifyRecipients(teacher, students, threadId, sent.id, request.subject, request.body)
                 return toPayload(sent, teacher, null, statusOf(sent, emptyMap()))
             }
             AudienceType.CLASS_PARENTS -> {
                 val students = rosterOfOwnedClass(teacher, request.audienceId)
-                val sent = saveRow(msgGroup, teacher.id, null, request.subject, request.body, request.attachments, Folder.sent, threadId, request.parentMessageId)
+                val sent = saveRow(msgGroup, teacher.id, null, request.subject, request.body, request.attachments, Folder.sent, threadId, request.parentMessageId, category = category, priority = priority)
                 students.forEach { student ->
-                    saveRow(msgGroup, teacher.id, student.id, request.subject, request.body, request.attachments, Folder.inbox, threadId, request.parentMessageId, intendedForParent = true)
+                    saveRow(msgGroup, teacher.id, student.id, request.subject, request.body, request.attachments, Folder.inbox, threadId, request.parentMessageId, intendedForParent = true, category = category, priority = priority)
                 }
                 notifyRecipients(teacher, students, threadId, sent.id, request.subject, request.body)
                 return toPayload(sent, teacher, null, statusOf(sent, emptyMap()))
@@ -231,7 +240,15 @@ class MessagingService(
         val id = runCatching { UUID.fromString(messageIdRaw) }.getOrNull()
             ?: throw invalidArgument("message id is not a valid identifier")
         val message = messageRepository.findById(id).orElse(null) ?: throw notFound("Message not found")
-        if (message.senderId != user.id && message.recipientId != user.id) {
+        // Ownership is per COPY, not per participant: the sender owns the SENT row and
+        // the recipient owns the INBOX row. Checking either id let a recipient archive
+        // the sender's copy (and vice versa), hiding the conversation for the other side.
+        val owns = when (message.folder) {
+            Folder.sent -> message.senderId == user.id
+            Folder.inbox -> message.recipientId == user.id
+            Folder.outbox -> message.senderId == user.id
+        }
+        if (!owns) {
             throw ApiException(ApiErrorCode.FORBIDDEN, "Not your message")
         }
         return message
@@ -246,7 +263,11 @@ class MessagingService(
         gradeRaw: String?,
         classIdRaw: String?,
         queryRaw: String?,
+        scopeRaw: String? = null,
     ): List<MessageRecipientPayload> {
+        if (scopeRaw?.trim()?.uppercase() == SCOPE_OTHER_SCHOOL_ADMINS) {
+            return otherSchoolAdmins(viewer, queryRaw)
+        }
         val schoolId = viewer.schoolId ?: return emptyList()
         val classes = classRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
         val memberships = if (classes.isEmpty()) emptyList() else membershipRepository.findAllByClassIdIn(classes.map { it.id })
@@ -295,6 +316,42 @@ class MessagingService(
                 )
             }
             .sortedWith(compareBy<MessageRecipientPayload>({ roleRank(it.role) }, { it.name.lowercase() }))
+    }
+
+    /**
+     * The admin-only cross-school directory: active ICT admins of every OTHER school.
+     * "Admins only" is enforced on both the read and the send, so a teacher can never
+     * discover or message a peer through this path.
+     */
+    private fun otherSchoolAdmins(viewer: UserEntity, queryRaw: String?): List<MessageRecipientPayload> {
+        if (!isAdmin(viewer)) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "Only school administrators can message other schools' admins")
+        }
+        val needle = queryRaw?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+        val rows = userRepository.findAllByRoleAndSubRoleAndIsActiveTrue(Role.TEACHER, SubRole.ICT_ADMIN)
+            .filter { it.id != viewer.id && it.schoolId != null && it.schoolId != viewer.schoolId }
+        val schools = if (rows.isEmpty()) emptyMap() else
+            schoolRepository.findAllById(rows.mapNotNull { it.schoolId }).associateBy { it.id }
+        return rows.mapNotNull { candidate ->
+            val schoolName = candidate.schoolId?.let { schools[it]?.name }
+            if (needle != null && !candidate.name.lowercase().contains(needle) &&
+                !schoolName.orEmpty().lowercase().contains(needle) &&
+                !candidate.phoneNumber.orEmpty().contains(needle)
+            ) {
+                return@mapNotNull null
+            }
+            MessageRecipientPayload(
+                id = candidate.id.toString(),
+                name = candidate.name,
+                role = candidate.role.name,
+                subRole = candidate.subRole?.name,
+                gradeLevel = null,
+                classIds = emptyList(),
+                classNames = emptyList(),
+                relationship = "Admin, other school",
+                schoolName = schoolName,
+            )
+        }.sortedBy { it.schoolName.orEmpty().lowercase() + it.name.lowercase() }
     }
 
     // ------------------------------------------------- school member dir
@@ -372,6 +429,9 @@ class MessagingService(
     private fun assertCanMessage(sender: UserEntity, recipient: UserEntity) {
         if (recipient.id == PlatformSender.USER_ID) return
         if (sender.role == Role.ADMIN) return
+        // School administrators may reach each other across schools (findings messages #3).
+        // Everyone else keeps the same-school rule below.
+        if (isAdmin(sender) && isAdmin(recipient)) return
         if (sender.schoolId == null || sender.schoolId != recipient.schoolId) {
             throw ApiException(ApiErrorCode.FORBIDDEN, "Recipient is not in your school")
         }
@@ -386,7 +446,9 @@ class MessagingService(
         }
     }
 
-    private fun isSchoolWide(user: UserEntity): Boolean =
+    private fun isSchoolWide(user: UserEntity): Boolean = isAdmin(user)
+
+    private fun isAdmin(user: UserEntity): Boolean =
         user.role == Role.ADMIN || (user.role == Role.TEACHER && user.subRole == SubRole.ICT_ADMIN)
 
     private fun classesOf(
@@ -526,6 +588,8 @@ class MessagingService(
         threadRootGroup: String,
         parentMessageId: String? = null,
         intendedForParent: Boolean = false,
+        category: String = "GENERAL",
+        priority: Boolean = false,
     ): MessageEntity {
         val row = MessageEntity().apply {
             this.msgGroup = msgGroup
@@ -539,10 +603,18 @@ class MessagingService(
             this.attachments = attachments?.let { mapper.writeValueAsString(it) }
             this.folder = folder
             this.intendedForParent = intendedForParent
+            this.category = category
+            this.isPriority = priority
             createdAt = clock.instant()
         }
         messageRepository.save(row)
         return row
+    }
+
+    /** The composer's five categories, coerced so a hostile value can never reach the DB. */
+    private fun normalizeCategory(raw: String?): String {
+        val value = raw?.trim()?.uppercase() ?: return "GENERAL"
+        return if (value in MESSAGE_CATEGORIES) value else "GENERAL"
     }
 
     private fun parseFolder(raw: String): Folder =
@@ -598,5 +670,7 @@ class MessagingService(
         status = status,
         isArchived = row.isArchived,
         isFlagged = row.isFlagged,
+        category = row.category,
+        isPriority = row.isPriority,
     )
 }

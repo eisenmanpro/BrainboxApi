@@ -166,6 +166,30 @@ class TeacherExamWebTests(
     // ------------------------------------------------------------ tests
 
     @Test
+    fun `question media and credit survive a save and a list read`() {
+        val teacher = user(Role.TEACHER, "Media Teacher", "0755010009")
+        val clazz = teacherClass(teacher)
+        val t = token(teacher)
+
+        val withMedia = question("qm", "Label the diagram", "MCQ", 2, options = listOf("Leaf", "Root"), correct = "__IDX__0__")
+            .copy(mediaUrl = "https://cdn.test/leaf.png", mediaCaption = "Leaf structure", mediaCredit = "School Media")
+        val created = postExam(t, exam("exam_media_1", clazz.id.toString(), published = false, questions = listOf(withMedia)))
+        val saved = created.questions.single()
+        check(saved.mediaUrl == "https://cdn.test/leaf.png") { "mediaUrl=" + saved.mediaUrl }
+        check(saved.mediaCaption == "Leaf structure") { "caption=" + saved.mediaCaption }
+        check(saved.mediaCredit == "School Media") { "credit=" + saved.mediaCredit }
+
+        // The editor loads from the cached list payload, so the list must echo it too.
+        val list = objectMapper.readValue(
+            mockMvc.perform(get("/teacher/exams").header("Authorization", auth(t)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<TeacherExamPayload>::class.java,
+        )
+        val listed = list.first { it.id == "exam_media_1" }.questions.single()
+        check(listed.mediaCredit == "School Media") { "list credit=" + listed.mediaCredit }
+    }
+
+    @Test
     fun `crud is idempotent and self scoped`() {
         val teacher = user(Role.TEACHER, "Class Teacher", "0755010001")
         val other = user(Role.TEACHER, "Other Teacher", "0755010002")

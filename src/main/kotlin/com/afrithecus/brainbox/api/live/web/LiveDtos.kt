@@ -29,6 +29,24 @@ data class LiveClassPayload(
     val status: String = "SCHEDULED",
     val joinUrl: String? = null,
     val recordingUrl: String? = null,
+    /** First start time (epoch ms); null until the host goes live. */
+    val startedAt: Long? = null,
+    /** End time (epoch ms); null until the host ends the session. */
+    val endedAt: Long? = null,
+    /**
+     * Client-supplied creation id. The web keeps this as its local id, so the
+     * payload must carry it back for a host deep link to survive a page refresh.
+     */
+    val clientId: String? = null,
+    /**
+     * Persisted host settings. The web prefills the edit form from these, so a
+     * partial payload would silently reset visibility/autoRecord on every edit.
+     */
+    val settings: LiveClassSettingsPayload = LiveClassSettingsPayload(),
+    /** Last host heartbeat while LIVE; drives the reconnect/stale indicator. */
+    val hostLastSeenAt: Long? = null,
+    /** Real uploaded recording length when the host saved one. */
+    val recordingDurationSeconds: Int? = null,
     val participantCount: Int = 0,
     val maxParticipants: Int = 100,
     val thumbnailUrl: String? = null,
@@ -126,6 +144,19 @@ data class LiveClassSettingsPayload(
     val waitingRoom: Boolean = false,
     val allowChat: Boolean = true,
     val allowQandA: Boolean = true,
+)
+
+/**
+ * Attaches a finished recording to a class. The preferred path is [uploadId]: the
+ * browser PUT the .webm through the presigned media flow and the server verifies that
+ * ticket belongs to this teacher and is a verified video before recording_url is set.
+ * [recordingUrl] is the fallback for an externally hosted file and must be https or a
+ * server-served /media path, so a javascript: value can never be stored and replayed.
+ */
+data class LiveRecordingUploadRequest(
+    val uploadId: String? = null,
+    val recordingUrl: String? = null,
+    val durationSeconds: Int? = null,
 )
 
 /** Body of POST/PUT teacher/live-classes[/{classId}] (the client TeacherLiveClass). */

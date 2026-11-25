@@ -188,6 +188,7 @@ class LearnerProvisioningService(
                 if (existing.provisionedClassId != null && existing.provisionedClassId != clazz.id) {
                     throw conflict("This provisioning request already belongs to another class")
                 }
+                requireSameClass(existing, clazz.id)
                 return toPayload(existing, clazz, created = false) to false
             }
         }
@@ -207,6 +208,10 @@ class LearnerProvisioningService(
         val created: Boolean
         if (matched != null) {
             if (matched.role != Role.STUDENT) throw conflict("That identity belongs to a non-student account")
+            // An admission number is globally unique. Reusing one in another class
+            // must never move the learner: seeding the same number twice used to
+            // reassign provisioned_class_id, so learners drifted between teachers.
+            requireSameClass(matched, clazz.id)
             student = matched
             created = false
             guardianName?.let { student.guardianName = it }
@@ -285,6 +290,13 @@ class LearnerProvisioningService(
         val clazz = classRepository.findById(parseUuid(classIdRaw, "classId")).orElse(null)
             ?: throw notFound("Class not found")
         if (actor.role == Role.ADMIN) return clazz
+        // The school ICT admin credits learners across every class (CBC project
+        // creation), exactly like the class roster read.
+        if (actor.subRole == com.afrithecus.brainbox.api.identity.model.SubRole.ICT_ADMIN &&
+            actor.schoolId != null && clazz.schoolId == actor.schoolId
+        ) {
+            return clazz
+        }
         val owns = clazz.teacherUserId == actor.id
         val coordinates = gradeAuthority.overseesGrade(actor, clazz.gradeLevel) &&
             gradeAuthority.isInSchool(actor, clazz.schoolId)
@@ -307,6 +319,21 @@ class LearnerProvisioningService(
         if (schoolId != null && student.schoolId != null && student.schoolId != schoolId) {
             throw ApiException(ApiErrorCode.FORBIDDEN, "Learner is not in your school")
         }
+    }
+
+    /**
+     * A learner may belong to exactly one class. An idempotent replay that targets
+     * the same class is fine; a second class reusing the admission number is a
+     * conflict, never a transfer. Silently re-linking the row used to move seeded
+     * learners from one teacher's roster to another (and corrupt both reports).
+     */
+    private fun requireSameClass(student: UserEntity, classId: UUID) {
+        val linked = student.provisionedClassId
+        if (linked != null && linked != classId) {
+            throw conflict("This learner already belongs to another class")
+        }
+        val elsewhere = membershipRepository.findAllByStudentId(student.id).any { it.classId != classId }
+        if (elsewhere) throw conflict("This learner already belongs to another class")
     }
 
     private fun learner(id: UUID): UserEntity {

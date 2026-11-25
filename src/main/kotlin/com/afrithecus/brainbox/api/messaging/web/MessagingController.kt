@@ -41,7 +41,9 @@ class MessagingController(
         @RequestParam(required = false) gradeLevel: String?,
         @RequestParam(required = false) classId: String?,
         @RequestParam(required = false) q: String?,
-    ): List<MessageRecipientPayload> = service.recipients(user(currentUser), role, gradeLevel, classId, q)
+        /** ADMIN/ICT_ADMIN only: list ICT admins of the other schools (`OTHER_SCHOOL_ADMINS`). */
+        @RequestParam(required = false) scope: String?,
+    ): List<MessageRecipientPayload> = service.recipients(user(currentUser), role, gradeLevel, classId, q, scope)
 
     /** One conversation (oldest first) the caller participates in — the thread view's read. */
     @GetMapping("/threads/{threadId}")

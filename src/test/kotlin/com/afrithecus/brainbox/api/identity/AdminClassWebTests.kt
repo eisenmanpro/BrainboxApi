@@ -10,6 +10,10 @@ import com.afrithecus.brainbox.api.classes.web.AssignClassTeacherRequest
 import com.afrithecus.brainbox.api.classes.web.CreateAdminClassRequest
 import com.afrithecus.brainbox.api.classes.web.TeacherClassPayload
 import com.afrithecus.brainbox.api.classes.web.UpdateAdminClassRequest
+import com.afrithecus.brainbox.api.classchat.entity.ClassGroupEntity
+import com.afrithecus.brainbox.api.classchat.entity.ClassGroupMemberEntity
+import com.afrithecus.brainbox.api.classchat.repository.ClassGroupMemberRepository
+import com.afrithecus.brainbox.api.classchat.repository.ClassGroupRepository
 import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.AccountKind
@@ -54,6 +58,8 @@ class AdminClassWebTests(
     @Autowired private val classRepository: TeacherClassRepository,
     @Autowired private val membershipRepository: ClassMembershipRepository,
     @Autowired private val passwordEncoder: PasswordEncoder,
+    @Autowired private val groupRepository: ClassGroupRepository,
+    @Autowired private val groupMemberRepository: ClassGroupMemberRepository,
 ) {
     private lateinit var school: SchoolEntity
     private lateinit var admin: UserEntity
@@ -237,4 +243,57 @@ class AdminClassWebTests(
         check(students("q" to "ben").single().name == "Ben Learner")
         check(students("gradeLevel" to "Grade 6", "q" to "ben").isEmpty())
     }
+    @Test
+    fun `reassignment keeps the learner roster and shares only learner-facing class groups`() {
+        val clazz = classRepository.save(TeacherClassEntity().apply {
+            schoolId = school.id
+            name = "Blue"
+            gradeLevel = "Grade 6"
+            subject = "General"
+            teacherUserId = teacherA.id
+            isActive = true
+        })
+        // A learner already in the class stays attached to the class row, not to the teacher.
+        membershipRepository.save(ClassMembershipEntity().apply {
+            classId = clazz.id
+            studentId = user(Role.STUDENT, "Ann Learner", "0722200010").id
+        })
+        val classGroup = groupRepository.save(ClassGroupEntity().apply {
+            classId = clazz.id
+            teacherId = teacherA.id
+            teacherName = teacherA.name
+            name = "Blue parents"
+            scope = "CLASS"
+            audience = "STUDENTS"
+            schoolId = school.id
+        })
+        val staffGroup = groupRepository.save(ClassGroupEntity().apply {
+            classId = clazz.id
+            teacherId = teacherA.id
+            teacherName = teacherA.name
+            name = "Blue staff"
+            scope = "CLASS"
+            audience = "CLASS_TEACHERS"
+            schoolId = school.id
+        })
+
+        val t = token(admin)
+        val updated = objectMapper.readValue(
+            mockMvc.perform(
+                put(base() + "/classes/" + clazz.id + "/teacher").header("Authorization", "Bearer " + t)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(AssignClassTeacherRequest(teacherB.id.toString()))),
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            AdminClassPayload::class.java,
+        )
+        check(updated.teacherUserId == teacherB.id.toString() && updated.teacherActive)
+        check(membershipRepository.findAllByClassId(clazz.id).isNotEmpty()) { "the incoming teacher inherits the learners" }
+        // The learner/parent group is shared: both teachers keep access.
+        check(groupMemberRepository.findByGroupIdAndMemberId(classGroup.id, teacherB.id) != null) { "learner-facing group not inherited" }
+        check(groupMemberRepository.findByGroupIdAndMemberId(classGroup.id, teacherA.id) == null) { "the previous teacher stays the creator" }
+        check(groupRepository.findById(classGroup.id).orElseThrow().teacherId == teacherA.id) { "ownership must not move" }
+        // A staff-only group is not part of the class-teacher role.
+        check(groupMemberRepository.findByGroupIdAndMemberId(staffGroup.id, teacherB.id) == null) { "staff-only group must not be inherited" }
+    }
+
 }

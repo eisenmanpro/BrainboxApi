@@ -68,6 +68,7 @@ class ContestAuthoringService(
         contest.lifecycle = ContestLifecycle.PUBLISHED
         contestRepository.save(contest)
         replaceQuestions(contest, request.questions)
+        validateContestQuestions(questionsOf(contest.id))
         return toPayload(contest, includeQuestions = true, includeKeys = true)
     }
 
@@ -120,14 +121,17 @@ class ContestAuthoringService(
     @Transactional
     fun createTeacher(request: CreateContestRequest, authorUserId: UUID): ContestPayload {
         val author = requireTeacherWithSchool(authorUserId)
-        // Idempotent retry: the same clientId from the same author returns the existing draft.
-        request.clientId?.takeIf { it.isNotBlank() }?.let { clientId ->
+        val clientId = request.clientId?.trim()?.takeIf { it.isNotBlank() }
+        // Idempotent retry: the same clientId from the same author returns the existing row.
+        // Never guess by title+grade — two genuinely different contests can share both.
+        if (clientId != null) {
             contestRepository.findAllByCreatedByOrderByStartTimeDesc(author.id)
-                .firstOrNull { it.scope == ContestScope.SCHOOL_GRADE && it.title == request.title.trim() && it.grade == request.grade.trim() }
+                .firstOrNull { it.clientId == clientId }
                 ?.let { return toPayload(it, true, true) }
         }
         val contest = newContest(request, author.id)
         contest.scope = ContestScope.SCHOOL_GRADE
+        contest.clientId = clientId
         contest.schoolId = author.schoolId
             ?: throw ApiException(ApiErrorCode.FORBIDDEN, "Your account has no school; a school contest needs one")
         contest.grade = request.grade.trim()
@@ -170,6 +174,7 @@ class ContestAuthoringService(
         if (contest.lifecycle == ContestLifecycle.PUBLISHED) return toPayload(contest, true, true)
         val questions = questionsOf(contest.id)
         if (questions.isEmpty()) throw conflict("Add at least one question before publishing")
+        validateContestQuestions(questions)
         if (!contest.endTime.isAfter(clock.instant())) throw conflict("endTime must be in the future to publish")
         contest.lifecycle = ContestLifecycle.PUBLISHED
         contestRepository.save(contest)
@@ -412,6 +417,41 @@ class ContestAuthoringService(
     private fun parseType(raw: String): QuestionType =
         runCatching { QuestionType.valueOf(raw.trim().uppercase()) }.getOrNull()
             ?: throw invalidArgument("question type has an invalid value")
+
+    /**
+     * A publishable contest must be gradeable: every question needs the answer the server
+     * can mark. Saving a draft is deliberately lax, publishing is not.
+     */
+    private fun validateContestQuestions(questions: List<ContestQuestionEntity>) {
+        questions.forEachIndexed { index, question ->
+            val label = "Question " + (index + 1)
+            val options = codec.parseList(question.options)?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
+            val answer = question.correctAnswer?.trim().orEmpty()
+            when (question.qType) {
+                QuestionType.MCQ, QuestionType.MULTI_SELECT -> {
+                    if (options.size < 2) throw invalidArgument(label + " needs at least two options")
+                    if (answer.isEmpty()) throw invalidArgument(label + " needs a correct answer")
+                    if (question.qType == QuestionType.MCQ && options.none { it.equals(answer, ignoreCase = true) }) {
+                        throw invalidArgument(label + ": the correct answer must match one of its options")
+                    }
+                }
+                QuestionType.TRUE_FALSE -> {
+                    if (!answer.equals("true", ignoreCase = true) && !answer.equals("false", ignoreCase = true)) {
+                        throw invalidArgument(label + " answer must be True or False")
+                    }
+                }
+                QuestionType.MATCHING -> {
+                    val pairs = codec.parseMap(question.matchingPairs)
+                        ?.filter { it.key.isNotBlank() && it.value.isNotBlank() }
+                        ?: emptyMap()
+                    if (pairs.size < 2) throw invalidArgument(label + " needs at least two complete matching pairs")
+                }
+                QuestionType.ESSAY -> Unit
+                else -> if (answer.isEmpty()) throw invalidArgument(label + " needs a correct answer")
+            }
+            if (question.points < 1) throw invalidArgument(label + " must be worth at least one point")
+        }
+    }
 
     private fun parseScope(raw: String?): ContestScope? =
         raw?.trim()?.takeIf { it.isNotBlank() }?.let {

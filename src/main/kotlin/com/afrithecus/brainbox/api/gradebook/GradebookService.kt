@@ -133,12 +133,32 @@ class GradebookService(
         val exams = examRepository.findAllByClassId(clazz.id)
         if (exams.isEmpty()) return emptyList()
         val byId = exams.associateBy { it.id }
-        val submissions = examSubmissionRepository.findAllByExamIdIn(byId.keys)
-        if (submissions.isEmpty()) return emptyList()
-        val names = userRepository.findAllById(submissions.map { it.userId }.distinct())
+        // A learner can hold more than one attempt for the same exam (retake, replay). The
+        // gradebook shows ONE row per (exam, learner): the best percentage, latest as the tie-break.
+        val best = LinkedHashMap<Pair<UUID, UUID>, com.afrithecus.brainbox.api.exams.entity.ExamSubmissionEntity>()
+        examSubmissionRepository.findAllByExamIdIn(byId.keys).forEach { submission ->
+            if (!byId.containsKey(submission.examId)) return@forEach
+            val key = submission.examId to submission.userId
+            val currentBest = best[key]
+            if (currentBest == null ||
+                compareValuesBy(submission, currentBest, { it.percentage }, { it.submittedAt }) > 0
+            ) {
+                best[key] = submission
+            }
+        }
+        if (best.isEmpty()) return emptyList()
+        val names = userRepository.findAllById(best.values.map { it.userId }.distinct())
             .associate { it.id to it.name }
-        return submissions.mapNotNull { submission ->
+        return best.values.mapNotNull { submission ->
             val exam = byId[submission.examId] ?: return@mapNotNull null
+            val maxScore = submission.totalPoints.takeIf { it > 0 }
+                ?: exam.totalPoints.takeIf { it > 0 }
+                ?: exam.questionCount.takeIf { it > 0 }
+                ?: 0
+            // A zero denominator would render "12/0" and a 0% average; when the server stored no
+            // total, fall back to the stored percentage as a 0-100 row rather than inventing marks.
+            val rawScore = if (maxScore > 0) submission.score else submission.percentage
+            val denominator = if (maxScore > 0) maxScore else 100
             ExamGradebookEntryPayload(
                 id = submission.id.toString(),
                 examId = exam.id.toString(),
@@ -146,8 +166,8 @@ class GradebookService(
                 subject = exam.subject,
                 studentId = submission.userId.toString(),
                 studentName = names[submission.userId] ?: "",
-                rawScore = submission.score,
-                maxScore = submission.totalPoints,
+                rawScore = rawScore,
+                maxScore = denominator,
                 percentage = submission.percentage,
                 submittedAt = submission.submittedAt.toEpochMilli(),
                 term = exam.term,

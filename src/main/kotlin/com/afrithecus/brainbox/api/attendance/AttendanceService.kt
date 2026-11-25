@@ -36,6 +36,7 @@ import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
+import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.notification.NotificationService
 import com.afrithecus.brainbox.api.notification.model.NotificationPriority
 import com.afrithecus.brainbox.api.notification.model.NotificationType
@@ -75,6 +76,7 @@ class AttendanceService(
     private val pdfService: AttendancePdfService,
     private val mediaService: MediaService,
     private val userRepository: UserRepository,
+    private val schoolRepository: SchoolRepository,
     private val gradeAuthority: GradeAuthority,
     private val notificationService: NotificationService,
     private val routingPolicy: AttendanceRecipientPolicy,
@@ -240,6 +242,9 @@ class AttendanceService(
 
     private fun round2(value: Double): Double = kotlin.math.round(value * 100) / 100.0
 
+    private fun slug(value: String): String =
+        value.trim().lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').take(40).ifBlank { "school" }
+
     // ------------------------------------------------------------ export
 
     /** Renders and stores a printable register PDF for the window (doc 04 §4.1). */
@@ -265,8 +270,17 @@ class AttendanceService(
             )
         }
         val average = if (rows.isEmpty()) 0.0 else round2(rows.map { it.rate }.average())
-        val bytes = pdfService.render(clazz.name, from.toString() + " to " + to.toString(), rows, average)
-        val fileName = "attendance_" + from + "_" + to + ".pdf"
+        val schoolName = clazz.schoolId?.let { schoolRepository.findById(it).orElse(null)?.name }.orEmpty()
+        val bytes = pdfService.render(
+            schoolName = schoolName,
+            className = clazz.name,
+            range = from.toString() + " to " + to.toString(),
+            rows = rows,
+            averageAttendance = average,
+            generatedOn = LocalDate.now(zone),
+        )
+        // A descriptive, attendance-specific filename (the UI and every download manager show it).
+        val fileName = "attendance_" + slug(schoolName.ifBlank { "school" }) + "_" + slug(clazz.name) + "_" + from + "_" + to + ".pdf"
         val stored = mediaService.storeBytes(bytes, UUID.randomUUID().toString() + ".pdf", "application/pdf")
         return PdfResultPayload(
             fileUrl = stored.url,

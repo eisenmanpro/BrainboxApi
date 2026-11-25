@@ -44,6 +44,15 @@ class TeacherContentController(
         @RequestParam(required = false) type: String?,
     ): List<TeacherContentPayload> = service.content(teacher(currentUser), type)
 
+    @GetMapping("/content/public")
+    fun publicMaterials(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @RequestParam(required = false) type: String?,
+        @RequestParam(required = false) subject: String?,
+        @RequestParam(required = false) gradeLevel: String?,
+        @RequestParam(required = false) q: String?,
+    ): List<PublicMaterialPayload> = service.publicMaterials(teacher(currentUser), type, subject, gradeLevel, q)
+
     @PostMapping("/content/post")
     fun createPost(
         @AuthenticationPrincipal currentUser: CurrentUser,

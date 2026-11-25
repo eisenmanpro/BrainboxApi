@@ -22,6 +22,10 @@ data class SendMessageRequest(
     val attachments: List<AttachmentPayload>? = null,
     /** The message being replied to (a message id), so the reply joins its conversation. */
     val parentMessageId: String? = null,
+    /** Composer category; unknown values are coerced to GENERAL. */
+    @field:Size(max = 24)
+    val category: String? = null,
+    val priority: Boolean = false,
 )
 
 data class TeacherSendMessageRequest(
@@ -36,6 +40,9 @@ data class TeacherSendMessageRequest(
     val attachments: List<AttachmentPayload>? = null,
     /** The message being replied to (a message id or conversation id), joins its thread. */
     val parentMessageId: String? = null,
+    @field:Size(max = 24)
+    val category: String? = null,
+    val priority: Boolean = false,
 )
 
 data class MessagePayload(
@@ -75,6 +82,9 @@ data class MessagePayload(
     /** This copy's archive/flag state (per account; the sender and recipient each own a copy). */
     val isArchived: Boolean = false,
     val isFlagged: Boolean = false,
+    /** Composer category and priority, persisted per copy (V38). */
+    val category: String = "GENERAL",
+    val isPriority: Boolean = false,
 )
 
 /** Archive state for one message copy the caller owns. */
@@ -99,6 +109,8 @@ data class MessageRecipientPayload(
     val classIds: List<String> = emptyList(),
     val classNames: List<String> = emptyList(),
     val relationship: String = "",
+    /** Set on the admin-only cross-school directory row (the sender's own school is blank). */
+    val schoolName: String? = null,
     /** Learner classes only: the guardian rows share the learner account (F9/N6). */
     val isGuardianAccount: Boolean = false,
 )

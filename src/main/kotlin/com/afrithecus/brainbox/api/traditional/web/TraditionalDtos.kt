@@ -157,6 +157,18 @@ data class TraditionalClassDto(
     val teacherId: String? = null,
     val teacherName: String? = null,
     val allowed: Boolean = true,
+    /** The class this caller is server-locked to for the session, if any (V33). */
+    val lockedClassId: String? = null,
+    /** Same lock as a class name so clients that key on classTag can restore it. */
+    val lockedClassName: String? = null,
+    /** Set when another teacher already bound this class for the session. */
+    val lockedByTeacherId: String? = null,
+    val lockedByTeacherName: String? = null,
+)
+
+/** Bind the caller to one class for this capture session (the start of score entry). */
+data class BindCaptureClassRequest(
+    val classId: String,
 )
 
 /** Coordinator edit of a saved capture session (title/remarks/omit policy/bands). */

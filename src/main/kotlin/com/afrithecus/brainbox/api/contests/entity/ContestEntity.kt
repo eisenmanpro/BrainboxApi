@@ -70,4 +70,11 @@ class ContestEntity : BaseEntity() {
     /** Set by publish-results; the learner notice is emitted here, not inferred client-side. */
     @Column(name = "results_published_at")
     var resultsPublishedAt: Instant? = null
+
+    /**
+     * Browser-generated create id. A retried create for the same author resolves this row
+     * instead of inserting a second draft (uq_contests_author_client).
+     */
+    @Column(name = "client_id", length = 80)
+    var clientId: String? = null
 }

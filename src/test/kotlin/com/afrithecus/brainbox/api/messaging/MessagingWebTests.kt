@@ -8,6 +8,7 @@ import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.messaging.web.MessagePayload
+import com.afrithecus.brainbox.api.messaging.web.MessageRecipientPayload
 import com.afrithecus.brainbox.api.messaging.web.SendMessageRequest
 import com.afrithecus.brainbox.api.messaging.web.SchoolMemberPayload
 import com.afrithecus.brainbox.api.messaging.web.TeacherSendMessageRequest
@@ -68,6 +69,28 @@ class MessagingWebTests(
         val login = mockMvc.perform(
             post("/auth/login").contentType(MediaType.APPLICATION_JSON)
                 .content("""{"identifier":"${email}","password":"teacherpass123"}""")
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        return objectMapper.readValue(login, AuthResponse::class.java)
+    }
+
+    private fun newAdmin(schoolId: String, phone: String, name: String): AuthResponse {
+        val email = phone + "@msgadmin.test"
+        val admin = UserEntity().apply {
+            this.phoneNumber = phone
+            this.email = email
+            passwordHash = passwordEncoder.encode("teacherpass123") ?: error("encode")
+            this.name = name
+            role = Role.TEACHER
+            subRole = SubRole.ICT_ADMIN
+            this.schoolId = UUID.fromString(schoolId)
+            isActive = true
+            isVerified = true
+            verificationStatus = com.afrithecus.brainbox.api.identity.model.AccountStatus.VERIFIED
+        }
+        userRepository.save(admin)
+        val login = mockMvc.perform(
+            post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"identifier\":\"" + email + "\",\"password\":\"teacherpass123\"}")
         ).andExpect(status().isOk).andReturn().response.contentAsString
         return objectMapper.readValue(login, AuthResponse::class.java)
     }
@@ -228,4 +251,44 @@ class MessagingWebTests(
             get("/school/${schoolId}/members").header("Authorization", auth(otherSchool.sessionToken!!))
         ).andExpect(status().isForbidden)
     }
+
+    @Test
+    fun `school admins can find and message admins of other schools`() {
+        val hostA = signupStudent("0755888001", "Cross School A")
+        val hostB = signupStudent("0755888002", "Cross School B")
+        val adminA = newAdmin(hostA.user.schoolId!!, "0755888003", "Admin A")
+        val adminB = newAdmin(hostB.user.schoolId!!, "0755888004", "Admin B")
+        val teacherA = newTeacher(hostA.user.schoolId.toString(), "0755888005")
+
+        val directoryBody = mockMvc.perform(
+            get("/messages/recipients?scope=OTHER_SCHOOL_ADMINS").header("Authorization", auth(adminA.sessionToken!!))
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val directory = objectMapper.readValue(directoryBody, Array<MessageRecipientPayload>::class.java).toList()
+        check(directory.any { it.id == adminB.user.id && it.schoolName == "Cross School B" }) { "other school admin missing: " + directory }
+        check(directory.none { it.id == adminA.user.id }) { "the caller's own admin row must not appear" }
+
+        val sendBody = objectMapper.writeValueAsString(SendMessageRequest(
+            recipientId = adminB.user.id,
+            subject = "Cross-school",
+            body = "Hello from another school",
+        ))
+        mockMvc.perform(
+            post("/messages/send").header("Authorization", auth(adminA.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON).content(sendBody)
+        ).andExpect(status().isOk)
+        check(inbox(adminB).any { it.body == "Hello from another school" }) { "cross-school message not delivered" }
+
+        mockMvc.perform(
+            get("/messages/recipients?scope=OTHER_SCHOOL_ADMINS").header("Authorization", auth(teacherA.sessionToken!!))
+        ).andExpect(status().isForbidden)
+        val teacherSend = objectMapper.writeValueAsString(SendMessageRequest(
+            recipientId = adminB.user.id,
+            body = "Not allowed",
+        ))
+        mockMvc.perform(
+            post("/messages/send").header("Authorization", auth(teacherA.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON).content(teacherSend)
+        ).andExpect(status().isForbidden)
+    }
+
 }

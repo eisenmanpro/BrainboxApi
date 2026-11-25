@@ -1,9 +1,6 @@
 package com.afrithecus.brainbox.api.classchat.ws
 
-import com.afrithecus.brainbox.api.classchat.repository.ClassGroupMemberRepository
-import com.afrithecus.brainbox.api.classchat.repository.ClassGroupRepository
-import com.afrithecus.brainbox.api.identity.model.Role
-import com.afrithecus.brainbox.api.identity.repository.UserRepository
+import com.afrithecus.brainbox.api.classchat.ClassChatService
 import com.afrithecus.brainbox.api.security.JwtTokenService
 import org.springframework.http.HttpStatus
 import org.springframework.http.server.ServerHttpRequest
@@ -14,16 +11,18 @@ import org.springframework.web.socket.server.HandshakeInterceptor
 import java.util.UUID
 
 /**
- * Authenticates a class-chat socket: the bearer token must match the userId and
- * the caller must belong to the group (owner teacher, group member, a parent of a
- * member, or an admin).
+ * Authenticates a class-chat socket and proves the caller may read the group.
+ *
+ * The bearer arrives either as an `Authorization` header (native clients) or as a
+ * `token` / `access_token` query parameter, because browsers cannot set headers on a
+ * WebSocket handshake. Authorization itself is delegated to [ClassChatService.mayRead],
+ * which reuses the REST read gate: school-scope system groups open by school+role,
+ * explicit members, the creator, parents of a member, and school/platform moderators.
  */
 @Component
 class ClassChatHandshakeInterceptor(
     private val jwtTokenService: JwtTokenService,
-    private val groupRepository: ClassGroupRepository,
-    private val memberRepository: ClassGroupMemberRepository,
-    private val userRepository: UserRepository,
+    private val chatService: ClassChatService,
 ) : HandshakeInterceptor {
 
     override fun beforeHandshake(
@@ -32,13 +31,13 @@ class ClassChatHandshakeInterceptor(
         wsHandler: WebSocketHandler,
         attributes: MutableMap<String, Any>,
     ): Boolean {
-        val token = bearerToken(request) ?: return reject(response)
+        val token = accessToken(request) ?: return reject(response)
         val claims = runCatching { jwtTokenService.parseAccessToken(token) }.getOrNull() ?: return reject(response)
         val groupId = groupIdFrom(request) ?: return reject(response)
-        val group = groupRepository.findById(groupId).orElse(null) ?: return reject(response)
         val queryUserId = queryParam(request, "userId")?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+        // A caller may name themselves for client bookkeeping, but never another user.
         if (queryUserId != null && queryUserId != claims.userId) return reject(response)
-        if (!mayAccess(claims.userId, claims.role, groupId, group.teacherId)) return reject(response)
+        if (!chatService.mayRead(claims.userId, groupId)) return reject(response)
         attributes[ClassChatSocketHandler.GROUP_ID] = groupId
         attributes[ClassChatSocketHandler.USER_ID] = claims.userId
         return true
@@ -51,16 +50,10 @@ class ClassChatHandshakeInterceptor(
         exception: Exception?,
     ) = Unit
 
-    private fun mayAccess(userId: UUID, role: Role, groupId: UUID, teacherId: UUID): Boolean {
-        if (role == Role.ADMIN) return true
-        if (teacherId == userId) return true
-        if (memberRepository.findByGroupIdAndMemberId(groupId, userId) != null) return true
-        if (role == Role.PARENT) {
-            return userRepository.findByParentUserId(userId).any { child ->
-                memberRepository.findByGroupIdAndMemberId(groupId, child.id) != null
-            }
-        }
-        return false
+    private fun accessToken(request: ServerHttpRequest): String? {
+        bearerToken(request)?.let { return it }
+        return queryParam(request, "token")?.takeIf { it.isNotBlank() }
+            ?: queryParam(request, "access_token")?.takeIf { it.isNotBlank() }
     }
 
     private fun bearerToken(request: ServerHttpRequest): String? {

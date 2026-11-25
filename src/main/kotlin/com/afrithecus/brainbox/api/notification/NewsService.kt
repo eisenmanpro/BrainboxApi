@@ -195,10 +195,12 @@ class NewsService(
         } else {
             clock.instant()
         }
+        val imageUrl = normalizeImageUrl(request.imageUrl)
         val saved = repository.save(NewsItemEntity().apply {
             title = request.title.trim()
             content = request.content
-            imageUrl = normalizeImageUrl(request.imageUrl)
+            this.imageUrl = imageUrl
+            imageCredit = if (imageUrl == null) null else normalizeImageCredit(request.imageCredit)
             category = request.category.trim().ifBlank { "News" }
             author = if (isPlatformAdmin) {
                 request.author?.trim()?.takeIf { it.isNotEmpty() } ?: DEFAULT_AUTHOR
@@ -223,7 +225,9 @@ class NewsService(
         val status = if (isPlatformAdmin) parseStatus(request.status) else NewsStatus.PUBLISHED
         article.title = request.title.trim()
         article.content = request.content
-        article.imageUrl = normalizeImageUrl(request.imageUrl)
+        val imageUrl = normalizeImageUrl(request.imageUrl)
+        article.imageUrl = imageUrl
+        article.imageCredit = if (imageUrl == null) null else normalizeImageCredit(request.imageCredit)
         article.category = request.category.trim().ifBlank { "News" }
         article.authorMasked = request.maskAuthor
         if (isPlatformAdmin) {
@@ -289,6 +293,7 @@ class NewsService(
             tags = parseList(row.tags),
             schoolId = row.schoolId?.toString(),
             authorMasked = row.authorMasked,
+            imageCredit = row.imageCredit ?: "",
         )
     }
 
@@ -385,6 +390,17 @@ class NewsService(
         if (value.any { it.isWhitespace() }) {
             throw invalidArgument("imageUrl must not contain whitespace")
         }
+        return value
+    }
+
+    /**
+     * Optional photo/source credit. Free text by design — it names a person or
+     * outlet, not a URL — so only length and blank handling apply. A credit
+     * without an image is meaningless, so it is dropped with the image.
+     */
+    private fun normalizeImageCredit(raw: String?): String? {
+        val value = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        if (value.length > 200) throw invalidArgument("imageCredit must be at most 200 characters")
         return value
     }
 

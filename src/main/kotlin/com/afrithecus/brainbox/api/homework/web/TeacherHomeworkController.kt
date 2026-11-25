@@ -31,8 +31,11 @@ class TeacherHomeworkController(
         userRepository.findById(current.userId).orElseThrow { notFound("User not found") }
 
     @GetMapping
-    fun list(@AuthenticationPrincipal currentUser: CurrentUser): List<HomeworkPayload> =
-        service.list(teacher(currentUser))
+    fun list(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        /** The manager's Completed tab lists archived homework, so it asks for them. */
+        @RequestParam(defaultValue = "false") includeArchived: Boolean,
+    ): List<HomeworkPayload> = service.list(teacher(currentUser), includeArchived)
 
     @PostMapping
     fun create(
@@ -106,4 +109,15 @@ class TeacherHomeworkController(
         @AuthenticationPrincipal currentUser: CurrentUser,
         @RequestParam ids: List<String>,
     ): List<HomeworkProgressItem> = service.progress(teacher(currentUser), ids)
+
+    /** Nudge one learner who has not submitted yet (writes an in-app notification). */
+    @PostMapping("/{homeworkId}/remind/{studentId}")
+    fun remind(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable homeworkId: String,
+        @PathVariable studentId: String,
+    ): ResponseEntity<Void> {
+        service.remind(teacher(currentUser), homeworkId, studentId)
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build()
+    }
 }

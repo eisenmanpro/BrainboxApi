@@ -6,6 +6,10 @@ import com.afrithecus.brainbox.api.classes.web.AdminClassPayload
 import com.afrithecus.brainbox.api.classes.web.AssignClassTeacherRequest
 import com.afrithecus.brainbox.api.classes.web.CreateAdminClassRequest
 import com.afrithecus.brainbox.api.classes.web.UpdateAdminClassRequest
+import com.afrithecus.brainbox.api.classchat.entity.ClassGroupEntity
+import com.afrithecus.brainbox.api.classchat.entity.ClassGroupMemberEntity
+import com.afrithecus.brainbox.api.classchat.repository.ClassGroupMemberRepository
+import com.afrithecus.brainbox.api.classchat.repository.ClassGroupRepository
 import com.afrithecus.brainbox.api.common.error.conflict
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
@@ -39,6 +43,8 @@ class AdminClassService(
     private val schoolConfigService: SchoolConfigService,
     private val access: AdminSchoolAccess,
     private val auditLogService: AuditLogService,
+    private val classGroupRepository: ClassGroupRepository,
+    private val classGroupMemberRepository: ClassGroupMemberRepository,
 ) {
 
     @Transactional
@@ -112,10 +118,22 @@ class AdminClassService(
         val actor = access.require(current, schoolId)
         val entity = ownClass(schoolId, classIdRaw)
         val teacher = requireTeacher(schoolId, request.teacherId)
+        val previousTeacherId = entity.teacherUserId
         entity.teacherUserId = teacher.id
         classRepository.saveAndFlush(entity)
+        // Learners and marks stay attached to the class row, so the incoming teacher
+        // inherits the roster automatically. Class chat groups are creator-owned, but a
+        // group that targets the class's learners/parents belongs to the role: both the
+        // outgoing and incoming class teacher keep access (messages keep their real
+        // sender, so the new teacher never posts as the previous one).
+        val inheritedGroups = inheritClassGroups(previousTeacherId, teacher, entity.id)
         schoolConfigService.syncClassCatalogue(schoolId)
-        auditLogService.record(schoolId, actor, "Assigned " + teacher.name + " to class " + entity.name)
+        auditLogService.record(
+            schoolId,
+            actor,
+            "Assigned " + teacher.name + " to class " + entity.name +
+                if (inheritedGroups > 0) " (inherited " + inheritedGroups + " class group" + (if (inheritedGroups == 1) "" else "s") + ")" else "",
+        )
         return payload(entity, teacher, learnerCounts.count(entity.id))
     }
 
@@ -149,6 +167,33 @@ class AdminClassService(
         val entity = classRepository.findById(id).orElse(null) ?: throw notFound("Class not found")
         if (entity.schoolId != null && entity.schoolId != schoolId) throw notFound("Class not found")
         return entity
+    }
+
+    /**
+     * Gives the incoming class teacher a membership in the outgoing teacher's class groups
+     * that are open to the class's learners/parents (STUDENTS or ALL). The previous teacher
+     * stays the creator and keeps every group and message; both can now post, and each
+     * message records its own sender. Groups aimed only at staff are not inherited.
+     */
+    private fun inheritClassGroups(previousTeacherId: UUID, teacher: UserEntity, classId: UUID): Int {
+        if (previousTeacherId == teacher.id) return 0
+        val groups = classGroupRepository.findAllByClassId(classId).filter { group ->
+            group.teacherId == previousTeacherId &&
+                !group.isArchived &&
+                (group.audience == AUDIENCE_STUDENTS || group.audience == AUDIENCE_ALL)
+        }
+        var inherited = 0
+        for (group in groups) {
+            if (classGroupMemberRepository.findByGroupIdAndMemberId(group.id, teacher.id) != null) continue
+            classGroupMemberRepository.save(ClassGroupMemberEntity().apply {
+                this.groupId = group.id
+                memberId = teacher.id
+                memberName = teacher.name
+                memberRole = "TEACHER"
+            })
+            inherited += 1
+        }
+        return inherited
     }
 
     private fun requireName(raw: String): String {
@@ -189,6 +234,9 @@ class AdminClassService(
         stream = entity.stream,
         teacherUserId = teacher?.id?.toString(),
         teacherName = teacher?.name,
+        // A removed/transferred teacher keeps the row's old owner id but no longer belongs
+        // to the school; the admin must see the class as needing a teacher.
+        teacherActive = teacher?.isActive == true && teacher.schoolId == entity.schoolId,
         subject = entity.subject,
         studentCount = learners,
         isActive = entity.isActive,
@@ -197,5 +245,7 @@ class AdminClassService(
     private companion object {
         const val MAX_NAME = 120
         const val MAX_GRADE = 64
+        const val AUDIENCE_STUDENTS = "STUDENTS"
+        const val AUDIENCE_ALL = "ALL"
     }
 }

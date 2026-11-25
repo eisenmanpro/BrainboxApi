@@ -21,6 +21,7 @@ import com.afrithecus.brainbox.api.exams.repository.TeacherQuestionBankRepositor
 import com.afrithecus.brainbox.api.exams.web.TeacherExamPayload
 import com.afrithecus.brainbox.api.exams.web.TeacherExamSectionPayload
 import com.afrithecus.brainbox.api.exams.web.TeacherQuestionPayload
+import com.afrithecus.brainbox.api.identity.SchoolTermService
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
 import org.springframework.stereotype.Service
@@ -48,6 +49,7 @@ class TeacherExamService(
     private val codec: QuestionCodec,
     private val mapper: ObjectMapper,
     private val clock: Clock,
+    private val termService: SchoolTermService,
 ) {
 
     @Transactional(readOnly = true)
@@ -126,6 +128,9 @@ class TeacherExamService(
                 correctAnswer = bank.correctAnswer,
                 cbcStrandTag = bank.cbcStrandTag,
                 isFromBank = true,
+                sourceKind = bank.sourceKind,
+                sourceRef = bank.sourceRef,
+                sourceLabel = bank.sourceLabel,
             )
         }
     }
@@ -154,6 +159,9 @@ class TeacherExamService(
         entity.matchingPairs =
             if (entity.qType == QuestionType.MATCHING) matchingPairsJson(request.correctAnswer) else null
         entity.cbcStrandTag = request.cbcStrandTag?.trim()?.takeIf { it.isNotEmpty() }
+        entity.sourceKind = request.sourceKind?.trim()?.takeIf { it.isNotEmpty() } ?: entity.sourceKind
+        entity.sourceRef = request.sourceRef?.trim()?.takeIf { it.isNotEmpty() } ?: entity.sourceRef
+        entity.sourceLabel = request.sourceLabel?.trim()?.takeIf { it.isNotEmpty() } ?: entity.sourceLabel
         entity.schoolId = teacher.schoolId
         bankRepository.saveAndFlush(entity)
         return TeacherQuestionPayload(
@@ -167,6 +175,9 @@ class TeacherExamService(
             correctAnswer = entity.correctAnswer,
             cbcStrandTag = entity.cbcStrandTag,
             isFromBank = true,
+            sourceKind = entity.sourceKind,
+            sourceRef = entity.sourceRef,
+            sourceLabel = entity.sourceLabel,
         )
     }
 
@@ -224,7 +235,7 @@ class TeacherExamService(
             isPublished = exam.status == ExamStatus.PUBLISHED,
             createdAt = exam.createdAt.toEpochMilli(),
             scope = if (exam.classId != null) "SCHOOL_GRADE_CLASS" else "SCHOOL_GRADE",
-            term = exam.term ?: defaultTerm(),
+            term = exam.term ?: defaultTerm(exam.schoolId),
         )
     }
 
@@ -244,6 +255,12 @@ class TeacherExamService(
             isKeyQuestion = question.isKeyQuestion,
             requiresExplanation = question.requiresExplanation,
             isFromBank = question.isFromBank,
+            sourceKind = question.sourceKind,
+            sourceRef = question.sourceRef,
+            sourceLabel = question.sourceLabel,
+            mediaUrl = question.mediaUrl,
+            mediaCaption = question.mediaCaption,
+            mediaCredit = question.mediaCredit,
         )
 
     private fun toSectionPayload(section: ExamSectionEntity): TeacherExamSectionPayload =
@@ -287,7 +304,7 @@ class TeacherExamService(
             else -> ExamScope.GLOBAL
         }
         exam.status = if (request.isPublished) ExamStatus.PUBLISHED else ExamStatus.DRAFT
-        exam.term = normalizeTerm(request.term)
+        exam.term = normalizeTerm(request.term, exam.schoolId)
         exam.openAt = request.openDate?.let(Instant::ofEpochMilli)
         exam.closeAt = request.closeDate?.let(Instant::ofEpochMilli)
     }
@@ -345,6 +362,12 @@ class TeacherExamService(
             entity.isKeyQuestion = question.isKeyQuestion
             entity.requiresExplanation = question.requiresExplanation
             entity.isFromBank = question.isFromBank
+            entity.sourceKind = question.sourceKind?.trim()?.takeIf { it.isNotEmpty() }
+            entity.sourceRef = question.sourceRef?.trim()?.takeIf { it.isNotEmpty() }
+            entity.sourceLabel = question.sourceLabel?.trim()?.takeIf { it.isNotEmpty() }
+            entity.mediaUrl = question.mediaUrl?.trim()?.takeIf { it.isNotEmpty() }?.take(1024)
+            entity.mediaCaption = question.mediaCaption?.trim()?.takeIf { it.isNotEmpty() }?.take(200)
+            entity.mediaCredit = question.mediaCredit?.trim()?.takeIf { it.isNotEmpty() }?.take(200)
             entity.orderIndex = index
             questionRepository.save(entity)
         }
@@ -380,12 +403,18 @@ class TeacherExamService(
         return if (pairs.isEmpty()) null else codec.toJson(pairs)
     }
 
-    private fun normalizeTerm(raw: String): String {
+    private fun normalizeTerm(raw: String, schoolId: UUID?): String {
         val upper = raw.trim().uppercase()
-        return if (upper in TERMS) upper else defaultTerm()
+        return if (upper in TERMS) upper else defaultTerm(schoolId)
     }
 
-    private fun defaultTerm(): String {
+    /**
+     * The school's configured term window wins; the month heuristic is only the
+     * fallback for a school that has not set exact dates (or today falls between
+     * configured terms).
+     */
+    private fun defaultTerm(schoolId: UUID?): String {
+        termService.currentTermKey(schoolId)?.let { return it }
         val month = clock.instant().atZone(ZoneOffset.UTC).monthValue
         return when (month) {
             in 1..4 -> "TERM_1"

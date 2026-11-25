@@ -2,6 +2,7 @@ package com.afrithecus.brainbox.api.classes
 
 import com.afrithecus.brainbox.api.auth.web.AuthResponse
 import com.afrithecus.brainbox.api.classes.web.CreateClassRequest
+import com.afrithecus.brainbox.api.classes.web.ProvisionedLearnerPayload
 import com.afrithecus.brainbox.api.classes.web.TeacherClassPayload
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
@@ -146,4 +147,72 @@ class ClassesWebTests(
                 .content("""{"studentIds":["${outsider.user.id}"]}""")
         ).andExpect(status().isBadRequest)
     }
+    @Test
+    fun `school class catalogue lists classes owned by other teachers`() {
+        val host = signupStudent("0774000006", "Catalogue High")
+        val schoolId = host.user.schoolId!!
+        val mine = newTeacher(schoolId, "0774555004")
+        val colleague = newTeacher(schoolId, "0774555005")
+        val myClass = createClass(mine, "Mine")
+        val theirClass = createClass(colleague, "Theirs")
+
+        val catalogue = objectMapper.readValue(
+            mockMvc.perform(get("/teacher/classes/catalogue").header("Authorization", auth(mine.sessionToken!!)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<TeacherClassPayload>::class.java,
+        )
+        val ids = catalogue.map { it.classId }.toSet()
+        check(ids.contains(myClass.classId)) { "own class missing from catalogue" }
+        check(ids.contains(theirClass.classId)) { "the transition picker needs the whole school catalogue" }
+    }
+
+
+    @Test
+    fun `a school ICT admin can read any class roster in their school`() {
+        val host = signupStudent("0774000026", "Roster Read High")
+        val schoolId = host.user.schoolId!!.toString()
+        val owner = newTeacher(schoolId, "0774555024")
+        fun admin(phone: String, school: String): AuthResponse {
+            val email = phone + "@readadmin.test"
+            val row = UserEntity().apply {
+                this.phoneNumber = phone
+                this.email = email
+                passwordHash = passwordEncoder.encode("teacherpass123") ?: error("encode")
+                name = "Read Admin " + phone
+                role = Role.TEACHER
+                subRole = com.afrithecus.brainbox.api.identity.model.SubRole.ICT_ADMIN
+                this.schoolId = java.util.UUID.fromString(school)
+                isActive = true
+                isVerified = true
+                verificationStatus = com.afrithecus.brainbox.api.identity.model.AccountStatus.VERIFIED
+            }
+            userRepository.save(row)
+            val login = mockMvc.perform(
+                post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"identifier\":\"" + email + "\",\"password\":\"teacherpass123\"}")
+            ).andExpect(status().isOk).andReturn().response.contentAsString
+            return objectMapper.readValue(login, AuthResponse::class.java)
+        }
+        val clazz = createClass(owner, "Readable")
+        mockMvc.perform(
+            post("/teacher/classes/" + clazz.classId + "/learners").header("Authorization", auth(owner.sessionToken!!))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Paper Learner\",\"admissionNumber\":\"RP-1\"}")
+        ).andExpect(status().isOk)
+        val inSchool = admin("0774555025", schoolId)
+        mockMvc.perform(get("/teacher/classes/" + clazz.classId + "/students").header("Authorization", auth(inSchool.sessionToken!!)))
+            .andExpect(status().isOk)
+        val rosterOnly = objectMapper.readValue(
+            mockMvc.perform(get("/teacher/classes/" + clazz.classId + "/learners").header("Authorization", auth(inSchool.sessionToken!!)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<ProvisionedLearnerPayload>::class.java,
+        )
+        check(rosterOnly.any { it.name == "Paper Learner" }) { "the admin must see the class's roster-only learners too" }
+        val otherHost = signupStudent("0774000027", "Roster Read Other")
+        val outsider = admin("0774555026", otherHost.user.schoolId!!.toString())
+        mockMvc.perform(get("/teacher/classes/" + clazz.classId + "/students").header("Authorization", auth(outsider.sessionToken!!)))
+            .andExpect(status().isForbidden)
+        mockMvc.perform(get("/teacher/classes/" + clazz.classId + "/learners").header("Authorization", auth(outsider.sessionToken!!)))
+            .andExpect(status().isForbidden)
+    }
+
 }

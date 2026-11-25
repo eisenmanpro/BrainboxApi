@@ -87,6 +87,27 @@ data class ContentAnalyticsPayload(
     val isStale: Boolean = false,
 )
 
+/** One shared material another school published under GLOBAL scope. */
+data class PublicMaterialPayload(
+    val materialId: String,
+    val postId: String,
+    val type: String,
+    val title: String = "",
+    val description: String = "",
+    val content: String = "",
+    val subject: String = "",
+    val gradeLevel: String = "",
+    val topic: String = "",
+    val cbcStrand: String? = null,
+    val cbcSubStrand: String? = null,
+    val durationMinutes: Int = 0,
+    val thumbnailUrl: String? = null,
+    val metadata: String? = null,
+    val schoolName: String = "",
+    val authorName: String = "",
+    val createdAt: Long = 0,
+)
+
 /** Body of PUT teacher/content/material/{materialId}. */
 data class MaterialUpdateRequest(
     val post: TeacherPostPayload,

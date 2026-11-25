@@ -8,10 +8,13 @@ import com.afrithecus.brainbox.api.common.error.conflict
 import com.afrithecus.brainbox.api.common.error.invalidArgument
 import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.conference.entity.ConferenceBookingEntity
+import com.afrithecus.brainbox.api.conference.entity.ConferenceDiscussionEntity
 import com.afrithecus.brainbox.api.conference.entity.ConferenceSlotEntity
 import com.afrithecus.brainbox.api.conference.repository.ConferenceBookingRepository
+import com.afrithecus.brainbox.api.conference.repository.ConferenceDiscussionRepository
 import com.afrithecus.brainbox.api.conference.repository.ConferenceSlotRepository
 import com.afrithecus.brainbox.api.conference.web.ConferenceBookingPayload
+import com.afrithecus.brainbox.api.conference.web.ConferenceDiscussionPayload
 import com.afrithecus.brainbox.api.conference.web.ConferenceSlotPayload
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
@@ -37,12 +40,20 @@ import java.util.UUID
 class ConferenceService(
     private val slotRepository: ConferenceSlotRepository,
     private val bookingRepository: ConferenceBookingRepository,
+    private val discussionRepository: ConferenceDiscussionRepository,
     private val userRepository: UserRepository,
     private val membershipRepository: ClassMembershipRepository,
     private val classRepository: TeacherClassRepository,
     private val notificationService: NotificationService,
     private val clock: Clock,
     @Value("\${app.school-zone:Africa/Nairobi}") private val schoolZone: String,
+    /**
+     * Base URL of the conferencing service that hosts a slot's meeting room.
+     * A room is derived deterministically from the slot id, so the same link is
+     * returned on every call and actually opens a working room (Jitsi Meet by
+     * default). Deployments that run their own instance override this.
+     */
+    @Value("\${app.conference.meet-base-url:https://meet.jit.si}") private val meetBaseUrl: String,
 ) {
 
     // ------------------------------------------------------------ teacher
@@ -146,17 +157,86 @@ class ConferenceService(
         bookingRepository.saveAndFlush(booking)
     }
 
-    /** Stable per slot: generated once and reused. */
+    /**
+     * Stable per slot: the room is derived from the slot id and persisted the
+     * first time it is requested. Only a virtual, live slot has a room.
+     */
     @Transactional
     fun meetLink(teacher: UserEntity, slotIdRaw: String): String {
         requireTeacher(teacher)
         val slot = requireOwnedSlot(teacher, slotIdRaw)
+        if (slot.status == "CANCELLED") throw conflict("Cancelled slots have no meeting link")
+        if (!slot.isVirtual) throw conflict("In-person slots have no meeting link")
         val existing = slot.meetLink
         if (!existing.isNullOrBlank()) return existing
-        val link = "https://meet.brainbox.com/s/" + slot.id
+        val base = meetBaseUrl.trim().ifEmpty { DEFAULT_MEET_BASE_URL }.trimEnd('/')
+        if (!base.startsWith("https://")) throw conflict("Meeting service is not configured")
+        val link = base + "/BrainBox-" + slot.id.toString().replace("-", "")
         slot.meetLink = link
         slotRepository.saveAndFlush(slot)
         return link
+    }
+
+    // ------------------------------------------------------------ discussion
+
+    /** The slot's persisted thread, oldest first. Only the slot owner may read it. */
+    @Transactional(readOnly = true)
+    fun discussionsForSlot(teacher: UserEntity, slotIdRaw: String): List<ConferenceDiscussionPayload> {
+        requireTeacher(teacher)
+        val slot = requireOwnedSlot(teacher, slotIdRaw)
+        return discussionRepository.findAllBySlotIdOrderByCreatedAtAscIdAsc(slot.id).map { discussionPayload(it) }
+    }
+
+    /**
+     * Idempotent per (slot, client id); the path slot id is authoritative and a
+     * replayed client id returns the stored message instead of duplicating it.
+     */
+    @Transactional
+    fun postDiscussion(
+        teacher: UserEntity,
+        slotIdRaw: String,
+        request: ConferenceDiscussionPayload,
+    ): ConferenceDiscussionPayload {
+        requireTeacher(teacher)
+        val slot = requireOwnedSlot(teacher, slotIdRaw)
+        val body = request.body.trim()
+        if (body.isEmpty()) throw invalidArgument("Message cannot be empty")
+        if (body.length > DISCUSSION_BODY_MAX) {
+            throw invalidArgument("Message must be at most " + DISCUSSION_BODY_MAX + " characters")
+        }
+        val rawId = request.id.trim()
+        if (rawId.length > DISCUSSION_ID_MAX) {
+            throw invalidArgument("Message id must be at most " + DISCUSSION_ID_MAX + " characters")
+        }
+        if (rawId.isNotEmpty() && !DISCUSSION_ID_PATTERN.matches(rawId)) {
+            throw invalidArgument("Message id may only contain letters, digits, hyphens and underscores")
+        }
+        val clientId = rawId.ifEmpty { "cd_" + UUID.randomUUID() }
+        val existing = discussionRepository.findBySlotIdAndClientId(slot.id, clientId)
+        if (existing != null) {
+            if (existing.authorId != teacher.id) throw forbidden("Not your message")
+            return discussionPayload(existing)
+        }
+        val entity = ConferenceDiscussionEntity().apply {
+            this.clientId = clientId
+            this.slotId = slot.id
+            authorId = teacher.id
+            authorName = teacher.name.take(160)
+            authorRole = (teacher.subRole?.name ?: teacher.role.name).take(32)
+            this.body = body
+        }
+        discussionRepository.saveAndFlush(entity)
+        return discussionPayload(entity)
+    }
+
+    /** Repeat-safe delete inside one owned slot; an absent message is already gone. */
+    @Transactional
+    fun deleteDiscussion(teacher: UserEntity, slotIdRaw: String, discussionIdRaw: String) {
+        requireTeacher(teacher)
+        val slot = requireOwnedSlot(teacher, slotIdRaw)
+        val entity = resolveDiscussion(slot.id, discussionIdRaw) ?: return
+        if (entity.authorId != teacher.id) throw forbidden("Not your message")
+        discussionRepository.delete(entity)
     }
 
     // ------------------------------------------------------------ parent
@@ -256,21 +336,40 @@ class ConferenceService(
     private fun applySlot(entity: ConferenceSlotEntity, request: ConferenceSlotPayload, teacher: UserEntity) {
         val title = request.title.trim()
         if (title.isEmpty()) throw invalidArgument("Slot title is required")
+        if (title.length > SLOT_TITLE_MAX) throw invalidArgument("Slot title must be at most " + SLOT_TITLE_MAX + " characters")
+        if (request.date <= 0) throw invalidArgument("Slot date is required")
         val start = request.startTime.trim()
         val end = request.endTime.trim()
         if (start.isEmpty() || end.isEmpty()) throw invalidArgument("Slot startTime and endTime are required")
+        val startTime = runCatching { LocalTime.parse(start) }.getOrNull()
+            ?: throw invalidArgument("Slot startTime must be HH:mm")
+        val endTime = runCatching { LocalTime.parse(end) }.getOrNull()
+            ?: throw invalidArgument("Slot endTime must be HH:mm")
+        if (!endTime.isAfter(startTime)) throw invalidArgument("Slot endTime must be after startTime")
+        val minutes = Duration.between(startTime, endTime).toMinutes().toInt()
+        if (minutes < DURATION_MIN_MINUTES || minutes > DURATION_MAX_MINUTES) {
+            throw invalidArgument("Slot duration must be " + DURATION_MIN_MINUTES + "-" + DURATION_MAX_MINUTES + " minutes")
+        }
+        if (request.maxBookings < 1 || request.maxBookings > MAX_BOOKINGS_MAX) {
+            throw invalidArgument("maxBookings must be 1-" + MAX_BOOKINGS_MAX)
+        }
+        val location = request.location?.trim()?.takeIf { it.isNotEmpty() }
+        val rule = request.recurrenceRule?.trim()?.takeIf { it.isNotEmpty() }
+        if (request.isRecurring && rule == null) throw invalidArgument("A recurring slot requires a recurrence rule")
+        if (rule != null && !rule.uppercase().startsWith("FREQ=")) throw invalidArgument("Recurrence rule must start with FREQ=")
         entity.teacherId = teacher.id
         entity.teacherName = teacher.name
         entity.title = title
-        entity.slotDate = if (request.date > 0) Instant.ofEpochMilli(request.date) else clock.instant()
+        entity.slotDate = Instant.ofEpochMilli(request.date)
         entity.startTime = start
         entity.endTime = end
-        entity.durationMinutes = (request.durationMinutes.takeIf { it > 0 } ?: request.duration).coerceAtLeast(1)
-        entity.maxBookings = request.maxBookings.coerceAtLeast(1)
+        entity.durationMinutes = minutes
+        entity.maxBookings = request.maxBookings
         entity.isVirtual = request.isVirtual
-        entity.location = request.location?.trim()?.takeIf { it.isNotEmpty() }
+        if (!request.isVirtual) entity.meetLink = null
+        entity.location = location
         entity.isRecurring = request.isRecurring
-        entity.recurrenceRule = request.recurrenceRule?.trim()?.takeIf { it.isNotEmpty() }
+        entity.recurrenceRule = rule?.uppercase()
         entity.status = validateSlotStatus(request.status)
         entity.cancellationReason = request.cancellationReason?.trim()?.takeIf { it.isNotEmpty() }
         entity.audienceTarget = validateAudience(request.audienceTarget)
@@ -388,7 +487,7 @@ class ConferenceService(
             teacherName = booking.teacherName.orEmpty(),
             date = booking.bookingDate.toEpochMilli(),
             time = booking.bookingTime.orEmpty(),
-            meetLink = booking.meetLink,
+            meetLink = booking.meetLink ?: slot?.meetLink,
             notes = booking.notes,
             status = booking.status,
             requestedAt = booking.requestedAt.toEpochMilli(),
@@ -442,6 +541,24 @@ class ConferenceService(
         return bookingRepository.findById(id).orElse(null)
     }
 
+    private fun resolveDiscussion(slotId: UUID, raw: String): ConferenceDiscussionEntity? {
+        if (raw.isBlank()) return null
+        discussionRepository.findBySlotIdAndClientId(slotId, raw)?.let { return it }
+        val id = runCatching { UUID.fromString(raw.trim()) }.getOrNull() ?: return null
+        return discussionRepository.findBySlotIdAndId(slotId, id)
+    }
+
+    private fun discussionPayload(discussion: ConferenceDiscussionEntity): ConferenceDiscussionPayload =
+        ConferenceDiscussionPayload(
+            id = discussion.clientId,
+            slotId = discussion.slotId.toString(),
+            authorId = discussion.authorId.toString(),
+            authorName = discussion.authorName.orEmpty(),
+            authorRole = discussion.authorRole,
+            body = discussion.body,
+            createdAt = discussion.createdAt.toEpochMilli(),
+        )
+
     private fun validateSlotStatus(raw: String): String {
         val value = raw.trim().uppercase().ifEmpty { "OPEN" }
         if (value !in SLOT_STATUSES) throw invalidArgument("Unknown slot status: " + raw)
@@ -477,6 +594,14 @@ class ConferenceService(
         const val REMINDER_WINDOW_HOURS = 1L
         const val PENDING_MAX_HOURS = 48L
         const val PENDING_LEAD_HOURS = 24L
+        const val DISCUSSION_BODY_MAX = 2000
+        const val DISCUSSION_ID_MAX = 80
+        const val DEFAULT_MEET_BASE_URL = "https://meet.jit.si"
+        const val SLOT_TITLE_MAX = 120
+        const val MAX_BOOKINGS_MAX = 50
+        const val DURATION_MIN_MINUTES = 15
+        const val DURATION_MAX_MINUTES = 1440
+        val DISCUSSION_ID_PATTERN = Regex("[A-Za-z0-9_-]+")
         val SLOT_STATUSES = setOf("OPEN", "FULL", "CANCELLED", "COMPLETED")
         val DECIDABLE_BOOKING_STATUSES = setOf("CONFIRMED", "CANCELLED", "ATTENDED", "EXPIRED")
         val ACTIVE_BOOKING_STATUSES = listOf("PENDING", "CONFIRMED")

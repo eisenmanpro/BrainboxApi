@@ -12,6 +12,7 @@ import com.afrithecus.brainbox.api.gradebook.GradebookService
 import com.afrithecus.brainbox.api.gradebook.web.GradebookAssessmentPayload
 import com.afrithecus.brainbox.api.gradebook.web.GradebookEntryPayload
 import com.afrithecus.brainbox.api.studentanalytics.StudentAnalyticsService
+import com.afrithecus.brainbox.api.classes.entity.ClassMembershipEntity
 import com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity
 import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
@@ -182,6 +183,61 @@ class RosterOnlyLearnerTests(
         check(userRepository.findByStudentAdmissionNumber("TAKEN-1")!!.id == foreign.id) { "no cross-school clash" }
         check(userRepository.findByStudentAdmissionNumber("GOOD-1") != null)
         check(userRepository.findByStudentAdmissionNumber("GOOD-2") != null)
+    }
+
+    @Test
+    fun aLearnerIsNeverMovedToAnotherClassByReusingTheAdmissionNumber() {
+        val ownerA = user(Role.TEACHER, "Owner A", "0700000106", schoolId)
+        val ownerB = user(Role.TEACHER, "Owner B", "0700000107", schoolId)
+        val classA = clazz(ownerA, "Grade 4", "4A", schoolId)
+        val classB = clazz(ownerB, "Grade 4", "4B", schoolId)
+        val learner = provision(classA.id, token(ownerA), "Faith Njeri", "MOVE-1")
+
+        // Seeding class B with the same admission number must fail, not transfer.
+        mockMvc.perform(
+            post("/teacher/classes/" + classB.id + "/learners")
+                .header("Authorization", auth(token(ownerB)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(ProvisionLearnerRequest("Faith Njeri", "MOVE-1")))
+        ).andExpect(status().isConflict)
+
+        // The bulk path reports that row and still lands the healthy ones.
+        val result = read(
+            mockMvc.perform(
+                post("/teacher/classes/" + classB.id + "/learners/bulk")
+                    .header("Authorization", auth(token(ownerB)))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(BulkProvisionLearnersRequest(
+                        learners = listOf(
+                            ProvisionLearnerRequest("Faith Njeri", "MOVE-1"),
+                            ProvisionLearnerRequest("New Pupil", "NEW-9"),
+                        )
+                    )))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            BulkProvisionLearnersResult::class.java,
+        )
+        check(result.created == 1) { "only the fresh learner should be created, was " + result.created }
+        check(result.errors.size == 1) { "the re-used admission number must be reported" }
+
+        val stored = userRepository.findByStudentAdmissionNumber("MOVE-1")!!
+        check(stored.id == UUID.fromString(learner.id))
+        check(stored.provisionedClassId == classA.id) { "the learner must stay in their original class" }
+
+        // The same rule protects a real (FULL) learner who is already a member of
+        // another class: provisioning them into a second class must be refused.
+        val real = user(Role.STUDENT, "Real Learner", "0700000188", schoolId, admission = "REAL-1")
+        classMembershipRepository.save(ClassMembershipEntity().apply {
+            classId = classA.id
+            studentId = real.id
+        })
+        mockMvc.perform(
+            post("/teacher/classes/" + classB.id + "/learners")
+                .header("Authorization", auth(token(ownerB)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(ProvisionLearnerRequest("Real Learner", "REAL-1")))
+        ).andExpect(status().isConflict)
+        check(classMembershipRepository.findByClassIdAndStudentId(classA.id, real.id) != null)
+        check(real.provisionedClassId == null) { "a full learner must not be re-tagged to another class" }
     }
 
     @Test

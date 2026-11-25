@@ -266,6 +266,21 @@ class ClassChatService(
     fun messages(current: CurrentUser, groupIdRaw: String, limitRaw: Int, before: Long?): List<ClassGroupMessagePayload> =
         messagesFor(current, readableGroup(current, groupIdRaw), limitRaw, before)
 
+    /**
+     * Socket-handshake authorization (ClassChatHandshakeInterceptor). A browser cannot set
+     * an Authorization header on a WebSocket, so the handshake passes the bearer as a query
+     * parameter; this method reuses the exact REST read gate so a socket can never widen
+     * access. Inactive accounts are refused.
+     */
+    @Transactional(readOnly = true)
+    fun mayRead(userId: UUID, groupId: UUID): Boolean {
+        val viewer = userRepository.findById(userId).orElse(null) ?: return false
+        if (!viewer.isActive) return false
+        return runCatching {
+            readableGroup(CurrentUser(userId = userId, role = viewer.role, subRole = viewer.subRole), groupId.toString())
+        }.isSuccess
+    }
+
     @Transactional
     fun send(
         current: CurrentUser,

@@ -324,8 +324,23 @@ class LiveClassService(
     @Transactional
     fun updateStatus(classIdRaw: String, request: UpdateLiveClassStatusRequest): LiveClassPayload {
         val clazz = requireClass(classIdRaw)
-        clazz.status = runCatching { LiveClassStatus.valueOf(request.status.trim().uppercase()) }.getOrNull()
+        val next = runCatching { LiveClassStatus.valueOf(request.status.trim().uppercase()) }.getOrNull()
             ?: throw invalidArgument("Unknown live class status: " + request.status)
+        val now = clock.instant()
+        when (next) {
+            LiveClassStatus.LIVE -> {
+                if (clazz.status != LiveClassStatus.LIVE) {
+                    clazz.startedAt = now
+                    clazz.endedAt = null
+                }
+                clazz.lastHostSeenAt = now
+            }
+            LiveClassStatus.COMPLETED, LiveClassStatus.CANCELLED -> {
+                if (clazz.endedAt == null) clazz.endedAt = now
+            }
+            LiveClassStatus.SCHEDULED -> Unit
+        }
+        clazz.status = next
         request.joinUrl?.let { clazz.joinUrl = it }
         request.recordingUrl?.let { clazz.recordingUrl = it }
         return payload(classRepository.save(clazz))
@@ -349,6 +364,19 @@ class LiveClassService(
             status = clazz.status.name,
             joinUrl = clazz.joinUrl,
             recordingUrl = clazz.recordingUrl,
+            startedAt = clazz.startedAt?.toEpochMilli(),
+            endedAt = clazz.endedAt?.toEpochMilli(),
+            clientId = clazz.clientId,
+            settings = com.afrithecus.brainbox.api.live.web.LiveClassSettingsPayload(
+                visibility = clazz.visibility,
+                autoRecord = clazz.autoRecord,
+                muteOnJoin = clazz.muteOnJoin,
+                waitingRoom = clazz.waitingRoom,
+                allowChat = clazz.allowChat,
+                allowQandA = clazz.allowQandA,
+            ),
+            hostLastSeenAt = clazz.lastHostSeenAt?.toEpochMilli(),
+            recordingDurationSeconds = clazz.recordingDurationSeconds,
             participantCount = registered,
             maxParticipants = clazz.maxParticipants,
             thumbnailUrl = clazz.thumbnailUrl,

@@ -54,6 +54,10 @@ class SchoolConfigEntity {
     @Column(name = "academic_calendar", columnDefinition = "text")
     var academicCalendar: String? = null
 
+    /** JSON array of {name, start, end}; labels stay in [academicCalendar]. */
+    @Column(name = "term_dates", columnDefinition = "text")
+    var termDates: String? = null
+
     @Column(name = "cbc_strands", columnDefinition = "text")
     var cbcStrands: String? = null
 

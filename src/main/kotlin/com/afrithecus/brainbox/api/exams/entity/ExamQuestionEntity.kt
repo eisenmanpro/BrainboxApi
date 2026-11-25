@@ -79,6 +79,26 @@ class ExamQuestionEntity {
     @Column(name = "is_from_bank", nullable = false)
     var isFromBank: Boolean = false
 
+    /** Where the question came from (AUTHORED, BANK, PAPER) and that source's reference/label. */
+    @Column(name = "source_kind", length = 32)
+    var sourceKind: String? = null
+
+    @Column(name = "source_ref", length = 160)
+    var sourceRef: String? = null
+
+    @Column(name = "source_label", length = 255)
+    var sourceLabel: String? = null
+
+    /** Optional image shown with the question, plus its caption and credit. */
+    @Column(name = "media_url", length = 1024)
+    var mediaUrl: String? = null
+
+    @Column(name = "media_caption", length = 200)
+    var mediaCaption: String? = null
+
+    @Column(name = "media_credit", length = 200)
+    var mediaCredit: String? = null
+
     /** Server-rendered figure SVG and the declarative spec it came from. */
     @Column(name = "figure_svg", columnDefinition = "text")
     var figureSvg: String? = null

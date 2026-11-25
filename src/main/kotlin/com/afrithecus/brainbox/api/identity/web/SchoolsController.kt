@@ -1,6 +1,7 @@
 package com.afrithecus.brainbox.api.identity.web
 
 import com.afrithecus.brainbox.api.identity.SchoolDirectoryService
+import com.afrithecus.brainbox.api.identity.SchoolTermService
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
@@ -21,7 +22,10 @@ import org.springframework.web.bind.annotation.RestController
  */
 @RestController
 @RequestMapping("/schools")
-class SchoolsController(private val service: SchoolDirectoryService) {
+class SchoolsController(
+    private val service: SchoolDirectoryService,
+    private val terms: SchoolTermService,
+) {
 
     @GetMapping("/search")
     fun search(@RequestParam query: String): List<SchoolListPayload> = service.search(query)
@@ -31,6 +35,14 @@ class SchoolsController(private val service: SchoolDirectoryService) {
 
     @GetMapping("/{id}")
     fun detail(@PathVariable id: String): SchoolDetailPayload = service.detail(id)
+
+    /**
+     * Teacher-readable calendar (labels + exact windows + the active term). The
+     * admin config endpoint is ICT-admin only, but every teacher screen needs the
+     * real current term, so this exposes the non-sensitive dates without auth.
+     */
+    @GetMapping("/{id}/term-calendar")
+    fun termCalendar(@PathVariable id: String): TermCalendarPayload = terms.calendar(id)
 
     @PostMapping("/{id}/reviews")
     fun review(

@@ -6,6 +6,7 @@ import com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity
 import com.afrithecus.brainbox.api.classes.repository.ClassMembershipRepository
 import com.afrithecus.brainbox.api.classes.repository.TeacherClassRepository
 import com.afrithecus.brainbox.api.conference.web.ConferenceBookingPayload
+import com.afrithecus.brainbox.api.conference.web.ConferenceDiscussionPayload
 import com.afrithecus.brainbox.api.conference.web.ConferenceSlotPayload
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
@@ -227,6 +228,133 @@ class ConferenceWebTests(
                 Array<ConferenceBookingPayload>::class.java,
             ).isEmpty()
         )
+    }
+
+    @Test
+    fun `meeting discussion is persisted, idempotent and slot-scoped`() {
+        val teacher = user(Role.TEACHER, "Discussing Teacher", "0755120201")
+        val other = user(Role.TEACHER, "Unrelated Teacher", "0755120202")
+        val t = token(teacher)
+        val slot = ConferenceSlotPayload(
+            id = "disc_slot_1",
+            title = "Grade 6 Consultation",
+            date = System.currentTimeMillis() + 86_400_000L,
+            startTime = "11:00",
+            endTime = "11:30",
+            durationMinutes = 30,
+            maxBookings = 2,
+            isVirtual = true,
+            audienceTarget = "GRADE_PARENTS",
+        )
+        val created = objectMapper.readValue(
+            mockMvc.perform(post("/teacher/conference/slot").header("Authorization", auth(t))
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(slot)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            ConferenceSlotPayload::class.java,
+        )
+        val base = "/teacher/conference/slot/" + created.id + "/discussion"
+
+        // A blank message is rejected before it is stored.
+        mockMvc.perform(post(base).header("Authorization", auth(t))
+            .contentType(MediaType.APPLICATION_JSON).content("{\"id\":\"cd_blank\",\"body\":\"   \"}"))
+            .andExpect(status().isBadRequest)
+
+        val first = objectMapper.readValue(
+            mockMvc.perform(post(base).header("Authorization", auth(t))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"id\":\"cd_first\",\"body\":\"Parent asked for a maths plan.\"}"))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            ConferenceDiscussionPayload::class.java,
+        )
+        check(first.id == "cd_first")
+        check(first.body == "Parent asked for a maths plan.")
+        check(first.authorName == "Discussing Teacher")
+        check(first.authorRole == "TEACHER")
+        check(first.slotId == created.id)
+
+        // Replaying the same client id returns the same message, not a second row.
+        mockMvc.perform(post(base).header("Authorization", auth(t))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"id\":\"cd_first\",\"body\":\"Parent asked for a maths plan.\"}"))
+            .andExpect(status().isOk)
+        val thread = objectMapper.readValue(
+            mockMvc.perform(get(base).header("Authorization", auth(t)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<ConferenceDiscussionPayload>::class.java,
+        )
+        check(thread.size == 1)
+
+        // Another teacher cannot read or write the thread.
+        mockMvc.perform(get(base).header("Authorization", auth(token(other))))
+            .andExpect(status().isForbidden)
+        mockMvc.perform(post(base).header("Authorization", auth(token(other)))
+            .contentType(MediaType.APPLICATION_JSON).content("{\"id\":\"cd_other\",\"body\":\"Hijack\"}"))
+            .andExpect(status().isForbidden)
+
+        // Delete is scoped to the slot and repeat-safe.
+        mockMvc.perform(delete(base + "/cd_first").header("Authorization", auth(t)))
+            .andExpect(status().isNoContent)
+        mockMvc.perform(delete(base + "/cd_first").header("Authorization", auth(t)))
+            .andExpect(status().isNoContent)
+        val emptied = objectMapper.readValue(
+            mockMvc.perform(get(base).header("Authorization", auth(t)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<ConferenceDiscussionPayload>::class.java,
+        )
+        check(emptied.isEmpty())
+
+        // The meet link is a real, stable room on the configured service.
+        val link1 = mockMvc.perform(get("/teacher/conference/slot/" + created.id + "/meet-link")
+            .header("Authorization", auth(t)))
+            .andExpect(status().isOk).andReturn().response.contentAsString
+        check(link1.trim('"').startsWith("https://") && link1.contains("BrainBox-")) { "unexpected meet link: " + link1 }
+        check(link1.contains(created.id.replace("-", "")))
+        val link2 = mockMvc.perform(get("/teacher/conference/slot/" + created.id + "/meet-link")
+            .header("Authorization", auth(t)))
+            .andExpect(status().isOk).andReturn().response.contentAsString
+        check(link1 == link2)
+
+        // An in-person slot has no room to join.
+        val inPerson = objectMapper.readValue(
+            mockMvc.perform(post("/teacher/conference/slot").header("Authorization", auth(t))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(slot.copy(id = "disc_slot_2", title = "On-site meeting", isVirtual = false, location = "Room 4"))))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            ConferenceSlotPayload::class.java,
+        )
+        mockMvc.perform(get("/teacher/conference/slot/" + inPerson.id + "/meet-link").header("Authorization", auth(t)))
+            .andExpect(status().isConflict)
+    }
+
+    @Test
+    fun `slot validation rejects an impossible window and booking count`() {
+        val teacher = user(Role.TEACHER, "Validating Teacher", "0755120203")
+        val t = token(teacher)
+        val base = ConferenceSlotPayload(
+            id = "valid_slot_1",
+            title = "Window check",
+            date = System.currentTimeMillis() + 86_400_000L,
+            startTime = "10:00",
+            endTime = "10:30",
+            maxBookings = 2,
+            audienceTarget = "WHOLE_SCHOOL",
+        )
+        mockMvc.perform(post("/teacher/conference/slot").header("Authorization", auth(t))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(base.copy(id = "valid_slot_2", endTime = "09:00"))))
+            .andExpect(status().isBadRequest)
+        mockMvc.perform(post("/teacher/conference/slot").header("Authorization", auth(t))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(base.copy(id = "valid_slot_3", maxBookings = 0))))
+            .andExpect(status().isBadRequest)
+        mockMvc.perform(post("/teacher/conference/slot").header("Authorization", auth(t))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(base.copy(id = "valid_slot_4", date = 0))))
+            .andExpect(status().isBadRequest)
+        mockMvc.perform(post("/teacher/conference/slot").header("Authorization", auth(t))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(base.copy(id = "valid_slot_5", isRecurring = true, recurrenceRule = null))))
+            .andExpect(status().isBadRequest)
     }
 
     @Test

@@ -7,6 +7,9 @@ interface HomeworkRepository : JpaRepository<HomeworkEntity, String> {
 
     fun findAllByTeacherIdAndIsActiveTrueOrderByDueDateAsc(teacherId: java.util.UUID): List<HomeworkEntity>
 
+    /** Includes archived rows: the manager's Completed tab is archived homework. */
+    fun findAllByTeacherIdOrderByDueDateAsc(teacherId: java.util.UUID): List<HomeworkEntity>
+
     fun findAllByIsDraftFalseAndIsActiveTrue(): List<HomeworkEntity>
 
     fun findAllByClassIdOrderByDueDateDesc(classId: java.util.UUID): List<HomeworkEntity>

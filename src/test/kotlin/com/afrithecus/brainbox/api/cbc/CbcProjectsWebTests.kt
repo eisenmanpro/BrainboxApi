@@ -11,6 +11,7 @@ import com.afrithecus.brainbox.api.cbc.web.SubmitCbcProjectRequest
 import com.afrithecus.brainbox.api.identity.entity.SchoolEntity
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.Role
+import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import org.junit.jupiter.api.Test
@@ -422,4 +423,40 @@ class CbcProjectsWebTests(
         mockMvc.perform(get("/cbc/projects/not-a-uuid").header("Authorization", auth(student.sessionToken!!)))
             .andExpect(status().isBadRequest)
     }
+    @Test
+    fun `the reviewing admin's own upload publishes without a review step`() {
+        val school = school("Reviewer School")
+        val learner = userInSchool("0778920002", "reviewer.learner@test", Role.STUDENT, school.id)
+        val reviewer = userRepository.save(UserEntity().apply {
+            phoneNumber = "0778920001"
+            email = "reviewer.admin@test"
+            role = Role.TEACHER
+            subRole = SubRole.ICT_ADMIN
+            schoolId = school.id
+            passwordHash = passwordEncoder.encode("password123") ?: error("encode")
+            name = "Reviewing Admin"
+            isActive = true
+            isVerified = true
+        })
+        val token = login("reviewer.admin@test")
+        val request = mapOf(
+            "title" to "Admin showcase project",
+            "description" to "Uploaded by the reviewer.",
+            "subject" to "Science",
+            "cbcStrand" to "CS3",
+            "cbcSubStrand" to "SS-CS3-1",
+            "gradeBand" to "JUNIOR",
+            "rubricScores" to mapOf("Research" to 4),
+            "studentIds" to listOf(learner.id.toString()),
+            "showLearnerNames" to emptyList<String>(),
+        )
+        val body = mockMvc.perform(
+            post("/cbc/projects").header("Authorization", auth(token))
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request))
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val created = objectMapper.readValue(body, CbcProjectPayload::class.java)
+        check(created.status == "APPROVED") { "reviewer upload status=" + created.status }
+        check(reviewer.id != null)
+    }
+
 }

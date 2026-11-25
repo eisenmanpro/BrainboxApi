@@ -38,6 +38,7 @@ import com.afrithecus.brainbox.api.common.error.notFound
 import com.afrithecus.brainbox.api.identity.entity.UserEntity
 import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.identity.model.Role
+import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import org.slf4j.LoggerFactory
@@ -215,7 +216,10 @@ class CbcProjectService(
             mediaUrls = mapper.writeValueAsString(media)
             coverImageUrl = media.firstOrNull { isImage(it) }
             thumbnailUrl = media.firstOrNull { isImage(it) }
-            status = ProjectStatus.PENDING
+            // The school ICT admin (and a platform admin) is the reviewer: their own
+            // upload must not queue behind themselves. Everyone else's work waits
+            // for review.
+            status = if (canApprove(current)) ProjectStatus.APPROVED else ProjectStatus.PENDING
             rubricScores = mapper.writeValueAsString(request.rubricScores)
             tags = mapper.writeValueAsString(request.tags)
             studentIds = if (staff) mapper.writeValueAsString(creditedIds.map { it.toString() }) else null
@@ -729,6 +733,10 @@ class CbcProjectService(
 
     private fun isStaff(current: CurrentUser): Boolean =
         current.role == Role.TEACHER || current.role == Role.ADMIN
+
+    /** The authority that reviews the school's project queue (ICT admin or platform admin). */
+    private fun canApprove(current: CurrentUser): Boolean =
+        current.role == Role.ADMIN || current.subRole == SubRole.ICT_ADMIN
 
     /** The client UserRole enum only has STUDENT, PARENT, TEACHER. */
     private fun apiRole(user: UserEntity): String = when (user.role) {

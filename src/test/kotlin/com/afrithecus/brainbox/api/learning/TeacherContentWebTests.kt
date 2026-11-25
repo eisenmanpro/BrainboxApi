@@ -6,6 +6,7 @@ import com.afrithecus.brainbox.api.identity.model.Role
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.learning.web.ContentAnalyticsPayload
 import com.afrithecus.brainbox.api.learning.web.MaterialUpdateRequest
+import com.afrithecus.brainbox.api.learning.web.PublicMaterialPayload
 import com.afrithecus.brainbox.api.learning.web.TeacherContentDraftPayload
 import com.afrithecus.brainbox.api.learning.web.TeacherContentPayload
 import com.afrithecus.brainbox.api.learning.web.TeacherDocumentPayload
@@ -396,5 +397,54 @@ class TeacherContentWebTests(
         mockMvc.perform(get("/learning/post/" + postId).header("Authorization", auth(studentToken)))
             .andExpect(status().isOk)
     }
+
+    @Test
+    fun `public library lists other teachers shared materials but never the caller's own`() {
+        val owner = teacher("0744000160")
+        val viewer = teacher("0744000161")
+        val ownerToken = token(owner)
+        val viewerToken = token(viewer)
+
+        fun publish(scope: String, title: String): String {
+            val postId = UUID.randomUUID().toString()
+            val materialId = UUID.randomUUID().toString()
+            val post = TeacherPostPayload(
+                id = postId, title = title, subject = "SCIENCE", gradeLevel = "Grade 6",
+                description = "Shared", scope = scope, isPublished = true, status = "PUBLISHED",
+            )
+            mockMvc.perform(
+                post("/teacher/content/post").header("Authorization", auth(ownerToken))
+                    .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(post))
+            ).andExpect(status().isOk)
+            val content = TeacherContentPayload(
+                id = materialId, postId = postId, type = "NOTES", title = title,
+                content = "Body", durationMinutes = 15, orderIndex = 0,
+            )
+            mockMvc.perform(
+                put("/teacher/content/material/" + materialId).header("Authorization", auth(ownerToken))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(MaterialUpdateRequest(post, content)))
+            ).andExpect(status().isOk)
+            return materialId
+        }
+        val shared = publish("GLOBAL", "Shared ecosystems notes")
+        publish("SCHOOL_GRADE_CLASS", "Private to my class")
+
+        val rows = read(
+            mockMvc.perform(get("/teacher/content/public?q=ecosystems").header("Authorization", auth(viewerToken)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<PublicMaterialPayload>::class.java,
+        ).toList()
+        check(rows.size == 1 && rows.single().materialId == shared) { "public library: " + rows }
+        check(rows.single().content == "Body" && rows.single().type == "NOTES") { "the share must carry the material body" }
+        // The owner browses the library to find other schools' work, never their own.
+        val own = read(
+            mockMvc.perform(get("/teacher/content/public?q=ecosystems").header("Authorization", auth(ownerToken)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<PublicMaterialPayload>::class.java,
+        ).toList()
+        check(own.isEmpty()) { "the caller's own material must not appear in the public library" }
+    }
+
 }
 

@@ -8,6 +8,9 @@ import com.afrithecus.brainbox.api.identity.model.SubRole
 import com.afrithecus.brainbox.api.identity.repository.SchoolRepository
 import com.afrithecus.brainbox.api.identity.repository.UserRepository
 import com.afrithecus.brainbox.api.identity.web.SchoolConfigPayload
+import com.afrithecus.brainbox.api.identity.web.TermCalendarPayload
+import com.afrithecus.brainbox.api.identity.web.TermDatePayload
+import java.time.LocalDate
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -160,4 +163,72 @@ class SchoolConfigWebTests(
         ).andExpect(status().isForbidden)
         assertNull(configService.branding(school.id).stampUrl)
     }
+    @Test
+    fun `term dates persist and resolve the exact current term`() {
+        val today = LocalDate.now()
+        val termDates = listOf(
+            TermDatePayload("Term 1", today.minusDays(60).toString(), today.minusDays(30).toString()),
+            TermDatePayload("Term 2", today.minusDays(10).toString(), today.plusDays(10).toString()),
+            TermDatePayload("Term 3", today.plusDays(40).toString(), today.plusDays(80).toString()),
+        )
+        val request = SchoolConfigPayload(
+            schoolId = school.id.toString(),
+            schoolName = school.name,
+            academicCalendar = listOf("Term 1", "Term 2", "Term 3"),
+            termDates = termDates,
+        )
+        val t = token(admin)
+        val saved = objectMapper.readValue(
+            mockMvc.perform(
+                put("/admin/schools/" + school.id + "/config").header("Authorization", "Bearer " + t)
+                    .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request)),
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            SchoolConfigPayload::class.java,
+        )
+        check(saved.termDates?.size == 3) { "term dates were not saved" }
+        check(saved.academicCalendar == listOf("Term 1", "Term 2", "Term 3")) { "labels changed" }
+
+        // The teacher-readable calendar resolves the window containing today.
+        val calendar = objectMapper.readValue(
+            mockMvc.perform(get("/schools/" + school.id + "/term-calendar"))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            TermCalendarPayload::class.java,
+        )
+        check(calendar.currentTerm == "Term 2") { "current=" + calendar.currentTerm }
+        check(calendar.currentTermStart == termDates[1].start)
+        check(calendar.termDates.size == 3)
+
+        // An older client that omits termDates must not wipe them.
+        val older = SchoolConfigPayload(
+            schoolId = school.id.toString(),
+            schoolName = school.name,
+            academicCalendar = listOf("Term 1", "Term 2", "Term 3"),
+        )
+        mockMvc.perform(
+            put("/admin/schools/" + school.id + "/config").header("Authorization", "Bearer " + t)
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(older)),
+        ).andExpect(status().isOk)
+        val afterOlder = objectMapper.readValue(
+            mockMvc.perform(get("/admin/schools/" + school.id + "/config").header("Authorization", "Bearer " + t))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            SchoolConfigPayload::class.java,
+        )
+        check(afterOlder.termDates?.size == 3) { "omitted termDates must leave the stored calendar untouched" }
+    }
+
+    @Test
+    fun `an inverted term window is rejected`() {
+        val today = LocalDate.now()
+        val request = SchoolConfigPayload(
+            schoolId = school.id.toString(),
+            schoolName = school.name,
+            academicCalendar = listOf("Term 1"),
+            termDates = listOf(TermDatePayload("Term 1", today.plusDays(10).toString(), today.toString())),
+        )
+        mockMvc.perform(
+            put("/admin/schools/" + school.id + "/config").header("Authorization", "Bearer " + token(admin))
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request)),
+        ).andExpect(status().isBadRequest)
+    }
+
 }

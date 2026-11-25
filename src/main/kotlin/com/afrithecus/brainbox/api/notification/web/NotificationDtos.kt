@@ -50,6 +50,7 @@ data class NewsItemPayload(
     val tags: List<String> = emptyList(),
     val schoolId: String? = null,
     val authorMasked: Boolean = false,
+    val imageCredit: String = "",
 )
 
 data class CreateNewsRequest(
@@ -57,6 +58,7 @@ data class CreateNewsRequest(
     @field:NotBlank val content: String,
     val category: String = "News",
     @field:Size(max = 512) val imageUrl: String? = null,
+    @field:Size(max = 200) val imageCredit: String? = null,
     @field:Size(max = 160) val author: String? = null,
     val publishedAt: Long? = null,
     val status: String = "PUBLISHED",

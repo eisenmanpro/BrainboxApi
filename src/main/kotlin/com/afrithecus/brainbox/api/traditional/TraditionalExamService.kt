@@ -20,6 +20,7 @@ import com.afrithecus.brainbox.api.notification.NotificationService
 import com.afrithecus.brainbox.api.notification.model.NotificationPriority
 import com.afrithecus.brainbox.api.notification.model.NotificationType
 import com.afrithecus.brainbox.api.notification.model.NotificationUrgency
+import com.afrithecus.brainbox.api.traditional.entity.TraditionalCaptureLockEntity
 import com.afrithecus.brainbox.api.traditional.entity.TraditionalConfirmationEntity
 import com.afrithecus.brainbox.api.traditional.entity.TraditionalEditPermissionEntity
 import com.afrithecus.brainbox.api.traditional.entity.TraditionalEditRequestEntity
@@ -34,6 +35,7 @@ import com.afrithecus.brainbox.api.traditional.model.TraditionalOmitPolicy
 import com.afrithecus.brainbox.api.traditional.model.TraditionalSubjectType
 import com.afrithecus.brainbox.api.traditional.model.displayName
 import com.afrithecus.brainbox.api.traditional.repository.TraditionalConfirmationRepository
+import com.afrithecus.brainbox.api.traditional.repository.TraditionalCaptureLockRepository
 import com.afrithecus.brainbox.api.traditional.repository.TraditionalEditPermissionRepository
 import com.afrithecus.brainbox.api.traditional.repository.TraditionalEditRequestRepository
 import com.afrithecus.brainbox.api.traditional.repository.TraditionalExamRepository
@@ -42,6 +44,7 @@ import com.afrithecus.brainbox.api.traditional.repository.TraditionalMarkReposit
 import com.afrithecus.brainbox.api.traditional.repository.TraditionalSubjectConfigRepository
 import com.afrithecus.brainbox.api.traditional.web.CaptureStudentDto
 import com.afrithecus.brainbox.api.traditional.web.CaptureStudentStatus
+import com.afrithecus.brainbox.api.traditional.web.BindCaptureClassRequest
 import com.afrithecus.brainbox.api.traditional.web.CaptureSummaryDto
 import com.afrithecus.brainbox.api.traditional.web.ClassCaptureSummaryDto
 import com.afrithecus.brainbox.api.traditional.web.ClassGradeAnalysisDto
@@ -104,6 +107,7 @@ class TraditionalExamService(
     private val subjectConfigRepository: TraditionalSubjectConfigRepository,
     private val gradingConfigService: TraditionalGradingConfigService,
     private val confirmationRepository: TraditionalConfirmationRepository,
+    private val captureLockRepository: TraditionalCaptureLockRepository,
     private val editRequestRepository: TraditionalEditRequestRepository,
     private val editPermissionRepository: TraditionalEditPermissionRepository,
     private val userRepository: UserRepository,
@@ -152,8 +156,12 @@ class TraditionalExamService(
         // Class teachers receive it and enter marks; they do not create sessions.
         val canonicalGradeLevel = canonicalGrade(request.gradeLevel)
         requireCoordinatorForGrade(current, canonicalGradeLevel)
-        validateSubjects(request.subjects)
         val user = user(current)
+        // Findings EXAM SESSION: only the grade coordinator creates a capture session.
+        if (!gradeAuthority.isCoordinator(user)) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "Only the grade coordinator can create a capture session")
+        }
+        validateSubjects(request.subjects)
         // D18/decision 20: the bands are decided with the capture session. An explicit list is
         // validated and written back as the grade's last-used config; absent, the last-used
         // config (else the platform defaults) is resolved. Either way the resolved list is
@@ -248,6 +256,9 @@ class TraditionalExamService(
         require(grade.isNotBlank()) { "grade is required" }
         val canonicalGrade = canonicalGrade(grade)
         val user = user(current)
+        if (!gradeAuthority.isCoordinator(user)) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "Only the grade coordinator can generate capture sessions")
+        }
         // The mirrored sessions are capture sessions too: snapshot the resolved bands (D18).
         val grading = gradingConfigService.resolveSessionConfig(canonicalGrade, user.schoolId, null)
         // The idempotent mirror is staff-wide, but a coordinator only mirrors their own grade.
@@ -575,14 +586,17 @@ class TraditionalExamService(
     fun captureClasses(current: CurrentUser, examIdRaw: String): List<TraditionalClassDto> {
         requireStaffReader(current)
         val exam = exam(current, examIdRaw)
+        val lock = captureLockRepository.findByExamIdAndTeacherId(exam.id, current.userId)
+        val lockedClassId = lock?.classId?.toString()
+        val lockedClassName = lock?.classTag?.takeIf { it.isNotBlank() }
         val schoolId = exam.schoolId
-        val classes = if (schoolId != null) {
+        val allClasses = if (schoolId != null) {
             teacherClassRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
                 .filter { it.gradeLevel.equals(exam.gradeLevel, ignoreCase = true) }
         } else {
             emptyList()
         }
-        if (classes.isEmpty()) {
+        if (allClasses.isEmpty()) {
             return listOf(
                 TraditionalClassDto(
                     classId = "",
@@ -591,21 +605,116 @@ class TraditionalExamService(
                     teacherId = null,
                     teacherName = null,
                     allowed = true,
+                    lockedClassId = lockedClassId,
+                    lockedClassName = lockedClassName,
                 )
             )
         }
-        val teachers = userRepository.findAllById(classes.map { it.teacherUserId }.distinct())
+        val classById = allClasses.associateBy { it.id }
+        val teachers = userRepository.findAllById(allClasses.map { it.teacherUserId }.distinct())
             .associateBy { it.id }
-        return classes.map { cls ->
+        // The caller's own class is never a capture target (this page belongs to the
+        // class teacher; someone else in the grade captures it).
+        val candidates = allClasses.filter { !isOwnClass(current, it.name, exam.gradeLevel) }
+        if (lock != null) {
+            val locked = classById[lock.classId] ?: return emptyList()
+            return listOf(
+                TraditionalClassDto(
+                    classId = locked.id.toString(),
+                    name = locked.name,
+                    gradeLevel = locked.gradeLevel,
+                    teacherId = locked.teacherUserId.toString(),
+                    teacherName = teachers[locked.teacherUserId]?.name,
+                    allowed = true,
+                    lockedClassId = lockedClassId,
+                    lockedClassName = lockedClassName,
+                )
+            )
+        }
+        val otherLocks = captureLockRepository.findAllByExamId(exam.id)
+            .filter { it.teacherId != current.userId }
+            .associateBy { it.classId }
+        val lockTeachers = userRepository.findAllById(otherLocks.values.map { it.teacherId }.distinct())
+            .associateBy { it.id }
+        return candidates.map { cls ->
+            val other = otherLocks[cls.id]
             TraditionalClassDto(
                 classId = cls.id.toString(),
                 name = cls.name,
                 gradeLevel = cls.gradeLevel,
                 teacherId = cls.teacherUserId.toString(),
                 teacherName = teachers[cls.teacherUserId]?.name,
-                allowed = !isOwnClass(current, cls.name, exam.gradeLevel),
+                allowed = other == null,
+                lockedClassId = lockedClassId,
+                lockedClassName = lockedClassName,
+                lockedByTeacherId = other?.teacherId?.toString(),
+                lockedByTeacherName = other?.let { lockTeachers[it.teacherId]?.name },
             )
         }.sortedByDescending { it.allowed }
+    }
+
+    /**
+     * Bind the caller to one class for this capture session before the first score is
+     * entered. This makes the class visible in the selector exactly once and gives the
+     * "you will be bound to this class" confirmation something server-side to commit.
+     * The per-teacher and per-class rules are both enforced here and on save.
+     */
+    @Transactional
+    fun bindCaptureClass(current: CurrentUser, examIdRaw: String, request: BindCaptureClassRequest): TraditionalClassDto {
+        requireStaffWriter(current)
+        val exam = exam(current, examIdRaw)
+        if (exam.status != TraditionalExamStatus.PENDING && exam.status != TraditionalExamStatus.IN_PROGRESS) {
+            throw conflict("This capture session is no longer open for new class bindings")
+        }
+        val clazz = teacherClassRepository.findById(parseUuid(request.classId, "classId")).orElse(null)
+            ?: throw notFound("Class not found")
+        if (exam.schoolId != null && clazz.schoolId != null && clazz.schoolId != exam.schoolId) {
+            throw invalidArgument("That class is not in this exam's school")
+        }
+        if (!clazz.gradeLevel.equals(exam.gradeLevel, ignoreCase = true)) {
+            throw invalidArgument("That class is not in the exam's grade")
+        }
+        if (isOwnClass(current, clazz.name, exam.gradeLevel)) {
+            throw ApiException(ApiErrorCode.FORBIDDEN, "You cannot capture scores for your own class")
+        }
+        val existing = captureLockRepository.findByExamIdAndTeacherId(exam.id, current.userId)
+        if (existing != null) {
+            if (existing.classId != clazz.id) {
+                val locked = existing.classTag.trim().ifEmpty { "one class" }
+                throw conflict("This capture session is locked to " + locked + ". One teacher captures one class per session.")
+            }
+            return boundClassDto(current, clazz, exam)
+        }
+        val other = captureLockRepository.findAllByExamId(exam.id)
+            .firstOrNull { it.classId == clazz.id && it.teacherId != current.userId }
+        if (other != null) {
+            val name = userRepository.findById(other.teacherId).orElse(null)?.name ?: "Another teacher"
+            throw conflict(name + " is already filling the scores for " + clazz.name)
+        }
+        captureLockRepository.save(
+            TraditionalCaptureLockEntity().apply {
+                this.examId = exam.id
+                this.teacherId = current.userId
+                this.classId = clazz.id
+                classTag = clazz.name
+            },
+        )
+        return boundClassDto(current, clazz, exam)
+    }
+
+    private fun boundClassDto(current: CurrentUser, clazz: com.afrithecus.brainbox.api.classes.entity.TeacherClassEntity, exam: TraditionalExamEntity): TraditionalClassDto {
+        val classTeacher = userRepository.findById(clazz.teacherUserId).orElse(null)
+        val lock = captureLockRepository.findByExamIdAndTeacherId(exam.id, current.userId)
+        return TraditionalClassDto(
+            classId = clazz.id.toString(),
+            name = clazz.name,
+            gradeLevel = clazz.gradeLevel,
+            teacherId = clazz.teacherUserId.toString(),
+            teacherName = classTeacher?.name,
+            allowed = true,
+            lockedClassId = lock?.classId?.toString(),
+            lockedClassName = lock?.classTag,
+        )
     }
 
     /**
@@ -674,8 +783,11 @@ class TraditionalExamService(
         // the ordinary teacher mark path below - additive, not blocked.
         val coordinatorOperator = gradeAuthority.isSchoolWide(operator) ||
             (gradeAuthority.isCoordinator(operator) && gradeAuthority.overseesGrade(operator, exam.gradeLevel))
+        // A coordinator also re-captures after finalization (their edit returns the learner
+        // to the capture tab instead of raising a request). Published marks stay frozen.
         val reviewStage = exam.status == TraditionalExamStatus.CONFIRMED ||
-            exam.status == TraditionalExamStatus.PRE_FINAL
+            exam.status == TraditionalExamStatus.PRE_FINAL ||
+            exam.status == TraditionalExamStatus.FINALIZED
         val coordinatorCanReview = coordinatorOperator && reviewStage
         // Non-negotiable owner rule: a class teacher can never capture marks for
         // their own class. Other classes in the grade remain available to them.
@@ -703,10 +815,10 @@ class TraditionalExamService(
                     throw invalidArgument("The learner is not a member of that class")
                 }
             }
-            if (ownClasses.isNotEmpty() && !coordinatorOperator) {
+            if (ownClasses.isNotEmpty() && !(coordinatorOperator && reviewStage)) {
                 val student = userRepository.findById(studentId).orElse(null)
                 if (student != null && ownClasses.any { it.equals(classTagOf(student, exam), ignoreCase = true) }) {
-                    throw ApiException(ApiErrorCode.FORBIDDEN, "A class teacher cannot capture marks for their own class")
+                    throw ApiException(ApiErrorCode.FORBIDDEN, "You cannot capture marks for your own class")
                 }
             }
             // A coordinator may add a missing learner from the review panel while
@@ -754,17 +866,36 @@ class TraditionalExamService(
             row.componentScores = entry.componentScores?.let { mapper.writeValueAsString(it) }
             row.enteredBy = operator.id
             row.enteredAt = clock.instant()
-            row.confirmedByTeacher = false
-            row.confirmedAt = null
+            // A saved row is "captured": the client moves the learner to its Captured
+            // tab immediately, and a refresh/return keeps that state. The session-level
+            // submit (confirmMarks) still owns the final confirmation gate.
+            row.confirmedByTeacher = true
+            row.confirmedAt = clock.instant()
             markRepository.save(row)
             saved += row
         }
+        // Enforce after every per-entry guard passed: a rejected batch (e.g. a class
+        // teacher's own class) must not establish the one-class session lock.
+        // Capture is one class per teacher, coordinators included. During the review
+        // stage a coordinator may correct learners across classes in their grade.
+        if (!(coordinatorOperator && reviewStage)) {
+            enforceCaptureClassLock(exam, operator.id, entries)
+        }
         if (exam.analyticsSnapshot != null) exam.analyticsSnapshot = null
-        if (exam.status == TraditionalExamStatus.PENDING || exam.status == TraditionalExamStatus.CONFIRMED) {
-            if (exam.status == TraditionalExamStatus.CONFIRMED) {
+        if (exam.status == TraditionalExamStatus.PENDING || exam.status == TraditionalExamStatus.CONFIRMED ||
+            (exam.status == TraditionalExamStatus.FINALIZED && coordinatorOperator)
+        ) {
+            if (exam.status == TraditionalExamStatus.CONFIRMED || exam.status == TraditionalExamStatus.FINALIZED) {
                 val confirmations = confirmationRepository.findAllByExamId(exam.id)
                 confirmations.forEach { it.confirmedAt = null }
                 confirmationRepository.saveAll(confirmations)
+            }
+            // Reopening a finalized exam after a coordinator correction: the old snapshot
+            // must not survive, and the coordinator finalizes again when the edits are done.
+            if (exam.status == TraditionalExamStatus.FINALIZED) {
+                exam.finalizedAt = null
+                exam.finalizedBy = null
+                exam.analyticsSnapshot = null
             }
             exam.status = TraditionalExamStatus.IN_PROGRESS
             examRepository.save(exam)
@@ -1183,6 +1314,10 @@ class TraditionalExamService(
                 return editRequestDto(existing, publicExamId(existing.examId))
             }
         }
+        // F7: a coordinator (and school-wide staff) may request and self-approve after
+        // finalization; the client hides the request modal while direct editing is
+        // available, but the server keeps the path open. A class teacher's request is
+        // queued for the coordinator.
         // Guards the client also enforces locally (spec 10 section 5.3 / Appendix A).
         // The server is the authority for an offline client that skipped them.
         // F7: a class teacher's "submitted" state opens the edit-request path before
@@ -1848,7 +1983,7 @@ class TraditionalExamService(
         val schoolId = exam.schoolId
         val classEntity = if (schoolId != null) {
             teacherClassRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId)
-                .firstOrNull { it.name.equals(target, ignoreCase = true) }
+                .firstOrNull { it.name.equals(target, ignoreCase = true) && GradeNormalizer.sameGrade(it.gradeLevel, exam.gradeLevel) }
         } else {
             null
         }
@@ -1864,10 +1999,15 @@ class TraditionalExamService(
     private fun studentsForExam(exam: TraditionalExamEntity): List<UserEntity> {
         val schoolId = exam.schoolId
         val grade = exam.gradeLevel
+        // Grade labels drift between "5", "Grade 5" and "GRADE 5" depending on how a
+        // learner/class was provisioned. Filter through GradeNormalizer so a whole class
+        // of roster-only learners never disappears from the capture table.
         val scoped = if (schoolId != null) {
-            userRepository.findAllBySchoolIdAndGradeLevelAndRole(schoolId, grade, Role.STUDENT)
+            userRepository.findAllBySchoolIdAndRoleOrderByNameAsc(schoolId, Role.STUDENT)
+                .filter { GradeNormalizer.sameGrade(it.gradeLevel, grade) }
         } else {
-            userRepository.findAllByGradeLevelAndRole(grade, Role.STUDENT)
+            userRepository.findAllByRoleAndIsActiveTrue(Role.STUDENT)
+                .filter { GradeNormalizer.sameGrade(it.gradeLevel, grade) }
         }
         if (scoped.isNotEmpty()) return scoped.filter { it.isActive }
         val marks = markRepository.findAllByExamId(exam.id).map { it.studentId }.distinct()
@@ -2053,10 +2193,8 @@ class TraditionalExamService(
     /** True when [target] is the caller's own class; the owner rule forbids capturing it. */
     private fun isOwnClass(current: CurrentUser, target: String?, examGrade: String? = null): Boolean {
         if (current.role != Role.TEACHER || target.isNullOrBlank()) return false
-        // A coordinator capturing their own grade is exercising grade authority, not
-        // entering their class as its class teacher.
-        val actor = user(current)
-        if (gradeAuthority.isCoordinator(actor) && gradeAuthority.overseesGrade(actor, examGrade)) return false
+        // Capture always skips the caller's own class, coordinators included. A coordinator
+        // captures another class in the grade and later corrects learners in the review tab.
         return ownClassTags(current.userId).any { it.equals(target, ignoreCase = true) }
     }
 
@@ -2064,6 +2202,56 @@ class TraditionalExamService(
         teacherClassRepository.findAllByTeacherUserIdAndIsActiveTrueOrderByNameAsc(teacherId)
             .map { it.name }
             .toSet()
+
+    /**
+     * Enforces the owner's one-class-per-session rule (findings3.md paper-exams #6): once an
+     * ordinary class teacher saves a batch for a class, every later batch in this exam must
+     * target the same class. Coordinators and school-wide staff never reach this method.
+     *
+     * A batch that explicitly names two classes is refused outright. Legacy clients that omit
+     * `classId` are resolved from the marked learners' class (the same resolution `classTagOf`
+     * uses) only when that is unambiguous; an ambiguous legacy payload is left unlocked rather
+     * than guessing a class the teacher did not choose.
+     */
+    private fun enforceCaptureClassLock(exam: TraditionalExamEntity, teacherId: UUID, entries: List<MarkEntryDto>) {
+        val explicit = entries.mapNotNull { entry ->
+            entry.classId?.trim()?.takeIf { it.isNotEmpty() }?.let { parseUuid(it, "class id") }
+        }.toSet()
+        if (explicit.size > 1) {
+            throw conflict("Capture one class per session: this batch mixes more than one class")
+        }
+        val candidates = if (explicit.isNotEmpty()) {
+            explicit
+        } else {
+            val students = userRepository.findAllById(entries.map { parseUuid(it.studentId, "student id") }.distinct())
+            val derived = students.mapNotNull { student ->
+                classMembershipRepository.findAllByStudentId(student.id).firstOrNull()?.classId
+                    ?: student.provisionedClassId
+            }.toSet()
+            if (derived.size != 1) return
+            derived
+        }
+        val classId = candidates.single()
+        val existing = captureLockRepository.findByExamIdAndTeacherId(exam.id, teacherId)
+        if (existing == null) {
+            captureLockRepository.save(
+                TraditionalCaptureLockEntity().apply {
+                    this.examId = exam.id
+                    this.teacherId = teacherId
+                    this.classId = classId
+                    classTag = teacherClassRepository.findById(classId).orElse(null)?.name.orEmpty()
+                },
+            )
+            return
+        }
+        if (existing.classId != classId) {
+            val locked = existing.classTag.trim().ifEmpty { "one class" }
+            throw conflict(
+                "This capture session is locked to " + locked +
+                    ". One teacher captures one class per session.",
+            )
+        }
+    }
 
     private fun requireStaffWriter(current: CurrentUser) {
         if (current.role != Role.TEACHER && current.role != Role.ADMIN) {

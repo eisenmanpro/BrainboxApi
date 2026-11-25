@@ -54,6 +54,13 @@ class TraditionalExamController(
         @Valid @RequestBody request: UpdateTraditionalExamRequest,
     ): TraditionalExamDto = service.updateExam(currentUser, examId, request)
 
+    @PostMapping("/exams/{examId}/capture-class")
+    fun bindCaptureClass(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable examId: String,
+        @Valid @RequestBody request: BindCaptureClassRequest,
+    ): TraditionalClassDto = service.bindCaptureClass(currentUser, examId, request)
+
     @GetMapping("/exams/{examId}/capture-classes")
     fun captureClasses(
         @AuthenticationPrincipal currentUser: CurrentUser,

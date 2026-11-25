@@ -36,6 +36,11 @@ class TeacherClassesController(
     fun list(@AuthenticationPrincipal currentUser: CurrentUser): List<TeacherClassPayload> =
         service.teacherClasses(teacher(currentUser))
 
+    /** The school's active class catalogue for pickers that are not limited to the caller's classes. */
+    @GetMapping("/catalogue")
+    fun catalogue(@AuthenticationPrincipal currentUser: CurrentUser): List<TeacherClassPayload> =
+        service.schoolClasses(teacher(currentUser))
+
     @PostMapping
     fun create(
         @AuthenticationPrincipal currentUser: CurrentUser,

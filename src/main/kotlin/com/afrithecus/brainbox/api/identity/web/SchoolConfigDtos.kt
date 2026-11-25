@@ -13,6 +13,30 @@ data class SchoolBrandingUploadPayload(
 )
 
 /**
+ * One term's exact window. The report-facing label stays in
+ * [SchoolConfigPayload.academicCalendar]; this adds the dates so every surface can
+ * resolve the real current term instead of guessing from the month.
+ */
+data class TermDatePayload(
+    val name: String,
+    /** ISO local date (yyyy-MM-dd), inclusive. */
+    val start: String,
+    /** ISO local date (yyyy-MM-dd), inclusive. */
+    val end: String,
+)
+
+/** The resolved calendar the teacher-facing screens read. */
+data class TermCalendarPayload(
+    val schoolId: String,
+    val academicCalendar: List<String> = emptyList(),
+    val termDates: List<TermDatePayload> = emptyList(),
+    /** The term whose window contains today, or null between terms. */
+    val currentTerm: String? = null,
+    val currentTermStart: String? = null,
+    val currentTermEnd: String? = null,
+)
+
+/**
  * Branding/academic configuration for a school (client models.analytics
  * SchoolConfig in repository/admin/SchoolAnalyticsRepository.kt).
  */
@@ -29,6 +53,8 @@ data class SchoolConfigPayload(
     val email: String? = null,
     val watermarkText: String? = null,
     val academicCalendar: List<String> = emptyList(),
+    /** Exact windows per term; NULL = leave unchanged (older clients), [] clears. */
+    val termDates: List<TermDatePayload>? = null,
     val cbcStrands: List<String> = emptyList(),
     /** Server-owned room list for the timetable/room pickers (TT-3). */
     val rooms: List<String> = emptyList(),

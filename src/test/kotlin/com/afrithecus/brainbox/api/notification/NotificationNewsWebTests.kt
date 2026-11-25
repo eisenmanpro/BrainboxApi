@@ -293,6 +293,46 @@ class NotificationNewsWebTests(
         )
         check(mediaImage.imageUrl == "/media/news/photo.jpg")
 
+        // Optional image attribution: trimmed, echoed to readers, and never kept
+        // without an image (there would be nothing to credit).
+        val credited = objectMapper.readValue(
+            mockMvc.perform(
+                post("/news").header("Authorization", auth(adminToken))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(CreateNewsRequest(
+                        "Credited image",
+                        "Body",
+                        imageUrl = "/media/news/credit.jpg",
+                        imageCredit = "  Jane Doe  ",
+                    )))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            NewsItemPayload::class.java,
+        )
+        check(credited.imageCredit == "Jane Doe")
+        val orphanCredit = objectMapper.readValue(
+            mockMvc.perform(
+                post("/news").header("Authorization", auth(adminToken))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(CreateNewsRequest(
+                        "No image credit",
+                        "Body",
+                        imageCredit = "Jane Doe",
+                    )))
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            NewsItemPayload::class.java,
+        )
+        check(orphanCredit.imageCredit.isEmpty())
+        mockMvc.perform(
+            post("/news").header("Authorization", auth(adminToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(CreateNewsRequest(
+                    "Long credit",
+                    "Body",
+                    imageUrl = "/media/news/long.jpg",
+                    imageCredit = "a".repeat(201),
+                )))
+        ).andExpect(status().isBadRequest)
+
         // the feed is public: signed-out readers get the same list
         val publicFeed = objectMapper.readValue(
             mockMvc.perform(get("/news")).andExpect(status().isOk).andReturn().response.contentAsString,

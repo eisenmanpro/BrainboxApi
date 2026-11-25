@@ -10,6 +10,7 @@ import com.afrithecus.brainbox.api.live.web.LiveClassParticipantPayload
 import com.afrithecus.brainbox.api.live.web.LiveClassPayload
 import com.afrithecus.brainbox.api.live.web.LiveClassSettingsPayload
 import com.afrithecus.brainbox.api.live.web.LivePollPayload
+import com.afrithecus.brainbox.api.live.web.LiveRecordingUploadRequest
 import com.afrithecus.brainbox.api.live.web.RecordedReplayPayload
 import com.afrithecus.brainbox.api.live.web.TeacherLiveClassRequest
 import org.junit.jupiter.api.Test
@@ -184,5 +185,85 @@ class TeacherLiveClassWebTests(
             .andExpect(status().isNoContent)
         mockMvc.perform(delete("/teacher/live-classes/" + classId + "").header("Authorization", auth(t)))
             .andExpect(status().isNoContent)
+    }
+
+    @Test
+    fun `lifecycle is idempotent and recordings are attached through a checked path`() {
+        val teacher = user(Role.TEACHER, "Lifecycle Teacher", "0755040101")
+        val t = token(teacher)
+        val start = System.currentTimeMillis() + 3_600_000
+        val request = TeacherLiveClassRequest(
+            id = "lc_lifecycle_1", title = "Lifecycle Live", subject = "Science",
+            scheduledStart = start, scheduledEnd = start + 3_600_000,
+        )
+        val created = objectMapper.readValue(
+            mockMvc.perform(post("/teacher/live-classes?teacherId=" + teacher.id).header("Authorization", auth(t))
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            LiveClassPayload::class.java,
+        )
+        val classId = created.id
+
+        // Start twice: the second call is repeat-safe and keeps the original start time.
+        val firstStart = objectMapper.readValue(
+            mockMvc.perform(post("/teacher/live-classes/" + classId + "/start").header("Authorization", auth(t)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            LiveClassPayload::class.java,
+        )
+        check(firstStart.status == "LIVE")
+        check(firstStart.startedAt != null)
+        val secondStart = objectMapper.readValue(
+            mockMvc.perform(post("/teacher/live-classes/" + classId + "/start").header("Authorization", auth(t)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            LiveClassPayload::class.java,
+        )
+        check(secondStart.startedAt == firstStart.startedAt)
+
+        // Heartbeat keeps the row fresh while LIVE.
+        mockMvc.perform(post("/teacher/live-classes/" + classId + "/heartbeat").header("Authorization", auth(t)))
+            .andExpect(status().isOk)
+
+        val firstEnd = objectMapper.readValue(
+            mockMvc.perform(post("/teacher/live-classes/" + classId + "/end").header("Authorization", auth(t)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            LiveClassPayload::class.java,
+        )
+        check(firstEnd.status == "COMPLETED")
+        check(firstEnd.endedAt != null)
+        val secondEnd = objectMapper.readValue(
+            mockMvc.perform(post("/teacher/live-classes/" + classId + "/end").header("Authorization", auth(t)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            LiveClassPayload::class.java,
+        )
+        check(secondEnd.endedAt == firstEnd.endedAt)
+
+        // A completed session cannot be re-started, and a late heartbeat cannot revive it.
+        mockMvc.perform(post("/teacher/live-classes/" + classId + "/start").header("Authorization", auth(t)))
+            .andExpect(status().isConflict)
+        mockMvc.perform(post("/teacher/live-classes/" + classId + "/heartbeat").header("Authorization", auth(t)))
+            .andExpect(status().isConflict)
+
+        // A javascript: recording URL is refused; a real https URL is stored with its duration.
+        mockMvc.perform(post("/teacher/live-classes/" + classId + "/recording").header("Authorization", auth(t))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(LiveRecordingUploadRequest(recordingUrl = "javascript:alert(1)"))))
+            .andExpect(status().isBadRequest)
+        val withRecording = objectMapper.readValue(
+            mockMvc.perform(post("/teacher/live-classes/" + classId + "/recording").header("Authorization", auth(t))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                    LiveRecordingUploadRequest(recordingUrl = "https://cdn.test/rec.webm", durationSeconds = 90),
+                )))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            LiveClassPayload::class.java,
+        )
+        check(withRecording.recordingUrl == "https://cdn.test/rec.webm")
+        check(withRecording.recordingDurationSeconds == 90)
+        val recordings = objectMapper.readValue(
+            mockMvc.perform(get("/teacher/recordings?teacherId=" + teacher.id).header("Authorization", auth(t)))
+                .andExpect(status().isOk).andReturn().response.contentAsString,
+            Array<RecordedReplayPayload>::class.java,
+        )
+        check(recordings.any { it.videoUrl == "https://cdn.test/rec.webm" && it.durationSeconds == 90L })
     }
 }

@@ -68,6 +68,21 @@ class TeacherLiveClassController(
         @PathVariable classId: String,
     ): LiveClassPayload = service.end(teacher(currentUser), classId)
 
+    /** Host liveness ping; keeps a LIVE session distinguishable from a stale one. */
+    @PostMapping("/{classId}/heartbeat")
+    fun heartbeat(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable classId: String,
+    ): LiveClassPayload = service.heartbeat(teacher(currentUser), classId)
+
+    /** Attaches a finished recording (verified media upload or an https/media URL). */
+    @PostMapping("/{classId}/recording")
+    fun recording(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable classId: String,
+        @RequestBody request: LiveRecordingUploadRequest,
+    ): LiveClassPayload = service.attachRecording(teacher(currentUser), classId, request)
+
     @GetMapping("/{classId}/analytics")
     fun analytics(
         @AuthenticationPrincipal currentUser: CurrentUser,

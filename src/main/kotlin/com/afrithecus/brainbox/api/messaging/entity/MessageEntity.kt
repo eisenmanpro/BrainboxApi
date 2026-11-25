@@ -71,6 +71,17 @@ class MessageEntity {
     @Column(name = "is_flagged", nullable = false)
     var isFlagged: Boolean = false
 
+    /**
+     * The composer's category (GENERAL / ACADEMIC / ADMIN / SUPPORT / COUNSELING).
+     * The web filter chips and Android's category list both need it on every copy;
+     * before V38 the server dropped it and every refreshed row read as GENERAL.
+     */
+    @Column(nullable = false, length = 24)
+    var category: String = "GENERAL"
+
+    @Column(name = "is_priority", nullable = false)
+    var isPriority: Boolean = false
+
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant = Instant.now()
 }

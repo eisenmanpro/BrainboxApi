@@ -197,6 +197,57 @@ class MessagingContractWebTests(
     }
 
     @Test
+    fun `message category and priority persist on both copies`() {
+        val host = signupStudent("0711400001", "Msg Category High")
+        val schoolId = UUID.fromString(host.user.schoolId!!)
+        val teacher = newStaff(schoolId, "0711400002", "Category Teacher")
+        val learner = signupStudent("0711400003", "Msg Category High")
+        val learnerEntity = userRepository.findById(UUID.fromString(learner.user.id)).orElseThrow()
+        val classId = createClass(teacher.auth, "Category Class", "Grade 4")
+        addStudents(teacher.auth, classId, listOf(Ctx(learner, learnerEntity)))
+
+        val sent = objectMapper.readValue(
+            mockMvc.perform(
+                post("/messages/teacher/send").header("Authorization", auth(teacher.auth.sessionToken!!))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(TeacherSendMessageRequest(
+                        audienceType = "INDIVIDUAL",
+                        recipientId = learner.user.id,
+                        subject = "Term plan",
+                        body = "Please review the term plan.",
+                        category = "ACADEMIC",
+                        priority = true,
+                    ))),
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            MessagePayload::class.java,
+        )
+        check(sent.category == "ACADEMIC" && sent.isPriority) { "sent copy lost the category: " + sent.category }
+
+        val sentCopy = sent(teacher.auth).first { it.subject == "Term plan" }
+        check(sentCopy.category == "ACADEMIC" && sentCopy.isPriority) { "sent folder lost the category" }
+
+        val inboxCopy = inbox(learner).first { it.subject == "Term plan" }
+        check(inboxCopy.category == "ACADEMIC" && inboxCopy.isPriority) { "inbox copy lost the category" }
+
+        // A hostile/unknown category is coerced, never stored verbatim.
+        val coerced = objectMapper.readValue(
+            mockMvc.perform(
+                post("/messages/teacher/send").header("Authorization", auth(teacher.auth.sessionToken!!))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(TeacherSendMessageRequest(
+                        audienceType = "INDIVIDUAL",
+                        recipientId = learner.user.id,
+                        subject = "Hostile category",
+                        body = "Body",
+                        category = "HOSTILE",
+                    ))),
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+            MessagePayload::class.java,
+        )
+        check(coerced.category == "GENERAL") { "unexpected category: " + coerced.category }
+    }
+
+    @Test
     fun `a reply joins the conversation and receipts move from delivered to read`() {
         val host = signupStudent("0711300001", "Msg Thread High")
         val schoolId = UUID.fromString(host.user.schoolId!!)

@@ -31,6 +31,14 @@ data class TeacherQuestionPayload(
     val isKeyQuestion: Boolean = false,
     val requiresExplanation: Boolean = false,
     val isFromBank: Boolean = false,
+    /** Provenance: AUTHORED (default), BANK or PAPER, plus that source's reference and label. */
+    val sourceKind: String? = null,
+    val sourceRef: String? = null,
+    val sourceLabel: String? = null,
+    /** Optional image, caption and photographer/source credit. */
+    val mediaUrl: String? = null,
+    val mediaCaption: String? = null,
+    val mediaCredit: String? = null,
 )
 
 data class TeacherExamPayload(

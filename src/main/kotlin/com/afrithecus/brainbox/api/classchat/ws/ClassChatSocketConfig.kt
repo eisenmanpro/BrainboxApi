@@ -20,6 +20,8 @@ class ClassChatSocketConfig(
             "/ws/teacher/class-chat/*",
             "/ws/student/class-chat/*",
             "/ws/parent/class-chat/*",
+            // Platform admins moderate any school's groups; the handshake enforces access.
+            "/ws/admin/class-chat/*",
         )
             .addInterceptors(interceptor)
             .setAllowedOriginPatterns("*")

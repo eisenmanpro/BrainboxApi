@@ -69,10 +69,22 @@ class ClassService(
         return classRepository.findAllByTeacherUserIdAndIsActiveTrueOrderByNameAsc(teacher.id).map(::toPayload)
     }
 
+    /**
+     * Every active class in the caller's school. The roster's "Bring a learner in"
+     * picker needs the school catalogue (a teacher only owns one or two classes), and
+     * the transition search is already school-wide.
+     */
+    @Transactional(readOnly = true)
+    fun schoolClasses(teacher: UserEntity): List<TeacherClassPayload> {
+        requireTeacher(teacher)
+        val schoolId = teacher.schoolId ?: return emptyList()
+        return classRepository.findAllBySchoolIdAndIsActiveTrueOrderByNameAsc(schoolId).map(::toPayload)
+    }
+
     @Transactional(readOnly = true)
     fun classStudents(teacher: UserEntity, classIdRaw: String): List<StudentInClassPayload> {
         requireTeacher(teacher)
-        val clazz = ownClass(teacher, classIdRaw)
+        val clazz = readableClass(teacher, classIdRaw)
         val members = membershipRepository.findAllByClassId(clazz.id)
         val students = userRepository.findAllById(members.map { it.studentId })
             .associateBy { it.id }
@@ -137,6 +149,22 @@ class ClassService(
     }
 
     // ------------------------------------------------------------ internals
+
+    /**
+     * Reads are wider than writes: a school-wide ICT admin may inspect any class in
+     * their own school (the CBC project editor credits learners from every class).
+     */
+    private fun readableClass(teacher: UserEntity, raw: String): TeacherClassEntity {
+        val id = parseUuid(raw, "classId")
+        val clazz = classRepository.findById(id).orElse(null) ?: throw notFound("Class not found")
+        if (clazz.teacherUserId == teacher.id) return clazz
+        if (teacher.subRole == com.afrithecus.brainbox.api.identity.model.SubRole.ICT_ADMIN &&
+            teacher.schoolId != null && clazz.schoolId == teacher.schoolId
+        ) {
+            return clazz
+        }
+        throw ApiException(ApiErrorCode.FORBIDDEN, "Not your class")
+    }
 
     private fun ownClass(teacher: UserEntity, raw: String): TeacherClassEntity {
         val id = parseUuid(raw, "classId")
