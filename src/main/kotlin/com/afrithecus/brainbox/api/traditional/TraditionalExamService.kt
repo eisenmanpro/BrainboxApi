@@ -27,6 +27,7 @@ import com.afrithecus.brainbox.api.traditional.entity.TraditionalEditRequestEnti
 import com.afrithecus.brainbox.api.traditional.entity.TraditionalExamEntity
 import com.afrithecus.brainbox.api.traditional.entity.TraditionalExamSubjectEntity
 import com.afrithecus.brainbox.api.traditional.entity.TraditionalMarkEntity
+import com.afrithecus.brainbox.api.traditional.entity.TraditionalPublishedEditEntity
 import com.afrithecus.brainbox.api.traditional.entity.TraditionalSubjectConfigEntity
 import com.afrithecus.brainbox.api.traditional.model.ExamTerm
 import com.afrithecus.brainbox.api.traditional.model.TraditionalEditStatus
@@ -41,10 +42,12 @@ import com.afrithecus.brainbox.api.traditional.repository.TraditionalEditRequest
 import com.afrithecus.brainbox.api.traditional.repository.TraditionalExamRepository
 import com.afrithecus.brainbox.api.traditional.repository.TraditionalExamSubjectRepository
 import com.afrithecus.brainbox.api.traditional.repository.TraditionalMarkRepository
+import com.afrithecus.brainbox.api.traditional.repository.TraditionalPublishedEditRepository
 import com.afrithecus.brainbox.api.traditional.repository.TraditionalSubjectConfigRepository
 import com.afrithecus.brainbox.api.traditional.web.CaptureStudentDto
 import com.afrithecus.brainbox.api.traditional.web.CaptureStudentStatus
 import com.afrithecus.brainbox.api.traditional.web.BindCaptureClassRequest
+import com.afrithecus.brainbox.api.traditional.web.ClassSubmissionDto
 import com.afrithecus.brainbox.api.traditional.web.CaptureSummaryDto
 import com.afrithecus.brainbox.api.traditional.web.ClassCaptureSummaryDto
 import com.afrithecus.brainbox.api.traditional.web.ClassGradeAnalysisDto
@@ -66,6 +69,7 @@ import com.afrithecus.brainbox.api.traditional.web.SubjectComponentDto
 import com.afrithecus.brainbox.api.traditional.web.SubjectComponentResultDto
 import com.afrithecus.brainbox.api.traditional.web.SubjectConfigDto
 import com.afrithecus.brainbox.api.traditional.web.SubjectTeacherContributionDto
+import com.afrithecus.brainbox.api.traditional.web.SubmissionSummaryDto
 import com.afrithecus.brainbox.api.traditional.web.TopPerformerDto
 import com.afrithecus.brainbox.api.traditional.web.StrugglingStudentDto
 import com.afrithecus.brainbox.api.traditional.web.TraditionalExamAnalyticsDto
@@ -86,6 +90,7 @@ import tools.jackson.databind.ObjectMapper
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -110,6 +115,7 @@ class TraditionalExamService(
     private val captureLockRepository: TraditionalCaptureLockRepository,
     private val editRequestRepository: TraditionalEditRequestRepository,
     private val editPermissionRepository: TraditionalEditPermissionRepository,
+    private val publishedEditRepository: TraditionalPublishedEditRepository,
     private val userRepository: UserRepository,
     private val schoolRepository: SchoolRepository,
     private val classMembershipRepository: ClassMembershipRepository,
@@ -490,6 +496,50 @@ class TraditionalExamService(
         return examDto(exam, current)
     }
 
+    @Transactional(readOnly = true)
+    fun submissions(current: CurrentUser, examIdRaw: String): SubmissionSummaryDto {
+        requireStaffReader(current)
+        val exam = exam(current, examIdRaw)
+        requireCoordinatorForExam(current, exam)
+        return SubmissionSummaryDto(submissionRows(exam))
+    }
+
+    /** One row per class in the exam grade: submitted state, teacher and scored-learner count. */
+    private fun submissionRows(exam: TraditionalExamEntity): List<ClassSubmissionDto> {
+        val classes = teacherClassesForExam(exam)
+        if (classes.isEmpty()) return emptyList()
+        val locks = captureLockRepository.findAllByExamId(exam.id).associateBy { it.classId }
+        val marksByStudent = markRepository.findAllByExamId(exam.id).groupBy { it.studentId }
+        val confirmations = confirmationRepository.findAllByExamId(exam.id)
+        val teachers = userRepository.findAllById(classes.map { it.teacherUserId }.distinct()).associateBy { it.id }
+        val students = studentsForExam(exam)
+        return classes.map { cls ->
+            val lock = locks[cls.id]
+            // Roster-only learners are tagged by provisionedClassId, not a membership row.
+            // Use the same classTagOf scope as the capture summary so a saved score is never
+            // hidden from the coordinator's submissions counter and finalisation guard.
+            val scored = students.count { student ->
+                classTagOf(student, exam).equals(cls.name, ignoreCase = true) && marksByStudent[student.id]?.isNotEmpty() == true
+            }
+            // A class register may be submitted by its own teacher, a coordinator or an
+            // ICT admin; confirmations therefore carry the class tag, not only the
+            // class teacher's id. Fall back to the legacy teacher-id row for old data.
+            val submittedAt = confirmations
+                .filter { it.confirmedAt != null && (it.gradeLevel == cls.name || it.teacherId == cls.teacherUserId) }
+                .mapNotNull { it.confirmedAt }
+                .maxOrNull()
+            ClassSubmissionDto(
+                classTag = cls.name,
+                teacherId = cls.teacherUserId.toString(),
+                teacherName = teachers[cls.teacherUserId]?.name,
+                submitted = submittedAt != null,
+                submittedAt = submittedAt?.toEpochMilli(),
+                studentsWithMarks = scored,
+                archived = lock?.archived == true,
+            )
+        }
+    }
+
     @Transactional
     fun finalize(
         current: CurrentUser,
@@ -497,6 +547,9 @@ class TraditionalExamService(
         coordinatorId: String?,
         remarks: String?,
         omitPolicy: TraditionalOmitPolicy? = null,
+        includedClassTags: List<String>? = null,
+        auditWindowMinutes: Int? = null,
+        disregardAcknowledged: Boolean = false,
     ): TraditionalExamDto {
         val exam = exam(current, examIdRaw)
         requireCoordinatorForExam(current, exam)
@@ -509,16 +562,95 @@ class TraditionalExamService(
         }
         val rows = confirmationRepository.findAllByExamId(exam.id)
         if (rows.isNotEmpty() && rows.any { it.confirmedAt == null }) throw conflict("Teachers are still pending confirmation")
+
+        // Owner guard: only submitted classes may be included; an included class needs at
+        // least one scored learner, and ignoring a class with >=10 saved-but-unsubmitted
+        // learners needs an explicit acknowledgement.
+        val active = submissionRows(exam).filter { !it.archived }
+        val included = if (includedClassTags.isNullOrEmpty()) {
+            active.filter { it.submitted }.map { it.classTag }
+        } else {
+            includedClassTags.map { it.trim() }.filter { it.isNotEmpty() }
+        }
+        val byTag = active.associateBy { it.classTag }
+        val zeroScore = included.filter { (byTag[it]?.studentsWithMarks ?: 0) == 0 }
+        if (zeroScore.isNotEmpty()) throw invalidArgument("Include only classes with at least one scored learner: " + zeroScore.joinToString(", "))
+        val ignored = active.filter { !included.contains(it.classTag) }
+        if (ignored.isNotEmpty() && !disregardAcknowledged) {
+            val heavy = ignored.filter { !it.submitted && it.studentsWithMarks >= 10 }
+            if (heavy.isNotEmpty()) {
+                throw conflict("Ignored classes still have saved but unsubmitted marks: " +
+                    heavy.map { it.classTag }.joinToString(", ") + ". Remind those teachers or acknowledge the disregard.")
+            }
+        }
+
         val coordinator = coordinatorId?.let { parseUuidOrNull(it) } ?: current.userId
+        val minutes = (auditWindowMinutes ?: 30).coerceIn(1, 10080)
         exam.status = TraditionalExamStatus.FINALIZED
         exam.finalizedAt = clock.instant()
         exam.finalizedBy = coordinator
         exam.coordinatorRemarks = remarks
-        if (omitPolicy != null) exam.omitPolicy = omitPolicy
+        exam.omitPolicy = omitPolicy ?: exam.omitPolicy
+        exam.auditWindowMinutes = minutes
+        exam.auditDeadlineAt = clock.instant().plus(minutes.toLong(), ChronoUnit.MINUTES)
+        exam.includedClassTags = mapper.writeValueAsString(included)
         snapshotAnalytics(exam)
         examRepository.save(exam)
+
+        // Ignored classes are archived, never left pending.
+        val archiveRows = captureLockRepository.findAllByExamId(exam.id)
+            .filter { !included.contains(it.classTag) && !it.archived }
+        archiveRows.forEach { it.archived = true }
+        if (archiveRows.isNotEmpty()) captureLockRepository.saveAll(archiveRows)
+
         notifyAnalyticsCompleted(exam, current)
+        active.filter { included.contains(it.classTag) }.forEach { row ->
+            row.teacherId?.let { id -> parseUuidOrNull(id) }?.let { teacherId ->
+                notify(teacherId, "Exam finalised — audit window open",
+                    exam.title + " is finalised. Review scores and request corrections within " + minutes + " minutes.",
+                    examRoute(exam), "Review exam", "HIGH", "HIGH")
+            }
+        }
         return examDto(exam, current)
+    }
+
+    @Transactional
+    fun extendAuditWindow(current: CurrentUser, examIdRaw: String, minutesRaw: Int): TraditionalExamDto {
+        requireCoordinatorForExam(current, exam(current, examIdRaw))
+        val exam = exam(current, examIdRaw)
+        if (exam.status != TraditionalExamStatus.FINALIZED) throw conflict("Only a finalised exam has an audit window")
+        val minutes = minutesRaw.coerceIn(1, 10080)
+        // Extend from the existing deadline: a later extension must never shorten it.
+        val base = maxOf(exam.auditDeadlineAt ?: clock.instant(), clock.instant())
+        exam.auditDeadlineAt = base.plus(minutes.toLong(), ChronoUnit.MINUTES)
+        exam.auditWindowMinutes = minutes
+        examRepository.save(exam)
+        includedTags(exam).forEach { tag ->
+            submissionRows(exam).firstOrNull { it.classTag == tag }?.teacherId?.let { id ->
+                parseUuidOrNull(id)?.let { teacherId ->
+                    notify(teacherId, "Audit window extended", exam.title + " corrections are now due " + minutes + " minutes later.", examRoute(exam), "Review exam", "NORMAL", "NORMAL")
+                }
+            }
+        }
+        return examDto(exam, current)
+    }
+
+    @Transactional
+    fun broadcast(current: CurrentUser, examIdRaw: String, message: String) {
+        requireCoordinatorForExam(current, exam(current, examIdRaw))
+        val exam = exam(current, examIdRaw)
+        if (exam.status != TraditionalExamStatus.FINALIZED && exam.status != TraditionalExamStatus.PUBLISHED) {
+            throw conflict("Broadcast is available only after finalisation")
+        }
+        val text = message.trim().take(500)
+        if (text.isEmpty()) throw invalidArgument("Message is required")
+        val tags = includedTags(exam)
+        val rows = submissionRows(exam).filter { tags.isEmpty() || tags.contains(it.classTag) }
+        rows.forEach { row ->
+            row.teacherId?.let { id -> parseUuidOrNull(id) }?.let { teacherId ->
+                notify(teacherId, exam.title + " notice", text, examRoute(exam), "Open exam", "NORMAL", "NORMAL")
+            }
+        }
     }
 
     @Transactional
@@ -527,12 +659,15 @@ class TraditionalExamService(
         requireCoordinatorForExam(current, exam)
         if (exam.status == TraditionalExamStatus.PUBLISHED) return examDto(exam, current)
         if (exam.status != TraditionalExamStatus.FINALIZED) throw conflict("Exam must be FINALIZED before publishing")
+        if (exam.auditDeadlineAt != null && clock.instant().isBefore(exam.auditDeadlineAt)) {
+            throw conflict("The audit window is still open; publish after it expires")
+        }
         val coordinator = coordinatorId?.let { parseUuidOrNull(it) } ?: current.userId
         exam.status = TraditionalExamStatus.PUBLISHED
         exam.publishedAt = clock.instant()
         exam.publishedBy = coordinator
         examRepository.save(exam)
-        fanOutResults(exam)
+        fanOutResults(exam, includedTags(exam))
         notify(current.userId, "Results published", exam.title + " results are now visible to learners and parents.", examRoute(exam), "View exam", "NORMAL", "NORMAL")
         return examDto(exam, current)
     }
@@ -607,12 +742,25 @@ class TraditionalExamService(
                     allowed = true,
                     lockedClassId = lockedClassId,
                     lockedClassName = lockedClassName,
+                    archived = lock?.archived == true,
                 )
             )
         }
         val classById = allClasses.associateBy { it.id }
         val teachers = userRepository.findAllById(allClasses.map { it.teacherUserId }.distinct())
             .associateBy { it.id }
+        // A class already held by another teacher is reported on every row, including
+        // the caller's own locked row, so the web can name who holds the unavailable class.
+        val otherLocks = captureLockRepository.findAllByExamId(exam.id)
+            .filter { it.teacherId != current.userId }
+            .associateBy { it.classId }
+        val lockTeachers = userRepository.findAllById(otherLocks.values.map { it.teacherId }.distinct())
+            .associateBy { it.id }
+        val otherHolder = otherLocks.values.firstNotNullOfOrNull { row ->
+            val name = classById[row.classId]?.name
+            val teacher = lockTeachers[row.teacherId]?.name
+            if (name != null && teacher != null) name to teacher else null
+        }
         // The caller's own class is never a capture target (this page belongs to the
         // class teacher; someone else in the grade captures it).
         val candidates = allClasses.filter { !isOwnClass(current, it.name, exam.gradeLevel) }
@@ -628,14 +776,12 @@ class TraditionalExamService(
                     allowed = true,
                     lockedClassId = lockedClassId,
                     lockedClassName = lockedClassName,
+                    archived = lock?.archived == true,
+                    otherClassName = otherHolder?.first,
+                    otherClassTeacherName = otherHolder?.second,
                 )
             )
         }
-        val otherLocks = captureLockRepository.findAllByExamId(exam.id)
-            .filter { it.teacherId != current.userId }
-            .associateBy { it.classId }
-        val lockTeachers = userRepository.findAllById(otherLocks.values.map { it.teacherId }.distinct())
-            .associateBy { it.id }
         return candidates.map { cls ->
             val other = otherLocks[cls.id]
             TraditionalClassDto(
@@ -649,6 +795,9 @@ class TraditionalExamService(
                 lockedClassName = lockedClassName,
                 lockedByTeacherId = other?.teacherId?.toString(),
                 lockedByTeacherName = other?.let { lockTeachers[it.teacherId]?.name },
+                archived = other?.archived == true,
+                otherClassName = otherHolder?.first,
+                otherClassTeacherName = otherHolder?.second,
             )
         }.sortedByDescending { it.allowed }
     }
@@ -765,11 +914,14 @@ class TraditionalExamService(
     fun saveMarks(current: CurrentUser, examIdRaw: String, entries: List<MarkEntryDto>): List<TraditionalMarkDto> {
         requireStaffWriter(current)
         val exam = exam(current, examIdRaw)
-        // Published results are immutable for learners and parents; the client
-        // locks editing too (UI-H4), so reject any late or out-of-order write.
-        if (exam.status == TraditionalExamStatus.PUBLISHED) throw conflict("Published exam marks are immutable")
-        if (entries.isEmpty()) return emptyList()
         val operator = user(current)
+        // Owner rule: published results are immutable for teachers, but ICT admins
+        // (and platform admins) may correct scores. Every such correction is audited and
+        // broadcast to the learner, their class teacher and all ICT admins.
+        val publishedOverride = exam.status == TraditionalExamStatus.PUBLISHED &&
+            (current.role == Role.ADMIN || operator.subRole == SubRole.ICT_ADMIN)
+        if (exam.status == TraditionalExamStatus.PUBLISHED && !publishedOverride) throw conflict("Published exam marks are immutable")
+        if (entries.isEmpty()) return emptyList()
         val subjects = subjectRepository.findAllByExamIdOrderByOrderIndexAsc(exam.id).associateBy { it.subjectId }
         // The exam's own band snapshot (D18), resolved once for the whole batch.
         val sessionBands = sessionGrading(exam)
@@ -793,6 +945,7 @@ class TraditionalExamService(
         // their own class. Other classes in the grade remain available to them.
         val ownClasses = if (operator.role == Role.TEACHER) ownClassTags(operator.id) else emptySet()
         val saved = mutableListOf<TraditionalMarkEntity>()
+        val publishedChanges = mutableListOf<Triple<UUID, Int, Int>>()
         for (entry in entries) {
             val subject = subjects[entry.subjectId] ?: throw invalidArgument("Unknown subject " + entry.subjectId)
             val studentId = parseUuid(entry.studentId, "student id")
@@ -823,7 +976,7 @@ class TraditionalExamService(
             }
             // A coordinator may add a missing learner from the review panel while
             // the exam is still capture/locked-pre-final; published marks stay frozen.
-            if (!editable && !coordinatorCanReview && !hasEditPermission(exam.id, studentId, operator.id)) {
+            if (!editable && !coordinatorCanReview && !publishedOverride && !hasEditPermission(exam.id, studentId, operator.id)) {
                 throw conflict("Exam marks are locked; an approved edit permission is required")
             }
             if (entry.rawScore < 0 || entry.rawScore > subject.maxScore) {
@@ -859,6 +1012,7 @@ class TraditionalExamService(
                     this.studentId = studentId
                     this.subjectId = entry.subjectId
                 }
+            val oldScore = row.rawScore
             val percentage = percentage(entry.rawScore, subject.maxScore)
             row.rawScore = entry.rawScore
             row.percentage = percentage
@@ -873,12 +1027,14 @@ class TraditionalExamService(
             row.confirmedAt = clock.instant()
             markRepository.save(row)
             saved += row
+            if (publishedOverride) publishedChanges += Triple(studentId, oldScore, entry.rawScore)
         }
+        if (publishedOverride) recordPublishedEdits(exam, operator, publishedChanges)
         // Enforce after every per-entry guard passed: a rejected batch (e.g. a class
         // teacher's own class) must not establish the one-class session lock.
         // Capture is one class per teacher, coordinators included. During the review
         // stage a coordinator may correct learners across classes in their grade.
-        if (!(coordinatorOperator && reviewStage)) {
+        if (!publishedOverride && !(coordinatorOperator && reviewStage)) {
             enforceCaptureClassLock(exam, operator.id, entries)
         }
         if (exam.analyticsSnapshot != null) exam.analyticsSnapshot = null
@@ -951,6 +1107,10 @@ class TraditionalExamService(
         val student = resolveReportStudent(current, studentIdRaw)
         if (exam.status != TraditionalExamStatus.PUBLISHED) {
             throw ApiException(ApiErrorCode.FORBIDDEN, "Results are not published yet")
+        }
+        val included = includedTags(exam)
+        if (included.isNotEmpty() && !included.contains(classTagOf(student, exam))) {
+            throw notFound("Results are not published for this class")
         }
         val marks = markRepository.findAllByExamIdAndStudentId(exam.id, student.id)
         if (marks.isEmpty()) throw notFound("No marks recorded for this student")
@@ -1363,6 +1523,29 @@ class TraditionalExamService(
             status = TraditionalEditStatus.PENDING
         }
         editRequestRepository.save(row)
+        // Surface the new request in the reviewer's notification feed, not only in the
+        // panel which nobody remembers to open. Grade coordinators for this exam's grade
+        // and the school's ICT admins are the reviewers; a self-requesting reviewer is
+        // excluded because they already see the confirmation on screen.
+        val reviewers = mutableSetOf<UUID>()
+        exam.schoolId?.let { schoolId ->
+            userRepository.findAllBySchoolIdAndSubRoleAndIsActiveTrue(schoolId, SubRole.GRADE_COORDINATOR)
+                .filter { gradeAuthority.overseesGrade(it, exam.gradeLevel) }
+                .forEach { reviewers += it.id }
+            userRepository.findAllBySchoolIdAndSubRoleAndIsActiveTrue(schoolId, SubRole.ICT_ADMIN)
+                .forEach { reviewers += it.id }
+        }
+        reviewers.filter { it != current.userId }.forEach { reviewerId ->
+            notify(
+                reviewerId,
+                "New edit request",
+                "A teacher requested a score correction for " + exam.title + ". Review and decide.",
+                examRoute(exam),
+                "Review request",
+                "HIGH",
+                "HIGH",
+            )
+        }
         return editRequestDto(row, publicExamId(row.examId))
     }
 
@@ -2069,6 +2252,9 @@ class TraditionalExamService(
         coordinatorRemarks = exam.coordinatorRemarks,
         publishedAt = exam.publishedAt?.toEpochMilli(),
         publishedBy = exam.publishedBy?.toString(),
+        auditDeadlineAt = exam.auditDeadlineAt?.toEpochMilli(),
+        auditWindowMinutes = exam.auditWindowMinutes,
+        includedClassTags = includedTags(exam).toList(),
         schoolId = exam.schoolId?.toString(),
         grading = grading,
     )
@@ -2438,6 +2624,47 @@ class TraditionalExamService(
         }
     }
 
+    /** Audited ICT-admin correction of a published score, with the required fan-out. */
+    private fun recordPublishedEdits(
+        exam: TraditionalExamEntity,
+        operator: UserEntity,
+        changes: List<Triple<UUID, Int, Int>>,
+    ) {
+        val students = userRepository.findAllById(changes.map { it.first }.distinct()).associateBy { it.id }
+        val classes = teacherClassesForExam(exam)
+        val ictAdmins = exam.schoolId?.let {
+            userRepository.findAllBySchoolIdAndSubRoleAndIsActiveTrue(it, SubRole.ICT_ADMIN)
+        } ?: emptyList()
+        changes.forEach { (studentId, oldScore, newScore) ->
+            val student = students[studentId]
+            val tag = student?.let { classTagOf(it, exam) }
+            val classTeacherId = classes.firstOrNull { it.name.equals(tag, ignoreCase = true) }?.teacherUserId
+            publishedEditRepository.save(TraditionalPublishedEditEntity().apply {
+                this.examId = exam.id
+                this.studentId = studentId
+                actorId = operator.id
+                this.oldScore = oldScore
+                this.newScore = newScore
+                editedAt = clock.instant()
+                notifiedLearner = student != null
+                notifiedClassTeacher = classTeacherId != null
+                notifiedIctAdmins = ictAdmins.isNotEmpty()
+            })
+            val detail = exam.title + ": " + oldScore + " to " + newScore
+            if (student != null) {
+                // Account unification: the learner account is the guardian inbox.
+                notify(student.id, "Published score corrected", detail, examRoute(exam), "View results", "HIGH", "HIGH")
+            }
+            if (classTeacherId != null) {
+                notify(classTeacherId, "Published score corrected by ICT admin",
+                    detail + " for " + (student?.name ?: "a learner"), examRoute(exam), "Review exam", "HIGH", "HIGH")
+            }
+            ictAdmins.filter { it.id != operator.id }.forEach { admin ->
+                notify(admin.id, "Published score corrected by ICT admin", detail, examRoute(exam), "Review exam", "NORMAL", "NORMAL")
+            }
+        }
+    }
+
     private fun notify(
         userId: UUID,
         title: String,
@@ -2459,18 +2686,18 @@ class TraditionalExamService(
         )
     }
 
-    private fun fanOutResults(exam: TraditionalExamEntity) {
+    private fun fanOutResults(exam: TraditionalExamEntity, included: Set<String> = emptySet()) {
         // Publish only the learners who survive the coordinator's finalize policy;
         // an omitted learner must not receive a report for marks left out of analysis.
         val studentIds = analysisView(exam).marks.map { it.studentId }.distinct()
         val students = userRepository.findAllById(studentIds)
+            .filter { included.isEmpty() || included.contains(classTagOf(it, exam)) }
         for (student in students) {
             notify(student.id, "Results Ready: " + exam.title, "Your " + exam.title + " results are ready. Tap to view and download your report.", "exam_results/" + exam.id, "View Results", "HIGH", "HIGH")
         }
-        for (student in students) {
-            val parentId = student.parentUserId ?: continue
-            notify(parentId, "Results Ready: " + student.name + " - " + exam.title, "Your child's " + exam.title + " results are ready. Tap to view the report.", "student_report/" + student.id, "View Report", "HIGH", "HIGH")
-        }
+        // Account unification: the learner's own account is the guardian inbox. No
+        // separate PARENT account is notified (legacy aliases are not a second family).
+        return
     }
 
     private fun canonicalGrade(raw: String?): String {
@@ -2489,6 +2716,13 @@ class TraditionalExamService(
     }
 
     // ---------------------------------------------------------------- json helpers
+
+    /** Class tags included in finalisation; empty means "all submitted classes" (legacy). */
+    private fun includedTags(exam: TraditionalExamEntity): Set<String> {
+        val node = runCatching { mapper.readTree(exam.includedClassTags) }.getOrNull() ?: return emptySet()
+        if (!node.isArray) return emptySet()
+        return (0 until node.size()).mapNotNull { node.get(it)?.asString() }.toSet()
+    }
 
     private fun parseComponents(json: String?): List<SubjectComponentDto> {
         if (json.isNullOrBlank()) return emptyList()

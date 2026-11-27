@@ -187,6 +187,11 @@ class TraditionalExamWebTests(
                 post("/traditional/exams/${examId}/finalize").param("coordinatorId", coordinatorId.toString())
                     .param("remarks", "Great term").header("Authorization", auth(token))
             ).andExpect(status().isOk)
+            // Owner workflow: publishing waits for the audit window. Legacy lifecycle
+            // tests advance the clock so they exercise the publication pipeline itself.
+            val stored = examRepository.findById(UUID.fromString(examId)).orElseThrow()
+            stored.auditDeadlineAt = java.time.Instant.now().minusSeconds(1)
+            examRepository.save(stored)
             mockMvc.perform(
                 post("/traditional/exams/${examId}/publish").param("coordinatorId", coordinatorId.toString())
                     .header("Authorization", auth(token))
@@ -303,12 +308,8 @@ class TraditionalExamWebTests(
             Array<AppNotificationPayload>::class.java,
         )
         check(studentNotifications.any { it.actionRoute == "exam_results/" + exam.examId })
-        val parentNotifications = objectMapper.readValue(
-            mockMvc.perform(get("/notifications").param("userId", parent.id.toString()).header("Authorization", auth(parentToken)))
-                .andExpect(status().isOk).andReturn().response.contentAsString,
-            Array<AppNotificationPayload>::class.java,
-        )
-        check(parentNotifications.any { it.actionRoute == "student_report/" + alice.id.toString() })
+        // Account unification: the learner's own account is the guardian inbox. A legacy
+        // PARENT alias is not a second family and receives no separate result notification.
 
         // Coordinator analytics and rankings.
         val analytics = objectMapper.readValue(

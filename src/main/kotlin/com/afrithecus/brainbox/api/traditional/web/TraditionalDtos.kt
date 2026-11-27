@@ -56,6 +56,11 @@ data class TraditionalExamDto(
     val coordinatorRemarks: String? = null,
     val publishedAt: Long? = null,
     val publishedBy: String? = null,
+    /** Audit window opened at finalisation; publishing is refused until this instant. */
+    val auditDeadlineAt: Long? = null,
+    val auditWindowMinutes: Int? = null,
+    /** Class tags included in the finalised result set. */
+    val includedClassTags: List<String> = emptyList(),
     /** Tenant scope so the client can preserve it across pulls (TE-3). */
     val schoolId: String? = null,
     /**
@@ -164,7 +169,30 @@ data class TraditionalClassDto(
     /** Set when another teacher already bound this class for the session. */
     val lockedByTeacherId: String? = null,
     val lockedByTeacherName: String? = null,
+    /** True once finalisation ignored this class; it never appears as a live capture target. */
+    val archived: Boolean = false,
+    /** A class in this exam already held by another teacher, and who holds it. */
+    val otherClassName: String? = null,
+    val otherClassTeacherName: String? = null,
 )
+
+/** One class's submission state for the coordinator's remaining-class counter. */
+data class ClassSubmissionDto(
+    val classTag: String,
+    val teacherId: String? = null,
+    val teacherName: String? = null,
+    val submitted: Boolean = false,
+    val submittedAt: Long? = null,
+    val studentsWithMarks: Int = 0,
+    val archived: Boolean = false,
+)
+
+data class SubmissionSummaryDto(
+    val classes: List<ClassSubmissionDto> = emptyList(),
+)
+
+/** Broadcast sent from the Finalised tab. */
+data class BroadcastRequest(val message: String)
 
 /** Bind the caller to one class for this capture session (the start of score entry). */
 data class BindCaptureClassRequest(

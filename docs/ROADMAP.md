@@ -1064,6 +1064,10 @@ of this catch-up.
 
 ## 7. Tracking
 
+- Paper-exam submission workflow (V41): per-class submissions counter, guarded subset finalisation
+  with archived classes and disregard acknowledgement, audit window with free extension and an
+  explicit publish/extend choice at expiry, included-class-only result fan-out, and audited/broadcast
+  ICT-admin corrections after publication. Contract: `docs/traditional_workflow.md`.
 - This file is the long-term plan; each phase is opened as its own session goal when
   work begins, and closed when its checklist is done and tests pass.
 - Milestone order follows dependency: entitlements/scope/security come before

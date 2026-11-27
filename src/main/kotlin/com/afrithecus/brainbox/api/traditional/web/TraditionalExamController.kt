@@ -4,6 +4,8 @@ import com.afrithecus.brainbox.api.identity.model.CurrentUser
 import com.afrithecus.brainbox.api.traditional.TraditionalExamService
 import com.afrithecus.brainbox.api.traditional.model.ExamTerm
 import com.afrithecus.brainbox.api.traditional.model.TraditionalOmitPolicy
+import com.afrithecus.brainbox.api.traditional.web.BroadcastRequest
+import com.afrithecus.brainbox.api.traditional.web.SubmissionSummaryDto
 import jakarta.validation.Valid
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -102,7 +104,37 @@ class TraditionalExamController(
         @RequestParam(required = false) coordinatorId: String?,
         @RequestParam(required = false) remarks: String?,
         @RequestParam(required = false) omitPolicy: TraditionalOmitPolicy?,
-    ): TraditionalExamDto = service.finalize(currentUser, examId, coordinatorId, remarks, omitPolicy)
+        @RequestParam(required = false) includedClassTags: String?,
+        @RequestParam(required = false) auditWindowMinutes: Int?,
+        @RequestParam(required = false) disregardAcknowledged: Boolean?,
+    ): TraditionalExamDto = service.finalize(
+        currentUser, examId, coordinatorId, remarks, omitPolicy,
+        includedClassTags?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() },
+        auditWindowMinutes, disregardAcknowledged == true,
+    )
+
+    @GetMapping("/exams/{examId}/submissions")
+    fun submissions(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable examId: String,
+    ): SubmissionSummaryDto = service.submissions(currentUser, examId)
+
+    @PostMapping("/exams/{examId}/audit-window/extend")
+    fun extendAuditWindow(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable examId: String,
+        @RequestParam minutes: Int,
+    ): TraditionalExamDto = service.extendAuditWindow(currentUser, examId, minutes)
+
+    @PostMapping("/exams/{examId}/broadcast")
+    fun broadcast(
+        @AuthenticationPrincipal currentUser: CurrentUser,
+        @PathVariable examId: String,
+        @RequestBody request: BroadcastRequest,
+    ): ResponseEntity<Void> {
+        service.broadcast(currentUser, examId, request.message)
+        return ResponseEntity.noContent().build()
+    }
 
     @GetMapping("/exams/{examId}/capture-summary")
     fun captureSummary(

@@ -78,6 +78,17 @@ class TraditionalExamEntity : BaseEntity() {
     @Column(name = "published_by")
     var publishedBy: UUID? = null
 
+    /** Minutes requested at finalisation; the deadline is fixed until an explicit extension. */
+    @Column(name = "audit_window_minutes")
+    var auditWindowMinutes: Int? = null
+
+    @Column(name = "audit_deadline_at")
+    var auditDeadlineAt: Instant? = null
+
+    /** JSON array of class tags included in finalisation; ignored classes are archived. */
+    @Column(name = "included_class_tags", columnDefinition = "text")
+    var includedClassTags: String? = null
+
     /** JSON snapshot of the finalized analytics (F7-A1), served instead of recomputing. */
     @Column(name = "analytics_snapshot", columnDefinition = "text")
     var analyticsSnapshot: String? = null

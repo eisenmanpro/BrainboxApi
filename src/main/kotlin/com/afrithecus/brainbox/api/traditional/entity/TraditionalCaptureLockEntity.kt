@@ -27,4 +27,8 @@ class TraditionalCaptureLockEntity : BaseEntity() {
     /** Human-readable class name at lock time, for the client's restored banner. */
     @Column(name = "class_tag", nullable = false, length = 128)
     var classTag: String = ""
+
+    /** Ignored classes are archived at finalisation rather than left pending forever. */
+    @Column(nullable = false)
+    var archived: Boolean = false
 }
